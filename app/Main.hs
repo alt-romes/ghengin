@@ -1,42 +1,28 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
-import qualified Graphics.UI.GLFW as GLFW
-import Vulkan
+import Ghengin.Device as G
+import Ghengin.Window as G
+import qualified Vulkan as Vk
 
 import qualified Data.Vector as V
 
 main :: IO ()
-main = do
+main = withWindow 800 600 "Vulkan" $ \win -> do
 
-  True <- GLFW.init
-  GLFW.windowHint (GLFW.WindowHint'ClientAPI GLFW.ClientAPI'NoAPI)
-
-  Just win <- GLFW.createWindow 800 600 "Vulkan" Nothing Nothing
-
-  True <- GLFW.vulkanSupported
   -- getRequiredInstanceExtensions
-  (_, V.length -> nExts) <- enumerateInstanceExtensionProperties Nothing
+  (_, V.length -> nExts) <- Vk.enumerateInstanceExtensionProperties Nothing
 
-  putStr "N extensions: "
-  print nExts
+  putStr "N extensions: " >> print nExts
 
-  mainloop win
+  withDevice $ \(!d) -> pure ()
 
-  GLFW.destroyWindow win
+  loopUntilClosed win $ do
 
-  GLFW.terminate
+    pure ()
 
-  
-
-
-mainloop :: GLFW.Window -> IO ()
-mainloop win =
-  GLFW.windowShouldClose win >>= \case
-    False -> do
-      GLFW.pollEvents
-      mainloop win
-    True  -> pure ()
+  putStrLn "Goodbye"
 

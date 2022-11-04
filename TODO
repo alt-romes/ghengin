@@ -1,0 +1,1 @@
+[ ] Since for now we decide a game can ever only use one window, we could have the Ghengin monad propagate the window thorought the program
