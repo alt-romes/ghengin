@@ -14,15 +14,13 @@ main :: IO ()
 main = withWindow 800 600 "Vulkan" $ \win -> do
 
   -- getRequiredInstanceExtensions
-  (_, V.length -> nExts) <- Vk.enumerateInstanceExtensionProperties Nothing
+  (_, nExts) <- Vk.enumerateInstanceExtensionProperties Nothing
 
-  putStr "N extensions: " >> print nExts
+  putStr "Extensions: " >> print nExts
 
-  withDevice $ \(!d) -> pure ()
+  withDevice $ \(!_d) -> pure ()
 
-  loopUntilClosed win $ do
-
-    pure ()
+  loopUntilClosed win $ pure ()
 
   putStrLn "Goodbye"
 
