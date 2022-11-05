@@ -5,7 +5,10 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ImportQualifiedPost #-}
-module Ghengin.Device (Device, withDevice) where
+module Ghengin.Device where
+
+import Data.Ord
+import Data.List qualified as L
 
 import Data.Vector     qualified as V
 import Data.ByteString qualified as BS
@@ -20,10 +23,41 @@ import Foreign.C.String
 import Graphics.UI.GLFW qualified as GLFW
 import Vulkan qualified as Vk
 
-data Device = D { _inst :: Vk.Instance }
+-- ROMES:TODO: Understand this thing's name
+data Volcano = D { _inst :: Vk.Instance }
 
-withDevice :: (Device -> IO a) -> IO a
-withDevice f = bracket createDevice destroyDevice f
+initVulkan :: IO ()
+initVulkan = do
+  vkInst <- createInstance
+  vkPhysicalDevice <- pickPhysicalDevice vkInst
+  pure ()
+
+
+rateDevice :: Vk.PhysicalDevice -> IO (Int, Vk.PhysicalDevice)
+rateDevice d = do
+  props <- Vk.getPhysicalDeviceProperties d
+  _feats <- Vk.getPhysicalDeviceFeatures d
+
+  let s1 = if props.deviceType == Vk.PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+             then 1000
+             else 0
+      s2 = props.limits.maxImageDimension2D
+
+  -- If the app can't function without geometry shaders
+  -- if feats.geometryShader
+  --    then pure (s1 + fromEnum s2, d)
+  --    else pure (0, d)
+
+  pure (s1 + fromEnum s2, d)
+
+pickPhysicalDevice :: Vk.Instance -> IO Vk.PhysicalDevice
+pickPhysicalDevice vkInst = do
+  (_, dvs) <- Vk.enumeratePhysicalDevices vkInst
+  L.sortOn (Down . fst) . toList <$> traverse rateDevice dvs >>= \case
+    []  -> fail "Failed to find GPUs with Vulkan support!"
+    (rating,device):_
+      | rating < 1 -> fail "Failed to find a suitable GPU!"
+      | otherwise  -> pure device
 
 validationLayers :: V.Vector (BS.ByteString)
 validationLayers = [ "VK_LAYER_KHRONOS_validation"
@@ -45,8 +79,11 @@ checkRequiredExtensionsSupport required_exts = do
     pure $ ext `V.elem` (fmap (.extensionName) exts))
     -- False -> fail $ "Required Vulkan extension (" <> show ext <> ") by GLFW not available"
 
-createDevice :: IO Device
-createDevice = do
+-- withDevice :: (Volcano -> IO a) -> IO a
+-- withDevice f = bracket createDevice destroyDevice f
+
+createInstance :: IO Vk.Instance
+createInstance = do
   glfwExtensions <- GLFW.getRequiredInstanceExtensions >>= cstringListToVector
 
   checkRequiredExtensionsSupport glfwExtensions >>= \case
@@ -59,7 +96,7 @@ createDevice = do
 
   vkInst         <- Vk.createInstance (ici glfwExtensions) Nothing
 
-  pure $ D vkInst
+  pure vkInst
 
   where
     ai  :: Vk.ApplicationInfo
@@ -74,7 +111,7 @@ createDevice = do
     ici glfwe
       = Vk.InstanceCreateInfo {..} where
           next  = ()
-          flags = Vk.InstanceCreateFlagBits 0 -- Validation layer reported that using this is a bug and that it should start as 0 :) Vk.INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR
+          flags = Vk.InstanceCreateFlagBits 0
           applicationInfo = Just ai
           enabledLayerNames = validationLayers
           enabledExtensionNames = glfwe
@@ -83,6 +120,8 @@ createDevice = do
     cstringListToVector = fmap fromList . traverse BS.packCString
                         -- . BS.create (newForeignPtr_ extsPtrPtr) count
 
-destroyDevice :: Device -> IO ()
-destroyDevice (D vkInst) = Vk.destroyInstance vkInst Nothing
+
+
+destroyDevice :: Vk.Instance -> IO ()
+destroyDevice vkInst = Vk.destroyInstance vkInst Nothing
 
