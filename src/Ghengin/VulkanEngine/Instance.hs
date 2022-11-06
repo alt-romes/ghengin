@@ -5,7 +5,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ImportQualifiedPost #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.VulkanEngine.Instance where
+module Ghengin.VulkanEngine.Instance (createInstance, destroyInstance) where
 
 import GHC.IsList (fromList)
 
@@ -19,10 +19,6 @@ import Foreign.C.String
 import Graphics.UI.GLFW qualified as GLFW
 import Vulkan qualified as Vk
 
-validationLayers :: V.Vector (BS.ByteString)
-validationLayers = [ "VK_LAYER_KHRONOS_validation"
-                   ]
-
 checkValidationLayerSupport :: V.Vector (BS.ByteString) -> IO Bool
 checkValidationLayerSupport vallys = do
   (_, lps) <- Vk.enumerateInstanceLayerProperties
@@ -35,8 +31,8 @@ checkRequiredExtensionsSupport required_exts = do
   all id <$> forM required_exts (\ext ->
     pure $ ext `V.elem` (fmap (.extensionName) exts))
 
-createInstance :: IO Vk.Instance
-createInstance = do
+createInstance :: V.Vector BS.ByteString -> IO Vk.Instance
+createInstance validationLayers = do
   glfwExtensions <- GLFW.getRequiredInstanceExtensions >>= cstringListToVector
 
   checkRequiredExtensionsSupport glfwExtensions >>= \case

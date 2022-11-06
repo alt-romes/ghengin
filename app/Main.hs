@@ -4,7 +4,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
-import Ghengin.Device as G
+import Ghengin.VulkanEngine as VE
 import Ghengin.Window as G
 import qualified Vulkan as Vk
 
@@ -18,7 +18,7 @@ main = withWindow 800 600 "Vulkan" $ \win -> do
 
   putStr "Extensions: " >> print nExts
 
-  withDevice $ \(!_d) -> pure ()
+  -- withDevice $ \(!_d) -> pure ()
 
   loopUntilClosed win $ pure ()
 

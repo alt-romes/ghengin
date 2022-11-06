@@ -64,9 +64,13 @@ library
                       Ghengin.Pipeline,
                       Ghengin.Shaders,
                       Ghengin.VulkanEngine,
-                      Ghengin.VulkanEngine.Device,
                       Ghengin.VulkanEngine.Instance,
-                      Ghengin.Shaders.SimpleShader
+                      Ghengin.VulkanEngine.PhysicalDevice,
+                      Ghengin.VulkanEngine.QueueFamilies,
+                      Ghengin.VulkanEngine.Device,
+                      Ghengin.VulkanEngine.Queue,
+                      Ghengin.Shaders.SimpleShader,
+                      Ghengin.Utils
 
     -- Modules included in this library but not exported.
     -- other-modules:
