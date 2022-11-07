@@ -1,13 +1,19 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Window
-  ( Window
-  , withWindow
-  , loopUntilClosed
-  ) where
+module Ghengin.VulkanEngine.GLFW.Window where
 
+import GHC.Int
+
+import Foreign.Ptr
+import Foreign.Marshal.Alloc
+import Foreign.Storable
+
+import Control.Monad
 import Control.Exception
 
 import qualified Graphics.UI.GLFW as GLFW
+import qualified Vulkan.Exception as Vk (VulkanException(..))
+import qualified Vulkan as Vk
 
 newtype Window = W GLFW.Window
 
@@ -27,6 +33,18 @@ destroyWindow :: Window -> IO ()
 destroyWindow (W win) = do
   GLFW.destroyWindow win
   GLFW.terminate
+
+-- | Create a surface (it must be destroyed by Vulkan).
+createSurface :: Vk.Instance -> Window -> IO Vk.SurfaceKHR
+createSurface i (W w) = do
+  alloca $ \surfacePtr -> do
+    r <- Vk.Result <$> GLFW.createWindowSurface @Int32 (Vk.instanceHandle i) w nullPtr surfacePtr
+    when (r < Vk.SUCCESS) (throwIO (Vk.VulkanException r))
+    surface <- peek surfacePtr
+    pure surface
+
+destroySurface :: Vk.Instance -> Vk.SurfaceKHR -> IO ()
+destroySurface i s = Vk.destroySurfaceKHR i s Nothing
 
 -- | Create a window which is automatically destroyed when the function that
 -- uses it is finished.

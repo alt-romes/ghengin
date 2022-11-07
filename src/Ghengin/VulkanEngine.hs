@@ -18,6 +18,7 @@ import Ghengin.VulkanEngine.PhysicalDevice
 import Ghengin.VulkanEngine.QueueFamilies
 import Ghengin.VulkanEngine.Device
 import Ghengin.VulkanEngine.Queue
+import Ghengin.VulkanEngine.GLFW.Window
 
 data VulkanEngine (ps :: [EnginePart])
   = VulkanEngine
@@ -43,14 +44,15 @@ type family (:=>) (b :: Bool) (t :: Type) :: Type where
   (:=>) True  t = t
 
 
-
 validationLayers :: V.Vector (BS.ByteString)
 validationLayers = [ "VK_LAYER_KHRONOS_validation"
                    ]
 
 initVulkanEngine :: IO (VulkanEngine [EInstance, EPhysicalDevice, EDevice, EGraphicsQueue])
 initVulkanEngine = do
+  win            <- createWindow 800 600 "VulkanEngine"
   inst           <- createInstance validationLayers
+  surface        <- createSurface inst win
   physicalDevice <- pickPhysicalDevice inst
   Just (QFI i1)  <- findQueueFamilies physicalDevice
   device         <- createLogicalDevice validationLayers physicalDevice (QFI i1)
@@ -58,17 +60,11 @@ initVulkanEngine = do
   pure $ VulkanEngine inst physicalDevice device graphicsQueue
 
 
-
--- initVulkan :: IO ()
--- initVulkan = do
---   vkInst <- createInstance
---   vkPhysicalDevice <- pickPhysicalDevice vkInst
---   _vkLogicalDevice <- createLogicalDevice vkPhysicalDevice
---   _vkDeviceQueue   <- getDeviceQueue 0
---   pure ()
-
--- cleanup :: Vk.Instance -> Vk.Device -> IO ()
--- cleanup i d = do
---   destroyInstance i
+cleanup :: Window -> Vk.SurfaceKHR -> VulkanEngine '[EInstance, EPhysicalDevice, EDevice, EGraphicsQueue] -> IO ()
+cleanup w s (VulkanEngine i _ d _) = do
+  destroyLogicalDevice d
+  destroySurface i s
+  destroyInstance i
+  destroyWindow w
   
 

@@ -60,7 +60,7 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  Ghengin,
-                      Ghengin.Window,
+                      -- Ghengin.Window,
                       Ghengin.Pipeline,
                       Ghengin.Shaders,
                       Ghengin.VulkanEngine,
@@ -69,6 +69,7 @@ library
                       Ghengin.VulkanEngine.QueueFamilies,
                       Ghengin.VulkanEngine.Device,
                       Ghengin.VulkanEngine.Queue,
+                      Ghengin.VulkanEngine.GLFW.Window,
                       Ghengin.Shaders.SimpleShader,
                       Ghengin.Utils
 
