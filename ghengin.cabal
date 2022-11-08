@@ -68,6 +68,7 @@ library
                       Ghengin.VulkanEngine.PhysicalDevice,
                       Ghengin.VulkanEngine.QueueFamilies,
                       Ghengin.VulkanEngine.SwapChain,
+                      Ghengin.VulkanEngine.ImageView,
                       Ghengin.VulkanEngine.Device,
                       Ghengin.VulkanEngine.Queue,
                       Ghengin.VulkanEngine.GLFW.Window,

@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE DataKinds #-}
@@ -21,6 +22,7 @@ import Ghengin.VulkanEngine.SwapChain
 import Ghengin.VulkanEngine.Device
 import Ghengin.VulkanEngine.Queue
 import Ghengin.VulkanEngine.GLFW.Window
+import Ghengin.VulkanEngine.ImageView
 
 data VulkanEngine
   = VulkanEngine
@@ -32,6 +34,7 @@ data VulkanEngine
     , vkWindow         :: !Window
     , vkWindowSurface  :: !Vk.SurfaceKHR
     , vkSwapChain      :: !Vk.SwapchainKHR
+    , vkSwapChainImageViews :: !(V.Vector Vk.ImageView)
     }
 
 validationLayers :: V.Vector BS.ByteString
@@ -54,16 +57,18 @@ initVulkanEngine = do
   graphicsQueue  <- getDeviceQueue device i1 0
   presentQueue   <- getDeviceQueue device i2 0
   (swapChain, swapChainImages, swapChainSurfaceFormat, swapChainExtent) <- createSwapChain physicalDevice surface win qfi device
-  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain
+  swapChainImageViews <- V.mapM (createImageView device swapChainSurfaceFormat.format) swapChainImages
+  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews
 
 
 cleanup :: VulkanEngine -> IO ()
-cleanup (VulkanEngine i _ d _ _ w s swpc) = do
+cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews) = do
   putStrLn "[START] Clean up"
-  destroySwapChain d swpc
-  destroyLogicalDevice d
-  destroySurface i s
-  destroyInstance i
+  mapM_ (destroyImageView device) scImgsViews
+  destroySwapChain device swpc
+  destroyLogicalDevice device
+  destroySurface inst s
+  destroyInstance inst
   destroyWindow w
   putStrLn "[DONE] Clean up"
   
