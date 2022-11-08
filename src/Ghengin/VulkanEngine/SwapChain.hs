@@ -1,4 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ViewPatterns #-}
 module Ghengin.VulkanEngine.SwapChain where
@@ -11,6 +14,7 @@ import qualified Data.Vector as V
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Vulkan as Vk
 
+import Ghengin.VulkanEngine.QueueFamilies
 import Ghengin.VulkanEngine.GLFW.Window
 
 data SwapChainSupportDetails = SCSD { _capabilities :: Vk.SurfaceCapabilitiesKHR
@@ -58,3 +62,46 @@ chooseSwapExtent (W win) capabilities =
        (w,h) <- GLFW.getFramebufferSize win
        pure $ Vk.Extent2D (clamp (capabilities.minImageExtent.width,  capabilities.maxImageExtent.width) (fromIntegral w))
                           (clamp (capabilities.minImageExtent.height, capabilities.maxImageExtent.height) (fromIntegral h))
+
+createSwapChain :: Vk.PhysicalDevice -> Vk.SurfaceKHR -> Window -> QueueFamiliesIndices -> Vk.Device -> IO (Vk.SwapchainKHR, V.Vector Vk.Image, Vk.SurfaceFormatKHR, Vk.Extent2D)
+createSwapChain pd sr win qfi device = do
+  scsd <- querySwapChainSupport pd sr
+
+  let ssurfaceFormat = chooseSwapSurfaceFormat scsd._formats
+      spresentMode   = chooseSwapPresentMode scsd._presentModes
+
+  sextent <- chooseSwapExtent win scsd._capabilities
+
+  let desiredIC  = scsd._capabilities.minImageCount + 1
+      imageCount = if scsd._capabilities.maxImageCount > 0            -- 0 indicates there is no maximum
+                      && desiredIC > scsd._capabilities.maxImageCount -- We can't ask for more than there are available
+                        then scsd._capabilities.maxImageCount         -- Simply take the max
+                        else desiredIC                                -- Min + 1 so we don't need to wait for the driver before we can acquire another image to draw to
+
+      areDifferentFamily = qfi._graphicsFamily /= qfi._presentFamily
+      indices = [qfi._graphicsFamily, qfi._presentFamily] :: V.Vector Word32
+      config = Vk.SwapchainCreateInfoKHR {..} where
+                 next = ()
+                 flags = Vk.SwapchainCreateFlagBitsKHR 0
+                 surface = sr
+                 minImageCount = imageCount
+                 imageFormat = ssurfaceFormat.format
+                 imageColorSpace = ssurfaceFormat.colorSpace
+                 imageExtent = sextent
+                 imageArrayLayers = 1
+                 imageUsage = Vk.IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+                 imageSharingMode = if areDifferentFamily then Vk.SHARING_MODE_CONCURRENT else Vk.SHARING_MODE_EXCLUSIVE
+                 queueFamilyIndices = if areDifferentFamily then indices else []
+                 preTransform = scsd._capabilities.currentTransform
+                 compositeAlpha = Vk.COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+                 presentMode = spresentMode
+                 clipped = True
+                 oldSwapchain = Vk.NULL_HANDLE
+
+
+  swpc <- Vk.createSwapchainKHR device config Nothing
+  (_, swpchainImages) <- Vk.getSwapchainImagesKHR device swpc
+  pure (swpc,swpchainImages,ssurfaceFormat,sextent)
+  
+destroySwapChain :: Vk.Device -> Vk.SwapchainKHR -> IO ()
+destroySwapChain d swpc = Vk.destroySwapchainKHR d swpc Nothing

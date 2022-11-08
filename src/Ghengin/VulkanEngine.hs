@@ -31,6 +31,7 @@ data VulkanEngine
     , vkPresentQueue   :: !Vk.Queue
     , vkWindow         :: !Window
     , vkWindowSurface  :: !Vk.SurfaceKHR
+    , vkSwapChain      :: !Vk.SwapchainKHR
     }
 
 validationLayers :: V.Vector BS.ByteString
@@ -48,16 +49,18 @@ initVulkanEngine = do
   inst           <- createInstance validationLayers
   surface        <- createSurface inst win
   physicalDevice <- pickPhysicalDevice deviceExtensions inst surface
-  Just (QFI i1 i2)  <- findQueueFamilies physicalDevice surface
-  device         <- createLogicalDevice validationLayers deviceExtensions physicalDevice (QFI i1 i2)
+  Just qfi@(QFI i1 i2)  <- findQueueFamilies physicalDevice surface
+  device         <- createLogicalDevice validationLayers deviceExtensions physicalDevice qfi
   graphicsQueue  <- getDeviceQueue device i1 0
   presentQueue   <- getDeviceQueue device i2 0
-  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface
+  (swapChain, swapChainImages, swapChainSurfaceFormat, swapChainExtent) <- createSwapChain physicalDevice surface win qfi device
+  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain
 
 
 cleanup :: VulkanEngine -> IO ()
-cleanup (VulkanEngine i _ d _ _ w s) = do
+cleanup (VulkanEngine i _ d _ _ w s swpc) = do
   putStrLn "[START] Clean up"
+  destroySwapChain d swpc
   destroyLogicalDevice d
   destroySurface i s
   destroyInstance i
