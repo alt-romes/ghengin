@@ -23,6 +23,7 @@ import Ghengin.VulkanEngine.Device
 import Ghengin.VulkanEngine.Queue
 import Ghengin.VulkanEngine.GLFW.Window
 import Ghengin.VulkanEngine.ImageView
+import Ghengin.VulkanEngine.RenderPass
 import Ghengin.Pipeline
 import Ghengin.Shaders
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
@@ -39,6 +40,7 @@ data VulkanEngine
     , vkSwapChain      :: !Vk.SwapchainKHR
     , vkSwapChainImageViews :: !(V.Vector Vk.ImageView)
     , vkPipelineLayout :: !Vk.PipelineLayout
+    , vkRenderPass     :: !Vk.RenderPass
     }
 
 validationLayers :: V.Vector BS.ByteString
@@ -66,16 +68,19 @@ initVulkanEngine = do
   -- Graphics Pipeline
   v' <- compileFIRShader SimpleShader.vertex
   f' <- compileFIRShader SimpleShader.fragment
+
+  renderPass <- createRenderPass device swapChainSurfaceFormat.format
   pipelineLayout <- createGraphicsPipeline device swapChainExtent v' f'
 
 
-  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews pipelineLayout
+  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews pipelineLayout renderPass
 
 
 cleanup :: VulkanEngine -> IO ()
-cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews pply) = do
+cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews pply renderPass) = do
   putStrLn "[START] Clean up"
   destroyPipelineLayout device pply
+  destroyRenderPass device renderPass
   mapM_ (destroyImageView device) scImgsViews
   destroySwapChain device swpc
   destroyLogicalDevice device

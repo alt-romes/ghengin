@@ -71,6 +71,7 @@ library
                       Ghengin.VulkanEngine.ImageView,
                       Ghengin.VulkanEngine.Device,
                       Ghengin.VulkanEngine.Queue,
+                      Ghengin.VulkanEngine.RenderPass,
                       Ghengin.VulkanEngine.GLFW.Window,
                       Ghengin.Shaders.SimpleShader,
                       Ghengin.Utils

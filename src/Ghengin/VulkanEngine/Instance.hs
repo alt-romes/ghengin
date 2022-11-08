@@ -51,10 +51,10 @@ createInstance validationLayers = do
     ai  :: Vk.ApplicationInfo
     ai = Vk.ApplicationInfo {..} where
            applicationName    = Just "Hello Triangle"
-           applicationVersion = Vk.MAKE_API_VERSION 1 0 0
+           applicationVersion = 0
            engineName         = Just "No Engine"
-           engineVersion      = Vk.MAKE_API_VERSION 1 0 0
-           apiVersion         = Vk.API_VERSION_1_0
+           engineVersion      = 0
+           apiVersion         = Vk.API_VERSION_1_2
 
     ici :: V.Vector BS.ByteString -> Vk.InstanceCreateInfo '[]
     ici glfwe
