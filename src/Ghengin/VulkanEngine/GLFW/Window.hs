@@ -46,10 +46,10 @@ createSurface i (W w) = do
 destroySurface :: Vk.Instance -> Vk.SurfaceKHR -> IO ()
 destroySurface i s = Vk.destroySurfaceKHR i s Nothing
 
--- | Create a window which is automatically destroyed when the function that
--- uses it is finished.
-withWindow :: Int -> Int -> String -> (Window -> IO a) -> IO a
-withWindow w h label f = bracket (createWindow w h label) destroyWindow f
+-- -- | Create a window which is automatically destroyed when the function that
+-- -- uses it is finished.
+-- withWindow :: Int -> Int -> String -> (Window -> IO a) -> IO a
+-- withWindow w h label f = bracket (createWindow w h label) destroyWindow f
 
 -- | Run an IO action many many times until the window is closed by a normal
 -- window-closing event.

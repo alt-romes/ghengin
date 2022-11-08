@@ -11,18 +11,22 @@ import Ghengin.Utils
 
 type QueueFamily = Word32
 
-data QueueFamiliesIndices = QFI { _graphicsFamily :: QueueFamily }
+data QueueFamiliesIndices = QFI { _graphicsFamily :: QueueFamily, _presentFamily :: QueueFamily }
 
-findQueueFamilies :: Vk.PhysicalDevice -> IO (Maybe QueueFamiliesIndices)
-findQueueFamilies pd = do
+findQueueFamilies :: Vk.PhysicalDevice -> Vk.SurfaceKHR -> IO (Maybe QueueFamiliesIndices)
+findQueueFamilies pd sr = do
   props <- Vk.getPhysicalDeviceQueueFamilyProperties pd
-  let suitable = V.filter (isQueueFamilySuitable . snd) (V.indexed props)
-  if V.null suitable
-     then pure Nothing
-     else pure $ Just $ QFI $ fromIntegral $ fst $ V.head suitable
+  graphicsF <- findM (isSuitableGraphics . snd) (V.indexed props)
+  presentF  <- findM (isSuitablePresent  . fst) (V.indexed props)
+  pure $ do
+    ig <- graphicsF
+    pg <- presentF
+    pure $ QFI (fromIntegral $ fst ig) (fromIntegral $ fst pg)
 
   where
-    isQueueFamilySuitable :: Vk.QueueFamilyProperties -> Bool
-    isQueueFamilySuitable q = q.queueFlags .&&. Vk.QUEUE_GRAPHICS_BIT
+    isSuitableGraphics :: Vk.QueueFamilyProperties -> IO Bool
+    isSuitableGraphics q = pure $ q.queueFlags .&&. Vk.QUEUE_GRAPHICS_BIT
 
+    isSuitablePresent :: Int -> IO Bool
+    isSuitablePresent  i = Vk.getPhysicalDeviceSurfaceSupportKHR pd (fromIntegral i) sr
 

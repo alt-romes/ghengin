@@ -5,22 +5,18 @@
 module Main where
 
 import Ghengin.VulkanEngine as VE
-import Ghengin.Window as G
+import Ghengin.VulkanEngine.GLFW.Window as G
 import qualified Vulkan as Vk
 
-import qualified Data.Vector as V
-
 main :: IO ()
-main = withWindow 800 600 "Vulkan" $ \win -> do
+main = withVulkanEngine $ \eng -> do
 
   -- getRequiredInstanceExtensions
   (_, nExts) <- Vk.enumerateInstanceExtensionProperties Nothing
 
   putStr "Extensions: " >> print nExts
 
-  -- withDevice $ \(!_d) -> pure ()
-
-  loopUntilClosed win $ pure ()
+  loopUntilClosed (getWin eng) $ pure ()
 
   putStrLn "Goodbye"
 

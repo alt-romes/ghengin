@@ -7,6 +7,8 @@
 {-# LANGUAGE ImportQualifiedPost #-}
 module Ghengin.VulkanEngine.Device where
 
+import Data.Word
+import Data.Set        qualified as S
 import Data.Vector     qualified as V
 import Data.ByteString qualified as BS
 
@@ -16,23 +18,26 @@ import Vulkan.CStruct.Extends qualified as VkC
 import Ghengin.VulkanEngine.QueueFamilies
 
 createLogicalDevice :: V.Vector (BS.ByteString) -- ^ Validation layers
+                    -> V.Vector BS.ByteString -- ^ Device Extensions
                     -> Vk.PhysicalDevice
                     -> QueueFamiliesIndices
                     -> IO (Vk.Device)
-createLogicalDevice validationLayers physicalDevice qfi = do
+createLogicalDevice validationLayers deviceExtensions physicalDevice qfi = do
   Vk.createDevice physicalDevice (dci (dqci qfi)) Nothing
     where
-      dci :: Vk.DeviceQueueCreateInfo '[] -> Vk.DeviceCreateInfo '[]
+      dci :: V.Vector (VkC.SomeStruct Vk.DeviceQueueCreateInfo) -> Vk.DeviceCreateInfo '[]
       dci qci = Vk.DeviceCreateInfo {..} where
                 next = ()
                 flags = Vk.DeviceCreateFlags 0
-                queueCreateInfos = [VkC.SomeStruct qci]
+                queueCreateInfos = qci
                 enabledLayerNames = validationLayers
-                enabledExtensionNames = []
+                enabledExtensionNames = deviceExtensions
                 enabledFeatures = Nothing
 
-      dqci :: QueueFamiliesIndices -> Vk.DeviceQueueCreateInfo '[]
-      dqci (QFI ix) = Vk.DeviceQueueCreateInfo {..} where
+      dqci :: QueueFamiliesIndices -> V.Vector (VkC.SomeStruct Vk.DeviceQueueCreateInfo)
+      dqci (QFI ix1 ix2) = V.fromList $ map ix' $ S.toList ([ix1, ix2] :: S.Set Word32)
+        where
+          ix' ix = VkC.SomeStruct $ Vk.DeviceQueueCreateInfo {..} where
                 next = ()
                 flags = Vk.DeviceQueueCreateFlagBits 0
                 queueFamilyIndex = ix

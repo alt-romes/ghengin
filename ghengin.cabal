@@ -67,6 +67,7 @@ library
                       Ghengin.VulkanEngine.Instance,
                       Ghengin.VulkanEngine.PhysicalDevice,
                       Ghengin.VulkanEngine.QueueFamilies,
+                      Ghengin.VulkanEngine.SwapChain,
                       Ghengin.VulkanEngine.Device,
                       Ghengin.VulkanEngine.Queue,
                       Ghengin.VulkanEngine.GLFW.Window,
@@ -88,7 +89,8 @@ library
                       vector-sized >=1.4,
                       fir     >=0.1,
                       bytestring,
-                      mtl
+                      mtl,
+                      containers
 
     -- Directories containing source files.
     hs-source-dirs:   src
