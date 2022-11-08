@@ -38,6 +38,7 @@ data VulkanEngine
     , vkWindowSurface  :: !Vk.SurfaceKHR
     , vkSwapChain      :: !Vk.SwapchainKHR
     , vkSwapChainImageViews :: !(V.Vector Vk.ImageView)
+    , vkPipelineLayout :: !Vk.PipelineLayout
     }
 
 validationLayers :: V.Vector BS.ByteString
@@ -65,14 +66,16 @@ initVulkanEngine = do
   -- Graphics Pipeline
   v' <- compileFIRShader SimpleShader.vertex
   f' <- compileFIRShader SimpleShader.fragment
-  gPipeline <- createGraphicsPipeline device swapChainExtent v' f'
+  pipelineLayout <- createGraphicsPipeline device swapChainExtent v' f'
 
-  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews
+
+  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews pipelineLayout
 
 
 cleanup :: VulkanEngine -> IO ()
-cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews) = do
+cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews pply) = do
   putStrLn "[START] Clean up"
+  destroyPipelineLayout device pply
   mapM_ (destroyImageView device) scImgsViews
   destroySwapChain device swpc
   destroyLogicalDevice device

@@ -8,12 +8,11 @@ module Ghengin.Pipeline where
 import qualified Data.ByteString as BS
 import qualified Data.Vector as V
 import Data.Coerce
+import Data.Bits ((.|.))
 
 import qualified Vulkan as Vk
 
 import Ghengin.Shaders
-
-data Pipeline = MkPipeline ShaderByteCode ShaderByteCode
 
 dynamicStates :: V.Vector Vk.DynamicState
 dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT
@@ -21,7 +20,7 @@ dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT
 
 -- | Create a pipeline given a vertex shader and a fragment shader (in this
 -- order)
-createGraphicsPipeline :: Vk.Device -> Vk.Extent2D -> ShaderByteCode -> ShaderByteCode -> IO Pipeline
+createGraphicsPipeline :: Vk.Device -> Vk.Extent2D -> ShaderByteCode -> ShaderByteCode -> IO Vk.PipelineLayout
 createGraphicsPipeline dev swapChainExtent vert frag = do
   vertSM <- createShaderModule dev vert
   fragSM <- createShaderModule dev frag
@@ -47,6 +46,8 @@ createGraphicsPipeline dev swapChainExtent vert frag = do
                             specializationInfo = Nothing
 
     shaderStages = [vertShaderStageInfo, fragShaderStageInfo] :: V.Vector (Vk.PipelineShaderStageCreateInfo '[])
+
+    -- Fixed functions configuration
 
     dynamicState = Vk.PipelineDynamicStateCreateInfo (Vk.PipelineDynamicStateCreateFlags 0) dynamicStates
 
@@ -87,11 +88,80 @@ createGraphicsPipeline dev swapChainExtent vert frag = do
                       viewports     = []
                       scissors      = []
 
+    rasterizer = Vk.PipelineRasterizationStateCreateInfo {..} where
+                    next = ()
+                    flags = Vk.PipelineRasterizationStateCreateFlags 0
+                    depthClampEnable = False -- Whether fragments that are beyond the near and far planes are clamped to them as opposed to discarding them. Requires a GPU feature.
+                    rasterizerDiscardEnable = False -- If set to True, geometry never passes through the rasterizer stage. Basically disables output to the framebuffer
+                    polygonMode = Vk.POLYGON_MODE_FILL -- Fill the area of the polygon with fragments; VK_POLYGON_MODE_LINE: polygon edges drawn as lines; VK_POLYGON_MODE_POINT: polygon vertices are drawn as points (other modes require GPU feature)
+                    lineWidth = 1 -- Thickness of lines in terms of number of fragments (Any >1 requires wideLines feature)
+                    -- Face culling: https://learnopengl.com/Advanced-OpenGL/Face-culling
+                    cullMode = Vk.CULL_MODE_BACK_BIT    -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)
+                    frontFace = Vk.FRONT_FACE_CLOCKWISE -- Default vertice front face to be defined clock wise
+                    depthBiasEnable = False -- Biasing depth values based on a fragment's slope (could be used for shadow mapping)
+                    depthBiasConstantFactor = 0
+                    depthBiasClamp = 0
+                    depthBiasSlopeFactor = 0
+
+    multisampling = Vk.PipelineMultisampleStateCreateInfo {..} where
+                      -- Configures multisampling (a way to do anti-aliasing)
+                      -- Disabling for now...
+                      next = ()
+                      flags = Vk.PipelineMultisampleStateCreateFlags 0
+                      sampleShadingEnable = False
+                      rasterizationSamples = Vk.SAMPLE_COUNT_1_BIT
+                      minSampleShading = 1
+                      sampleMask = []
+                      alphaToCoverageEnable = False
+                      alphaToOneEnable = False
+
+    -- Depth and stencil testing currently ignored and a nullptr is passed
+    
+    -- Color blending
+
+    -- The most common way to use color blending is to implement alpha blending,
+    -- where we want the new color to be blended with the old color based on its
+    -- opacity.
+    -- We're not doing this but the parameters for it are in the tutorial
+
+    -- Disabled color blending
+    colorBlendAttachment = Vk.PipelineColorBlendAttachmentState {..} where
+                              colorWriteMask = Vk.COLOR_COMPONENT_R_BIT .|. Vk.COLOR_COMPONENT_G_BIT .|. Vk.COLOR_COMPONENT_B_BIT .|. Vk.COLOR_COMPONENT_A_BIT
+                              blendEnable = False
+                              srcColorBlendFactor = Vk.BLEND_FACTOR_ONE
+                              dstColorBlendFactor = Vk.BLEND_FACTOR_ZERO
+                              colorBlendOp = Vk.BLEND_OP_ADD
+                              srcAlphaBlendFactor = Vk.BLEND_FACTOR_ONE
+                              dstAlphaBlendFactor = Vk.BLEND_FACTOR_ZERO
+                              alphaBlendOp = Vk.BLEND_OP_ADD
+
+    colorBlending = Vk.PipelineColorBlendStateCreateInfo {..} where
+                      next = ()
+                      flags = Vk.PipelineColorBlendStateCreateFlagBits 0
+                      logicOpEnable = False
+                      logicOp = Vk.LOGIC_OP_COPY
+                      attachmentCount = 1
+                      attachments = [colorBlendAttachment]
+                      blendConstants = (0,0,0,0)
+
+
+    -- In this config we can specify uniform values and push constants (other
+    -- way of passing dynamic values to shaders)
+    pipelineLayoutInfo = Vk.PipelineLayoutCreateInfo {..} where
+                           flags = Vk.PipelineLayoutCreateFlagBits 0
+                           setLayouts = []
+                           pushConstantRanges = []
+
+
+  pipelineLayout <- Vk.createPipelineLayout dev pipelineLayoutInfo Nothing
 
   destroyShaderModule dev vertSM
   destroyShaderModule dev fragSM
-  pure $ MkPipeline vert frag
+  pure pipelineLayout
 
+
+destroyPipelineLayout :: Vk.Device -> Vk.PipelineLayout -> IO ()
+destroyPipelineLayout d pl = Vk.destroyPipelineLayout d pl Nothing
 
 
 
