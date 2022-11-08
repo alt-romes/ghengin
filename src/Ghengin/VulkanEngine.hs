@@ -23,6 +23,9 @@ import Ghengin.VulkanEngine.Device
 import Ghengin.VulkanEngine.Queue
 import Ghengin.VulkanEngine.GLFW.Window
 import Ghengin.VulkanEngine.ImageView
+import Ghengin.Pipeline
+import Ghengin.Shaders
+import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 
 data VulkanEngine
   = VulkanEngine
@@ -58,6 +61,12 @@ initVulkanEngine = do
   presentQueue   <- getDeviceQueue device i2 0
   (swapChain, swapChainImages, swapChainSurfaceFormat, swapChainExtent) <- createSwapChain physicalDevice surface win qfi device
   swapChainImageViews <- V.mapM (createImageView device swapChainSurfaceFormat.format) swapChainImages
+
+  -- Graphics Pipeline
+  v' <- compileFIRShader SimpleShader.vertex
+  f' <- compileFIRShader SimpleShader.fragment
+  gPipeline <- createGraphicsPipeline device swapChainExtent v' f'
+
   pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews
 
 
