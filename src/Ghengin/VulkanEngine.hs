@@ -25,7 +25,7 @@ import Ghengin.VulkanEngine.GLFW.Window
 import Ghengin.VulkanEngine.ImageView
 import Ghengin.VulkanEngine.RenderPass
 import Ghengin.VulkanEngine.FrameBuffer
-import Ghengin.VulkanEngine.CommandPool
+import Ghengin.VulkanEngine.Command
 import Ghengin.Pipeline
 import Ghengin.Shaders
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
@@ -49,7 +49,7 @@ data VulkanEngine
     }
 
 validationLayers :: V.Vector BS.ByteString
-validationLayers = [ Vk.LAYER_KHRONOS_validation
+validationLayers = [ "VK_LAYER_KHRONOS_validation"
                    ]
 
 deviceExtensions :: V.Vector BS.ByteString
@@ -79,7 +79,8 @@ initVulkanEngine = do
 
   swapChainFramebuffers <- V.mapM (createFrameBuffer device renderPass swapChainExtent) swapChainImageViews
 
-  commandPool <- createCommandPool device
+  commandPool <- createCommandPool device qfi
+  [commandBuffer] <- createCommandBuffers device commandPool
 
   pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews pipelineLayout renderPass pipeline swapChainFramebuffers commandPool
 
