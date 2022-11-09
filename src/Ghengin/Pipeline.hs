@@ -85,8 +85,8 @@ createGraphicsPipeline dev swapChainExtent vert frag renderP = do
                           flags = Vk.PipelineViewportStateCreateFlags 0
                           viewportCount = 1
                           scissorCount  = 1
-                          viewports     = [viewport]
-                          scissors      = [scissor]
+                          viewports     = [] -- Empty because it is dynamic
+                          scissors      = [] -- Empty because it is dynamic
 
     rasterizerInfo = Vk.PipelineRasterizationStateCreateInfo {..} where
                       next = ()

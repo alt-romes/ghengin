@@ -73,6 +73,7 @@ library
                       Ghengin.VulkanEngine.Queue,
                       Ghengin.VulkanEngine.RenderPass,
                       Ghengin.VulkanEngine.FrameBuffer,
+                      Ghengin.VulkanEngine.Command,
                       Ghengin.VulkanEngine.GLFW.Window,
                       Ghengin.Shaders.SimpleShader,
                       Ghengin.Utils

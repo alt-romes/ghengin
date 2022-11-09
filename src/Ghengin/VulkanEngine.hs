@@ -25,6 +25,7 @@ import Ghengin.VulkanEngine.GLFW.Window
 import Ghengin.VulkanEngine.ImageView
 import Ghengin.VulkanEngine.RenderPass
 import Ghengin.VulkanEngine.FrameBuffer
+import Ghengin.VulkanEngine.CommandPool
 import Ghengin.Pipeline
 import Ghengin.Shaders
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
@@ -44,10 +45,11 @@ data VulkanEngine
     , vkRenderPass     :: !Vk.RenderPass
     , vkPipeline       :: !Vk.Pipeline
     , vkSwapChainFramebuffers :: !(V.Vector Vk.Framebuffer)
+    , vkCommandPool    :: !Vk.CommandPool
     }
 
 validationLayers :: V.Vector BS.ByteString
-validationLayers = [ "VK_LAYER_KHRONOS_validation"
+validationLayers = [ Vk.LAYER_KHRONOS_validation
                    ]
 
 deviceExtensions :: V.Vector BS.ByteString
@@ -77,12 +79,15 @@ initVulkanEngine = do
 
   swapChainFramebuffers <- V.mapM (createFrameBuffer device renderPass swapChainExtent) swapChainImageViews
 
-  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews pipelineLayout renderPass pipeline swapChainFramebuffers
+  commandPool <- createCommandPool device
+
+  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews pipelineLayout renderPass pipeline swapChainFramebuffers commandPool
 
 
 cleanup :: VulkanEngine -> IO ()
-cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews pply renderPass pipeline scFramebuffers) = do
+cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews pply renderPass pipeline scFramebuffers cpool) = do
   putStrLn "[START] Clean up"
+  destroyCommandPool device cpool
   mapM_ (destroyFrameBuffer device) scFramebuffers
   destroyPipeline device pipeline
   destroyPipelineLayout device pply
