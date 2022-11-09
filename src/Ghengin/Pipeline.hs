@@ -10,6 +10,7 @@ import qualified Data.Vector as V
 import Data.Coerce
 import Data.Bits ((.|.))
 
+import qualified Vulkan.CStruct.Extends as VkC
 import qualified Vulkan as Vk
 
 import Ghengin.Shaders
@@ -20,8 +21,8 @@ dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT
 
 -- | Create a pipeline given a vertex shader and a fragment shader (in this
 -- order)
-createGraphicsPipeline :: Vk.Device -> Vk.Extent2D -> ShaderByteCode -> ShaderByteCode -> IO Vk.PipelineLayout
-createGraphicsPipeline dev swapChainExtent vert frag = do
+createGraphicsPipeline :: Vk.Device -> Vk.Extent2D -> ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> IO (Vk.Pipeline, Vk.PipelineLayout)
+createGraphicsPipeline dev swapChainExtent vert frag renderP = do
   vertSM <- createShaderModule dev vert
   fragSM <- createShaderModule dev frag
 
@@ -45,11 +46,11 @@ createGraphicsPipeline dev swapChainExtent vert frag = do
                             name    = "main"
                             specializationInfo = Nothing
 
-    shaderStages = [vertShaderStageInfo, fragShaderStageInfo] :: V.Vector (Vk.PipelineShaderStageCreateInfo '[])
+    shaderStages = [VkC.SomeStruct vertShaderStageInfo, VkC.SomeStruct fragShaderStageInfo] :: V.Vector (VkC.SomeStruct Vk.PipelineShaderStageCreateInfo)
 
     -- Fixed functions configuration
 
-    dynamicState = Vk.PipelineDynamicStateCreateInfo (Vk.PipelineDynamicStateCreateFlags 0) dynamicStates
+    dynamicStateInfo = Vk.PipelineDynamicStateCreateInfo (Vk.PipelineDynamicStateCreateFlags 0) dynamicStates
 
     vertexInputInfo = Vk.PipelineVertexInputStateCreateInfo {..} where
                         next = ()
@@ -58,7 +59,6 @@ createGraphicsPipeline dev swapChainExtent vert frag = do
                         vertexAttributeDescriptions = []
 
     inputAssembly = Vk.PipelineInputAssemblyStateCreateInfo {..} where
-                        next = ()
                         flags = Vk.PipelineInputAssemblyStateCreateFlags 0
                         topology = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST -- 3 vertices = triangle with no reuse.
                         primitiveRestartEnable = False -- Whether 0xFFFF and 0xFFFFFFFF are special values to break _STRIP topology variants
@@ -80,40 +80,40 @@ createGraphicsPipeline dev swapChainExtent vert frag = do
 
     -- Both viewport and scissor can be dynamically changed in the pipeline, so
     -- we only need to specify their amount
-    viewportState = Vk.PipelineViewportStateCreateInfo {..} where
-                      next = ()
-                      flags = Vk.PipelineViewportStateCreateFlags 0
-                      viewportCount = 1
-                      scissorCount  = 1
-                      viewports     = []
-                      scissors      = []
+    viewportStateInfo = Vk.PipelineViewportStateCreateInfo {..} where
+                          next = ()
+                          flags = Vk.PipelineViewportStateCreateFlags 0
+                          viewportCount = 1
+                          scissorCount  = 1
+                          viewports     = [viewport]
+                          scissors      = [scissor]
 
-    rasterizer = Vk.PipelineRasterizationStateCreateInfo {..} where
-                    next = ()
-                    flags = Vk.PipelineRasterizationStateCreateFlags 0
-                    depthClampEnable = False -- Whether fragments that are beyond the near and far planes are clamped to them as opposed to discarding them. Requires a GPU feature.
-                    rasterizerDiscardEnable = False -- If set to True, geometry never passes through the rasterizer stage. Basically disables output to the framebuffer
-                    polygonMode = Vk.POLYGON_MODE_FILL -- Fill the area of the polygon with fragments; VK_POLYGON_MODE_LINE: polygon edges drawn as lines; VK_POLYGON_MODE_POINT: polygon vertices are drawn as points (other modes require GPU feature)
-                    lineWidth = 1 -- Thickness of lines in terms of number of fragments (Any >1 requires wideLines feature)
-                    -- Face culling: https://learnopengl.com/Advanced-OpenGL/Face-culling
-                    cullMode = Vk.CULL_MODE_BACK_BIT    -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)
-                    frontFace = Vk.FRONT_FACE_CLOCKWISE -- Default vertice front face to be defined clock wise
-                    depthBiasEnable = False -- Biasing depth values based on a fragment's slope (could be used for shadow mapping)
-                    depthBiasConstantFactor = 0
-                    depthBiasClamp = 0
-                    depthBiasSlopeFactor = 0
-
-    multisampling = Vk.PipelineMultisampleStateCreateInfo {..} where
-                      -- Configures multisampling (a way to do anti-aliasing)
-                      -- Disabling for now...
+    rasterizerInfo = Vk.PipelineRasterizationStateCreateInfo {..} where
                       next = ()
-                      flags = Vk.PipelineMultisampleStateCreateFlags 0
-                      sampleShadingEnable = False
-                      rasterizationSamples = Vk.SAMPLE_COUNT_1_BIT
-                      minSampleShading = 1
-                      sampleMask = []
-                      alphaToCoverageEnable = False
-                      alphaToOneEnable = False
+                      flags = Vk.PipelineRasterizationStateCreateFlags 0
+                      depthClampEnable = False -- Whether fragments that are beyond the near and far planes are clamped to them as opposed to discarding them. Requires a GPU feature.
+                      rasterizerDiscardEnable = False -- If set to True, geometry never passes through the rasterizer stage. Basically disables output to the framebuffer
+                      polygonMode = Vk.POLYGON_MODE_FILL -- Fill the area of the polygon with fragments; VK_POLYGON_MODE_LINE: polygon edges drawn as lines; VK_POLYGON_MODE_POINT: polygon vertices are drawn as points (other modes require GPU feature)
+                      lineWidth = 1 -- Thickness of lines in terms of number of fragments (Any >1 requires wideLines feature)
+                      -- Face culling: https://learnopengl.com/Advanced-OpenGL/Face-culling
+                      cullMode = Vk.CULL_MODE_BACK_BIT    -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)
+                      frontFace = Vk.FRONT_FACE_CLOCKWISE -- Default vertice front face to be defined clock wise
+                      depthBiasEnable = False -- Biasing depth values based on a fragment's slope (could be used for shadow mapping)
+                      depthBiasConstantFactor = 0
+                      depthBiasClamp = 0
+                      depthBiasSlopeFactor = 0
+
+    multisamplingInfo = Vk.PipelineMultisampleStateCreateInfo {..} where
+                          -- Configures multisampling (a way to do anti-aliasing)
+                          -- Disabling for now...
+                          next = ()
+                          flags = Vk.PipelineMultisampleStateCreateFlags 0
+                          sampleShadingEnable = False
+                          rasterizationSamples = Vk.SAMPLE_COUNT_1_BIT
+                          minSampleShading = 1
+                          sampleMask = []
+                          alphaToCoverageEnable = False
+                          alphaToOneEnable = False
 
     -- Depth and stencil testing currently ignored and a nullptr is passed
     
@@ -135,14 +135,14 @@ createGraphicsPipeline dev swapChainExtent vert frag = do
                               dstAlphaBlendFactor = Vk.BLEND_FACTOR_ZERO
                               alphaBlendOp = Vk.BLEND_OP_ADD
 
-    colorBlending = Vk.PipelineColorBlendStateCreateInfo {..} where
-                      next = ()
-                      flags = Vk.PipelineColorBlendStateCreateFlagBits 0
-                      logicOpEnable = False
-                      logicOp = Vk.LOGIC_OP_COPY
-                      attachmentCount = 1
-                      attachments = [colorBlendAttachment]
-                      blendConstants = (0,0,0,0)
+    colorBlendingInfo = Vk.PipelineColorBlendStateCreateInfo {..} where
+                          next = ()
+                          flags = Vk.PipelineColorBlendStateCreateFlagBits 0
+                          logicOpEnable = False
+                          logicOp = Vk.LOGIC_OP_COPY
+                          attachmentCount = 1
+                          attachments = [colorBlendAttachment]
+                          blendConstants = (0,0,0,0)
 
 
     -- In this config we can specify uniform values and push constants (other
@@ -152,29 +152,52 @@ createGraphicsPipeline dev swapChainExtent vert frag = do
                            setLayouts = []
                            pushConstantRanges = []
 
-
   pipelineLayout <- Vk.createPipelineLayout dev pipelineLayoutInfo Nothing
+
+  let 
+    pipelineInfo = Vk.GraphicsPipelineCreateInfo { next = ()
+                                                 , flags = Vk.PipelineCreateFlagBits 0
+                                                 , stageCount = 2
+                                                 , stages = shaderStages
+                                                 , vertexInputState = Just (VkC.SomeStruct vertexInputInfo)
+                                                 , inputAssemblyState = Just inputAssembly
+                                                 , tessellationState = Nothing
+                                                 , viewportState = Just (VkC.SomeStruct viewportStateInfo)
+                                                 , rasterizationState = Just (VkC.SomeStruct rasterizerInfo)
+                                                 , multisampleState = Just (VkC.SomeStruct multisamplingInfo)
+                                                 , depthStencilState = Nothing
+                                                 , colorBlendState = Just (VkC.SomeStruct colorBlendingInfo)
+                                                 , dynamicState = Just dynamicStateInfo
+                                                 , layout = pipelineLayout
+                                                 , renderPass = renderP
+                                                 , subpass = 0 -- the index of the subpass in the render pass where this pipeline will be used.
+                                                 , basePipelineHandle = Vk.NULL_HANDLE
+                                                 , basePipelineIndex = -1
+                                                 }
+
+  (_, [pipeline]) <- Vk.createGraphicsPipelines dev Vk.NULL_HANDLE [VkC.SomeStruct pipelineInfo] Nothing
 
   destroyShaderModule dev vertSM
   destroyShaderModule dev fragSM
-  pure pipelineLayout
 
+  pure (pipeline, pipelineLayout)
+
+
+destroyPipeline :: Vk.Device -> Vk.Pipeline -> IO ()
+destroyPipeline d pl = Vk.destroyPipeline d pl Nothing
 
 destroyPipelineLayout :: Vk.Device -> Vk.PipelineLayout -> IO ()
 destroyPipelineLayout d pl = Vk.destroyPipelineLayout d pl Nothing
 
 
-
 createShaderModule :: Vk.Device -> ShaderByteCode -> IO Vk.ShaderModule
 createShaderModule dev sbc = do
-  Vk.createShaderModule dev createInfo Nothing
-  
-  where
+  Vk.createShaderModule dev createInfo Nothing where
     createInfo = Vk.ShaderModuleCreateInfo {..} where
                    next = ()
                    flags = Vk.ShaderModuleCreateFlags 0
                    code = BS.toStrict $ coerce sbc
 
-
 destroyShaderModule :: Vk.Device -> Vk.ShaderModule -> IO ()
 destroyShaderModule d sm = Vk.destroyShaderModule d sm Nothing
+

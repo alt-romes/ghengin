@@ -41,6 +41,7 @@ data VulkanEngine
     , vkSwapChainImageViews :: !(V.Vector Vk.ImageView)
     , vkPipelineLayout :: !Vk.PipelineLayout
     , vkRenderPass     :: !Vk.RenderPass
+    , vkPipeline       :: !Vk.Pipeline
     }
 
 validationLayers :: V.Vector BS.ByteString
@@ -70,15 +71,15 @@ initVulkanEngine = do
   f' <- compileFIRShader SimpleShader.fragment
 
   renderPass <- createRenderPass device swapChainSurfaceFormat.format
-  pipelineLayout <- createGraphicsPipeline device swapChainExtent v' f'
+  (pipeline, pipelineLayout) <- createGraphicsPipeline device swapChainExtent v' f' renderPass
 
-
-  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews pipelineLayout renderPass
+  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews pipelineLayout renderPass pipeline
 
 
 cleanup :: VulkanEngine -> IO ()
-cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews pply renderPass) = do
+cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews pply renderPass pipeline) = do
   putStrLn "[START] Clean up"
+  destroyPipeline device pipeline
   destroyPipelineLayout device pply
   destroyRenderPass device renderPass
   mapM_ (destroyImageView device) scImgsViews
