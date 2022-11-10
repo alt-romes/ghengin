@@ -26,6 +26,7 @@ import Ghengin.VulkanEngine.ImageView
 import Ghengin.VulkanEngine.RenderPass
 import Ghengin.VulkanEngine.FrameBuffer
 import Ghengin.VulkanEngine.Command
+import Ghengin.VulkanEngine.Synchronization
 import Ghengin.Pipeline
 import Ghengin.Shaders
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
@@ -40,12 +41,17 @@ data VulkanEngine
     , vkWindow         :: !Window
     , vkWindowSurface  :: !Vk.SurfaceKHR
     , vkSwapChain      :: !Vk.SwapchainKHR
+    , vkSwapChainExtent :: !Vk.Extent2D
     , vkSwapChainImageViews :: !(V.Vector Vk.ImageView)
     , vkPipelineLayout :: !Vk.PipelineLayout
     , vkRenderPass     :: !Vk.RenderPass
     , vkPipeline       :: !Vk.Pipeline
     , vkSwapChainFramebuffers :: !(V.Vector Vk.Framebuffer)
     , vkCommandPool    :: !Vk.CommandPool
+    , vkCommandBuffer  :: !Vk.CommandBuffer
+    , vkImageAvailableSem :: !Vk.Semaphore
+    , vkRenderFinishedSem :: !Vk.Semaphore
+    , vkInFlightFence     :: !Vk.Fence
     }
 
 validationLayers :: V.Vector BS.ByteString
@@ -82,12 +88,17 @@ initVulkanEngine = do
   commandPool <- createCommandPool device qfi
   [commandBuffer] <- createCommandBuffers device commandPool
 
-  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainImageViews pipelineLayout renderPass pipeline swapChainFramebuffers commandPool
+  (imageAvailableSem, renderFinishedSem, inFlightFence) <- createSyncObjects device
+
+  pure $ VulkanEngine inst physicalDevice device graphicsQueue presentQueue win surface swapChain swapChainExtent swapChainImageViews pipelineLayout renderPass pipeline swapChainFramebuffers commandPool commandBuffer imageAvailableSem renderFinishedSem inFlightFence 
 
 
 cleanup :: VulkanEngine -> IO ()
-cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews pply renderPass pipeline scFramebuffers cpool) = do
+cleanup (VulkanEngine inst _ device _ _ w s swpc _ scImgsViews pply renderPass pipeline scFramebuffers cpool _ s1 s2 f1) = do
   putStrLn "[START] Clean up"
+  destroySem device s1
+  destroySem device s2
+  destroyFence device f1
   destroyCommandPool device cpool
   mapM_ (destroyFrameBuffer device) scFramebuffers
   destroyPipeline device pipeline
@@ -105,7 +116,7 @@ cleanup (VulkanEngine inst _ device _ _ w s swpc scImgsViews pply renderPass pip
 withVulkanEngine :: (VulkanEngine -> IO a) -> IO a
 withVulkanEngine = bracket initVulkanEngine cleanup
 
-
-getWin :: VulkanEngine -> Window
-getWin (VulkanEngine { vkWindow = win }) = win
+acquireNextImage :: VulkanEngine -> IO Int
+acquireNextImage eng =
+  fromIntegral . snd <$> Vk.acquireNextImageKHR eng.vkDevice eng.vkSwapChain maxBound eng.vkImageAvailableSem Vk.NULL_HANDLE
 
