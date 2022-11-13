@@ -77,7 +77,10 @@ library
                       Ghengin.VulkanEngine.Synchronization,
                       Ghengin.VulkanEngine.GLFW.Window,
                       Ghengin.Shaders.SimpleShader,
-                      Ghengin.Utils
+                      Ghengin.Utils,
+                      
+                      Ghengin.Vulkan,
+                      Ghengin.Vulkan.Command,
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -89,13 +92,13 @@ library
     build-depends:    base ^>=4.17,
                       vulkan ^>=3.23,
                       GLFW-b ^>=3.3,
-                      -- bindings-GLFW ^>=3.3.2,
                       vector ^>=0.13,
                       vector-sized >=1.4,
                       fir     >=0.1,
                       bytestring,
                       mtl,
-                      containers
+                      containers,
+                      free   ^>=5.1
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -124,6 +127,7 @@ executable ghengin
         GLFW-b ^>=3.3,
         vector ^>=0.13
 
+    ghc-options: -ddump-simpl
 
     -- Directories containing source files.
     hs-source-dirs:   app

@@ -49,7 +49,7 @@ recordCommandBuffer swapChainExtent swapChainFramebuffers rpass graphicsPipeline
                                             , renderPass = rpass
                                             , framebuffer = swapChainFramebuffers V.! imageIndex -- We created a framebuffer for each swap chain image where it is specified as a color attachment; Thus we need to bind the framebuffer for the swapchain image we want to draw to. Using the imageIndex parameter which was passed in, we can pick the right framebuffer for the current swapchain image
                                             , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) swapChainExtent
-                                            , clearValues = [Vk.Color $ Vk.Float32 0 1 0 1]
+                                            , clearValues = [Vk.Color $ Vk.Float32 1 1 1 1]
                                             }
 
 

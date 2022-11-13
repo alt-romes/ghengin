@@ -31,7 +31,7 @@ vertex = Module $ entryPoint @"main" @Vertex do
     where
       vecs :: Array 3 (V 2 Float)
       vecs = MkArray . fromJust . Vector.fromList $
-        [ V2 0 (-0.5)
+        [ V2 (-0.5) (-0.5)
         , V2 0.5 0.5
         , V2 (-0.5) 0.5
         ]
@@ -43,7 +43,7 @@ vertex = Module $ entryPoint @"main" @Vertex do
 -- Specify the input/output of the shader, with memory locations (and other interface parameters).
 -- This consists of a type-level list of top-level definitions.
 type FragmentDefs
-  =  '[ "out_col" ':-> Output       '[ Location 0                 ] (V 4 Float)   -- output (varying) of type V 4 Float and memory location 0
+  =  '[ "out_col" ':-> Output     '[ Location 0                 ] (V 4 Float)   -- output (varying) of type V 4 Float and memory location 0
       , "main"    ':-> EntryPoint '[ OriginLowerLeft            ] Fragment      -- fragment shader stage (using standard Cartesian coordinates)
       ]
       --  "in_pos"  ':-> Input      '[ Location 0                 ] (V 2 Float)   -- input  (varying) of type V 2 Float and memory location 0
