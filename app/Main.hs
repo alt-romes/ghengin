@@ -18,14 +18,6 @@ import qualified Vulkan as Vk
 
 import Ghengin.Vulkan.Command
 
-drawCommand :: Vk.CommandBuffer -> Command
-drawCommand buf =
-    renderPass undefined undefined undefined $ do
-      bindGraphicsPipeline undefined
-      setViewport undefined
-      setScissor  undefined
-      draw undefined
-
 -- drawFrame = do
 --   acquireNextImage
 --   recordCommandBuf buf drawCommand

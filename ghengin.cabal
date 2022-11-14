@@ -97,8 +97,7 @@ library
                       fir     >=0.1,
                       bytestring,
                       mtl,
-                      containers,
-                      free   ^>=5.1
+                      containers
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -128,6 +127,16 @@ executable ghengin
         vector ^>=0.13
 
     ghc-options: -ddump-simpl
+                 -- -ddump-to-file
+                 -dsuppress-ticks
+                 -dsuppress-stg-exts
+                 -dsuppress-coercions
+                 -dsuppress-idinfo
+                 -dsuppress-unfoldings
+                 -dsuppress-module-prefixes
+                 -dsuppress-timestamps
+                 -dsuppress-uniques
+                 -dsuppress-var-kinds
 
     -- Directories containing source files.
     hs-source-dirs:   app
