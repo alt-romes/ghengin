@@ -56,7 +56,7 @@ main = runVulkanRenderer $ ask >>= \renv -> do
 
 
 drawFrame :: VulkanPipeline -> Vk.Fence -> Vk.Semaphore -> Vk.Semaphore -> Renderer ()
-drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem = getDevice >>= \device -> do
+drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem = asks (._commandBuffer) >>= \cmdBuffer -> getDevice >>= \device -> do
   -- Wait for the previous frame to finish
   -- Acquire an image from the swap chain
   -- Record a command buffer which draws the scene onto that image
@@ -67,7 +67,7 @@ drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem = getDevice
 
   i <- acquireNextImage imageAvailableSem
 
-  Vk.resetCommandBuffer eng.vkCommandBuffer zero
+  Vk.resetCommandBuffer cmdBuffer zero
 
   extent <- getRenderExtent
 
@@ -87,7 +87,7 @@ drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem = getDevice
     -- outside of the scissor will be discarded. We keep it as the whole viewport
     scissor = Vk.Rect2D (Vk.Offset2D 0 0) extent
 
-  recordCommand eng.vkCommandBuffer $ do
+  recordCommand cmdBuffer $ do
 
     renderPass _ (eng.vkSwapChainFramebuffers V.! i) extent $ do
 
@@ -97,7 +97,7 @@ drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem = getDevice
 
       draw 3
 
-  submitGraphicsQueue eng.vkCommandBuffer imageAvailableSem renderFinishedSem inFlightFence
+  submitGraphicsQueue cmdBuffer imageAvailableSem renderFinishedSem inFlightFence
 
   presentPresentQueue renderFinishedSem i
 

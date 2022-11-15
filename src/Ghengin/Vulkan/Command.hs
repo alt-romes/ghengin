@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
@@ -20,12 +21,19 @@ module Ghengin.Vulkan.Command
   , setViewport
   , setScissor
   , draw
+
+  , createCommandPool
+  , destroyCommandPool
+  , createCommandBuffers
   ) where
 
 import Control.Monad.Reader
 import Data.Word
+import Data.Vector (Vector)
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
+
+import Ghengin.Vulkan.Device
 
 -- | A command description: a language to describe what will be recorded in the buffer
 -- 
@@ -121,4 +129,29 @@ setScissor scissor = RenderPassCmd $ ask >>= \buf -> Vk.cmdSetScissor  buf 0 [sc
 draw :: Word32 -> RenderPassCmd
 draw vertexCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDraw buf vertexCount 1 0 0
 {-# INLINE draw #-}
+
+-- :| Creation and Destruction |:
+
+createCommandPool :: VulkanDevice -> IO Vk.CommandPool
+createCommandPool vkDevice = do
+
+  let
+    poolInfo = Vk.CommandPoolCreateInfo { flags = Vk.COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+                                        , queueFamilyIndex = vkDevice._graphicsQueueFamily
+                                        }
+
+  Vk.createCommandPool vkDevice._device poolInfo Nothing
+
+
+destroyCommandPool :: Vk.Device -> Vk.CommandPool -> IO ()
+destroyCommandPool dev pool = Vk.destroyCommandPool dev pool Nothing
+
+createCommandBuffers :: Vk.Device -> Vk.CommandPool -> IO (Vector Vk.CommandBuffer)
+createCommandBuffers dev cpool = do
+  let
+    allocInfo = Vk.CommandBufferAllocateInfo { commandPool = cpool
+                                             , level = Vk.COMMAND_BUFFER_LEVEL_PRIMARY
+                                             , commandBufferCount = 1
+                                             }
+  Vk.allocateCommandBuffers dev allocInfo
 

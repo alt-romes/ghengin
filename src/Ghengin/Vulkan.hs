@@ -25,12 +25,15 @@ import qualified Vulkan as Vk
 import Ghengin.Vulkan.Device.Instance
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan.SwapChain
+import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Utils
 
 data RendererEnv = REnv { _vulkanDevice :: VulkanDevice
                         , _vulkanWindow :: VulkanWindow
                         , _vulkanSwapChain :: VulkanSwapChain
+                        , _commandPool   :: Vk.CommandPool
+                        , _commandBuffer :: Vk.CommandBuffer
                         }
 newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv)
 
@@ -47,11 +50,17 @@ runVulkanRenderer r =
 
     swapChain <- createSwapChain win device
 
-    pure (inst, REnv device win swapChain)
+    -- (For now) we allocate just one command pool and one command buffer
+    commandPool <- createCommandPool device
+    [commandBuffer] <- createCommandBuffers (device._device) commandPool
+
+    pure (inst, REnv device win swapChain commandPool commandBuffer)
 
     )
 
-  (\(inst, REnv device win swapchain) -> do
+  (\(inst, REnv device win swapchain commandPool _) -> do
+
+    destroyCommandPool device._device commandPool
 
     destroySwapChain device._device swapchain
     destroyVulkanDevice device
