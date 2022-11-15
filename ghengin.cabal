@@ -81,6 +81,9 @@ library
                       
                       Ghengin.Vulkan,
                       Ghengin.Vulkan.Command,
+                      Ghengin.Vulkan.Device,
+                      Ghengin.Vulkan.Device.Instance,
+                      Ghengin.Vulkan.GLFW.Window,
 
     -- Modules included in this library but not exported.
     -- other-modules:

@@ -120,3 +120,4 @@ acquireNextImage :: VulkanEngine -> IO Int
 acquireNextImage eng =
   fromIntegral . snd <$> Vk.acquireNextImageKHR eng.vkDevice eng.vkSwapChain maxBound eng.vkImageAvailableSem Vk.NULL_HANDLE
 
+

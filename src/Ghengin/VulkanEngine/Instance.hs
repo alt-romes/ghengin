@@ -51,7 +51,7 @@ createInstance validationLayers = do
     ai  :: Vk.ApplicationInfo
     ai = Vk.ApplicationInfo { applicationName    = Just "Hello Triangle"
                             , applicationVersion = 0
-                            , engineName         = Just "No Engine"
+                            , engineName         = Just "Ghengin"
                             , engineVersion      = 0
                             , apiVersion         = Vk.API_VERSION_1_2
                             }

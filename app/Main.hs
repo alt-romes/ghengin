@@ -70,10 +70,13 @@ drawFrame eng = do
     scissor = Vk.Rect2D (Vk.Offset2D 0 0) eng.vkSwapChainExtent
 
   recordCommand eng.vkCommandBuffer $ do
+
     renderPass eng.vkRenderPass (eng.vkSwapChainFramebuffers V.! i) eng.vkSwapChainExtent $ do
+
       bindGraphicsPipeline eng.vkPipeline
       setViewport viewport
       setScissor  scissor
+
       draw 3
 
   submitQueue eng.vkGraphicsQueue eng.vkCommandBuffer eng.vkImageAvailableSem eng.vkRenderFinishedSem eng.vkInFlightFence
@@ -81,8 +84,6 @@ drawFrame eng = do
   queuePresent eng.vkPresentQueue eng.vkRenderFinishedSem eng.vkSwapChain i
 
   pure ()
-
-
 
 
 
