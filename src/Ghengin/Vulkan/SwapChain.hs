@@ -82,7 +82,6 @@ destroySwapChain d swpc = do
   mapM_ (destroyImageView d) swpc._imageViews
   Vk.destroySwapchainKHR d swpc._swapchain Nothing
 
-
 chooseSwapSurfaceFormat :: V.Vector Vk.SurfaceFormatKHR -> Vk.SurfaceFormatKHR
 chooseSwapSurfaceFormat (V.toList -> availableFormats) =
   case L.sortOn (Down . rateSurfaceFormat) availableFormats of

@@ -16,6 +16,7 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as BS
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.List as L
 
 import qualified Vulkan as Vk
 
@@ -40,7 +41,7 @@ runVulkanRenderer r =
 
     win  <- createVulkanWindow inst (800, 600) "Ghengin"
 
-    device <- createVulkanDevice inst validationLayers deviceExtensions rateFn
+    device <- createVulkanDevice inst validationLayers deviceExtensions (rateFn win._surface)
 
     swapChain <- createSwapChain win device
 
@@ -72,34 +73,34 @@ deviceExtensions :: Vector ByteString
 deviceExtensions = [ Vk.KHR_SWAPCHAIN_EXTENSION_NAME
                    ]
 
-rateFn :: DeviceRateFunction
-rateFn d = do
-  props <- Vk.getPhysicalDeviceProperties d
-  feats <- Vk.getPhysicalDeviceFeatures d
+rateFn :: Vk.SurfaceKHR -> DeviceRateFunction
+rateFn surface d = do
+  props  <- Vk.getPhysicalDeviceProperties d
+  _feats <- Vk.getPhysicalDeviceFeatures d
   (_, extensionProps) <- Vk.enumerateDeviceExtensionProperties d Nothing
 
-  queueFamilies <- findQueueFamilies d sr
-  -- (SCSD _ forms pmodes) <- querySwapChainSupport d sr
+  -- These can't be null
+  (_, surfaceFormats)      <- Vk.getPhysicalDeviceSurfaceFormatsKHR d surface
+  (_, surfacePresentModes) <- Vk.getPhysicalDeviceSurfacePresentModesKHR d surface
+  
+  queueFamilies <- findQueueFamilies d surface
 
-  let
-      s1 = if props.deviceType == Vk.PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
-             then 1000
-             else 0
+  pure $ do
+    let s1 = if props.deviceType == Vk.PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
+               then 1000 else 0
 
-      s2 = props.limits.maxImageDimension2D
+        s2 = props.limits.maxImageDimension2D
 
-      c1 = isJust queueFamilies
+        swapChainAdequate   = not (null surfaceFormats) && not (null surfacePresentModes)
+        extensionsSupported = not . null $ L.intersect (V.toList deviceExtensions) (V.toList $ V.map (.extensionName) extensionProps)
 
-      -- extensionsSupported = not . null $ L.intersect (V.toList deviceExtensions) (V.toList $ V.map (.extensionName) extensionProps)
+    -- If the app couldn't function without geometry shaders
+    -- guard feats.geometryShader
 
-      swapChainAdequate = not (null forms) && not (null pmodes)
-
-     -- If the app couldn't function without geometry shaders
-      _c8 = feats.geometryShader
-
-  if c1 && extensionsSupported && swapChainAdequate
-     then pure (s1 + fromIntegral s2, d)
-     else pure (0, d)
+    (graphicsF, presentF) <- queueFamilies
+    guard swapChainAdequate
+    guard extensionsSupported
+    pure (s1 + fromIntegral s2, graphicsF, presentF)
 
   where
     findQueueFamilies :: Vk.PhysicalDevice -> Vk.SurfaceKHR -> IO (Maybe (Word32, Word32))
