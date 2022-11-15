@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -6,18 +7,19 @@
 {-# LANGUAGE LambdaCase #-}
 module Ghengin.Vulkan where
 
-import Data.Maybe
 import Data.Word
 import Control.Exception
+
+import GHC.Ptr
 
 import Control.Monad.Reader
 
 import Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.List as L
 
+import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan as Vk
 
 import Ghengin.Vulkan.Device.Instance
@@ -30,9 +32,9 @@ data RendererEnv = REnv { _vulkanDevice :: VulkanDevice
                         , _vulkanWindow :: VulkanWindow
                         , _vulkanSwapChain :: VulkanSwapChain
                         }
-newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a }
+newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv)
 
-runVulkanRenderer :: Renderer () -> IO ()
+runVulkanRenderer :: Renderer a -> IO a
 runVulkanRenderer r =
   bracket
   (do
@@ -49,12 +51,6 @@ runVulkanRenderer r =
 
     )
 
-  (\(_, renv) -> do
-
-    runReaderT (unRenderer r) renv
-
-    )
-
   (\(inst, REnv device win swapchain) -> do
 
     destroySwapChain device._device swapchain
@@ -64,6 +60,43 @@ runVulkanRenderer r =
 
     )
 
+  (\(_, renv) -> do
+
+    runReaderT (unRenderer r) renv
+
+    )
+
+acquireNextImage :: Vk.Semaphore -> Renderer Int
+acquireNextImage sem = ask >>= \renv ->
+  fromIntegral . snd <$> Vk.acquireNextImageKHR renv._vulkanDevice._device renv._vulkanSwapChain._swapchain maxBound sem Vk.NULL_HANDLE
+
+submitGraphicsQueue :: Vk.CommandBuffer -> Vk.Semaphore -> Vk.Semaphore -> Vk.Fence -> Renderer ()
+submitGraphicsQueue cb sem1 sem2 fence = do
+  let
+    submitInfo = Vk.SubmitInfo { next = ()
+                                -- We want to wait with writing colors to the image until it's available
+                               , waitSemaphores = [sem1]
+                               , waitDstStageMask = [Vk.PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+                                -- Semaphores to signal when we are done
+                               , signalSemaphores = [sem2]
+                               , commandBuffers = [ cb.commandBufferHandle ]
+                               }
+  graphicsQueue <- asks (._vulkanDevice._graphicsQueue)
+  Vk.queueSubmit graphicsQueue [Vk.SomeStruct submitInfo] fence
+
+
+presentPresentQueue :: Vk.Semaphore -> Int -> Renderer ()
+presentPresentQueue sem imageIndex = do
+  swpc <- asks (._vulkanSwapChain._swapchain)
+  let presentInfo = Vk.PresentInfoKHR { next = ()
+                                      , waitSemaphores = [sem]
+                                      , swapchains = [swpc]
+                                      , imageIndices = [fromIntegral imageIndex]
+                                      , results = nullPtr
+                                      }
+  presentQueue <- asks (._vulkanDevice._presentQueue)
+  _ <- Vk.queuePresentKHR presentQueue presentInfo
+  pure ()
 
 validationLayers :: Vector ByteString
 validationLayers = [ "VK_LAYER_KHRONOS_validation"
@@ -121,3 +154,16 @@ rateFn surface d = do
         isSuitablePresent  i = Vk.getPhysicalDeviceSurfaceSupportKHR pd (fromIntegral i) sr
 
 
+-- :| Utils |:
+
+getRenderExtent :: Renderer Vk.Extent2D
+getRenderExtent = asks (._vulkanSwapChain._surfaceExtent)
+
+getDevice :: Renderer Vk.Device
+getDevice = asks (._vulkanDevice._device)
+
+rendererBracket :: Renderer a -> (a -> Renderer b) -> (a -> Renderer c) -> Renderer c
+rendererBracket x f g = Renderer $ ReaderT $ \renv ->
+  bracket (runReaderT (unRenderer x) renv)
+          ((`runReaderT` renv) . unRenderer . f)
+          ((`runReaderT` renv) . unRenderer . g)

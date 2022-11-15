@@ -8,15 +8,25 @@
 {-# LANGUAGE TypeApplications #-}
 module Main where
 
+import Control.Monad.Reader
+import Control.Monad.IO.Class
 import qualified Data.Vector as V
-import Ghengin.VulkanEngine as VE
-import Ghengin.VulkanEngine.GLFW.Window as G
-import Ghengin.VulkanEngine.Command
-import Ghengin.VulkanEngine.Queue
+-- import Ghengin.VulkanEngine as VE
+-- import Ghengin.VulkanEngine.GLFW.Window as G
+-- import Ghengin.VulkanEngine.Command
+-- import Ghengin.VulkanEngine.Queue
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
+import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.Command
+import Ghengin.Vulkan.Pipeline
+import Ghengin.Vulkan.Synchronization
+import Ghengin.Vulkan
+import Ghengin
+
+import qualified Ghengin.Shaders.SimpleShader as SimpleShader
+import Ghengin.Shaders
 
 -- drawFrame = do
 --   acquireNextImage
@@ -24,33 +34,42 @@ import Ghengin.Vulkan.Command
 
 
 main :: IO ()
-main = runVulkanRenderer $ do
+main = runVulkanRenderer $ ask >>= \renv -> do
 
   (_, nExts) <- Vk.enumerateInstanceExtensionProperties Nothing
 
-  putStr "Extensions: " >> print nExts
+  liftIO $ putStr "Extensions: " >> print nExts
 
-  loopUntilClosed (eng.vkWindow) $ do
+  vert <- compileFIRShader SimpleShader.vertex
+  frag <- compileFIRShader SimpleShader.fragment
 
-    drawFrame eng
+  withGraphicsPipeline vert frag _ $ \pipeline ->
+    withFence                        $ \inFlightFence ->
+      withSemaphore                    $ \imageAvailableSem ->
+        withSemaphore                    $ \renderFinishedSem -> do
 
-  Vk.deviceWaitIdle eng.vkDevice
+         gameLoop $ do
+           drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem
 
-  putStrLn "Goodbye"
+  Vk.deviceWaitIdle renv._vulkanDevice._device
+  liftIO $ putStrLn "Goodbye"
 
 
-drawFrame :: VulkanEngine -> IO ()
-drawFrame eng = do
+drawFrame :: VulkanPipeline -> Vk.Fence -> Vk.Semaphore -> Vk.Semaphore -> Renderer ()
+drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem = getDevice >>= \device -> do
   -- Wait for the previous frame to finish
   -- Acquire an image from the swap chain
   -- Record a command buffer which draws the scene onto that image
   -- Submit the recorded command buffer
   -- Present the swap chain image 
-  _ <- Vk.waitForFences eng.vkDevice [eng.vkInFlightFence] True maxBound
-  Vk.resetFences eng.vkDevice [eng.vkInFlightFence]
-  i <- acquireNextImage eng
+  _ <- Vk.waitForFences device [inFlightFence] True maxBound
+  Vk.resetFences device [inFlightFence]
+
+  i <- acquireNextImage imageAvailableSem
 
   Vk.resetCommandBuffer eng.vkCommandBuffer zero
+
+  extent <- getRenderExtent
 
   let
     -- The region of the framebuffer that the output will be rendered to. We
@@ -59,28 +78,28 @@ drawFrame eng = do
     viewport = Vk.Viewport {..} where
                  x = 0.0
                  y = 0.0
-                 width  = fromIntegral $ eng.vkSwapChainExtent.width
-                 height = fromIntegral $ eng.vkSwapChainExtent.height
+                 width  = fromIntegral $ extent.width
+                 height = fromIntegral $ extent.height
                  minDepth = 0
                  maxDepth = 1
 
     -- Defines the region in which pixels will actually be stored. Any pixels
     -- outside of the scissor will be discarded. We keep it as the whole viewport
-    scissor = Vk.Rect2D (Vk.Offset2D 0 0) eng.vkSwapChainExtent
+    scissor = Vk.Rect2D (Vk.Offset2D 0 0) extent
 
   recordCommand eng.vkCommandBuffer $ do
 
-    renderPass eng.vkRenderPass (eng.vkSwapChainFramebuffers V.! i) eng.vkSwapChainExtent $ do
+    renderPass _ (eng.vkSwapChainFramebuffers V.! i) extent $ do
 
-      bindGraphicsPipeline eng.vkPipeline
+      bindGraphicsPipeline (pipeline._pipeline)
       setViewport viewport
       setScissor  scissor
 
       draw 3
 
-  submitQueue eng.vkGraphicsQueue eng.vkCommandBuffer eng.vkImageAvailableSem eng.vkRenderFinishedSem eng.vkInFlightFence
+  submitGraphicsQueue eng.vkCommandBuffer imageAvailableSem renderFinishedSem inFlightFence
 
-  queuePresent eng.vkPresentQueue eng.vkRenderFinishedSem eng.vkSwapChain i
+  presentPresentQueue renderFinishedSem i
 
   pure ()
 

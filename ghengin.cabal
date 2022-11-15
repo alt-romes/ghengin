@@ -80,7 +80,10 @@ library
                       Ghengin.Utils,
                       
                       Ghengin.Vulkan,
+                      Ghengin.Vulkan.Synchronization,
                       Ghengin.Vulkan.Command,
+                      Ghengin.Vulkan.RenderPass,
+                      Ghengin.Vulkan.Pipeline,
                       Ghengin.Vulkan.SwapChain,
                       Ghengin.Vulkan.Device,
                       Ghengin.Vulkan.Device.Instance,
@@ -101,7 +104,8 @@ library
                       fir     >=0.1,
                       bytestring,
                       mtl,
-                      containers
+                      containers,
+                      apecs
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -128,7 +132,8 @@ executable ghengin
         ghengin,
         vulkan ^>=3.23,
         GLFW-b ^>=3.3,
-        vector ^>=0.13
+        vector ^>=0.13,
+        mtl
 
     ghc-options: -ddump-simpl
                  -- -ddump-to-file

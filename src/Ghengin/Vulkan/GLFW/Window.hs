@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.GLFW.Window (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow) where
+module Ghengin.Vulkan.GLFW.Window (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosed) where
 
 import GHC.Int
 
@@ -8,6 +8,7 @@ import Foreign.Ptr
 import Foreign.Marshal.Alloc
 import Foreign.Storable
 
+import Control.Monad.IO.Class
 import Control.Monad
 import Control.Exception
 
@@ -67,19 +68,14 @@ destroySurface :: Vk.Instance -> Vk.SurfaceKHR -> IO ()
 destroySurface i s = Vk.destroySurfaceKHR i s Nothing
 {-# INLINE destroySurface #-}
 
--- -- -- | Create a window which is automatically destroyed when the function that
--- -- -- uses it is finished.
--- -- withWindow :: Int -> Int -> String -> (Window -> IO a) -> IO a
--- -- withWindow w h label f = bracket (createWindow w h label) destroyWindow f
-
 -- -- | Run an IO action many many times until the window is closed by a normal
 -- -- window-closing event.
--- loopUntilClosed :: Window -> IO () -> IO ()
--- loopUntilClosed (W win) io = do
---   GLFW.windowShouldClose win >>= \case
---     False -> do
---       io
---       GLFW.pollEvents
---       loopUntilClosed (W win) io
---     True  -> pure ()
+loopUntilClosed :: MonadIO m => GLFW.Window -> m () -> m ()
+loopUntilClosed win action = do
+  liftIO (GLFW.windowShouldClose win) >>= \case
+    True  -> pure ()
+    False -> do
+      action
+      liftIO GLFW.pollEvents
+      loopUntilClosed win action
 
