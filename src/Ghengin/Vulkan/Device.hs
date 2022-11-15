@@ -9,9 +9,9 @@ module Ghengin.Vulkan.Device where
 import Data.Ord
 import Data.Maybe
 import Data.Word
-import Control.Monad
 
-import qualified Data.ByteString as BS
+import Data.ByteString (ByteString)
+import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.List as L
 import qualified Data.Set as S
@@ -22,14 +22,6 @@ import qualified Vulkan as Vk
 import Ghengin.Vulkan.Device.Instance
 import Ghengin.Vulkan.GLFW.Window
 
-validationLayers :: V.Vector BS.ByteString
-validationLayers = [ "VK_LAYER_KHRONOS_validation"
-                   ]
-
-deviceExtensions :: V.Vector BS.ByteString
-deviceExtensions = [ Vk.KHR_SWAPCHAIN_EXTENSION_NAME
-                   ]
-
 -- We create a logical device always with a graphics queue and a present queue
 
 type GraphicsQueueFamily = Word32
@@ -39,11 +31,17 @@ type PresentQueueFamily  = Word32
 --  The return value is maybe a tuple with three items: the rating associated with the device (higher is better), the graphics queue family and the present queue family
 type DeviceRateFunction = (Vk.PhysicalDevice -> IO (Maybe (Int, GraphicsQueueFamily, PresentQueueFamily)))
 
-createDevice :: DeviceRateFunction
-             -> IO Vk.Device
-createDevice rateFn = do
+data VulkanDevice = VulkanDevice { _device :: Vk.Device
+                                 , _graphicsQueue :: Vk.Queue
+                                 , _presentQueue  :: Vk.Queue
+                                 }
 
-  inst <- createInstance validationLayers
+createVulkanDevice :: Vk.Instance
+                   -> Vector ByteString -- ^ Validation Layers
+                   -> Vector ByteString -- ^ Device Extensions
+                   -> DeviceRateFunction
+                   -> IO VulkanDevice
+createVulkanDevice inst validationLayers deviceExtensions rateFn = do
 
   (physicalDevice, graphicsQF, presentQF) <- pickPhysicalDevice inst rateFn
 
@@ -63,8 +61,14 @@ createDevice rateFn = do
                                                         , queuePriorities  = [1]
                                                         }
 
-  Vk.createDevice physicalDevice deviceCreateInfo Nothing
+  device        <- Vk.createDevice physicalDevice deviceCreateInfo Nothing
+  graphicsQueue <- Vk.getDeviceQueue device graphicsQF 0
+  presentQueue  <- Vk.getDeviceQueue device presentQF  0
+  pure $ VulkanDevice device graphicsQueue presentQueue
 
+
+destroyVulkanDevice :: VulkanDevice -> IO ()
+destroyVulkanDevice d = Vk.destroyDevice d._device Nothing
 
 pickPhysicalDevice :: Vk.Instance
                    -> DeviceRateFunction
@@ -79,7 +83,4 @@ pickPhysicalDevice inst rateFn = do
         (Nothing,_):_ -> fail "Impossible! Failed to find a suitable GPU!"
         [] -> fail "Failed to find a suitable GPU!"
 
-
-destroyLogicalDevice :: Vk.Device -> IO ()
-destroyLogicalDevice d = Vk.destroyDevice d Nothing
 

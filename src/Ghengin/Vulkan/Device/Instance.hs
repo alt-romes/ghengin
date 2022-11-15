@@ -68,6 +68,7 @@ createInstance validationLayers = do
     cstringListToVector :: [CString] -> IO (V.Vector BS.ByteString)
     cstringListToVector = fmap fromList . traverse BS.packCString
 
+
 destroyInstance :: Vk.Instance -> IO ()
 destroyInstance vkInst = Vk.destroyInstance vkInst Nothing
 

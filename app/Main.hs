@@ -24,9 +24,8 @@ import Ghengin.Vulkan.Command
 
 
 main :: IO ()
-main = withVulkanEngine $ \eng -> do
+main = runVulkanRenderer $ do
 
-  -- getRequiredInstanceExtensions
   (_, nExts) <- Vk.enumerateInstanceExtensionProperties Nothing
 
   putStr "Extensions: " >> print nExts

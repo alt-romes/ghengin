@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.GLFW.Window where
+module Ghengin.Vulkan.GLFW.Window (VulkanWindow, createVulkanWindow, destroyVulkanWindow) where
 
 import GHC.Int
 
@@ -15,15 +15,33 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Vulkan.Exception as Vk (VulkanException(..))
 import qualified Vulkan as Vk
 
+data VulkanWindow = VulkanWindow GLFW.Window Vk.SurfaceKHR
+
+createVulkanWindow :: Vk.Instance
+                   -> (Int, Int) -- ^ (width, height)
+                   -> String     -- ^ window name
+                   -> IO VulkanWindow
+createVulkanWindow inst dimensions label = do
+  win     <- createWindow dimensions label
+  surface <- createSurface inst win
+  pure $ VulkanWindow win surface
+
+-- TODO: Can I destroy the window before the instance?
+destroyVulkanWindow :: Vk.Instance -> VulkanWindow -> IO ()
+destroyVulkanWindow inst (VulkanWindow win surface) = do
+  destroySurface inst surface
+  destroyWindow win
+
 -- | Creates a window and its GLFW context. Probably doesn't work if we need
 -- multiple windows
-createWindow :: Int -> Int -> String -> IO GLFW.Window
-createWindow w h label = do
+createWindow :: (Int, Int) -> String -> IO GLFW.Window
+createWindow (w,h) label = do
   True     <- GLFW.init
   True     <- GLFW.vulkanSupported
   GLFW.windowHint (GLFW.WindowHint'ClientAPI GLFW.ClientAPI'NoAPI)
   Just win <- GLFW.createWindow w h label Nothing Nothing
   pure win
+{-# INLINE createWindow #-}
 
 -- | Destroys the window and the GLFW context. To have multiple windows this
 -- wouldn't work
@@ -31,6 +49,7 @@ destroyWindow :: GLFW.Window -> IO ()
 destroyWindow win = do
   GLFW.destroyWindow win
   GLFW.terminate
+{-# INLINE destroyWindow #-}
 
 -- | Create a surface (it must be destroyed by Vulkan).
 createSurface :: Vk.Instance -> GLFW.Window -> IO Vk.SurfaceKHR
@@ -40,9 +59,11 @@ createSurface i w = do
     when (r < Vk.SUCCESS) (throwIO (Vk.VulkanException r))
     surface <- peek surfacePtr
     pure surface
+{-# INLINE createSurface #-}
 
 destroySurface :: Vk.Instance -> Vk.SurfaceKHR -> IO ()
 destroySurface i s = Vk.destroySurfaceKHR i s Nothing
+{-# INLINE destroySurface #-}
 
 -- -- -- | Create a window which is automatically destroyed when the function that
 -- -- -- uses it is finished.
