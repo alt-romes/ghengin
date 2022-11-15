@@ -1,6 +1,6 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.GLFW.Window (VulkanWindow, createVulkanWindow, destroyVulkanWindow) where
+module Ghengin.Vulkan.GLFW.Window (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow) where
 
 import GHC.Int
 
@@ -15,7 +15,9 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Vulkan.Exception as Vk (VulkanException(..))
 import qualified Vulkan as Vk
 
-data VulkanWindow = VulkanWindow GLFW.Window Vk.SurfaceKHR
+data VulkanWindow = VulkanWindow { _window :: GLFW.Window
+                                 , _surface :: Vk.SurfaceKHR
+                                 }
 
 createVulkanWindow :: Vk.Instance
                    -> (Int, Int) -- ^ (width, height)

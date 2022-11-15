@@ -6,7 +6,7 @@
 {-# LANGUAGE LambdaCase #-}
 module Ghengin.Vulkan where
 
-import Data.Coerce
+import Data.Maybe
 import Data.Word
 import Control.Exception
 
@@ -21,11 +21,13 @@ import qualified Vulkan as Vk
 
 import Ghengin.Vulkan.Device.Instance
 import Ghengin.Vulkan.Device
-import Ghengin.Utils
+import Ghengin.Vulkan.SwapChain
 import Ghengin.Vulkan.GLFW.Window
+import Ghengin.Utils
 
 data RendererEnv = REnv { _vulkanDevice :: VulkanDevice
                         , _vulkanWindow :: VulkanWindow
+                        , _vulkanSwapChain :: VulkanSwapChain
                         }
 newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a }
 
@@ -40,7 +42,9 @@ runVulkanRenderer r =
 
     device <- createVulkanDevice inst validationLayers deviceExtensions rateFn
 
-    pure (inst, REnv device win)
+    swapChain <- createSwapChain win device
+
+    pure (inst, REnv device win swapChain)
 
     )
 
@@ -50,8 +54,9 @@ runVulkanRenderer r =
 
     )
 
-  (\(inst, REnv device win) -> do
+  (\(inst, REnv device win swapchain) -> do
 
+    destroySwapChain device._device swapchain
     destroyVulkanDevice device
     destroyVulkanWindow inst win
     destroyInstance inst

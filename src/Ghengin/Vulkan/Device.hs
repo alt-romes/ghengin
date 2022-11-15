@@ -31,9 +31,12 @@ type PresentQueueFamily  = Word32
 --  The return value is maybe a tuple with three items: the rating associated with the device (higher is better), the graphics queue family and the present queue family
 type DeviceRateFunction = (Vk.PhysicalDevice -> IO (Maybe (Int, GraphicsQueueFamily, PresentQueueFamily)))
 
-data VulkanDevice = VulkanDevice { _device :: Vk.Device
-                                 , _graphicsQueue :: Vk.Queue
-                                 , _presentQueue  :: Vk.Queue
+data VulkanDevice = VulkanDevice { _physicalDevice :: Vk.PhysicalDevice
+                                 , _device         :: Vk.Device
+                                 , _graphicsQueue  :: Vk.Queue
+                                 , _presentQueue   :: Vk.Queue
+                                 , _graphicsQueueFamily :: GraphicsQueueFamily
+                                 , _presentQueueFamily  :: PresentQueueFamily
                                  }
 
 createVulkanDevice :: Vk.Instance
@@ -64,11 +67,12 @@ createVulkanDevice inst validationLayers deviceExtensions rateFn = do
   device        <- Vk.createDevice physicalDevice deviceCreateInfo Nothing
   graphicsQueue <- Vk.getDeviceQueue device graphicsQF 0
   presentQueue  <- Vk.getDeviceQueue device presentQF  0
-  pure $ VulkanDevice device graphicsQueue presentQueue
+  pure $ VulkanDevice physicalDevice device graphicsQueue presentQueue graphicsQF presentQF
 
 
 destroyVulkanDevice :: VulkanDevice -> IO ()
 destroyVulkanDevice d = Vk.destroyDevice d._device Nothing
+
 
 pickPhysicalDevice :: Vk.Instance
                    -> DeviceRateFunction

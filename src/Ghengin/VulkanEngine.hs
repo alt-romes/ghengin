@@ -96,14 +96,17 @@ initVulkanEngine = do
 cleanup :: VulkanEngine -> IO ()
 cleanup (VulkanEngine inst _ device _ _ w s swpc _ scImgsViews pply renderPass pipeline scFramebuffers cpool _ s1 s2 f1) = do
   putStrLn "[START] Clean up"
+
   destroySem device s1
   destroySem device s2
   destroyFence device f1
   destroyCommandPool device cpool
+
   mapM_ (destroyFrameBuffer device) scFramebuffers
   destroyPipeline device pipeline
   destroyPipelineLayout device pply
   destroyRenderPass device renderPass
+
   mapM_ (destroyImageView device) scImgsViews
   destroySwapChain device swpc
   destroyLogicalDevice device
