@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -32,10 +33,13 @@ import Ghengin.Utils
 data RendererEnv = REnv { _vulkanDevice :: VulkanDevice
                         , _vulkanWindow :: VulkanWindow
                         , _vulkanSwapChain :: VulkanSwapChain
-                        , _commandPool   :: Vk.CommandPool
-                        , _commandBuffer :: Vk.CommandBuffer
+                        , _commandPool     :: Vk.CommandPool
+                        , _commandBuffers  :: Vector Vk.CommandBuffer
                         }
 newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv)
+
+pattern MAX_FRAMES_IN_FLIGHT :: Word32
+pattern MAX_FRAMES_IN_FLIGHT = 2 -- We want to work on multiple frames but we don't want the CPU to get too far ahead of the GPU
 
 runVulkanRenderer :: Renderer a -> IO a
 runVulkanRenderer r =
@@ -54,9 +58,9 @@ runVulkanRenderer r =
 
     -- (For now) we allocate just one command pool and one command buffer
     commandPool <- createCommandPool device
-    [commandBuffer] <- createCommandBuffers (device._device) commandPool
+    cmdBuffers <- createCommandBuffers (device._device) commandPool MAX_FRAMES_IN_FLIGHT
 
-    pure (inst, REnv device win swapChain commandPool commandBuffer)
+    pure (inst, REnv device win swapChain commandPool cmdBuffers)
 
     )
 

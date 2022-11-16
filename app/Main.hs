@@ -10,10 +10,9 @@ module Main where
 
 import Control.Monad.Reader
 import qualified Data.Vector as V
--- import Ghengin.VulkanEngine as VE
--- import Ghengin.VulkanEngine.GLFW.Window as G
--- import Ghengin.VulkanEngine.Command
--- import Ghengin.VulkanEngine.Queue
+
+import Data.IORef
+
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
@@ -41,20 +40,42 @@ main = runVulkanRenderer $ ask >>= \renv -> do
 
   withSimpleRenderPass $ \simpleRenderPass ->
     withGraphicsPipeline vert frag simpleRenderPass._renderPass $ \pipeline ->
-      withFence True $ \inFlightFence ->
-        withSemaphore $ \imageAvailableSem ->
-          withSemaphore $ \renderFinishedSem -> do
+      withFence True $ \inFlightFence1 ->
+      withFence True $ \inFlightFence2 ->
+        withSemaphore $ \imageAvailableSem1 ->
+        withSemaphore $ \imageAvailableSem2 ->
+          withSemaphore $ \renderFinishedSem1 ->
+          withSemaphore $ \renderFinishedSem2 -> do
 
+           counter <- liftIO(newIORef 0)
            gameLoop $ do
-             drawFrame pipeline simpleRenderPass inFlightFence imageAvailableSem renderFinishedSem
+             n <- liftIO(readIORef counter)
+             drawFrame pipeline simpleRenderPass
+                       [inFlightFence1, inFlightFence2]
+                       [imageAvailableSem1, imageAvailableSem2]
+                       [renderFinishedSem1, renderFinishedSem2]
+                       n
+             liftIO(modifyIORef' counter (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT))
 
            Vk.deviceWaitIdle renv._vulkanDevice._device
 
   liftIO $ putStrLn "Goodbye"
 
 
-drawFrame :: VulkanPipeline -> VulkanRenderPass -> Vk.Fence -> Vk.Semaphore -> Vk.Semaphore -> Renderer ()
-drawFrame pipeline rpass inFlightFence imageAvailableSem renderFinishedSem = asks (._commandBuffer) >>= \cmdBuffer -> getDevice >>= \device -> do
+drawFrame :: VulkanPipeline
+          -> VulkanRenderPass
+          -> V.Vector Vk.Fence
+          -> V.Vector Vk.Semaphore
+          -> V.Vector Vk.Semaphore
+          -> Int -- ^ Frame number
+          -> Renderer ()
+drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n = asks (._commandBuffers) >>= \cmdBuffers -> getDevice >>= \device -> do
+
+  let cmdBuffer = cmdBuffers V.! n
+      inFlightFence = inFlightFences V.! n
+      imageAvailableSem = imageAvailableSems V.! n
+      renderFinishedSem = renderFinishedSems V.! n
+
   -- Wait for the previous frame to finish
   -- Acquire an image from the swap chain
   -- Record a command buffer which draws the scene onto that image

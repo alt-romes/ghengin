@@ -146,12 +146,12 @@ createCommandPool vkDevice = do
 destroyCommandPool :: Vk.Device -> Vk.CommandPool -> IO ()
 destroyCommandPool dev pool = Vk.destroyCommandPool dev pool Nothing
 
-createCommandBuffers :: Vk.Device -> Vk.CommandPool -> IO (Vector Vk.CommandBuffer)
-createCommandBuffers dev cpool = do
+createCommandBuffers :: Vk.Device -> Vk.CommandPool -> Word32 -> IO (Vector Vk.CommandBuffer)
+createCommandBuffers dev cpool n = do
   let
     allocInfo = Vk.CommandBufferAllocateInfo { commandPool = cpool
                                              , level = Vk.COMMAND_BUFFER_LEVEL_PRIMARY
-                                             , commandBufferCount = 1
+                                             , commandBufferCount = n
                                              }
   Vk.allocateCommandBuffers dev allocInfo
 
