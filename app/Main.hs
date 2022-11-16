@@ -9,7 +9,6 @@
 module Main where
 
 import Control.Monad.Reader
-import Control.Monad.IO.Class
 import qualified Data.Vector as V
 -- import Ghengin.VulkanEngine as VE
 -- import Ghengin.VulkanEngine.GLFW.Window as G
@@ -18,7 +17,6 @@ import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
-import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan.Pipeline
@@ -50,7 +48,8 @@ main = runVulkanRenderer $ ask >>= \renv -> do
            gameLoop $ do
              drawFrame pipeline simpleRenderPass inFlightFence imageAvailableSem renderFinishedSem
 
-  Vk.deviceWaitIdle renv._vulkanDevice._device
+           Vk.deviceWaitIdle renv._vulkanDevice._device
+
   liftIO $ putStrLn "Goodbye"
 
 

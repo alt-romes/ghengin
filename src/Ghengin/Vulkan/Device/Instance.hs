@@ -21,6 +21,7 @@ createInstance :: V.Vector BS.ByteString -- ^ Validation layers
                -- -> BS.ByteString          -- ^ Application name
                -> IO Vk.Instance
 createInstance validationLayers = do
+  -- This will only return something if GLFW has been initialized
   glfwExtensions <- GLFW.getRequiredInstanceExtensions >>= cstringListToVector
 
   checkRequiredExtensionsSupport glfwExtensions >>= \case

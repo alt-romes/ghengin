@@ -1,7 +1,10 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.GLFW.Window (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosed) where
+module Ghengin.Vulkan.GLFW.Window
+  (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosed
+  , initGLFW, terminateGLFW
+  ) where
 
 import GHC.Int
 
@@ -26,7 +29,7 @@ createVulkanWindow :: Vk.Instance
                    -> String     -- ^ window name
                    -> IO VulkanWindow
 createVulkanWindow inst dimensions label = do
-  !win     <- createWindow dimensions label
+  win     <- createWindow dimensions label
   surface <- createSurface inst win
   pure $ VulkanWindow win surface
 
@@ -40,9 +43,6 @@ destroyVulkanWindow inst (VulkanWindow win surface) = do
 -- multiple windows
 createWindow :: (Int, Int) -> String -> IO GLFW.Window
 createWindow (w,h) label = do
-  True     <- GLFW.init
-  True     <- GLFW.vulkanSupported
-  GLFW.windowHint (GLFW.WindowHint'ClientAPI GLFW.ClientAPI'NoAPI)
   Just win <- GLFW.createWindow w h label Nothing Nothing
   pure win
 {-# INLINE createWindow #-}
@@ -52,7 +52,6 @@ createWindow (w,h) label = do
 destroyWindow :: GLFW.Window -> IO ()
 destroyWindow win = do
   GLFW.destroyWindow win
-  GLFW.terminate
 {-# INLINE destroyWindow #-}
 
 -- | Create a surface (it must be destroyed by Vulkan).
@@ -80,3 +79,11 @@ loopUntilClosed win action = do
       liftIO GLFW.pollEvents
       loopUntilClosed win action
 
+initGLFW :: IO ()
+initGLFW = do
+  True <- GLFW.init
+  True <- GLFW.vulkanSupported
+  GLFW.windowHint (GLFW.WindowHint'ClientAPI GLFW.ClientAPI'NoAPI)
+
+terminateGLFW :: IO ()
+terminateGLFW = GLFW.terminate

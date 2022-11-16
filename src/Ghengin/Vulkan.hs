@@ -42,6 +42,8 @@ runVulkanRenderer r =
   bracket
   (do
 
+    initGLFW
+
     inst <- createInstance validationLayers
 
     win  <- createVulkanWindow inst (800, 600) "Ghengin"
@@ -68,6 +70,8 @@ runVulkanRenderer r =
     destroyVulkanDevice device
     destroyVulkanWindow inst win
     destroyInstance inst
+
+    terminateGLFW
 
     liftIO $ putStrLn "[Done] Clean up"
 
