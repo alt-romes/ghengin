@@ -60,12 +60,16 @@ runVulkanRenderer r =
 
   (\(inst, REnv device win swapchain commandPool _) -> do
 
+    liftIO $ putStrLn "[Start] Clean up"
+
     destroyCommandPool device._device commandPool
 
     destroySwapChain device._device swapchain
     destroyVulkanDevice device
     destroyVulkanWindow inst win
     destroyInstance inst
+
+    liftIO $ putStrLn "[Done] Clean up"
 
     )
 

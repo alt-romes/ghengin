@@ -20,17 +20,15 @@ import qualified Vulkan as Vk
 
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.Command
+import Ghengin.Vulkan.Device
 import Ghengin.Vulkan.Pipeline
+import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.Synchronization
 import Ghengin.Vulkan
 import Ghengin
 
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 import Ghengin.Shaders
-
--- drawFrame = do
---   acquireNextImage
---   recordCommandBuf buf drawCommand
 
 
 main :: IO ()
@@ -40,23 +38,24 @@ main = runVulkanRenderer $ ask >>= \renv -> do
 
   liftIO $ putStr "Extensions: " >> print nExts
 
-  vert <- compileFIRShader SimpleShader.vertex
-  frag <- compileFIRShader SimpleShader.fragment
+  vert <- liftIO $ compileFIRShader SimpleShader.vertex
+  frag <- liftIO $ compileFIRShader SimpleShader.fragment
 
-  withGraphicsPipeline vert frag _ $ \pipeline ->
-    withFence                        $ \inFlightFence ->
-      withSemaphore                    $ \imageAvailableSem ->
-        withSemaphore                    $ \renderFinishedSem -> do
+  withSimpleRenderPass $ \simpleRenderPass ->
+    withGraphicsPipeline vert frag simpleRenderPass._renderPass $ \pipeline ->
+      withFence True $ \inFlightFence ->
+        withSemaphore $ \imageAvailableSem ->
+          withSemaphore $ \renderFinishedSem -> do
 
-         gameLoop $ do
-           drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem
+           gameLoop $ do
+             drawFrame pipeline simpleRenderPass inFlightFence imageAvailableSem renderFinishedSem
 
   Vk.deviceWaitIdle renv._vulkanDevice._device
   liftIO $ putStrLn "Goodbye"
 
 
-drawFrame :: VulkanPipeline -> Vk.Fence -> Vk.Semaphore -> Vk.Semaphore -> Renderer ()
-drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem = asks (._commandBuffer) >>= \cmdBuffer -> getDevice >>= \device -> do
+drawFrame :: VulkanPipeline -> VulkanRenderPass -> Vk.Fence -> Vk.Semaphore -> Vk.Semaphore -> Renderer ()
+drawFrame pipeline rpass inFlightFence imageAvailableSem renderFinishedSem = asks (._commandBuffer) >>= \cmdBuffer -> getDevice >>= \device -> do
   -- Wait for the previous frame to finish
   -- Acquire an image from the swap chain
   -- Record a command buffer which draws the scene onto that image
@@ -87,9 +86,9 @@ drawFrame pipeline inFlightFence imageAvailableSem renderFinishedSem = asks (._c
     -- outside of the scissor will be discarded. We keep it as the whole viewport
     scissor = Vk.Rect2D (Vk.Offset2D 0 0) extent
 
-  recordCommand cmdBuffer $ do
+  liftIO $ recordCommand cmdBuffer $ do
 
-    renderPass _ (eng.vkSwapChainFramebuffers V.! i) extent $ do
+    renderPass rpass._renderPass (rpass._framebuffers V.! i) extent $ do
 
       bindGraphicsPipeline (pipeline._pipeline)
       setViewport viewport

@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
 module Ghengin.Vulkan.GLFW.Window (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosed) where
@@ -25,7 +26,7 @@ createVulkanWindow :: Vk.Instance
                    -> String     -- ^ window name
                    -> IO VulkanWindow
 createVulkanWindow inst dimensions label = do
-  win     <- createWindow dimensions label
+  !win     <- createWindow dimensions label
   surface <- createSurface inst win
   pure $ VulkanWindow win surface
 
