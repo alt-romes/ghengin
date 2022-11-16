@@ -89,6 +89,8 @@ library
                       Ghengin.Vulkan.Device.Instance,
                       Ghengin.Vulkan.GLFW.Window,
 
+                      Ghengin.Component.Mesh
+
     -- Modules included in this library but not exported.
     -- other-modules:
 
@@ -105,7 +107,8 @@ library
                       bytestring,
                       mtl,
                       containers,
-                      apecs
+                      apecs,
+                      geomancy
 
     -- Directories containing source files.
     hs-source-dirs:   src

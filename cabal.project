@@ -12,3 +12,8 @@ source-repository-package
   type:     git
   location: https://github.com/alt-romes/typelits-witnesses.git
   tag:      aba05396b2b3821e1a0735f4d4fd711000fd33c5
+
+source-repository-package
+    type:   git
+    location: https://gitlab.com/dpwiz/geomancy.git
+    tag:    head

@@ -19,6 +19,9 @@ import Ghengin.Shaders
 import Ghengin.Vulkan
 import Ghengin.Vulkan.Device
 
+-- Oof... read comment on vertexInput
+import Ghengin.Component.Mesh
+
 data VulkanPipeline = VulkanPipeline { _pipeline :: Vk.Pipeline
                                      , _pipelineLayout :: Vk.PipelineLayout
                                      }
@@ -74,8 +77,10 @@ createGraphicsPipeline' dev vert frag renderP = do
     vertexInputInfo = Vk.PipelineVertexInputStateCreateInfo {..} where
                         next = ()
                         flags = Vk.PipelineVertexInputStateCreateFlags 0
-                        vertexBindingDescriptions = []
-                        vertexAttributeDescriptions = []
+                        -- ROMES:TODO: Hardcoded for now. Later we might have
+                        -- graphics pipelines for different types of vertices
+                        vertexBindingDescriptions = [vertexInputBindingDescription]
+                        vertexAttributeDescriptions = vertexInputAttributeDescriptions
 
     inputAssembly = Vk.PipelineInputAssemblyStateCreateInfo {..} where
                         flags = Vk.PipelineInputAssemblyStateCreateFlags 0
