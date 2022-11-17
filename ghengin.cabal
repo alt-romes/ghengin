@@ -124,7 +124,7 @@ executable ghengin
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    -- other-modules:
+    other-modules:    Main.Apecs
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:
@@ -136,7 +136,9 @@ executable ghengin
         vulkan ^>=3.23,
         GLFW-b ^>=3.3,
         vector ^>=0.13,
-        mtl
+        mtl,
+        apecs,
+        geomancy
 
     -- ghc-options: -ddump-simpl
                  -- -ddump-to-file
@@ -164,7 +166,7 @@ test-suite ghengin-test
     default-language: Haskell2010
 
     -- Modules included in this executable, other than Main.
-    -- other-modules:
+    -- other-modules:    Main.Apecs
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

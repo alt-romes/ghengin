@@ -16,6 +16,7 @@ import Data.IORef
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
+import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan.Pipeline
@@ -27,9 +28,15 @@ import Ghengin
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 import Ghengin.Shaders
 
+import Main.Apecs
 
 main :: IO ()
-main = runVulkanRenderer $ ask >>= \renv -> do
+main = do
+  w <- initWorld
+  ghengin w (pure ()) (pure ()) (pure False) (pure ())
+
+main' :: IO ()
+main' = runVulkanRenderer $ ask >>= \renv -> do
 
   (_, nExts) <- Vk.enumerateInstanceExtensionProperties Nothing
 
@@ -48,14 +55,15 @@ main = runVulkanRenderer $ ask >>= \renv -> do
           withSemaphore $ \renderFinishedSem2 -> do
 
            counter <- liftIO(newIORef 0)
-           gameLoop $ do
+           loopUntilClosedOr (renv._vulkanWindow._window) $ do
              n <- liftIO(readIORef counter)
-             drawFrame pipeline simpleRenderPass
+             Main.drawFrame pipeline simpleRenderPass
                        [inFlightFence1, inFlightFence2]
                        [imageAvailableSem1, imageAvailableSem2]
                        [renderFinishedSem1, renderFinishedSem2]
                        n
              liftIO(modifyIORef' counter (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT))
+             pure False
 
            Vk.deviceWaitIdle renv._vulkanDevice._device
 

@@ -1,8 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
 module Ghengin.Vulkan.GLFW.Window
-  (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosed
+  (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosedOr
   , initGLFW, terminateGLFW
   ) where
 
@@ -70,14 +71,17 @@ destroySurface i s = Vk.destroySurfaceKHR i s Nothing
 
 -- -- | Run an IO action many many times until the window is closed by a normal
 -- -- window-closing event.
-loopUntilClosed :: MonadIO m => GLFW.Window -> m () -> m ()
-loopUntilClosed win action = do
-  liftIO (GLFW.windowShouldClose win) >>= \case
-    True  -> pure ()
-    False -> do
-      action
-      liftIO GLFW.pollEvents
-      loopUntilClosed win action
+loopUntilClosedOr :: forall m. MonadIO m => GLFW.Window -> m Bool -> m ()
+loopUntilClosedOr = loopUntilClosedOr' False
+  where
+  loopUntilClosedOr' :: MonadIO m => Bool -> GLFW.Window -> m Bool -> m ()
+  loopUntilClosedOr' shouldClose win action = do
+    liftIO ((shouldClose ||) <$> GLFW.windowShouldClose win) >>= \case
+      True  -> pure ()
+      False -> do
+        liftIO GLFW.pollEvents
+        shouldClose' <- action
+        loopUntilClosedOr' shouldClose' win action
 
 initGLFW :: IO ()
 initGLFW = do
