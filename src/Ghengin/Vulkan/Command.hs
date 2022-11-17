@@ -20,6 +20,7 @@ module Ghengin.Vulkan.Command
   , bindRayTracingPipeline
   , setViewport
   , setScissor
+  , bindVertexBuffers
   , draw
 
   , createCommandPool
@@ -125,6 +126,9 @@ setViewport viewport = RenderPassCmd $ ask >>= \buf -> Vk.cmdSetViewport buf 0 [
 setScissor :: Vk.Rect2D   -> RenderPassCmd
 setScissor scissor = RenderPassCmd $ ask >>= \buf -> Vk.cmdSetScissor  buf 0 [scissor]
 {-# INLINE setScissor #-}
+
+bindVertexBuffers :: Word32 -> Vector Vk.Buffer -> Vector Vk.DeviceSize -> RenderPassCmd
+bindVertexBuffers i bufs offsets = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindVertexBuffers buf i bufs offsets
 
 draw :: Word32 -> RenderPassCmd
 draw vertexCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDraw buf vertexCount 1 0 0

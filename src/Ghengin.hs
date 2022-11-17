@@ -16,6 +16,11 @@ import Ghengin.Vulkan
 import Ghengin.Component.Mesh
 
 
+-- TODO: Somehow systems that want to delete entities should call a special
+-- destructor function that gets rid of resources stuck in components such as
+-- meshes
+
+
 type Ghengin w a = SystemT w Renderer a
 
 
@@ -54,5 +59,5 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 drawFrame :: HasField "meshes" w (Storage Mesh) => Ghengin w ()
 drawFrame = do
 
-  cmapM_ $ \(Mesh mesh) -> liftIO . print $ mesh
+  cmapM_ $ \(mesh :: Mesh) -> liftIO . print $ mesh
 

@@ -9,17 +9,37 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-} -- instance Has w m Mesh
-module Ghengin.Component.Mesh where
+module Ghengin.Component.Mesh
+  ( Mesh
+  , Vertex
+  , createMesh
+  , renderMesh
+  , vertexInputBindingDescription
+  , vertexInputAttributeDescriptions
+  ) where
 
 import GHC.Records
+
+import Foreign.Ptr
 import Foreign.Storable
-import Data.Vector (Vector)
+import Foreign.Marshal.Utils
+import Data.Bits
+import Data.Word
+
+import Data.Vector.Storable (Vector)
+import qualified Data.Vector.Storable as V
+import qualified Data.Vector as NV -- normal vector
 
 import Geomancy
 
 import Apecs
 
+import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
+
+import Ghengin.Vulkan.Command
+import Ghengin.Vulkan.Buffer
+import Ghengin.Vulkan
 
 data Vertex = Vertex { position :: {-# UNPACK #-} !Vec3
                      , normal   :: {-# UNPACK #-} !Vec3
@@ -32,8 +52,14 @@ instance Storable Vertex where
   peek _   = fail "peek: Vertex"
   poke _ _ = fail "poke: Vertex"
 
-newtype Mesh = Mesh { vertices :: Vector Vertex }
-  deriving Show
+data Mesh = Mesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
+                 , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- we later need to free this as well
+                 -- we don't need to keep the Vector Vertex that was originally
+                 -- used to create this Mesh, but having the vertex buffer and
+                 -- the device memory is morally equivalent
+                 -- , vertices :: Vector Vertex
+                 , nVertices :: Word32 -- ^ We save the number of vertices to pass to the draw function
+                 } deriving Show
 
 instance Component Mesh where
   type Storage Mesh = Map Mesh
@@ -42,6 +68,38 @@ instance Component Mesh where
 
 instance (Monad m, HasField "meshes" w (Storage Mesh)) => Has w m Mesh where
   getStore = SystemT (asks (.meshes))
+
+
+-- Render a mesh command
+renderMesh :: Mesh -> RenderPassCmd
+renderMesh (Mesh buf _ nverts) = do
+  let buffers = [buf] :: NV.Vector Vk.Buffer
+      offsets = [0]
+  bindVertexBuffers 0 buffers offsets
+  draw nverts
+
+
+-- | Create a Mesh given a vector of vertices
+-- TODO: Clean all Mesh vertex buffers
+createMesh :: Vector Vertex -> Renderer Mesh
+createMesh vs = do
+  let nverts     = sizeOf (V.head vs)
+      bufferSize = fromIntegral $ nverts * V.length vs
+  (buffer, devMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
+
+  device <- getDevice
+  
+  -- Map the buffer memory into CPU accessible memory
+  data' <- Vk.mapMemory device devMem 0 bufferSize zero
+  -- Copy vertices from vs to data' mapped device memory
+  liftIO $ V.unsafeWith vs $ \ptr -> do
+    copyBytes data' (castPtr ptr) nverts
+  -- Unmap memory
+  Vk.unmapMemory device devMem
+
+  pure (Mesh buffer devMem (fromIntegral nverts))
+
+
 
 
 vertexInputBindingDescription :: Vk.VertexInputBindingDescription
@@ -67,5 +125,4 @@ vertexInputAttributeDescriptions = [ Vk.VertexInputAttributeDescription { bindin
                                                                         , offset = fromIntegral $ 2 * sizeOf @Vec3 undefined
                                                                         }
                                    ]
-
 
