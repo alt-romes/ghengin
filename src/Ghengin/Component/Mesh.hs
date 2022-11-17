@@ -26,9 +26,8 @@ import Foreign.Marshal.Utils
 import Data.Bits
 import Data.Word
 
-import Data.Vector.Storable (Vector)
-import qualified Data.Vector.Storable as V
-import qualified Data.Vector as NV -- normal vector
+import Data.Vector (Vector)
+import qualified Data.Vector.Storable as SV
 
 import Geomancy
 
@@ -73,7 +72,7 @@ instance (Monad m, HasField "meshes" w (Storage Mesh)) => Has w m Mesh where
 -- Render a mesh command
 renderMesh :: Mesh -> RenderPassCmd
 renderMesh (Mesh buf _ nverts) = do
-  let buffers = [buf] :: NV.Vector Vk.Buffer
+  let buffers = [buf] :: Vector Vk.Buffer
       offsets = [0]
   bindVertexBuffers 0 buffers offsets
   draw nverts
@@ -81,10 +80,10 @@ renderMesh (Mesh buf _ nverts) = do
 
 -- | Create a Mesh given a vector of vertices
 -- TODO: Clean all Mesh vertex buffers
-createMesh :: Vector Vertex -> Renderer Mesh
+createMesh :: SV.Vector Vertex -> Renderer Mesh
 createMesh vs = do
-  let nverts     = sizeOf (V.head vs)
-      bufferSize = fromIntegral $ nverts * V.length vs
+  let nverts     = sizeOf (SV.head vs)
+      bufferSize = fromIntegral $ nverts * SV.length vs
   (buffer, devMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
   device <- getDevice
@@ -92,7 +91,7 @@ createMesh vs = do
   -- Map the buffer memory into CPU accessible memory
   data' <- Vk.mapMemory device devMem 0 bufferSize zero
   -- Copy vertices from vs to data' mapped device memory
-  liftIO $ V.unsafeWith vs $ \ptr -> do
+  liftIO $ SV.unsafeWith vs $ \ptr -> do
     copyBytes data' (castPtr ptr) nverts
   -- Unmap memory
   Vk.unmapMemory device devMem
