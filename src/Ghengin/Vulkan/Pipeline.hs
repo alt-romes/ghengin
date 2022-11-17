@@ -34,7 +34,7 @@ withGraphicsPipeline :: ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> (Vu
 withGraphicsPipeline vert frag rp f = Renderer $ ReaderT $ \renv ->
                                           bracket
                                             (runReaderT (unRenderer $ createGraphicsPipeline vert frag rp) renv)
-                                            (destroyPipeline renv._vulkanDevice._device)
+                                            ((`runReaderT` renv) . unRenderer . destroyPipeline)
                                             ((`runReaderT` renv) . unRenderer . f)
 
 createGraphicsPipeline :: ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> Renderer VulkanPipeline
@@ -192,8 +192,8 @@ createGraphicsPipeline' dev vert frag renderP = do
   pure $ VulkanPipeline pipeline pipelineLayout
 
 
-destroyPipeline :: Vk.Device -> VulkanPipeline -> IO ()
-destroyPipeline d (VulkanPipeline pipeline pipelineLayout) = do
+destroyPipeline :: VulkanPipeline -> Renderer ()
+destroyPipeline (VulkanPipeline pipeline pipelineLayout) = getDevice >>= \d -> do
   Vk.destroyPipeline d pipeline Nothing
   Vk.destroyPipelineLayout d pipelineLayout Nothing
 

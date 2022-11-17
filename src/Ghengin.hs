@@ -18,7 +18,6 @@ import qualified Vulkan as Vk
 import Apecs
 
 import Ghengin.Vulkan.Command
-import Ghengin.Vulkan.Device
 import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.Synchronization
@@ -61,57 +60,65 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   frag <- liftIO $ compileFIRShader SimpleShader.fragment
 
   -- Use linear types here. Can I make the monad stack over a multiplicity polymorphic monad?
-  withSimpleRenderPass $ \simpleRenderPass ->
-    withGraphicsPipeline vert frag simpleRenderPass._renderPass $ \pipeline ->
-      withFence True $ \inFlightFence1 ->
-      withFence True $ \inFlightFence2 ->
-        withSemaphore $ \imageAvailableSem1 ->
-        withSemaphore $ \imageAvailableSem2 ->
-          withSemaphore $ \renderFinishedSem1 ->
-          withSemaphore $ \renderFinishedSem2 -> do
+  simpleRenderPass   <- lift $ createSimpleRenderPass
+  pipeline           <- lift $ createGraphicsPipeline vert frag simpleRenderPass._renderPass
+  inFlightFence1     <- lift $ createFence True
+  inFlightFence2     <- lift $ createFence True
+  imageAvailableSem1 <- lift $ createSemaphore
+  imageAvailableSem2 <- lift $ createSemaphore
+  renderFinishedSem1 <- lift $ createSemaphore
+  renderFinishedSem2 <- lift $ createSemaphore
 
-            renv <- ask
+  counter <- liftIO(newIORef 0)
+  windowLoop $ do
 
-            counter <- liftIO(newIORef 0)
-            windowLoop $ do
+    n <- liftIO(readIORef counter)
 
-              n <- liftIO(readIORef counter)
+    b <- loopstep a
 
-              b <- loopstep a
+    drawFrame pipeline simpleRenderPass
+              [inFlightFence1, inFlightFence2]
+              [imageAvailableSem1, imageAvailableSem2]
+              [renderFinishedSem1, renderFinishedSem2]
+              n
 
-              drawFrame pipeline simpleRenderPass
-                        [inFlightFence1, inFlightFence2]
-                        [imageAvailableSem1, imageAvailableSem2]
-                        [renderFinishedSem1, renderFinishedSem2]
-                        n
+    liftIO(modifyIORef' counter (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT))
 
-              liftIO(modifyIORef' counter (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT))
+    pure b
 
-              pure b
+  Vk.deviceWaitIdle =<< lift getDevice
 
-            Vk.deviceWaitIdle renv._vulkanDevice._device
+  lift $ do
+    destroyRenderPass simpleRenderPass
+    destroyPipeline pipeline
+    destroyFence inFlightFence1
+    destroyFence inFlightFence2
+    destroySem imageAvailableSem1
+    destroySem imageAvailableSem2
+    destroySem renderFinishedSem1
+    destroySem renderFinishedSem2
 
   _ <- finalize
 
   pure ()
 
 
--- TODO: Eventually move to a better contained renderer part
+-- TODO: Eventually move drawFrame to a better contained renderer part
 
--- drawFrame :: HasField "meshes" w (Storage Mesh) => Ghengin w ()
+-- drawFrame :: 
 -- drawFrame = do
 
 --   cmapM_ $ \(mesh :: Mesh) -> liftIO . print $ mesh
 
-
-drawFrame :: VulkanPipeline
+drawFrame :: HasField "meshes" w (Storage Mesh)
+          => VulkanPipeline
           -> VulkanRenderPass
           -> Vector Vk.Fence
           -> Vector Vk.Semaphore
           -> Vector Vk.Semaphore
           -> Int -- ^ Frame number
-          -> Renderer ()
-drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n = asks (._commandBuffers) >>= \cmdBuffers -> getDevice >>= \device -> do
+          -> Ghengin w ()
+drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n = lift (asks (._commandBuffers)) >>= \cmdBuffers -> lift getDevice >>= \device -> do
 
   let cmdBuffer = cmdBuffers V.! n
       inFlightFence = inFlightFences V.! n
@@ -126,11 +133,11 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
   _ <- Vk.waitForFences device [inFlightFence] True maxBound
   Vk.resetFences device [inFlightFence]
 
-  i <- acquireNextImage imageAvailableSem
+  i <- lift $ acquireNextImage imageAvailableSem
 
   Vk.resetCommandBuffer cmdBuffer zero
 
-  extent <- getRenderExtent
+  extent <- lift $ getRenderExtent
 
   let
     -- The region of the framebuffer that the output will be rendered to. We
@@ -158,8 +165,10 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
 
       draw 3
 
-  submitGraphicsQueue cmdBuffer imageAvailableSem renderFinishedSem inFlightFence
+  lift $ do
 
-  presentPresentQueue renderFinishedSem i
+    submitGraphicsQueue cmdBuffer imageAvailableSem renderFinishedSem inFlightFence
+
+    presentPresentQueue renderFinishedSem i
 
   pure ()

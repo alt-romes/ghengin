@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-} -- instance Has w m Mesh
 module Ghengin.Component.Mesh
   ( Mesh
-  , Vertex
+  , Vertex(..)
   , createMesh
   , renderMesh
   , vertexInputBindingDescription
