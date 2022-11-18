@@ -63,8 +63,3 @@ game = do
 -- ghengin itself uses the renderer system at the end of the game loop
 -- and other physics systems and AI etc
 
-main :: IO ()
-main = do
-  w <- initWorld
-  runVulkanRenderer (runSystem game w)
-

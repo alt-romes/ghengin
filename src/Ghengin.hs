@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -155,7 +156,11 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
     -- outside of the scissor will be discarded. We keep it as the whole viewport
     scissor = Vk.Rect2D (Vk.Offset2D 0 0) extent
 
-  liftIO $ recordCommand cmdBuffer $ do
+
+  -- Render each object mesh
+  meshRenderCmds <- cfold (\acc (mesh :: Mesh) -> renderMesh mesh:acc) []
+
+  recordCommand cmdBuffer $ do
 
     renderPass rpass._renderPass (rpass._framebuffers V.! i) extent $ do
 
@@ -163,7 +168,8 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
       setViewport viewport
       setScissor  scissor
 
-      draw 3
+      sequence_ meshRenderCmds
+
 
   lift $ do
 

@@ -74,7 +74,7 @@ newtype RenderPassCmdM a = RenderPassCmd (ReaderT Vk.CommandBuffer IO a)
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
-recordCommand :: Vk.CommandBuffer -> Command -> IO ()
+recordCommand :: MonadIO m => Vk.CommandBuffer -> Command -> m ()
 recordCommand buf (Command cmds) = do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.zero
                                             , inheritanceInfo = Nothing }
@@ -83,7 +83,7 @@ recordCommand buf (Command cmds) = do
   Vk.beginCommandBuffer buf beginInfo
 
   -- Record commands
-  runReaderT cmds buf
+  liftIO $ runReaderT cmds buf
 
   -- Finish recording
   Vk.endCommandBuffer buf
