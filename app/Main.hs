@@ -28,6 +28,10 @@ import Ghengin
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 import Ghengin.Shaders
 
+import Ghengin.Component.Mesh
+
+import Geomancy
+import Apecs
 import Main.Apecs
 
 main :: IO ()
@@ -44,6 +48,22 @@ initG :: Ghengin World ()
 initG = do
   (_, nExts) <- Vk.enumerateInstanceExtensionProperties Nothing
   liftIO $ putStr "Extensions: " >> print nExts
+
+  m1 <- lift $ createMesh [ Vertex (vec3 0.0 (-0.6) 1) (vec3 0 0 0) (vec3 1 0 0)
+                          , Vertex (vec3 (-0.6) 0.6 1) (vec3 0 0 0) (vec3 0 0 1)
+                          , Vertex (vec3 0.6 0.6 1) (vec3 0 0 0) (vec3 0 1 0)
+                          ]
+
+  m2 <- lift $ createMesh [ Vertex (vec3 (-0.5) (-0.5) 1) (vec3 0 0 0) (vec3 1 0 0)
+                          , Vertex (vec3 (-0.5) 0.5 1) (vec3 0 0 0) (vec3 1 0 1)
+                          , Vertex (vec3 0.5 (-0.5) 1) (vec3 0 0 0) (vec3 0 0 1)
+                          , Vertex (vec3 0.5 0.5 1) (vec3 0 0 0) (vec3 0 1 0)
+                          ]
+  newEntity (Position 0, Velocity 1, m1)
+  newEntity (Position 2, Velocity 1, m2)
+  newEntity (Position 1, Velocity 2, Flying)
+
+  pure ()
 
 endG :: Ghengin World ()
 endG = do

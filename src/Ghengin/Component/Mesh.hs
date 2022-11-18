@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -49,8 +50,15 @@ data Vertex = Vertex { position :: {-# UNPACK #-} !Vec3
 instance Storable Vertex where
   sizeOf _ = 3 * sizeOf @Vec3 undefined
   alignment _ = 4
-  peek _   = fail "peek: Vertex"
-  poke _ _ = fail "poke: Vertex"
+  peek (castPtr -> p) = do
+    pos <- peek p
+    normal <- peekElemOff p 1
+    color <- peekElemOff p 2
+    pure $ Vertex pos normal color
+  poke (castPtr -> p) (Vertex pos normal color) = do
+    poke p pos
+    pokeElemOff p 1 normal
+    pokeElemOff p 2 color
 
 data Mesh = Mesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
                  , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- we later need to free this as well
@@ -83,8 +91,8 @@ renderMesh (Mesh buf _ nverts) = do
 -- TODO: Clean all Mesh vertex buffers
 createMesh :: SV.Vector Vertex -> Renderer Mesh
 createMesh vs = do
-  let nverts     = sizeOf (SV.head vs)
-      bufferSize = fromIntegral $ nverts * SV.length vs
+  let nverts     = SV.length vs
+      bufferSize = fromIntegral $ nverts * sizeOf (SV.head vs)
   (buffer, devMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
   device <- getDevice
@@ -93,7 +101,7 @@ createMesh vs = do
   data' <- Vk.mapMemory device devMem 0 bufferSize zero
   -- Copy vertices from vs to data' mapped device memory
   liftIO $ SV.unsafeWith vs $ \ptr -> do
-    copyBytes data' (castPtr ptr) nverts
+    copyBytes data' (castPtr ptr) (fromIntegral bufferSize)
   -- Unmap memory
   Vk.unmapMemory device devMem
 

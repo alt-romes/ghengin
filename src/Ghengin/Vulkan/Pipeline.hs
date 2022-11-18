@@ -84,7 +84,7 @@ createGraphicsPipeline' dev vert frag renderP = do
 
     inputAssembly = Vk.PipelineInputAssemblyStateCreateInfo {..} where
                         flags = Vk.PipelineInputAssemblyStateCreateFlags 0
-                        topology = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST -- 3 vertices = triangle with no reuse.
+                        topology = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP -- _LIST -- 3 vertices = triangle with no reuse.
                         primitiveRestartEnable = False -- Whether 0xFFFF and 0xFFFFFFFF are special values to break _STRIP topology variants
 
     -- Both viewport and scissor can be dynamically changed in the pipeline, so
@@ -106,7 +106,7 @@ createGraphicsPipeline' dev vert frag renderP = do
                       lineWidth = 1 -- Thickness of lines in terms of number of fragments (Any >1 requires wideLines feature)
                       -- Face culling: https://learnopengl.com/Advanced-OpenGL/Face-culling
                       cullMode = Vk.CULL_MODE_BACK_BIT    -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)
-                      frontFace = Vk.FRONT_FACE_CLOCKWISE -- Default vertice front face to be defined clock wise
+                      frontFace = Vk.FRONT_FACE_COUNTER_CLOCKWISE -- Default vertice front face to be defined clock wise
                       depthBiasEnable = False -- Biasing depth values based on a fragment's slope (could be used for shadow mapping)
                       depthBiasConstantFactor = 0
                       depthBiasClamp = 0
