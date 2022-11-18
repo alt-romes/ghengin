@@ -20,21 +20,19 @@ import Math.Linear -- for vectors
 -------------------
 
 type VertexDefs
-  = '[ "main"   ':-> EntryPoint '[] Vertex
+  = '[ "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
+     , "in_normal" ':-> Input '[ Location 1 ] (V 3 Float)
+     , "in_colour" ':-> Input '[ Location 2 ] (V 3 Float)
+     , "out_colour" ':-> Output '[ Location 0 ] (V 4 Float)
+     , "main"   ':-> EntryPoint '[] Vertex
      ]
 
 vertex :: Module VertexDefs
 vertex = Module $ entryPoint @"main" @Vertex do
-  i <- #gl_VertexIndex
-  let (Vec2 x y) = view @(AnIndex (Code Word32)) i (Lit vecs :: Code (Array 3 (V 2 Float)))
-  put @"gl_Position" (Vec4 x y 0 1)
-    where
-      vecs :: Array 3 (V 2 Float)
-      vecs = MkArray . fromJust . Vector.fromList $
-        [ V2 (-0.5) (-0.5)
-        , V2 0.5 0.5
-        , V2 (-0.5) 0.5
-        ]
+  ~(Vec3 x y z) <- get @"in_position"
+  ~(Vec3 r g b) <- get @"in_colour"
+  put @"out_colour"  (Vec4 r g b 1)
+  put @"gl_Position" (Vec4 x y z 1)
 
 -------------------
 -- Frag shader   --
@@ -43,7 +41,8 @@ vertex = Module $ entryPoint @"main" @Vertex do
 -- Specify the input/output of the shader, with memory locations (and other interface parameters).
 -- This consists of a type-level list of top-level definitions.
 type FragmentDefs
-  =  '[ "out_col" ':-> Output     '[ Location 0                 ] (V 4 Float)   -- output (varying) of type V 4 Float and memory location 0
+  =  '[ "in_col"  ':-> Input      '[ Location 0 ] (V 4 Float)
+      , "out_col" ':-> Output     '[ Location 0                 ] (V 4 Float)   -- output (varying) of type V 4 Float and memory location 0
       , "main"    ':-> EntryPoint '[ OriginLowerLeft            ] Fragment      -- fragment shader stage (using standard Cartesian coordinates)
       ]
       --  "in_pos"  ':-> Input      '[ Location 0                 ] (V 2 Float)   -- input  (varying) of type V 2 Float and memory location 0
@@ -52,9 +51,6 @@ type FragmentDefs
 fragment :: Module FragmentDefs
 fragment = Module $
   entryPoint @"main" @Fragment do
-    put @"out_col" (Vec4 1 0 0 1)
-
-
-    -- pos <- get @"in_pos"
-    -- col <- use @(ImageTexel "image") NilOps pos
+    ~(Vec4 r g b a) <- get @"in_col"
+    put @"out_col" (Vec4 r g b a)
 
