@@ -1,8 +1,10 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE LambdaCase #-}
@@ -21,6 +23,7 @@ module Ghengin.Vulkan.Command
   , setViewport
   , setScissor
   , bindVertexBuffers
+  , pushConstants
   , draw
 
   , createCommandPool
@@ -30,6 +33,9 @@ module Ghengin.Vulkan.Command
 
 import Control.Monad.Reader
 import Data.Word
+import Foreign.Storable
+import Foreign.Marshal.Alloc
+import Foreign.Ptr
 import Data.Vector (Vector)
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
@@ -133,6 +139,14 @@ bindVertexBuffers i bufs offsets = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindVer
 draw :: Word32 -> RenderPassCmd
 draw vertexCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDraw buf vertexCount 1 0 0
 {-# INLINE draw #-}
+
+pushConstants :: forall a. Storable a => Vk.PipelineLayout -> Vk.ShaderStageFlags -> a -> RenderPassCmd
+pushConstants pipelineLayout stageFlags values =
+  RenderPassCmd $ ask >>= \buf ->
+    liftIO $ alloca @a $ \ptr -> do
+      poke ptr values
+      Vk.cmdPushConstants buf pipelineLayout stageFlags 0 (fromIntegral $ sizeOf values) (castPtr ptr)
+{-# INLINE pushConstants #-}
 
 -- :| Creation and Destruction |:
 

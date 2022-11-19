@@ -109,7 +109,6 @@ createMesh vs = do
 
 
 
-
 vertexInputBindingDescription :: Vk.VertexInputBindingDescription
 vertexInputBindingDescription = Vk.VertexInputBindingDescription { binding = 0 -- We use only one binding for now?, its index is always 0
                                                                  , stride  = fromIntegral $ sizeOf @Vertex undefined

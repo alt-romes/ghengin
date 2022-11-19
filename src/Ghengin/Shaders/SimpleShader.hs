@@ -24,6 +24,7 @@ type VertexDefs
      , "in_normal" ':-> Input '[ Location 1 ] (V 3 Float)
      , "in_colour" ':-> Input '[ Location 2 ] (V 3 Float)
      , "out_colour" ':-> Output '[ Location 0 ] (V 4 Float)
+     , "offset"     ':-> PushConstant '[] (Struct '[ "offset" ':-> V 4 Float ])
      , "main"   ':-> EntryPoint '[] Vertex
      ]
 
@@ -31,8 +32,9 @@ vertex :: Module VertexDefs
 vertex = Module $ entryPoint @"main" @Vertex do
   ~(Vec3 x y z) <- get @"in_position"
   ~(Vec3 r g b) <- get @"in_colour"
+  ~(Vec4 x1 x2 x3 _) <- use @(Name "offset" :.: Name "offset")
   put @"out_colour"  (Vec4 r g b 1)
-  put @"gl_Position" (Vec4 x y z 1)
+  put @"gl_Position" (Vec4 (x+x1) (y+x2) (z+x3) 1)
 
 -------------------
 -- Frag shader   --

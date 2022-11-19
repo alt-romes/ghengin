@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -11,6 +12,8 @@ import qualified Data.ByteString as BS
 import qualified Data.Vector as V
 import Data.Coerce
 import Data.Bits ((.|.))
+import Foreign.Storable
+import Geomancy
 
 import qualified Vulkan.CStruct.Extends as VkC
 import qualified Vulkan as Vk
@@ -29,6 +32,9 @@ data VulkanPipeline = VulkanPipeline { _pipeline :: Vk.Pipeline
 dynamicStates :: V.Vector Vk.DynamicState
 dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT
                 , Vk.DYNAMIC_STATE_SCISSOR ]
+
+-- Isto seria fixe num per-renderer basis
+newtype PushConstantData = PushConstantData { pos_offset :: Vec4 } deriving Storable
 
 withGraphicsPipeline :: ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> (VulkanPipeline -> Renderer a) -> Renderer a
 withGraphicsPipeline vert frag rp f = Renderer $ ReaderT $ \renv ->
@@ -159,7 +165,10 @@ createGraphicsPipeline' dev vert frag renderP = do
     pipelineLayoutInfo = Vk.PipelineLayoutCreateInfo {..} where
                            flags = Vk.PipelineLayoutCreateFlagBits 0
                            setLayouts = []
-                           pushConstantRanges = []
+                           pushConstantRanges = [Vk.PushConstantRange { offset = 0
+                                                                      , size   = 3*4
+                                                                      , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT
+                                                                      }]
 
   pipelineLayout <- Vk.createPipelineLayout dev pipelineLayoutInfo Nothing
 

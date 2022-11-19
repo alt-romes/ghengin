@@ -17,6 +17,7 @@ import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 import Apecs
+import Geomancy
 
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Pipeline
@@ -167,6 +168,8 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
       bindGraphicsPipeline (pipeline._pipeline)
       setViewport viewport
       setScissor  scissor
+
+      pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (vec4 0 (-0.6) (-0.5) 1)
 
       sequence_ meshRenderCmds
 
