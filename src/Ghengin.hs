@@ -8,6 +8,7 @@ module Ghengin where
 
 import GHC.Records
 
+import Data.Maybe
 import Control.Monad.Reader
 
 import Data.IORef
@@ -17,7 +18,6 @@ import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 import Apecs
-import Geomancy
 
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Pipeline
@@ -30,6 +30,7 @@ import Ghengin.Shaders
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 
 import Ghengin.Component.Mesh
+import Ghengin.Component.Transform
 
 
 -- TODO: Somehow systems that want to delete entities should call a special
@@ -46,7 +47,7 @@ windowLoop action = do
   loopUntilClosedOr win action
 
 
-ghengin :: HasField "meshes" w (Storage Mesh)
+ghengin :: (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform))
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
         -> Ghengin w b -- ^ Run every simulation step (currently ignored)
@@ -112,7 +113,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
 --   cmapM_ $ \(mesh :: Mesh) -> liftIO . print $ mesh
 
-drawFrame :: HasField "meshes" w (Storage Mesh)
+drawFrame :: (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform))
           => VulkanPipeline
           -> VulkanRenderPass
           -> Vector Vk.Fence
@@ -159,7 +160,7 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
 
 
   -- Render each object mesh
-  meshRenderCmds <- cfold (\acc (mesh :: Mesh) -> renderMesh mesh:acc) []
+  meshRenderCmds <- cfold (\acc (mesh :: Mesh, tr :: Maybe Transform) -> (renderMesh mesh, tr):acc) []
 
   recordCommand cmdBuffer $ do
 
@@ -169,9 +170,11 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
       setViewport viewport
       setScissor  scissor
 
-      pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (vec4 0 (-0.6) (-0.5) 1)
+      forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
 
-      sequence_ meshRenderCmds
+        applyTransform pipeline (fromMaybe noTransform transform)
+        meshRenderCmd
+        
 
 
   lift $ do

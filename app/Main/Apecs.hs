@@ -8,8 +8,9 @@
 module Main.Apecs where
 
 import Ghengin.Component.Mesh
+import Ghengin.Component.Transform
 import Ghengin.Vulkan
-import Geomancy
+import Geomancy hiding (Transform)
 import Apecs.TH
 import Apecs
 
@@ -22,6 +23,7 @@ data World = World { positions :: !(Storage Position)
                    , velocities :: !(Storage Velocity)
                    , flying     :: !(Storage Flying)
                    , meshes     :: !(Storage Mesh)
+                   , transforms :: !(Storage Transform)
                    , entityCounter :: !(Storage EntityCounter)
                    }
 
@@ -31,7 +33,7 @@ instance Has World Renderer Flying   where getStore = SystemT (asks flying)
 instance Has World Renderer EntityCounter where getStore = SystemT (asks entityCounter)
 
 initWorld :: IO World
-initWorld = World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit
+initWorld = World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
 
 -- makeWorldAndComponents "World" [''Position, ''Velocity, ''Flying]
 

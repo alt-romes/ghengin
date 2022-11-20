@@ -77,7 +77,9 @@ library
                       Ghengin.Vulkan.Device.Instance,
                       Ghengin.Vulkan.GLFW.Window,
 
-                      Ghengin.Component.Mesh
+                      Ghengin.Component.Transform,
+                      Ghengin.Component.Mesh,
+                      Ghengin.Component.Mesh.Cube
 
     -- Modules included in this library but not exported.
     -- other-modules:

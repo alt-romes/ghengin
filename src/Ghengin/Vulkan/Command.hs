@@ -103,7 +103,7 @@ renderPass rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $
                                             , renderPass  = rpass
                                             , framebuffer = frameBuffer
                                             , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
-                                            , clearValues = [Vk.Color $ Vk.Float32 1 1 1 1]
+                                            , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1]
                                             }
 
   Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE

@@ -24,7 +24,7 @@ type VertexDefs
      , "in_normal" ':-> Input '[ Location 1 ] (V 3 Float)
      , "in_colour" ':-> Input '[ Location 2 ] (V 3 Float)
      , "out_colour" ':-> Output '[ Location 0 ] (V 4 Float)
-     , "offset"     ':-> PushConstant '[] (Struct '[ "offset" ':-> V 4 Float ])
+     , "push"     ':-> PushConstant '[] (Struct '[ "mat" ':-> M 4 4 Float ])
      , "main"   ':-> EntryPoint '[] Vertex
      ]
 
@@ -32,9 +32,9 @@ vertex :: Module VertexDefs
 vertex = Module $ entryPoint @"main" @Vertex do
   ~(Vec3 x y z) <- get @"in_position"
   ~(Vec3 r g b) <- get @"in_colour"
-  ~(Vec4 x1 x2 x3 _) <- use @(Name "offset" :.: Name "offset")
+  transform <- use @(Name "push" :.: Name "mat")
   put @"out_colour"  (Vec4 r g b 1)
-  put @"gl_Position" (Vec4 (x+x1) (y+x2) (z+x3) 1)
+  put @"gl_Position" (transform !*^ (Vec4 x y z 1))
 
 -------------------
 -- Frag shader   --
@@ -45,7 +45,7 @@ vertex = Module $ entryPoint @"main" @Vertex do
 type FragmentDefs
   =  '[ "in_col"  ':-> Input      '[ Location 0 ] (V 4 Float)
       , "out_col" ':-> Output     '[ Location 0                 ] (V 4 Float)   -- output (varying) of type V 4 Float and memory location 0
-      , "main"    ':-> EntryPoint '[ OriginLowerLeft            ] Fragment      -- fragment shader stage (using standard Cartesian coordinates)
+      , "main"    ':-> EntryPoint '[ OriginUpperLeft            ] Fragment      -- fragment shader stage (using standard Cartesian coordinates)
       ]
       --  "in_pos"  ':-> Input      '[ Location 0                 ] (V 2 Float)   -- input  (varying) of type V 2 Float and memory location 0
       -- , "image"   ':-> Texture2D  '[ DescriptorSet 0, Binding 0 ] (RGBA8 UNorm) -- input sampled image (provided as binding 0 of descriptor set 0)

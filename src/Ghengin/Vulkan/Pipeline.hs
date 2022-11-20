@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -34,7 +35,7 @@ dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT
                 , Vk.DYNAMIC_STATE_SCISSOR ]
 
 -- Isto seria fixe num per-renderer basis
-newtype PushConstantData = PushConstantData { pos_offset :: Vec4 } deriving Storable
+newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
 
 withGraphicsPipeline :: ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> (VulkanPipeline -> Renderer a) -> Renderer a
 withGraphicsPipeline vert frag rp f = Renderer $ ReaderT $ \renv ->
@@ -90,7 +91,7 @@ createGraphicsPipeline' dev vert frag renderP = do
 
     inputAssembly = Vk.PipelineInputAssemblyStateCreateInfo {..} where
                         flags = Vk.PipelineInputAssemblyStateCreateFlags 0
-                        topology = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP -- _LIST -- 3 vertices = triangle with no reuse.
+                        topology = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST -- _STRIP -- 3 vertices = triangle with no reuse.
                         primitiveRestartEnable = False -- Whether 0xFFFF and 0xFFFFFFFF are special values to break _STRIP topology variants
 
     -- Both viewport and scissor can be dynamically changed in the pipeline, so
@@ -111,8 +112,10 @@ createGraphicsPipeline' dev vert frag renderP = do
                       polygonMode = Vk.POLYGON_MODE_FILL -- Fill the area of the polygon with fragments; VK_POLYGON_MODE_LINE: polygon edges drawn as lines (WIREFRAME?); VK_POLYGON_MODE_POINT: polygon vertices are drawn as points (other modes require GPU feature)
                       lineWidth = 1 -- Thickness of lines in terms of number of fragments (Any >1 requires wideLines feature)
                       -- Face culling: https://learnopengl.com/Advanced-OpenGL/Face-culling
-                      cullMode = Vk.CULL_MODE_BACK_BIT    -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)
-                      frontFace = Vk.FRONT_FACE_COUNTER_CLOCKWISE -- Default vertice front face to be defined clock wise
+                      -- cullMode = Vk.CULL_MODE_BACK_BIT    -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)
+                      cullMode = Vk.CULL_MODE_NONE
+                      -- frontFace = Vk.FRONT_FACE_COUNTER_CLOCKWISE -- Default vertice front face to be defined clock wise
+                      frontFace = Vk.FRONT_FACE_CLOCKWISE
                       depthBiasEnable = False -- Biasing depth values based on a fragment's slope (could be used for shadow mapping)
                       depthBiasConstantFactor = 0
                       depthBiasClamp = 0
@@ -166,7 +169,7 @@ createGraphicsPipeline' dev vert frag renderP = do
                            flags = Vk.PipelineLayoutCreateFlagBits 0
                            setLayouts = []
                            pushConstantRanges = [Vk.PushConstantRange { offset = 0
-                                                                      , size   = 3*4
+                                                                      , size   = fromIntegral $ sizeOf @PushConstantData undefined
                                                                       , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT
                                                                       }]
 
