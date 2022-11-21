@@ -21,11 +21,11 @@ import Math.Linear -- for vectors
 
 type VertexDefs
   = '[ "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
-     , "in_normal" ':-> Input '[ Location 1 ] (V 3 Float)
-     , "in_colour" ':-> Input '[ Location 2 ] (V 3 Float)
+     , "in_normal"  ':-> Input '[ Location 1 ] (V 3 Float)
+     , "in_colour"  ':-> Input '[ Location 2 ] (V 3 Float)
      , "out_colour" ':-> Output '[ Location 0 ] (V 4 Float)
-     , "push"     ':-> PushConstant '[] (Struct '[ "mat" ':-> M 4 4 Float ])
-     , "main"   ':-> EntryPoint '[] Vertex
+     , "push"       ':-> PushConstant '[] (Struct '[ "mat" ':-> M 4 4 Float ])
+     , "main"       ':-> EntryPoint '[] Vertex
      ]
 
 vertex :: Module VertexDefs
@@ -45,7 +45,7 @@ vertex = Module $ entryPoint @"main" @Vertex do
 type FragmentDefs
   =  '[ "in_col"  ':-> Input      '[ Location 0 ] (V 4 Float)
       , "out_col" ':-> Output     '[ Location 0                 ] (V 4 Float)   -- output (varying) of type V 4 Float and memory location 0
-      , "main"    ':-> EntryPoint '[ OriginUpperLeft            ] Fragment      -- fragment shader stage (using standard Cartesian coordinates)
+      , "main"    ':-> EntryPoint '[ OriginUpperLeft           ] Fragment      -- fragment shader stage (using standard Cartesian coordinates)
       ]
       --  "in_pos"  ':-> Input      '[ Location 0                 ] (V 2 Float)   -- input  (varying) of type V 2 Float and memory location 0
       -- , "image"   ':-> Texture2D  '[ DescriptorSet 0, Binding 0 ] (RGBA8 UNorm) -- input sampled image (provided as binding 0 of descriptor set 0)

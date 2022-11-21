@@ -7,6 +7,7 @@
 module Ghengin.Vulkan.Device where
 
 import Data.Ord
+import Data.Bits
 import Data.Maybe
 import Data.Word
 
@@ -21,6 +22,7 @@ import qualified Vulkan as Vk
 
 import Ghengin.Vulkan.Device.Instance
 import Ghengin.Vulkan.GLFW.Window
+import Ghengin.Utils
 
 -- We create a logical device always with a graphics queue and a present queue
 
@@ -86,5 +88,12 @@ pickPhysicalDevice inst rateFn = do
         (Just (_,graphicsQF,presentQF),device):_ -> pure (device, graphicsQF, presentQF)
         (Nothing,_):_ -> fail "Impossible! Failed to find a suitable GPU!"
         [] -> fail "Failed to find a suitable GPU!"
+
+
+findMemoryType :: Word32 -> Vk.MemoryPropertyFlags -> Vk.PhysicalDevice -> IO Word32
+findMemoryType typeFilter properties physicalDevice = do
+  memProperties <- Vk.getPhysicalDeviceMemoryProperties physicalDevice
+  pure $ V.head $ V.imapMaybe (\i t -> if ((typeFilter .&. (1 `unsafeShiftL` i)) /= 0) && ((t.propertyFlags .&. properties) == properties)
+                                          then pure (fromIntegral i) else Nothing) memProperties.memoryTypes
 
 

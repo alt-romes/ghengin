@@ -12,6 +12,8 @@ module Ghengin.Component.Transform
   , applyTransform
   ) where
 
+import Debug.Trace
+
 import GHC.Records
 
 import Geomancy hiding (Transform)
@@ -60,9 +62,10 @@ makeTransform tr =
       c1 = cos ry
       s1 = sin ry
 
-   -- in colMajor (sx * (c1*c3 + s1*s2*s3)) (sy * (c3*s1*s2 - c1*s3)) (sz * (c2*s1)) x
+   -- in rowMajor (sx * (c1*c3 + s1*s2*s3)) (sy * (c3*s1*s2 - c1*s3)) (sz * (c2*s1)) x
    --             (sx * (c2*s3))            (sy * (c2*c3))            (sz * (-s2))   y
    --             (sx * (c1*s2*s3 - c3*s1)) (sy * (c1*c3*s2 + s1*s3)) (sz * (c1*c2)) z
    --             0                         0                         0 1
-   in unTransform $ translateV tr.position <> rotateY ry <> rotateX rx <> rotateZ rz <> scale3 sx sy sz
+   -- in unTransform $ translateV tr.position <> rotateY ry <> rotateX rx <> rotateZ rz <> scale3 sx sy sz
+   in traceShow (tr.position, tr.scale, tr.rotation) $ unTransform $ rotateY ry
 

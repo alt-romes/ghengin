@@ -10,6 +10,7 @@ module Ghengin.Vulkan.RenderPass where
 
 -- TODO: DSL
 
+import Data.Bits
 import Control.Monad.Reader
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -17,6 +18,7 @@ import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
+import Ghengin.Vulkan.Image
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan.SwapChain
 import Ghengin.Vulkan
@@ -50,12 +52,25 @@ createSimpleRenderPass = ask >>= \renv -> do
 
       colorAttachmentRef = Vk.AttachmentReference { attachment = 0, layout = Vk.IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL }
 
+      depthAttachment = Vk.AttachmentDescription {..} where
+                            flags   = Vk.AttachmentDescriptionFlagBits 0
+                            format  = Vk.FORMAT_D32_SFLOAT -- We could have a query like findDepthFormat()
+                            samples = Vk.SAMPLE_COUNT_1_BIT
+                            loadOp  = Vk.ATTACHMENT_LOAD_OP_CLEAR
+                            storeOp = Vk.ATTACHMENT_STORE_OP_DONT_CARE
+                            stencilLoadOp  = Vk.ATTACHMENT_LOAD_OP_DONT_CARE
+                            stencilStoreOp = Vk.ATTACHMENT_STORE_OP_DONT_CARE
+                            initialLayout  = Vk.IMAGE_LAYOUT_UNDEFINED
+                            finalLayout    = Vk.IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL
+
+      depthAttachmentRef = Vk.AttachmentReference { attachment = 1, layout = Vk.IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL }
+
       subpass = Vk.SubpassDescription { pipelineBindPoint = Vk.PIPELINE_BIND_POINT_GRAPHICS
                                       , colorAttachments  = [colorAttachmentRef]
                                       , inputAttachments  = []
                                       , resolveAttachments = []
                                       , preserveAttachments = []
-                                      , depthStencilAttachment = Nothing
+                                      , depthStencilAttachment = Just depthAttachmentRef
                                       , flags = Vk.SubpassDescriptionFlagBits 0
                                       }
       colorAttachmentDep = Vk.SubpassDependency { srcSubpass = Vk.SUBPASS_EXTERNAL
@@ -67,16 +82,24 @@ createSimpleRenderPass = ask >>= \renv -> do
                                                 , dependencyFlags = zero
                                                 }
 
-      renderPassInfo = Vk.RenderPassCreateInfo { attachments = [colorAttachment]
+      depthAttachmentDep = Vk.SubpassDependency { srcSubpass = Vk.SUBPASS_EXTERNAL
+                                                , dstSubpass = 0
+                                                , srcStageMask = Vk.PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+                                                , dstStageMask = Vk.PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT
+                                                , srcAccessMask = Vk.AccessFlagBits 0
+                                                , dstAccessMask = Vk.ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+                                                , dependencyFlags = zero
+                                                }
+
+      renderPassInfo = Vk.RenderPassCreateInfo { attachments = [colorAttachment, depthAttachment]
                                                , subpasses   = [subpass]
-                                               , dependencies = [colorAttachmentDep]
+                                               , dependencies = [colorAttachmentDep, depthAttachmentDep]
                                                , flags = Vk.RenderPassCreateFlagBits 0
                                                , next = ()
                                                }
 
   renderPass <- Vk.createRenderPass renv._vulkanDevice._device renderPassInfo Nothing
-
-  framebuffers <- V.mapM (createFramebuffer renderPass) renv._vulkanSwapChain._imageViews
+  framebuffers <- V.mapM (createFramebuffer renderPass renv._vulkanSwapChain._depthImage._imageView) renv._vulkanSwapChain._imageViews
 
   pure $ VulkanRenderPass renderPass framebuffers
 
@@ -87,13 +110,13 @@ destroyRenderPass (VulkanRenderPass rp framebuffers) =
     Vk.destroyRenderPass d rp Nothing
 
 
-createFramebuffer :: Vk.RenderPass -> Vk.ImageView -> Renderer Vk.Framebuffer
-createFramebuffer rp imageView = ask >>= \renv -> do
+createFramebuffer :: Vk.RenderPass -> Vk.ImageView -> Vk.ImageView -> Renderer Vk.Framebuffer
+createFramebuffer rp depthImageView imageView = ask >>= \renv -> do
   let
     frameBufferInfo = Vk.FramebufferCreateInfo { next = ()
                                                , flags = Vk.FramebufferCreateFlagBits 0
                                                , renderPass = rp
-                                               , attachments = [imageView]
+                                               , attachments = [imageView, depthImageView]
                                                , width  = renv._vulkanSwapChain._surfaceExtent.width
                                                , height = renv._vulkanSwapChain._surfaceExtent.height
                                                , layers = 1

@@ -16,6 +16,7 @@ import Data.Bits ((.|.))
 import Foreign.Storable
 import Geomancy
 
+import Vulkan.Zero (zero)
 import qualified Vulkan.CStruct.Extends as VkC
 import qualified Vulkan as Vk
 
@@ -162,6 +163,23 @@ createGraphicsPipeline' dev vert frag renderP = do
                           attachments = [colorBlendAttachment]
                           blendConstants = (0,0,0,0)
 
+    depthStencilInfo  = Vk.PipelineDepthStencilStateCreateInfo
+                            { flags = zero
+                            , depthTestEnable = True
+                            , depthWriteEnable = True
+                            , depthCompareOp = Vk.COMPARE_OP_LESS
+                            
+                            -- For the optional depth bound testing. Unused for now
+                            , depthBoundsTestEnable = False
+                            , minDepthBounds = 0
+                            , maxDepthBounds = 1
+
+                            -- Currently not using stencil testing
+                            , stencilTestEnable = False
+                            , front = zero
+                            , back  = zero
+                            }
+
 
     -- In this config we can specify uniform values and push constants (other
     -- way of passing dynamic values to shaders)
@@ -186,7 +204,7 @@ createGraphicsPipeline' dev vert frag renderP = do
                                                  , viewportState = Just (VkC.SomeStruct viewportStateInfo)
                                                  , rasterizationState = Just (VkC.SomeStruct rasterizerInfo)
                                                  , multisampleState = Just (VkC.SomeStruct multisamplingInfo)
-                                                 , depthStencilState = Nothing
+                                                 , depthStencilState = Just depthStencilInfo
                                                  , colorBlendState = Just (VkC.SomeStruct colorBlendingInfo)
                                                  , dynamicState = Just dynamicStateInfo
                                                  , layout = pipelineLayout

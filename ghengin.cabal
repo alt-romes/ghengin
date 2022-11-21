@@ -68,6 +68,7 @@ library
                       
                       Ghengin.Vulkan,
                       Ghengin.Vulkan.Synchronization,
+                      Ghengin.Vulkan.Image,
                       Ghengin.Vulkan.Command,
                       Ghengin.Vulkan.RenderPass,
                       Ghengin.Vulkan.Pipeline,

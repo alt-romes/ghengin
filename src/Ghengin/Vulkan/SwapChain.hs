@@ -22,11 +22,13 @@ import qualified Vulkan as Vk
 
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan.GLFW.Window
+import Ghengin.Vulkan.Image
 
 data VulkanSwapChain = VulkanSwapChain { _swapchain  :: Vk.SwapchainKHR
                                        , _imageViews :: Vector Vk.ImageView
                                        , _surfaceFormat :: Vk.SurfaceFormatKHR
                                        , _surfaceExtent :: Vk.Extent2D
+                                       , _depthImage    :: VulkanImage
                                        }
 
 createSwapChain :: VulkanWindow -> VulkanDevice -> IO VulkanSwapChain
@@ -73,12 +75,23 @@ createSwapChain win device = do
 
   swpc <- Vk.createSwapchainKHR device._device config Nothing
   (_, swpchainImages) <- Vk.getSwapchainImagesKHR device._device swpc
-  swpchainImageViews  <- V.mapM (createImageView device._device surfaceFormat.format) swpchainImages
-  pure $ VulkanSwapChain swpc swpchainImageViews surfaceFormat extent
+  swpchainImageViews  <- V.mapM (createImageView device._device surfaceFormat.format Vk.IMAGE_ASPECT_COLOR_BIT) swpchainImages
+
+  let
+    depthFormat = Vk.FORMAT_D32_SFLOAT -- We could query for supported formats and choose the best
+
+  depthImage <- createImage device depthFormat (Vk.Extent3D extent.width extent.height 1) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT Vk.IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT Vk.IMAGE_ASPECT_DEPTH_BIT
+
+  pure $ VulkanSwapChain swpc swpchainImageViews surfaceFormat extent depthImage
 
 
 destroySwapChain :: Vk.Device -> VulkanSwapChain -> IO ()
 destroySwapChain d swpc = do
+
+  Vk.destroyImageView d swpc._depthImage._imageView Nothing
+  Vk.destroyImage     d swpc._depthImage._image     Nothing
+  Vk.freeMemory       d swpc._depthImage._devMem    Nothing
+
   mapM_ (destroyImageView d) swpc._imageViews
   Vk.destroySwapchainKHR d swpc._swapchain Nothing
 
@@ -112,29 +125,3 @@ chooseSwapExtent win capabilities =
        pure $ Vk.Extent2D (clamp (capabilities.minImageExtent.width,  capabilities.maxImageExtent.width) (fromIntegral w))
                           (clamp (capabilities.minImageExtent.height, capabilities.maxImageExtent.height) (fromIntegral h))
 
-createImageView :: Vk.Device -> Vk.Format -> Vk.Image -> IO Vk.ImageView
-createImageView dev swpcSurfaceFormat img = do
-  Vk.createImageView dev config Nothing
-    where
-      config = Vk.ImageViewCreateInfo {..} where
-                 next = ()
-                 flags = Vk.ImageViewCreateFlagBits 0
-                 image = img
-                 viewType = Vk.IMAGE_VIEW_TYPE_2D
-                 format = swpcSurfaceFormat
-                 -- The next parameter is cool: could make hard color changes
-                 components = Vk.ComponentMapping { r = Vk.COMPONENT_SWIZZLE_IDENTITY
-                                                  , g = Vk.COMPONENT_SWIZZLE_IDENTITY
-                                                  , b = Vk.COMPONENT_SWIZZLE_IDENTITY
-                                                  , a = Vk.COMPONENT_SWIZZLE_IDENTITY
-                                                  }
-                 subresourceRange = Vk.ImageSubresourceRange { aspectMask     = Vk.IMAGE_ASPECT_COLOR_BIT
-                                                             , baseMipLevel   = 0
-                                                             , levelCount     = 1
-                                                             , baseArrayLayer = 0
-                                                             , layerCount     = 1
-                                                             }
-
-
-destroyImageView :: Vk.Device -> Vk.ImageView -> IO ()
-destroyImageView d i = Vk.destroyImageView d i Nothing

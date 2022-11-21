@@ -26,7 +26,7 @@ createBuffer size usage properties = do
                                        }
   buffer <- Vk.createBuffer device bufferInfo Nothing
   memRequirements <- Vk.getBufferMemoryRequirements device buffer
-  memTypeIndex <- findMemoryType memRequirements.memoryTypeBits properties
+  memTypeIndex <- liftIO . findMemoryType memRequirements.memoryTypeBits properties =<< asks (._vulkanDevice._physicalDevice)
   let allocInfo = Vk.MemoryAllocateInfo { next = ()
                                         , allocationSize = memRequirements.size
                                         , memoryTypeIndex = memTypeIndex
@@ -43,10 +43,4 @@ destroyBuffer buffer mem = do
   device <- getDevice
   Vk.destroyBuffer device buffer Nothing
   Vk.freeMemory device mem Nothing
-
-findMemoryType :: Word32 -> Vk.MemoryPropertyFlags -> Renderer Word32
-findMemoryType typeFilter properties = asks (._vulkanDevice._physicalDevice) >>= \physicalDevice -> do
-  memProperties <- Vk.getPhysicalDeviceMemoryProperties physicalDevice
-  pure $ V.head $ V.imapMaybe (\i t -> if ((typeFilter .&. (1 `unsafeShiftL` i)) /= 0) && ((t.propertyFlags .&. properties) == properties)
-                                          then pure (fromIntegral i) else Nothing) memProperties.memoryTypes
 
