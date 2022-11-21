@@ -33,6 +33,7 @@ import Ghengin.Shaders
 
 import Ghengin.Component.Mesh
 import Ghengin.Component.Mesh.Cube
+import Ghengin.Component.Mesh.Obj
 import Ghengin.Component.Transform
 
 import Geomancy.Transform hiding (Transform)
@@ -48,7 +49,7 @@ main = do
 
 loopStepG :: () -> Ghengin World Bool
 loopStepG () = do
-  cmap $ \(tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 ((x+0.005) `mod'` (2*pi)) ((y+0.005) `mod'` (2*pi)) z) } :: Transform)
+  cmap $ \(tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x ((y+0.005) `mod'` (2*pi)) z) } :: Transform)
   pure False
 
 initG :: Ghengin World ()
@@ -67,9 +68,10 @@ initG = do
                           , Vertex (vec3 0.2 0.2       0) (vec3 0 0 0) (vec3 0 1 0)
                           ]
   cube <- lift $ cubeMesh
-  newEntity (Position 0, Velocity 1, cube, Transform (vec3 0 0 0.5) (vec3 0.5 0.5 0.5) (vec3 0 0 0))
-  newEntity (Position 2, Velocity 1)
-  newEntity (Position 1, Velocity 2, Flying)
+  vikingRoom <- lift $ loadObjMesh "assets/viking_room.obj"
+  -- newEntity (cube, Transform (vec3 0 0 0.5) (vec3 0.5 0.5 0.5) (vec3 0 0 0))
+  newEntity (vikingRoom, Transform (vec3 0 0 0.5) (vec3 0.5 0.5 0.5) (vec3 (pi/2) 0 0))
+  newEntity (Flying)
 
   pure ()
 

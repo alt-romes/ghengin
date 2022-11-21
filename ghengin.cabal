@@ -80,7 +80,8 @@ library
 
                       Ghengin.Component.Transform,
                       Ghengin.Component.Mesh,
-                      Ghengin.Component.Mesh.Cube
+                      Ghengin.Component.Mesh.Cube,
+                      Ghengin.Component.Mesh.Obj
 
     -- Modules included in this library but not exported.
     -- other-modules:
@@ -99,7 +100,8 @@ library
                       mtl,
                       containers,
                       apecs,
-                      geomancy
+                      geomancy,
+                      wavefront
 
     -- Directories containing source files.
     hs-source-dirs:   src
