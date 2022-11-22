@@ -78,6 +78,7 @@ library
                       Ghengin.Vulkan.Device.Instance,
                       Ghengin.Vulkan.GLFW.Window,
 
+                      Ghengin.Component.Camera,
                       Ghengin.Component.Transform,
                       Ghengin.Component.Mesh,
                       Ghengin.Component.Mesh.Cube,

@@ -73,10 +73,10 @@ type Command = CommandM ()
 type RenderPassCmd = RenderPassCmdM ()
 
 newtype CommandM a = Command (ReaderT Vk.CommandBuffer IO a)
-  deriving (Functor, Applicative, Monad)
+  deriving (Functor, Applicative, Monad, MonadIO)
 
 newtype RenderPassCmdM a = RenderPassCmd (ReaderT Vk.CommandBuffer IO a)
-  deriving (Functor, Applicative, Monad)
+  deriving (Functor, Applicative, Monad, MonadIO)
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.

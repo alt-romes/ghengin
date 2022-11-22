@@ -32,6 +32,7 @@ import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 import Ghengin.Shaders
 
 import Ghengin.Component.Mesh
+import Ghengin.Component.Camera
 import Ghengin.Component.Mesh.Cube
 import Ghengin.Component.Mesh.Obj
 import Ghengin.Component.Transform
@@ -54,24 +55,15 @@ loopStepG () = do
 
 initG :: Ghengin World ()
 initG = do
-  -- (_, nExts) <- Vk.enumerateInstanceExtensionProperties Nothing
-  -- liftIO $ putStr "Extensions: " >> print nExts
 
-  m1 <- lift $ createMesh [ Vertex (vec3 0.0 (-0.6) 0) (vec3 0 0 0) (vec3 1 0 0)
-                          , Vertex (vec3 (-0.6) 0.6 0) (vec3 0 0 0) (vec3 0 0 1)
-                          , Vertex (vec3 0.6 0.6    0) (vec3 0 0 0) (vec3 0 1 0)
-                          ]
-
-  m2 <- lift $ createMesh [ Vertex (vec3 (-0.2) (-0.2) 0) (vec3 0 0 0) (vec3 1 0 0)
-                          , Vertex (vec3 (-0.2) 0.2    0) (vec3 0 0 0) (vec3 1 0 1)
-                          , Vertex (vec3 0.2 (-0.2)    0) (vec3 0 0 0) (vec3 0 0 1)
-                          , Vertex (vec3 0.2 0.2       0) (vec3 0 0 0) (vec3 0 1 0)
-                          ]
   cube <- lift $ cubeMesh
   vikingRoom <- lift $ loadObjMesh "assets/viking_room.obj"
-  -- newEntity (cube, Transform (vec3 0 0 0.5) (vec3 0.5 0.5 0.5) (vec3 0 0 0))
-  newEntity (vikingRoom, Transform (vec3 0 0 0.5) (vec3 0.5 0.5 0.5) (vec3 (pi/2) 0 0))
-  newEntity (Flying)
+  newEntity (cube, Transform (vec3 0 0 2.5) (vec3 0.5 0.5 0.5) (vec3 0 0 0))
+  -- newEntity (vikingRoom, Transform (vec3 0 0 (4)) (vec3 0.5 0.5 0.5) (vec3 (pi/2) 0 0))
+
+  cam <- lift $ perspectiveCamera (radians 50) 0.1 10
+  liftIO $ print cam
+  newEntity (cam)
 
   pure ()
 
@@ -79,4 +71,6 @@ endG :: Ghengin World ()
 endG = do
   liftIO $ putStrLn "Goodbye"
 
+
+radians d = d * (pi/180)
 

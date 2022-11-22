@@ -10,15 +10,14 @@ module Ghengin.Component.Transform
   ( Transform(..)
   , noTransform
   , applyTransform
+  , makeTransform
   ) where
-
-import Debug.Trace
 
 import GHC.Records
 
 import Geomancy hiding (Transform)
-import Geomancy.Mat4
 import Geomancy.Transform hiding (Transform)
+import Geomancy.Mat4
 import qualified Vulkan as Vk
 import Apecs
 
@@ -66,7 +65,7 @@ makeTransform tr =
                (sx * (c2*s3))            (sy * (c2*c3))            (sz * (-s2))   y
                (sx * (c1*s2*s3 - c3*s1)) (sy * (c1*c3*s2 + s1*s3)) (sz * (c1*c2)) z
                0                         0                         0 1
-       in traceShow w $ w
+       in w
    -- With a fresh head this morning I followed the clipping planes line of
    -- thought and eventually found that the translation was being affected by
    -- the rotation (I'll send a snippet after) and with correct transformation
@@ -80,6 +79,7 @@ makeTransform tr =
    -- appears to be wrong. If someone is able to explain it clearly I'd love to
    -- know :)
    -- in let w = unTransform $ translateV tr.position <> rotateY ry <> rotateX rx <> rotateZ rz <> scale3 sx sy sz
-   --     in traceShow (tr.position, translateV tr.position, w) $ w
+   -- in let w = unTransform $ scale3 sx sy sz <> rotateZ rz <> rotateX rx <> rotateY ry <> translateV tr.position -- this works but seems to rotate to the wrong side?
+   --     in w
    -- in traceShow (tr.position, tr.scale, tr.rotation) $ unTransform $ rotateY ry <> scale3 sx sy sz
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -29,6 +31,7 @@ import Ghengin.Vulkan
 import Ghengin.Shaders
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 
+import Ghengin.Component.Camera
 import Ghengin.Component.Mesh
 import Ghengin.Component.Transform
 
@@ -47,7 +50,8 @@ windowLoop action = do
   loopUntilClosedOr win action
 
 
-ghengin :: (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform))
+type WorldConstraints w = (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform), HasField "cameras" w (Storage Camera))
+ghengin :: WorldConstraints w
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
         -> Ghengin w b -- ^ Run every simulation step (currently ignored)
@@ -108,12 +112,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
 -- TODO: Eventually move drawFrame to a better contained renderer part
 
--- drawFrame :: 
--- drawFrame = do
-
---   cmapM_ $ \(mesh :: Mesh) -> liftIO . print $ mesh
-
-drawFrame :: (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform))
+drawFrame :: WorldConstraints w
           => VulkanPipeline
           -> VulkanRenderPass
           -> Vector Vk.Fence
@@ -158,22 +157,27 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
     -- outside of the scissor will be discarded. We keep it as the whole viewport
     scissor = Vk.Rect2D (Vk.Offset2D 0 0) extent
 
+  -- TODO: Is cfold as efficient as cmap?
 
-  -- Render each object mesh
-  meshRenderCmds <- cfold (\acc (mesh :: Mesh, tr :: Maybe Transform) -> (renderMesh mesh, tr):acc) []
+  -- Get main camera
+  cfold (\acc (cam :: Camera) -> cam:acc) [] >>= \case
+    [] -> liftIO $ fail "No camera"
+    Camera camT:_ -> do
+      -- Render each object mesh
+      meshRenderCmds <- cfold (\acc (mesh :: Mesh, tr :: Maybe Transform) -> (renderMesh mesh, fromMaybe noTransform tr):acc) []
 
-  recordCommand cmdBuffer $ do
+      recordCommand cmdBuffer $ do
 
-    renderPass rpass._renderPass (rpass._framebuffers V.! i) extent $ do
+        renderPass rpass._renderPass (rpass._framebuffers V.! i) extent $ do
 
-      bindGraphicsPipeline (pipeline._pipeline)
-      setViewport viewport
-      setScissor  scissor
+          bindGraphicsPipeline (pipeline._pipeline)
+          setViewport viewport
+          setScissor  scissor
 
-      forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
+          forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
 
-        applyTransform pipeline (fromMaybe noTransform transform)
-        meshRenderCmd
+            pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform <> camT)
+            meshRenderCmd
         
 
 
