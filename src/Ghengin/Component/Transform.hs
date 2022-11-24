@@ -27,6 +27,7 @@ import Ghengin.Vulkan.Pipeline
 data Transform = Transform { position :: {-# UNPACK #-} !Vec3
                            , scale    :: {-# UNPACK #-} !Vec3
                            , rotation :: {-# UNPACK #-} !Vec3
+                           -- , mat      :: Mat4 -- This field must be lazy so that's computed only when needed. Then it'll be computed/cached so subsequent accesses will be instantaneous
                            }
 
 noTransform :: Transform

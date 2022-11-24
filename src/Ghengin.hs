@@ -160,9 +160,13 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
   -- TODO: Is cfold as efficient as cmap?
 
   -- Get main camera
-  cfold (\acc (cam :: Camera) -> cam:acc) [] >>= \case
+  cfold (\acc (cam :: Camera, tr :: Maybe Transform) -> (cam, fromMaybe noTransform tr):acc) [] >>= \case
     [] -> liftIO $ fail "No camera"
-    Camera camT:_ -> do
+    (Camera proj view, camTr):_ -> do
+
+      projM <- lift $ makeProjection proj
+      let viewM = makeView camTr view
+
       -- Render each object mesh
       meshRenderCmds <- cfold (\acc (mesh :: Mesh, tr :: Maybe Transform) -> (renderMesh mesh, fromMaybe noTransform tr):acc) []
 
@@ -176,7 +180,7 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
 
           forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
 
-            pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform <> camT)
+            pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform <> projM <> viewM)
             meshRenderCmd
         
 
