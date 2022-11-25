@@ -180,7 +180,7 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
 
           forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
 
-            pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform <> projM <> viewM)
+            pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform <> viewM <> projM)
             meshRenderCmd
         
 

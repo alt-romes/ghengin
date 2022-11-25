@@ -51,7 +51,7 @@ main = do
 loopStepG :: () -> Ghengin World Bool
 loopStepG () = do
 
-  cmap $ \(tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x ((y+0.005) `mod'` (2*pi)) z) } :: Transform)
+  cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 (x+0.005) ((y+0.01) `mod'` (2*pi)) z) } :: Transform)
 
   pure False
 
@@ -63,8 +63,8 @@ initG = do
   newEntity (cube, Transform (vec3 0 0 2.5) (vec3 0.5 0.5 0.5) (vec3 0 0 0))
   -- newEntity (vikingRoom, Transform (vec3 0 0 2.5) (vec3 0.5 0.5 0.5) (vec3 (pi/2) 0 0))
 
-  -- cam <- lift $ perspectiveCamera (radians 50) 0.1 10
-  newEntity (Camera (Perspective (radians 50) 0.1 10) (ViewLookAt (vec3 0.5 0 1)), Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
+  newEntity (Camera (Perspective (radians 50) 0.1 10) (ViewDirection (vec3 0.5 0 1)), Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
+  -- newEntity (Camera (Perspective (radians 50) 0.1 10) ViewTransform, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
 
   return ()
 

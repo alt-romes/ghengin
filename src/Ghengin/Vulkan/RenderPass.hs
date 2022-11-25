@@ -28,7 +28,11 @@ data VulkanRenderPass = VulkanRenderPass { _renderPass :: Vk.RenderPass
                                          -- RenderPass because in rendering we have 
                                          -- a fixed SwapChain so the Framebuffer is
                                          -- differentiated just from the rendering pass.
-                                         -- That means that we have to create a framebuffer for all of the images in the swap chain and use the one that corresponds to the retrieved image at drawing time.
+                                         -- That means that we have to create a
+                                         -- framebuffer for all of the images
+                                         -- in the swap chain and use the one
+                                         -- that corresponds to the retrieved
+                                         -- image at drawing time.
                                          , _framebuffers :: Vector Vk.Framebuffer
                                          }
 

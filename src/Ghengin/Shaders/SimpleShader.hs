@@ -45,7 +45,7 @@ vertex = Module $ entryPoint @"main" @Vertex do
 type FragmentDefs
   =  '[ "in_col"  ':-> Input      '[ Location 0 ] (V 4 Float)
       , "out_col" ':-> Output     '[ Location 0                 ] (V 4 Float)   -- output (varying) of type V 4 Float and memory location 0
-      , "main"    ':-> EntryPoint '[ OriginUpperLeft           ] Fragment      -- fragment shader stage (using standard Cartesian coordinates)
+      , "main"    ':-> EntryPoint '[ OriginLowerLeft           ] Fragment      -- fragment shader stage (using standard Cartesian coordinates)
       ]
       --  "in_pos"  ':-> Input      '[ Location 0                 ] (V 2 Float)   -- input  (varying) of type V 2 Float and memory location 0
       -- , "image"   ':-> Texture2D  '[ DescriptorSet 0, Binding 0 ] (RGBA8 UNorm) -- input sampled image (provided as binding 0 of descriptor set 0)

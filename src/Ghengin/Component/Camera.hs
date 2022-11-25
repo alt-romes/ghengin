@@ -53,13 +53,28 @@ instance (Monad m, HasField "cameras" w (Storage Camera)) => Has w m Camera wher
 makeView :: Transform -> View -> Mat4
 makeView tr view =
   let pos = tr.position
-      up  = vec3 0 1 0 -- TODO: Calculate up based on camera rotation
+      up  = vec3 0 (-1) 0 -- TODO: Calculate up based on camera rotation
    in case view of
     ViewLookAt target -> makeView tr (ViewDirection (target - pos))
     ViewDirection dir ->
       let w@(WithVec3 wx wy wz) = normalize dir
-          u@(WithVec3 ux uy uz) = normalize $ cross dir up
+          u@(WithVec3 ux uy uz) = normalize $ cross w up
           v@(WithVec3 vx vy vz) = cross w u
+       in colMajor ux uy uz (-dot u pos)
+                   vx vy vz (-dot v pos)
+                   wx wy wz (-dot w pos)
+                   0  0  0  1
+    ViewTransform ->
+      let WithVec3 rx ry rz = tr.rotation
+          c3 = cos rz
+          s3 = sin rz
+          c2 = cos rx
+          s2 = sin rx
+          c1 = cos ry
+          s1 = sin ry
+          u@(WithVec3 ux uy uz) = vec3 (c1*c3 + s1*s2*s3) (c2*s3) (c1*s2*s3-c3*s1)
+          v@(WithVec3 vx vy vz) = vec3 (c3*s1*s2-c1*s3) (c2*c3) (c1*c3*s2+s1*s3)
+          w@(WithVec3 wx wy wz) = vec3 (c2*s1) (-s2) (c1*c2)
        in colMajor ux uy uz (-dot u pos)
                    vx vy vz (-dot v pos)
                    wx wy wz (-dot w pos)
