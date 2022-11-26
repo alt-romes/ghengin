@@ -1,3 +1,4 @@
+{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -90,7 +91,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
     frameTime <- diffUTCTime newTime <$> liftIO(readIORef currentTime)
     liftIO(writeIORef currentTime newTime)
 
-    b <- loopstep a (realToFrac frameTime)
+    b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime)
 
     drawFrame pipeline simpleRenderPass
               [inFlightFence1, inFlightFence2]
@@ -216,3 +217,6 @@ ifPressed k t e = do
   getKey k >>= \case
     GLFW.KeyState'Pressed -> t
     _ -> e
+
+pattern MAX_FRAME_TIME :: Float
+pattern MAX_FRAME_TIME = 0.5

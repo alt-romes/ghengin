@@ -111,7 +111,7 @@ updateCameraTransform dt =
 
     let moveDir = mf + mb + mr + ml + mu + md
 
-        tr'' = tr'{position = tr.position + moveDir ^* dt ^* moveSpeed} :: Transform
+        tr'' = tr'{position = if nearZero moveDir then tr'.position else tr'.position + moveDir ^* dt ^* moveSpeed} :: Transform
 
     pure (tr'' :: Transform)
   where
