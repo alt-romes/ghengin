@@ -19,6 +19,7 @@ import Data.IORef
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
+import qualified Graphics.UI.GLFW as GLFW
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Device
@@ -51,9 +52,23 @@ main = do
 loopStepG :: () -> DeltaTime -> Ghengin World Bool
 loopStepG () dt = do
 
+  cmapM $ \(_ :: Camera, tr :: Transform) -> do
+    r <- ifPressed GLFW.Key'Right (pure $ vec3 0 1 0) (pure $ vec3 0 0 0)
+    l <- ifPressed GLFW.Key'Left (pure $ vec3 0 (-1) 0) (pure $ vec3 0 0 0)
+    u <- ifPressed GLFW.Key'Up   (pure $ vec3 1 0 0) (pure $ vec3 0 0 0)
+    d <- ifPressed GLFW.Key'Down (pure $ vec3 (-1) 0 0) (pure $ vec3 0 0 0)
+
+    let rotateV = normalize (r + l + u + d) ^* dt ^* lookSpeed
+
+    pure (tr{rotation = tr.rotation + rotateV} :: Transform)
+
   cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+1*dt) z) } :: Transform)
 
   pure False
+
+  where
+    moveSpeed = 3
+    lookSpeed = 1.5
 
 initG :: Ghengin World ()
 initG = do
@@ -66,8 +81,8 @@ initG = do
   -- newEntity (vikingRoom, Transform (vec3 0 0 2.5) (vec3 0.5 0.5 0.5) (vec3 (pi/2) 0 0))
   -- newEntity (mambus, Transform (vec3 0 0 0.5) (vec3 1.5 1.5 1.5) (vec3 pi 0 pi))
 
-  newEntity (Camera (Perspective (radians 50) 0.1 10) (ViewDirection (vec3 0 0 1)), Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
-  -- newEntity (Camera (Perspective (radians 50) 0.1 10) ViewTransform, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
+  -- newEntity (Camera (Perspective (radians 50) 0.1 10) (ViewDirection (vec3 0 0 1)), Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
+  newEntity (Camera (Perspective (radians 50) 0.1 10) ViewTransform, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
 
   return ()
 

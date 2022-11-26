@@ -22,6 +22,8 @@ import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 import Apecs
 
+import qualified Graphics.UI.GLFW as GLFW
+
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.RenderPass
@@ -199,3 +201,18 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
     presentPresentQueue renderFinishedSem i
 
   pure ()
+
+
+getKey :: GLFW.Key -> Ghengin w GLFW.KeyState
+getKey k = lift $ do
+  w <- asks (._vulkanWindow._window)
+  liftIO $ GLFW.getKey w k
+
+ifPressed :: GLFW.Key
+          -> Ghengin w a -- ^ Then
+          -> Ghengin w a -- ^ Else
+          -> Ghengin w a -- ^ Result
+ifPressed k t e = do
+  getKey k >>= \case
+    GLFW.KeyState'Pressed -> t
+    _ -> e
