@@ -8,6 +8,7 @@
 module Ghengin.Utils where
 
 import Data.Kind
+import Geomancy.Vec3
 
 import Data.Bits
 
@@ -66,3 +67,6 @@ instance Epsilon Float where
 -- | @'abs' a '<=' 1e-12@
 instance Epsilon Double where
   nearZero a = abs a <= 1e-12
+
+instance Epsilon Vec3 where
+  nearZero a = nearZero (dot a a)
