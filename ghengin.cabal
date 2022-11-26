@@ -102,7 +102,8 @@ library
                       containers,
                       apecs,
                       geomancy,
-                      wavefront
+                      wavefront,
+                      time
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -130,7 +131,7 @@ executable ghengin
         vulkan ^>=3.23,
         GLFW-b ^>=3.3,
         vector ^>=0.13,
-        mtl,
+        mtl, time,
         apecs,
         geomancy
 

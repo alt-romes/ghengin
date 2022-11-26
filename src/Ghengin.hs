@@ -15,6 +15,7 @@ import Control.Monad.Reader
 
 import Data.IORef
 
+import Data.Time.Clock
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import Vulkan.Zero (zero)
@@ -49,13 +50,14 @@ windowLoop action = do
   win <- lift (asks (._vulkanWindow._window))
   loopUntilClosedOr win action
 
+type DeltaTime = Float -- Converted from NominalDiffTime
 
 type WorldConstraints w = (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform), HasField "cameras" w (Storage Camera))
 ghengin :: WorldConstraints w
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
         -> Ghengin w b -- ^ Run every simulation step (currently ignored)
-        -> (a -> Ghengin w Bool) -- ^ Run every game loop? iteration. Bool indicates whether we should exit the gameloop
+        -> (a -> DeltaTime -> Ghengin w Bool) -- ^ Run every game loop? iteration. Bool indicates whether we should exit the gameloop
         -- -> Ghengin w c -- ^ Run every draw step?
         -> Ghengin w c -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
@@ -66,7 +68,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   vert <- liftIO $ compileFIRShader SimpleShader.vertex
   frag <- liftIO $ compileFIRShader SimpleShader.fragment
 
-  -- Use linear types here. Can I make the monad stack over a multiplicity polymorphic monad?
+  -- TODO: Use linear types here. Can I make the monad stack over a multiplicity polymorphic monad?
   simpleRenderPass   <- lift $ createSimpleRenderPass
   pipeline           <- lift $ createGraphicsPipeline vert frag simpleRenderPass._renderPass
   inFlightFence1     <- lift $ createFence True
@@ -76,12 +78,17 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   renderFinishedSem1 <- lift $ createSemaphore
   renderFinishedSem2 <- lift $ createSemaphore
 
+  currentTime <- liftIO (getCurrentTime >>= newIORef)
   counter <- liftIO(newIORef 0)
   windowLoop $ do
 
     n <- liftIO(readIORef counter)
+    newTime <- liftIO getCurrentTime
+    -- A Very Hard Thing To Get Right. For now, the simplest approach:
+    frameTime <- diffUTCTime newTime <$> liftIO(readIORef currentTime)
+    liftIO(writeIORef currentTime newTime)
 
-    b <- loopstep a
+    b <- loopstep a (realToFrac frameTime)
 
     drawFrame pipeline simpleRenderPass
               [inFlightFence1, inFlightFence2]
