@@ -46,7 +46,6 @@ newSphere res =
       ps = v1 <> v2 <> v3 <> v4 <> v5 <> v6
       ns = calculateSmoothNormals is ps
    in do
-     createMeshWithIxs (zipWith3 Vertex ps ns (map (flip withVec3 $ \x y z -> vec3 (abs x) (abs y) (abs z)) ns)) is
-     -- createMeshWithIxs (zipWith3 Vertex ps ns ns) is
+     createMeshWithIxs (zipWith3 Vertex ps ns (map ((^/2) . (+ vec3 1 1 1)) ns)) is
 
 
