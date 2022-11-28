@@ -15,23 +15,28 @@ module Ghengin.Component.Mesh
   ( Mesh
   , Vertex(..)
   , createMesh
+  , createMeshWithIxs
+  , calculateFlatNormals
   , renderMesh
   , vertexInputBindingDescription
   , vertexInputAttributeDescriptions
   ) where
 
 import GHC.Records
+import Data.List.Split (chunksOf)
+import Data.List (sort)
 
 import Foreign.Ptr
 import Foreign.Storable
 import Foreign.Marshal.Utils
 import Data.Bits
 import Data.Word
+import qualified Data.IntMap as IM
 
 import Data.Vector (Vector)
 import qualified Data.Vector.Storable as SV
 
-import Geomancy
+import Geomancy.Vec3
 
 import Apecs
 
@@ -68,6 +73,7 @@ data Mesh = Mesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector 
                  -- , vertices :: Vector Vertex
                  , nVertices :: Word32 -- ^ We save the number of vertices to pass to the draw function
                  } deriving Show
+      -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
 
 instance Component Mesh where
   type Storage Mesh = Map Mesh
@@ -106,6 +112,25 @@ createMesh vs = do
   Vk.unmapMemory device devMem
 
   pure (Mesh buffer devMem (fromIntegral nverts))
+
+createMeshWithIxs :: [Vertex] -> [Int] -> Renderer Mesh
+createMeshWithIxs (SV.fromList -> vertices) ixs = do
+  -- TODO: Use index buffer!!!!
+
+  let verticesSV = SV.fromList $ map (\i -> vertices SV.! i) ixs
+  createMesh verticesSV
+
+-- | Calculate normals of vertices given vertex positions and the indices that describe the faces
+-- TODO: Calculate Smooth Normals as an alternative
+-- The returned list has a normal for each position in the input positions, in the same order
+calculateFlatNormals :: [Int] -> [Vec3] -> [Vec3]
+calculateFlatNormals ixs (SV.fromList -> pos) =
+
+  let m = foldl (\acc [a,b,c] ->
+            let n = normalize $ cross (pos SV.! a) (pos SV.! b)
+             in IM.insert a n $ IM.insert b n $ IM.insert c n acc) mempty (chunksOf 3 ixs)
+
+   in map snd $ sort (IM.toList m)
 
 
 

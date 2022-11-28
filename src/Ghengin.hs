@@ -7,7 +7,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
-module Ghengin where
+module Ghengin
+  ( module Ghengin
+  , module Apecs
+  , module Geomancy.Vec3
+  , module Geomancy.Mat4
+  ) where
 
 import GHC.Records
 
@@ -22,6 +27,8 @@ import qualified Data.Vector as V
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 import Apecs
+import Geomancy.Vec3
+import Geomancy.Mat4
 
 import qualified Graphics.UI.GLFW as GLFW
 

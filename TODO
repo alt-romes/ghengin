@@ -1,3 +1,4 @@
+[ ] MonadRenderer to be able to call mesh creation and such from SystemT
 [ ] Linear types for resource management
 [ ] Index buffer
 [ ] Since for now we decide a game can ever only use one window, we could have the Ghengin monad propagate the window thorought the program
