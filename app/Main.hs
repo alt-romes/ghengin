@@ -39,8 +39,6 @@ import Ghengin.Component.Mesh.Cube
 import Ghengin.Component.Mesh.Obj
 import Ghengin.Component.Transform
 
-import Geomancy.Transform hiding (Transform)
-import Geomancy hiding (Transform)
 import Apecs
 import Main.Apecs
 

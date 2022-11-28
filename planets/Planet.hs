@@ -2,6 +2,7 @@
 {-# LANGUAGE BlockArguments #-}
 module Planet where
 
+import Debug.Trace
 import Control.Monad
 
 import Ghengin
@@ -20,7 +21,7 @@ newTerrainFace res up =
       axisB = cross up axisA
       
       fres = fromIntegral res
-      positions = map (\(px,py) -> up + axisA^*(2*(px - 0.5)) + axisB^*(2*(py - 0.5)))
+      positions = map (normalize . \(px,py) -> up + axisA^*(2*(px - 0.5)) + axisB^*(2*(py - 0.5)))
                      do x <- [0..fres-1]
                         y <- [0..fres-1]
                         pure (x/(fres-1), y/(fres-1))
@@ -40,10 +41,11 @@ newSphere res =
       TF v4 i4 = newTerrainFace res (vec3 (-1) 0 0)
       TF v5 i5 = newTerrainFace res (vec3 0 0 1)
       TF v6 i6 = newTerrainFace res (vec3 0 0 (-1))
-      is = i1 <> i2 <> i3 <> i4 <> i5 <> i6
+      l  = length v1 -- all faces share same length
+      is = i1 <> map (+l) i2 <> map (+l*2) i3 <> map (+l*3) i4 <> map (+l*4) i5 <> map (+l*5) i6
       ps = v1 <> v2 <> v3 <> v4 <> v5 <> v6
       ns = calculateFlatNormals is ps
-   in
-     createMeshWithIxs (zipWith3 Vertex ps ns ns) is
+   in do
+     createMeshWithIxs (zipWith3 Vertex ps ns (map (flip withVec3 $ \x y z -> vec3 (abs x) (abs y) (abs z)) ns)) is
 
 

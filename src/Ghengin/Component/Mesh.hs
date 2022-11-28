@@ -20,8 +20,10 @@ module Ghengin.Component.Mesh
   , renderMesh
   , vertexInputBindingDescription
   , vertexInputAttributeDescriptions
+  , chunksOf
   ) where
 
+import Debug.Trace
 import GHC.Records
 import Data.List.Split (chunksOf)
 import Data.List (sort)
@@ -127,10 +129,12 @@ calculateFlatNormals :: [Int] -> [Vec3] -> [Vec3]
 calculateFlatNormals ixs (SV.fromList -> pos) =
 
   let m = foldl (\acc [a,b,c] ->
-            let n = normalize $ cross (pos SV.! a) (pos SV.! b)
-             in IM.insert a n $ IM.insert b n $ IM.insert c n acc) mempty (chunksOf 3 ixs)
+            let vab = (pos SV.! b) - (pos SV.! a)
+                vbc = (pos SV.! c) - (pos SV.! b)
+                n = normalize $ cross vbc vab -- vbc X vab gives the normal facing up for clockwise faces
+             in IM.insertWith (\x _ -> x) a n $ IM.insertWith (\x _ -> x) b n $ IM.insertWith (\x _ -> x) c n acc) mempty (chunksOf 3 ixs)
 
-   in map snd $ sort (IM.toList m)
+   in traceShow m $ map snd $ sort (IM.toList m)
 
 
 
