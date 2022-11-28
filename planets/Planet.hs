@@ -44,8 +44,9 @@ newSphere res =
       l  = length v1 -- all faces share same length
       is = i1 <> map (+l) i2 <> map (+l*2) i3 <> map (+l*3) i4 <> map (+l*4) i5 <> map (+l*5) i6
       ps = v1 <> v2 <> v3 <> v4 <> v5 <> v6
-      ns = calculateFlatNormals is ps
+      ns = calculateSmoothNormals is ps
    in do
      createMeshWithIxs (zipWith3 Vertex ps ns (map (flip withVec3 $ \x y z -> vec3 (abs x) (abs y) (abs z)) ns)) is
+     -- createMeshWithIxs (zipWith3 Vertex ps ns ns) is
 
 

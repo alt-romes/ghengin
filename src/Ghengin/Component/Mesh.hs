@@ -17,6 +17,7 @@ module Ghengin.Component.Mesh
   , createMesh
   , createMeshWithIxs
   , calculateFlatNormals
+  , calculateSmoothNormals
   , renderMesh
   , vertexInputBindingDescription
   , vertexInputAttributeDescriptions
@@ -33,6 +34,7 @@ import Foreign.Storable
 import Foreign.Marshal.Utils
 import Data.Bits
 import Data.Word
+import qualified Data.Map as M
 import qualified Data.IntMap as IM
 
 import Data.Vector (Vector)
@@ -122,8 +124,9 @@ createMeshWithIxs (SV.fromList -> vertices) ixs = do
   let verticesSV = SV.fromList $ map (\i -> vertices SV.! i) ixs
   createMesh verticesSV
 
+-- TODO: Nub vertices
+
 -- | Calculate normals of vertices given vertex positions and the indices that describe the faces
--- TODO: Calculate Smooth Normals as an alternative
 -- The returned list has a normal for each position in the input positions, in the same order
 calculateFlatNormals :: [Int] -> [Vec3] -> [Vec3]
 calculateFlatNormals ixs (SV.fromList -> pos) =
@@ -134,8 +137,19 @@ calculateFlatNormals ixs (SV.fromList -> pos) =
                 n = normalize $ cross vbc vab -- vbc X vab gives the normal facing up for clockwise faces
              in IM.insertWith (\x _ -> x) a n $ IM.insertWith (\x _ -> x) b n $ IM.insertWith (\x _ -> x) c n acc) mempty (chunksOf 3 ixs)
 
-   in traceShow m $ map snd $ sort (IM.toList m)
+   in map snd $ sort (IM.toList m)
 
+-- | Calculate smooth normals of vertices given vertex positions and the
+-- indices that describe the faces The returned list has a normal for each
+-- position in the input positions, in the same order
+calculateSmoothNormals :: [Int] -> [Vec3] -> [Vec3]
+calculateSmoothNormals ixs pos =
+
+  let fns = calculateFlatNormals ixs pos
+
+      smoothNormalsMap = foldl (\acc (p,n) -> M.insertWith (\(na, i) (nb, j) -> (na + nb, i + j)) p (n,1) acc) mempty (zip pos fns)
+
+   in map (\p -> case smoothNormalsMap M.! p of (n,b) -> n^/b) pos
 
 
 vertexInputBindingDescription :: Vk.VertexInputBindingDescription
