@@ -25,15 +25,12 @@ module Ghengin.Component.Mesh
   , chunksOf
   ) where
 
-import Debug.Trace
 import GHC.Records
 import Data.List.Split (chunksOf)
 import Data.List (sort, foldl')
 
 import Foreign.Ptr
 import Foreign.Storable
-import Foreign.Marshal.Utils
-import Data.Bits
 import Data.Word
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -45,7 +42,6 @@ import Geomancy.Vec3
 
 import Apecs
 
-import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
 import Ghengin.Vulkan.Command
@@ -79,10 +75,10 @@ data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a v
                        -- , vertices :: Vector Vertex
                        }
           | IndexedMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
-                        , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- we later need to free this as well
+                        , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- vertices device memoy -- we later need to free this as well
                         , indexBuffer        :: {-# UNPACK #-} !Vk.Buffer -- vertices indexes in buffer
-                        , indexBufferMemory  :: {-# UNPACK #-} !Vk.Buffer -- vertices indexes in buffer
-                        , nVertices          :: Word32 -- ^ We save the number of vertices to pass to the draw function
+                        , indexBufferMemory  :: {-# UNPACK #-} !Vk.DeviceMemory -- indexes device memory -- TODO TO BE FREED AND BUFFER TOO
+                        , nIndexes           :: Word32 -- ^ We save the number of indexes to pass to the draw function
                         }
           deriving Show
 
@@ -105,7 +101,12 @@ renderMesh = \case
           offsets = [0]
       bindVertexBuffers 0 buffers offsets
       draw nverts
-  IndexedMesh {} -> undefined
+  IndexedMesh vbuf _ ibuf _ nixs -> do
+      let buffers = [vbuf] :: Vector Vk.Buffer
+          offsets = [0]
+      bindVertexBuffers 0 buffers offsets
+      bindIndex32Buffer ibuf 0
+      drawIndexed nixs
 
 
 -- | Create a Mesh given a vector of vertices
@@ -117,39 +118,12 @@ createMesh vs = do
   pure (SimpleMesh buffer devMem (fromIntegral nverts))
 
 createMeshWithIxs :: [Vertex] -> [Int] -> Renderer Mesh
-createMeshWithIxs (SV.fromList -> vertices) ixs = do
-  -- TODO: Use index buffer!!!!
+createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
+  let nixs = SV.length ixs
+  (vbuffer, vbMem) <- createVertexBuffer vertices
+  (ibuffer, ibMem) <- createIndex32Buffer (SV.map fromIntegral ixs)
 
-  let verticesSV = SV.fromList $ map (\i -> vertices SV.! i) ixs
-  createMesh verticesSV
-
-
-createVertexBuffer :: SV.Vector Vertex -> Renderer (Vk.Buffer, Vk.DeviceMemory)
-createVertexBuffer vs = do
-  let nverts     = SV.length vs
-      bufferSize = fromIntegral $ nverts * sizeOf (SV.head vs)
-  (stagingBuffer, stagingMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_TRANSFER_SRC_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
-
-  device <- getDevice
-  
-  -- Map the buffer memory into CPU accessible memory
-  data' <- Vk.mapMemory device stagingMem 0 bufferSize zero
-  -- Copy vertices from vs to data' mapped device memory
-  liftIO $ SV.unsafeWith vs $ \ptr -> do
-    copyBytes data' (castPtr ptr) (fromIntegral bufferSize)
-  -- Unmap memory
-  Vk.unmapMemory device stagingMem
-
-  (vertexBuffer, vertexMem) <- createBuffer bufferSize (Vk.BUFFER_USAGE_TRANSFER_DST_BIT .|. Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT
-
-  -- Copy data from staging buffer to actual vertex buffer inaccessible by the host
-  copyBuffer stagingBuffer vertexBuffer bufferSize
-
-  -- Free staging buffer
-  Vk.destroyBuffer device stagingBuffer Nothing
-  Vk.freeMemory    device stagingMem    Nothing
-
-  pure (vertexBuffer, vertexMem)
+  pure (IndexedMesh vbuffer vbMem ibuffer ibMem (fromIntegral nixs))
 
 
 -- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)

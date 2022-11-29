@@ -24,9 +24,11 @@ module Ghengin.Vulkan.Command
   , setViewport
   , setScissor
   , bindVertexBuffers
+  , bindIndex32Buffer
   , copyFullBuffer
   , pushConstants
   , draw
+  , drawIndexed
 
   , createCommandPool
   , destroyCommandPool
@@ -146,10 +148,21 @@ setScissor scissor = RenderPassCmd $ ask >>= \buf -> Vk.cmdSetScissor  buf 0 [sc
 
 bindVertexBuffers :: Word32 -> Vector Vk.Buffer -> Vector Vk.DeviceSize -> RenderPassCmd
 bindVertexBuffers i bufs offsets = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindVertexBuffers buf i bufs offsets
+{-# INLINE bindVertexBuffers #-}
+
+bindIndex32Buffer :: Vk.Buffer -- ^ Index buffer
+                  -> Vk.DeviceSize -- ^ Offset into index buffer
+                  -> RenderPassCmd
+bindIndex32Buffer ibuffer offset = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindIndexBuffer buf ibuffer offset Vk.INDEX_TYPE_UINT32
+{-# INLINE bindIndex32Buffer #-}
 
 draw :: Word32 -> RenderPassCmd
 draw vertexCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDraw buf vertexCount 1 0 0
 {-# INLINE draw #-}
+
+drawIndexed :: Word32 -> RenderPassCmd
+drawIndexed ixCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDrawIndexed buf ixCount 1 0 0 0
+{-# INLINE drawIndexed #-}
 
 copyFullBuffer :: Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Command
 copyFullBuffer src dst size = Command $ ask >>= \buf -> do
