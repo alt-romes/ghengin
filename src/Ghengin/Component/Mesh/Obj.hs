@@ -39,6 +39,8 @@ loadObjMesh filepath = do
                                       , Vertex (getLoc c) (getNormal c) (getNormal c) -- (vec3 0.5 0.5 0.5)
                                       ]) faces
 
-      
+          -- meshVertices = fmap (\(Location x y z w) -> Vertex (vec3 x y z) ()) (V.zip locs normals)
+
+      -- TODO: createMeshWithIxs
       createMesh (V.convert meshFaces)
 

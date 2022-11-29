@@ -24,7 +24,6 @@ import Data.IORef
 import Data.Time.Clock
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 import Apecs
 import Geomancy.Vec3
@@ -33,7 +32,6 @@ import Geomancy.Mat4
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.RenderPass
-import Ghengin.Vulkan.Synchronization
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
 
@@ -79,17 +77,11 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   -- TODO: Use linear types here. Can I make the monad stack over a multiplicity polymorphic monad?
   simpleRenderPass   <- lift $ createSimpleRenderPass
   pipeline           <- lift $ createGraphicsPipeline vert frag simpleRenderPass._renderPass
-  inFlightFence1     <- lift $ createFence True
-  inFlightFence2     <- lift $ createFence True
-  imageAvailableSem1 <- lift $ createSemaphore
-  imageAvailableSem2 <- lift $ createSemaphore
-  renderFinishedSem1 <- lift $ createSemaphore
-  renderFinishedSem2 <- lift $ createSemaphore
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
   frameCounter <- liftIO (newIORef (0 :: Int))
-  framesInFlightCounter <- liftIO(newIORef 0)
+
   windowLoop $ do
 
     newTime <- liftIO getCurrentTime
@@ -108,17 +100,9 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
     frameTime <- diffUTCTime newTime <$> liftIO(readIORef currentTime)
     liftIO(writeIORef currentTime newTime)
 
-    n <- liftIO(readIORef framesInFlightCounter)
-
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime)
 
     drawFrame pipeline simpleRenderPass
-              [inFlightFence1, inFlightFence2]
-              [imageAvailableSem1, imageAvailableSem2]
-              [renderFinishedSem1, renderFinishedSem2]
-              n
-
-    liftIO(modifyIORef' framesInFlightCounter (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT))
 
     pure b
 
@@ -127,12 +111,6 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   lift $ do
     destroyRenderPass simpleRenderPass
     destroyPipeline pipeline
-    destroyFence inFlightFence1
-    destroyFence inFlightFence2
-    destroySem imageAvailableSem1
-    destroySem imageAvailableSem2
-    destroySem renderFinishedSem1
-    destroySem renderFinishedSem2
 
   _ <- finalize
 
@@ -144,32 +122,10 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 drawFrame :: WorldConstraints w
           => VulkanPipeline
           -> VulkanRenderPass
-          -> Vector Vk.Fence
-          -> Vector Vk.Semaphore
-          -> Vector Vk.Semaphore
-          -> Int -- ^ Frame number
           -> Ghengin w ()
-drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n = lift (asks (._commandBuffers)) >>= \cmdBuffers -> lift getDevice >>= \device -> do
+drawFrame pipeline rpass = do
 
-  let cmdBuffer = cmdBuffers V.! n
-      inFlightFence = inFlightFences V.! n
-      imageAvailableSem = imageAvailableSems V.! n
-      renderFinishedSem = renderFinishedSems V.! n
-
-  -- Wait for the previous frame to finish
-  -- Acquire an image from the swap chain
-  -- Record a command buffer which draws the scene onto that image
-  -- Submit the recorded command buffer
-  -- Present the swap chain image 
-  _ <- Vk.waitForFences device [inFlightFence] True maxBound
-  Vk.resetFences device [inFlightFence]
-
-  i <- lift $ acquireNextImage imageAvailableSem
-
-  Vk.resetCommandBuffer cmdBuffer zero
-
-  extent <- lift $ getRenderExtent
-
+  extent <- lift getRenderExtent
   let
     -- The region of the framebuffer that the output will be rendered to. We
     -- render from (0,0) to (width, height) i.e. the whole framebuffer
@@ -199,27 +155,21 @@ drawFrame pipeline rpass inFlightFences imageAvailableSems renderFinishedSems n 
       -- Render each object mesh
       meshRenderCmds <- cfold (\acc (mesh :: Mesh, tr :: Maybe Transform) -> (renderMesh mesh, fromMaybe noTransform tr):acc) []
 
-      recordCommand cmdBuffer $ do
+      lift $ withCurrentFramePresent $ \cmdBuffer i -> do
 
-        renderPass rpass._renderPass (rpass._framebuffers V.! i) extent $ do
+        recordCommand cmdBuffer $ do
 
-          bindGraphicsPipeline (pipeline._pipeline)
-          setViewport viewport
-          setScissor  scissor
+          renderPass rpass._renderPass (rpass._framebuffers V.! i) extent $ do
 
-          forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
+            bindGraphicsPipeline (pipeline._pipeline)
+            setViewport viewport
+            setScissor  scissor
 
-            pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform <> viewM <> projM)
-            meshRenderCmd
+            forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
+
+              pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform <> viewM <> projM)
+              meshRenderCmd
         
-
-
-  lift $ do
-
-    submitGraphicsQueue cmdBuffer imageAvailableSem renderFinishedSem inFlightFence
-
-    presentPresentQueue renderFinishedSem i
-
   pure ()
 
 

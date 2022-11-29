@@ -13,6 +13,7 @@ import Control.Exception
 
 import GHC.Ptr
 
+import Data.IORef
 import Control.Monad.Reader
 
 import Data.ByteString (ByteString)
@@ -22,19 +23,22 @@ import qualified Data.List as L
 
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan as Vk
+import Vulkan.Zero (zero)
 
 import Ghengin.Vulkan.Device.Instance
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan.SwapChain
 import Ghengin.Vulkan.Command
+import Ghengin.Vulkan.Frame
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Utils
 
-data RendererEnv = REnv { _vulkanDevice :: VulkanDevice
-                        , _vulkanWindow :: VulkanWindow
-                        , _vulkanSwapChain :: VulkanSwapChain
-                        , _commandPool     :: Vk.CommandPool
-                        , _commandBuffers  :: Vector Vk.CommandBuffer
+data RendererEnv = REnv { _vulkanDevice    :: !VulkanDevice
+                        , _vulkanWindow    :: !VulkanWindow
+                        , _vulkanSwapChain :: !VulkanSwapChain
+                        , _commandPool     :: !Vk.CommandPool
+                        , _frames          :: !(Vector FrameData)
+                        , _frameInFlight   :: !(IORef Word32)
                         }
 newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv)
 
@@ -60,13 +64,19 @@ runVulkanRenderer r =
     commandPool <- createCommandPool device
     cmdBuffers <- createCommandBuffers (device._device) commandPool MAX_FRAMES_IN_FLIGHT
 
-    pure (inst, REnv device win swapChain commandPool cmdBuffers)
+    frameDatas <- mapM (initFrameData device._device) cmdBuffers
+
+    frameInFlight <- newIORef 0 
+
+    pure (inst, REnv device win swapChain commandPool frameDatas frameInFlight)
 
     )
 
-  (\(inst, REnv device win swapchain commandPool _) -> do
+  (\(inst, REnv device win swapchain commandPool frames _) -> do
 
     liftIO $ putStrLn "[Start] Clean up"
+
+    mapM_ (destroyFrameData device._device) frames
 
     destroyCommandPool device._device commandPool
 
@@ -86,6 +96,68 @@ runVulkanRenderer r =
     runReaderT (unRenderer r) renv
 
     )
+
+
+
+-- | Run a 'Renderer' action that depends on a command buffer and the current
+-- image index of the swapchain to typically by writing to the command buffer
+-- the draw calls (to the renderpasse's framebuffer responsible for that
+-- image).
+--
+-- Afterwards, submits that command buffer to the graphics queue and then
+-- presents the current image.
+-- 
+-- It handles all the synchronization necessary so that the command buffer
+-- being written to is not written again before it is submitted, and so that we
+-- wait for the GPU after having written N frames, where N = 2 means we're
+-- doing double buffering, and N = 3 triple buffering.
+--
+-- That is, this function will block the third time it's called if N = 2 but no
+-- image has been presented yet
+--
+-- N is 'MAX_FRAMES_IN_FLIGHT'
+withCurrentFramePresent :: (Vk.CommandBuffer -> Int -> Renderer a) -> Renderer a
+withCurrentFramePresent action = do
+
+  device <- getDevice
+
+  currentFrame <- advanceCurrentFrame
+  let
+      cmdBuffer = currentFrame._commandBuffer
+      inFlightFence = currentFrame._renderFence
+      imageAvailableSem = currentFrame._renderSemaphore
+      renderFinishedSem = currentFrame._presentSemaphore
+
+  -- Wait for the previous frame to finish
+  -- Acquire an image from the swap chain
+  -- Record a command buffer which draws the scene onto that image
+  -- Submit the recorded command buffer
+  -- Present the swap chain image 
+  _ <- Vk.waitForFences device [inFlightFence] True maxBound
+  Vk.resetFences device [inFlightFence]
+
+  i <- acquireNextImage imageAvailableSem
+
+  Vk.resetCommandBuffer cmdBuffer zero
+
+  a <- action cmdBuffer i
+
+  -- Finally, submit and present
+  submitGraphicsQueue cmdBuffer imageAvailableSem renderFinishedSem inFlightFence
+
+  presentPresentQueue renderFinishedSem i
+
+  pure a
+
+
+-- | Get the current frame and increase the frame index (i.e. the next call to 'advanceCurrentFrame' will return the next frame)
+advanceCurrentFrame :: Renderer FrameData
+advanceCurrentFrame = do
+  nref <- asks (._frameInFlight)
+  n    <- liftIO $ readIORef nref
+  liftIO $ modifyIORef' nref (\x -> (x + 1) `rem` MAX_FRAMES_IN_FLIGHT)
+  asks ((V.! fromIntegral n) . (._frames))
+
 
 acquireNextImage :: Vk.Semaphore -> Renderer Int
 acquireNextImage sem = ask >>= \renv ->

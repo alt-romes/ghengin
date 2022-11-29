@@ -75,6 +75,7 @@ library
                       Ghengin.Vulkan.SwapChain,
                       Ghengin.Vulkan.Buffer,
                       Ghengin.Vulkan.Device,
+                      Ghengin.Vulkan.Frame,
                       Ghengin.Vulkan.Device.Instance,
                       Ghengin.Vulkan.GLFW.Window,
 
