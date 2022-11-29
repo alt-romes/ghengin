@@ -89,14 +89,28 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   renderFinishedSem2 <- lift $ createSemaphore
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
-  counter <- liftIO(newIORef 0)
+  lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
+  frameCounter <- liftIO (newIORef (0 :: Int))
+  framesInFlightCounter <- liftIO(newIORef 0)
   windowLoop $ do
 
-    n <- liftIO(readIORef counter)
     newTime <- liftIO getCurrentTime
-    -- A Very Hard Thing To Get Right. For now, the simplest approach:
+
+    -- FPS Counter
+    lastFPS <- liftIO (readIORef lastFPSTime)
+    liftIO (modifyIORef' frameCounter (+1))
+    when (diffUTCTime newTime lastFPS > 1) (liftIO $ do
+      frames <- readIORef frameCounter
+      putStrLn $ "FPS: " <> show frames
+      writeIORef frameCounter 0
+      writeIORef lastFPSTime newTime
+      )
+
+    -- Fix Your Timestep: A Very Hard Thing To Get Right. For now, the simplest approach:
     frameTime <- diffUTCTime newTime <$> liftIO(readIORef currentTime)
     liftIO(writeIORef currentTime newTime)
+
+    n <- liftIO(readIORef framesInFlightCounter)
 
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime)
 
@@ -106,7 +120,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
               [renderFinishedSem1, renderFinishedSem2]
               n
 
-    liftIO(modifyIORef' counter (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT))
+    liftIO(modifyIORef' framesInFlightCounter (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT))
 
     pure b
 

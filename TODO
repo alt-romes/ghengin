@@ -1,3 +1,4 @@
+[ ] Toon Shader
 [ ] MonadRenderer to be able to call mesh creation and such from SystemT
 [ ] Linear types for resource management
 [ ] Index buffer
