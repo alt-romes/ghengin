@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -10,7 +11,9 @@ import Data.Bits
 import Data.Word
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
+import qualified Vulkan.CStruct.Extends as Vk
 
+import qualified Ghengin.Vulkan.Command as Cmd
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan
 
@@ -43,4 +46,22 @@ destroyBuffer buffer mem = do
   device <- getDevice
   Vk.destroyBuffer device buffer Nothing
   Vk.freeMemory device mem Nothing
+
+copyBuffer :: Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Renderer ()
+copyBuffer src dst size = do
+  device <- getDevice
+  cpool <- asks (._commandPool)
+  liftIO (Cmd.createCommandBuffers device cpool 1) >>= \case
+    [b] -> do
+          Cmd.recordCommandOneShot b $ do
+            Cmd.copyFullBuffer src dst size
+
+          graphicsQueue <- asks (._vulkanDevice._graphicsQueue)
+          Vk.queueSubmit   graphicsQueue [Vk.SomeStruct $ Vk.SubmitInfo () [] [] [b.commandBufferHandle] []] Vk.NULL_HANDLE
+          Vk.queueWaitIdle graphicsQueue
+
+          liftIO $ Cmd.destroyCommandBuffers device cpool [b]
+
+    _ -> liftIO $ fail "Create command buffers expected 1 got something else"
+  
 

@@ -16,7 +16,6 @@ module Ghengin.Component.Transform
 import GHC.Records
 
 import Geomancy hiding (Transform)
-import Geomancy.Transform hiding (Transform)
 import Geomancy.Mat4
 import qualified Vulkan as Vk
 import Apecs

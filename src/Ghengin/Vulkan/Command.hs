@@ -16,6 +16,7 @@ module Ghengin.Vulkan.Command
   -- , CommandM
   -- , RenderPassCmdM
   , recordCommand
+  , recordCommandOneShot
   , renderPass
   , bindGraphicsPipeline
   , bindComputePipeline
@@ -23,12 +24,14 @@ module Ghengin.Vulkan.Command
   , setViewport
   , setScissor
   , bindVertexBuffers
+  , copyFullBuffer
   , pushConstants
   , draw
 
   , createCommandPool
   , destroyCommandPool
   , createCommandBuffers
+  , destroyCommandBuffers
   ) where
 
 import Control.Monad.Reader
@@ -95,6 +98,14 @@ recordCommand buf (Command cmds) = do
   Vk.endCommandBuffer buf
 {-# INLINE recordCommand #-}
 
+recordCommandOneShot :: MonadIO m => Vk.CommandBuffer -> Command -> m ()
+recordCommandOneShot buf (Command cmds) = do
+  let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, inheritanceInfo = Nothing }
+  Vk.beginCommandBuffer buf beginInfo
+  liftIO $ runReaderT cmds buf
+  Vk.endCommandBuffer buf
+{-# INLINE recordCommandOneShot #-}
+
 -- | Make a render pass part a command blueprint that can be further composed with other commands
 renderPass :: Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd -> Command
 renderPass rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ask >>= \buf -> do
@@ -140,6 +151,11 @@ draw :: Word32 -> RenderPassCmd
 draw vertexCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDraw buf vertexCount 1 0 0
 {-# INLINE draw #-}
 
+copyFullBuffer :: Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Command
+copyFullBuffer src dst size = Command $ ask >>= \buf -> do
+  Vk.cmdCopyBuffer buf src dst [Vk.BufferCopy 0 0 size]
+{-# INLINE copyFullBuffer #-}
+
 pushConstants :: forall a. Storable a => Vk.PipelineLayout -> Vk.ShaderStageFlags -> a -> RenderPassCmd
 pushConstants pipelineLayout stageFlags values =
   RenderPassCmd $ ask >>= \buf ->
@@ -172,4 +188,7 @@ createCommandBuffers dev cpool n = do
                                              , commandBufferCount = n
                                              }
   Vk.allocateCommandBuffers dev allocInfo
+
+destroyCommandBuffers :: Vk.Device -> Vk.CommandPool -> Vector Vk.CommandBuffer -> IO ()
+destroyCommandBuffers = Vk.freeCommandBuffers
 

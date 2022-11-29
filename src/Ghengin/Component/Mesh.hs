@@ -1,3 +1,4 @@
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -27,7 +28,7 @@ module Ghengin.Component.Mesh
 import Debug.Trace
 import GHC.Records
 import Data.List.Split (chunksOf)
-import Data.List (sort)
+import Data.List (sort, foldl')
 
 import Foreign.Ptr
 import Foreign.Storable
@@ -69,14 +70,22 @@ instance Storable Vertex where
     pokeElemOff p 1 normal
     pokeElemOff p 2 color
 
-data Mesh = Mesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
-                 , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- we later need to free this as well
-                 -- we don't need to keep the Vector Vertex that was originally
-                 -- used to create this Mesh, but having the vertex buffer and
-                 -- the device memory is morally equivalent
-                 -- , vertices :: Vector Vertex
-                 , nVertices :: Word32 -- ^ We save the number of vertices to pass to the draw function
-                 } deriving Show
+data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
+                       , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- we later need to free this as well
+                       , nVertices :: Word32 -- ^ We save the number of vertices to pass to the draw function
+                       -- We don't need to keep the Vector Vertex that was originally (unless we wanted to regenerate it every time?)
+                       -- used to create this Mesh, bc having the vertex buffer and
+                       -- the device memory is morally equivalent
+                       -- , vertices :: Vector Vertex
+                       }
+          | IndexedMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
+                        , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- we later need to free this as well
+                        , indexBuffer        :: {-# UNPACK #-} !Vk.Buffer -- vertices indexes in buffer
+                        , indexBufferMemory  :: {-# UNPACK #-} !Vk.Buffer -- vertices indexes in buffer
+                        , nVertices          :: Word32 -- ^ We save the number of vertices to pass to the draw function
+                        }
+          deriving Show
+
       -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
 
 instance Component Mesh where
@@ -90,32 +99,22 @@ instance (Monad m, HasField "meshes" w (Storage Mesh)) => Has w m Mesh where
 
 -- Render a mesh command
 renderMesh :: Mesh -> RenderPassCmd
-renderMesh (Mesh buf _ nverts) = do
-  let buffers = [buf] :: Vector Vk.Buffer
-      offsets = [0]
-  bindVertexBuffers 0 buffers offsets
-  draw nverts
+renderMesh = \case
+  SimpleMesh buf _ nverts -> do
+      let buffers = [buf] :: Vector Vk.Buffer
+          offsets = [0]
+      bindVertexBuffers 0 buffers offsets
+      draw nverts
+  IndexedMesh {} -> undefined
 
 
 -- | Create a Mesh given a vector of vertices
 -- TODO: Clean all Mesh vertex buffers
 createMesh :: SV.Vector Vertex -> Renderer Mesh
 createMesh vs = do
-  let nverts     = SV.length vs
-      bufferSize = fromIntegral $ nverts * sizeOf (SV.head vs)
-  (buffer, devMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
-
-  device <- getDevice
-  
-  -- Map the buffer memory into CPU accessible memory
-  data' <- Vk.mapMemory device devMem 0 bufferSize zero
-  -- Copy vertices from vs to data' mapped device memory
-  liftIO $ SV.unsafeWith vs $ \ptr -> do
-    copyBytes data' (castPtr ptr) (fromIntegral bufferSize)
-  -- Unmap memory
-  Vk.unmapMemory device devMem
-
-  pure (Mesh buffer devMem (fromIntegral nverts))
+  let nverts = SV.length vs
+  (buffer, devMem) <- createVertexBuffer vs
+  pure (SimpleMesh buffer devMem (fromIntegral nverts))
 
 createMeshWithIxs :: [Vertex] -> [Int] -> Renderer Mesh
 createMeshWithIxs (SV.fromList -> vertices) ixs = do
@@ -124,14 +123,43 @@ createMeshWithIxs (SV.fromList -> vertices) ixs = do
   let verticesSV = SV.fromList $ map (\i -> vertices SV.! i) ixs
   createMesh verticesSV
 
--- TODO: Nub vertices
+
+createVertexBuffer :: SV.Vector Vertex -> Renderer (Vk.Buffer, Vk.DeviceMemory)
+createVertexBuffer vs = do
+  let nverts     = SV.length vs
+      bufferSize = fromIntegral $ nverts * sizeOf (SV.head vs)
+  (stagingBuffer, stagingMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_TRANSFER_SRC_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
+
+  device <- getDevice
+  
+  -- Map the buffer memory into CPU accessible memory
+  data' <- Vk.mapMemory device stagingMem 0 bufferSize zero
+  -- Copy vertices from vs to data' mapped device memory
+  liftIO $ SV.unsafeWith vs $ \ptr -> do
+    copyBytes data' (castPtr ptr) (fromIntegral bufferSize)
+  -- Unmap memory
+  Vk.unmapMemory device stagingMem
+
+  (vertexBuffer, vertexMem) <- createBuffer bufferSize (Vk.BUFFER_USAGE_TRANSFER_DST_BIT .|. Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+
+  -- Copy data from staging buffer to actual vertex buffer inaccessible by the host
+  copyBuffer stagingBuffer vertexBuffer bufferSize
+
+  -- Free staging buffer
+  Vk.destroyBuffer device stagingBuffer Nothing
+  Vk.freeMemory    device stagingMem    Nothing
+
+  pure (vertexBuffer, vertexMem)
+
+
+-- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)
 
 -- | Calculate normals of vertices given vertex positions and the indices that describe the faces
 -- The returned list has a normal for each position in the input positions, in the same order
 calculateFlatNormals :: [Int] -> [Vec3] -> [Vec3]
 calculateFlatNormals ixs (SV.fromList -> pos) =
 
-  let m = foldl (\acc [a,b,c] ->
+  let m = foldl' (\acc [a,b,c] ->
             let vab = (pos SV.! b) - (pos SV.! a)
                 vbc = (pos SV.! c) - (pos SV.! b)
                 n = normalize $ cross vbc vab -- vbc X vab gives the normal facing up for clockwise faces
@@ -149,7 +177,7 @@ calculateSmoothNormals ixs pos =
 
   let fns = calculateFlatNormals ixs pos
 
-      smoothNormalsMap = foldl (\acc (p,n) -> M.insertWith (\(na, i) (nb, j) -> (na + nb, i + j)) p (n,1) acc) mempty (zip pos fns)
+      smoothNormalsMap = foldl' (\acc (p,n) -> M.insertWith (\(na, i) (nb, j) -> (na + nb, i + j)) p (n,1) acc) mempty (zip pos fns)
 
    in map (\p -> case smoothNormalsMap M.! p of (n,b) -> n^/b) pos
 
