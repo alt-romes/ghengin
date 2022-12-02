@@ -31,6 +31,7 @@ import Geomancy.Mat4
 
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Pipeline
+import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
@@ -69,14 +70,20 @@ ghengin :: WorldConstraints w
         -> IO ()
 ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runSystem` world) $ do
 
+  -- TODO: If the materials added to each entity are ordered, when we get all
+  -- the materials will the materials be ordered? If so, we can simply render
+  -- with them sequentially without being afraid of changing back and forwards
   a <- initialize
 
   vert <- liftIO $ compileFIRShader SimpleShader.vertex
   frag <- liftIO $ compileFIRShader SimpleShader.fragment
 
+  
+  -- BIG:TODO: Bundle descriptor sets, render passes, and pipelines into a single abstraction
   -- TODO: Use linear types here. Can I make the monad stack over a multiplicity polymorphic monad?
+  descriptorSetLayout <- lift $ createDescriptorSetLayout
   simpleRenderPass   <- lift $ createSimpleRenderPass
-  pipeline           <- lift $ createGraphicsPipeline vert frag simpleRenderPass._renderPass
+  pipeline           <- lift $ createGraphicsPipeline vert frag simpleRenderPass._renderPass [descriptorSetLayout]
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
@@ -109,6 +116,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   Vk.deviceWaitIdle =<< lift getDevice
 
   lift $ do
+    destroyDescriptorSetLayout descriptorSetLayout
     destroyRenderPass simpleRenderPass
     destroyPipeline pipeline
 

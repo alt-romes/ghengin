@@ -37,7 +37,7 @@ data RendererEnv = REnv { _vulkanDevice    :: !VulkanDevice
                         , _vulkanWindow    :: !VulkanWindow
                         , _vulkanSwapChain :: !VulkanSwapChain
                         , _commandPool     :: !Vk.CommandPool
-                        , _frames          :: !(Vector FrameData)
+                        , _frames          :: !(Vector VulkanFrameData)
                         , _frameInFlight   :: !(IORef Word32)
                         }
 newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv)
@@ -64,7 +64,7 @@ runVulkanRenderer r =
     commandPool <- createCommandPool device
     cmdBuffers <- createCommandBuffers (device._device) commandPool MAX_FRAMES_IN_FLIGHT
 
-    frameDatas <- mapM (initFrameData device._device) cmdBuffers
+    frameDatas <- mapM (initVulkanFrameData device._device) cmdBuffers
 
     frameInFlight <- newIORef 0 
 
@@ -76,7 +76,7 @@ runVulkanRenderer r =
 
     liftIO $ putStrLn "[Start] Clean up"
 
-    mapM_ (destroyFrameData device._device) frames
+    mapM_ (destroyVulkanFrameData device._device) frames
 
     destroyCommandPool device._device commandPool
 
@@ -151,7 +151,7 @@ withCurrentFramePresent action = do
 
 
 -- | Get the current frame and increase the frame index (i.e. the next call to 'advanceCurrentFrame' will return the next frame)
-advanceCurrentFrame :: Renderer FrameData
+advanceCurrentFrame :: Renderer VulkanFrameData
 advanceCurrentFrame = do
   nref <- asks (._frameInFlight)
   n    <- liftIO $ readIORef nref

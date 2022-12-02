@@ -38,20 +38,20 @@ dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT
 -- Isto seria fixe num per-renderer basis
 newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
 
-withGraphicsPipeline :: ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> (VulkanPipeline -> Renderer a) -> Renderer a
-withGraphicsPipeline vert frag rp f = Renderer $ ReaderT $ \renv ->
+withGraphicsPipeline :: ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> V.Vector Vk.DescriptorSetLayout -> (VulkanPipeline -> Renderer a) -> Renderer a
+withGraphicsPipeline vert frag rp sls f = Renderer $ ReaderT $ \renv ->
                                           bracket
-                                            (runReaderT (unRenderer $ createGraphicsPipeline vert frag rp) renv)
+                                            (runReaderT (unRenderer $ createGraphicsPipeline vert frag rp sls) renv)
                                             ((`runReaderT` renv) . unRenderer . destroyPipeline)
                                             ((`runReaderT` renv) . unRenderer . f)
 
-createGraphicsPipeline :: ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> Renderer VulkanPipeline
-createGraphicsPipeline v f rp = Renderer $ ReaderT (\renv -> createGraphicsPipeline' (renv._vulkanDevice._device) v f rp)
+createGraphicsPipeline :: ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> V.Vector Vk.DescriptorSetLayout -> Renderer VulkanPipeline
+createGraphicsPipeline v f rp sls = Renderer $ ReaderT (\renv -> createGraphicsPipeline' (renv._vulkanDevice._device) v f rp sls)
 
 -- | Create a pipeline given a vertex shader and a fragment shader (in this
 -- order)
-createGraphicsPipeline' :: Vk.Device -> ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> IO VulkanPipeline
-createGraphicsPipeline' dev vert frag renderP = do
+createGraphicsPipeline' :: Vk.Device -> ShaderByteCode -> ShaderByteCode -> Vk.RenderPass -> V.Vector Vk.DescriptorSetLayout -> IO VulkanPipeline
+createGraphicsPipeline' dev vert frag renderP descriptorSetLayouts = do
 
   vertSM <- createShaderModule dev vert
   fragSM <- createShaderModule dev frag
@@ -185,7 +185,7 @@ createGraphicsPipeline' dev vert frag renderP = do
     -- way of passing dynamic values to shaders)
     pipelineLayoutInfo = Vk.PipelineLayoutCreateInfo {..} where
                            flags = Vk.PipelineLayoutCreateFlagBits 0
-                           setLayouts = []
+                           setLayouts = descriptorSetLayouts
                            pushConstantRanges = [Vk.PushConstantRange { offset = 0
                                                                       , size   = fromIntegral $ sizeOf @PushConstantData undefined
                                                                       , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT

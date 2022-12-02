@@ -78,6 +78,8 @@ library
                       Ghengin.Vulkan.Frame,
                       Ghengin.Vulkan.Device.Instance,
                       Ghengin.Vulkan.GLFW.Window,
+                      Ghengin.Vulkan.DescriptorSet,
+
 
                       Ghengin.Component.Camera,
                       Ghengin.Component.Transform,
@@ -105,7 +107,8 @@ library
                       geomancy,
                       wavefront,
                       time,
-                      split
+                      split,
+                      -- dear-imgui
 
     -- Directories containing source files.
     hs-source-dirs:   src

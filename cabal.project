@@ -1,5 +1,8 @@
 packages: .
 
+--package dear-imgui
+--  flags: +glfw +vulkan -sdl -opengl3
+
 allow-newer:
     vector-sized:vector
 
@@ -25,3 +28,4 @@ source-repository-package
     type:   git
     location: https://gitlab.com/dpwiz/geomancy.git
     tag:    head
+
