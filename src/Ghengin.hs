@@ -1,4 +1,6 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -16,6 +18,9 @@ module Ghengin
 
 import GHC.Records
 
+import Foreign.Storable
+import Foreign.Ptr
+
 import Data.Maybe
 import Control.Monad.Reader
 
@@ -29,6 +34,7 @@ import Apecs
 import Geomancy.Vec3
 import Geomancy.Mat4
 
+import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.DescriptorSet
@@ -59,6 +65,21 @@ windowLoop action = do
 
 type DeltaTime = Float -- Converted from NominalDiffTime
 
+data UniformBufferObject = UBO { view :: Mat4
+                               , proj :: Mat4
+                               }
+-- TODO: Use and export derive-storable?
+instance Storable UniformBufferObject where
+  sizeOf _ = 2 * sizeOf @Mat4 undefined
+  alignment _ = 16
+  peek (castPtr -> p) = do
+    vi <- peek p
+    pr <- peekElemOff p 1
+    pure $ UBO vi pr
+  poke (castPtr -> p) (UBO vi pr) = do
+    poke p vi
+    pokeElemOff p 1 pr
+
 type WorldConstraints w = (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform), HasField "cameras" w (Storage Camera))
 ghengin :: WorldConstraints w
         => w           -- ^ World
@@ -85,6 +106,9 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   simpleRenderPass   <- lift $ createSimpleRenderPass
   pipeline           <- lift $ createGraphicsPipeline vert frag simpleRenderPass._renderPass [descriptorSetLayout]
 
+  objUBs <- lift $ mapM (const createMappedUniformBuffer) [1..MAX_FRAMES_IN_FLIGHT]
+  liftIO $ print (length objUBs)
+
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
   frameCounter <- liftIO (newIORef (0 :: Int))
@@ -109,13 +133,14 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime)
 
-    drawFrame pipeline simpleRenderPass
+    drawFrame pipeline simpleRenderPass objUBs
 
     pure b
 
   Vk.deviceWaitIdle =<< lift getDevice
 
   lift $ do
+    mapM_ destroyUniformBuffer objUBs
     destroyDescriptorSetLayout descriptorSetLayout
     destroyRenderPass simpleRenderPass
     destroyPipeline pipeline
@@ -130,8 +155,9 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 drawFrame :: WorldConstraints w
           => VulkanPipeline
           -> VulkanRenderPass
+          -> Vector (UniformBuffer UniformBufferObject)
           -> Ghengin w ()
-drawFrame pipeline rpass = do
+drawFrame pipeline rpass objUBs = do
 
   extent <- lift getRenderExtent
   let
@@ -163,11 +189,13 @@ drawFrame pipeline rpass = do
       -- Render each object mesh
       meshRenderCmds <- cfold (\acc (mesh :: Mesh, tr :: Maybe Transform) -> (renderMesh mesh, fromMaybe noTransform tr):acc) []
 
-      lift $ withCurrentFramePresent $ \cmdBuffer i -> do
+      lift $ withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
+
+        writeUniformBuffer (objUBs V.! currentFrame) (UBO viewM projM)
 
         recordCommand cmdBuffer $ do
 
-          renderPass rpass._renderPass (rpass._framebuffers V.! i) extent $ do
+          renderPass rpass._renderPass (rpass._framebuffers V.! currentImage) extent $ do
 
             bindGraphicsPipeline (pipeline._pipeline)
             setViewport viewport
@@ -175,7 +203,7 @@ drawFrame pipeline rpass = do
 
             forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
 
-              pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform <> viewM <> projM)
+              pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform)
               meshRenderCmd
         
   pure ()

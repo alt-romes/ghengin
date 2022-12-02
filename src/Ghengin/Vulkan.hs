@@ -38,7 +38,7 @@ data RendererEnv = REnv { _vulkanDevice    :: !VulkanDevice
                         , _vulkanSwapChain :: !VulkanSwapChain
                         , _commandPool     :: !Vk.CommandPool
                         , _frames          :: !(Vector VulkanFrameData)
-                        , _frameInFlight   :: !(IORef Word32)
+                        , _frameInFlight   :: !(IORef Int)
                         }
 newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv)
 
@@ -116,11 +116,19 @@ runVulkanRenderer r =
 -- image has been presented yet
 --
 -- N is 'MAX_FRAMES_IN_FLIGHT'
-withCurrentFramePresent :: (Vk.CommandBuffer -> Int -> Renderer a) -> Renderer a
+--
+-- TODO: Figure out mismatch between current image index and current image frame.
+withCurrentFramePresent :: (  Vk.CommandBuffer
+                           -> Int -- ^ Current image index
+                           -> Int -- ^ Current frame index
+                           -> Renderer a
+                           )
+                        -> Renderer a
 withCurrentFramePresent action = do
 
   device <- getDevice
 
+  currentFrameIndex <- asks (._frameInFlight) >>= liftIO . readIORef
   currentFrame <- advanceCurrentFrame
   let
       cmdBuffer = currentFrame._commandBuffer
@@ -140,7 +148,7 @@ withCurrentFramePresent action = do
 
   Vk.resetCommandBuffer cmdBuffer zero
 
-  a <- action cmdBuffer i
+  a <- action cmdBuffer i currentFrameIndex
 
   -- Finally, submit and present
   submitGraphicsQueue cmdBuffer imageAvailableSem renderFinishedSem inFlightFence
@@ -155,8 +163,8 @@ advanceCurrentFrame :: Renderer VulkanFrameData
 advanceCurrentFrame = do
   nref <- asks (._frameInFlight)
   n    <- liftIO $ readIORef nref
-  liftIO $ modifyIORef' nref (\x -> (x + 1) `rem` MAX_FRAMES_IN_FLIGHT)
-  asks ((V.! fromIntegral n) . (._frames))
+  liftIO $ modifyIORef' nref (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT)
+  asks ((V.! n) . (._frames))
 
 
 acquireNextImage :: Vk.Semaphore -> Renderer Int

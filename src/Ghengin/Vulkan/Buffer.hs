@@ -1,4 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -104,4 +106,53 @@ createVertexBuffer = createDeviceLocalBuffer Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT
 
 createIndex32Buffer :: SV.Vector Int32 -> Renderer (Vk.Buffer, Vk.DeviceMemory)
 createIndex32Buffer = createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT
+
+-- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
+data UniformBuffer a = UniformBuffer { buffer :: Vk.Buffer
+                                     , devMem :: Vk.DeviceMemory
+                                     , hostMem :: Ptr a
+                                     }
+-- UniformBuffer:
+--
+-- You can then copy data to the mapped memory using 'copyBytes'
+--
+-- TODO: Enforce pointer is freed with linear types
+--
+-- The returned Ptr has the sizeOf of the storable type and is mapped to
+-- the device buffer. When bytes are copied to this address they are mapped
+-- onto the device buffer.  That is, to write to the buffer you should rather
+-- write to the pointer
+
+
+-- | Create a uniform buffer with a given size, but don't copy memory to it
+-- yet. See 'writeUniformBuffer' for that yet. See 'writeUniformBuffer' for
+-- that yet. See 'writeUniformBuffer' for that yet. See 'writeUniformBuffer'
+-- for that.
+--
+-- The size is given by the type of the storable to store in the uniform buffer.
+createMappedUniformBuffer :: forall a. Storable a => Renderer (UniformBuffer a)
+createMappedUniformBuffer = do
+  device <- getDevice
+
+  let bsize = fromIntegral $ sizeOf @a undefined
+
+  -- ptr <- mallocBytes (fromIntegral bsize)
+  (buf, devMem) <- createBuffer bsize Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
+
+  data' <- Vk.mapMemory device devMem 0 bsize zero
+
+  pure $ UniformBuffer buf devMem (castPtr data')
+
+destroyUniformBuffer :: UniformBuffer a -> Renderer ()
+destroyUniformBuffer (UniformBuffer b dm _hostMemory) = do
+  -- Is hostMemory freed with unmap? Or with destroyMemory? Or?
+  device <- getDevice
+  Vk.unmapMemory device dm
+  destroyBuffer b dm
+
+
+-- | Note how the storable must be the same as the storable of the uniform buffer so that the sizes match
+writeUniformBuffer :: Storable a => UniformBuffer a -> a -> Renderer ()
+writeUniformBuffer (UniformBuffer _ _ ptr) x = liftIO $ poke ptr x
+
 
