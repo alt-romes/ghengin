@@ -27,7 +27,7 @@ instance Has World Renderer EntityCounter where getStore = SystemT (asks entityC
 initG :: Ghengin World ()
 initG = do
 
-  s <- lift $ newSphere 15
+  s <- lift $ newPlanet 15
 
   newEntity ( s, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
   newEntity ( s, Transform (vec3 0 0 (-4)) (vec3 1 1 1) (vec3 0 0 0) )

@@ -87,6 +87,7 @@ library
                       Ghengin.Component.Transform,
                       Ghengin.Component.Mesh,
                       Ghengin.Component.Mesh.Cube,
+                      Ghengin.Component.Mesh.Sphere,
                       Ghengin.Component.Mesh.Obj
 
     -- Modules included in this library but not exported.
