@@ -79,6 +79,7 @@ library
                       Ghengin.Vulkan.Device.Instance,
                       Ghengin.Vulkan.GLFW.Window,
                       Ghengin.Vulkan.DescriptorSet,
+                      Ghengin.Vulkan.ImmediateSubmit,
 
                       Ghengin.DearImGui,
 

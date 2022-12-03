@@ -101,7 +101,6 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
   vert <- liftIO $ compileFIRShader SimpleShader.vertex
   frag <- liftIO $ compileFIRShader SimpleShader.fragment
-
   
   -- BIG:TODO: Bundle descriptor sets, render passes, and pipelines into a single abstraction
   -- TODO: Use linear types here. Can I make the monad stack over a multiplicity polymorphic monad?

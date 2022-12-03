@@ -183,10 +183,10 @@ bindGraphicsDescriptorSets pipelay dsets = RenderPassCmd $ ask >>= \buf -> do
   Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pipelay 0 dsets [] -- offsets array not used
 
 
-
 -- :| Creation and Destruction |:
 
-createCommandPool :: VulkanDevice -> IO Vk.CommandPool
+-- | Creates a command pool for the graphics queue family
+createCommandPool :: MonadIO m => VulkanDevice -> m Vk.CommandPool
 createCommandPool vkDevice = do
 
   let
@@ -197,10 +197,10 @@ createCommandPool vkDevice = do
   Vk.createCommandPool vkDevice._device poolInfo Nothing
 
 
-destroyCommandPool :: Vk.Device -> Vk.CommandPool -> IO ()
+destroyCommandPool :: MonadIO m => Vk.Device -> Vk.CommandPool -> m ()
 destroyCommandPool dev pool = Vk.destroyCommandPool dev pool Nothing
 
-createCommandBuffers :: Vk.Device -> Vk.CommandPool -> Word32 -> IO (Vector Vk.CommandBuffer)
+createCommandBuffers :: MonadIO m => Vk.Device -> Vk.CommandPool -> Word32 -> m (Vector Vk.CommandBuffer)
 createCommandBuffers dev cpool n = do
   let
     allocInfo = Vk.CommandBufferAllocateInfo { commandPool = cpool
@@ -209,6 +209,7 @@ createCommandBuffers dev cpool n = do
                                              }
   Vk.allocateCommandBuffers dev allocInfo
 
-destroyCommandBuffers :: Vk.Device -> Vk.CommandPool -> Vector Vk.CommandBuffer -> IO ()
+destroyCommandBuffers :: MonadIO m => Vk.Device -> Vk.CommandPool -> Vector Vk.CommandBuffer -> m ()
 destroyCommandBuffers = Vk.freeCommandBuffers
+
 

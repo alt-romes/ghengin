@@ -53,22 +53,7 @@ destroyBuffer buffer mem = do
   Vk.freeMemory device mem Nothing
 
 copyBuffer :: Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Renderer ()
-copyBuffer src dst size = do
-  device <- getDevice
-  cpool <- asks (._commandPool)
-  liftIO (Cmd.createCommandBuffers device cpool 1) >>= \case
-    [b] -> do
-          Cmd.recordCommandOneShot b $ do
-            Cmd.copyFullBuffer src dst size
-
-          graphicsQueue <- asks (._vulkanDevice._graphicsQueue)
-          Vk.queueSubmit   graphicsQueue [Vk.SomeStruct $ Vk.SubmitInfo () [] [] [b.commandBufferHandle] []] Vk.NULL_HANDLE
-          Vk.queueWaitIdle graphicsQueue
-
-          liftIO $ Cmd.destroyCommandBuffers device cpool [b]
-
-    _ -> liftIO $ fail "Create command buffers expected 1 got something else"
-  
+copyBuffer src dst size = immediateSubmit $ Cmd.copyFullBuffer src dst size
 
 -- | Fills a device local buffer with the provided flags and the provided data
 -- by first copying the data to a staging buffer and then running a buffer copy

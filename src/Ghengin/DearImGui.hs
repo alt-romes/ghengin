@@ -4,7 +4,6 @@
 module Ghengin.DearImGui where
 
 import Foreign
-import Control.Exception
 import Control.Monad.Reader
 
 import qualified Vulkan.Zero as Vk
@@ -52,7 +51,7 @@ initImGui renderPass = do
 
   -- Setup platform/renderer backends (glfw+vulkan)
   renv <- ask
-  IM.glfwInitForVulkan renv._vulkanWindow._window True
+  _booj <- IM.glfwInitForVulkan renv._vulkanWindow._window True
   let initInfo = IM.InitInfo { instance' = renv._instance
                              , physicalDevice = renv._vulkanDevice._physicalDevice
                              , device = renv._vulkanDevice._device
@@ -65,14 +64,20 @@ initImGui renderPass = do
                              , imageCount = fromIntegral $ length renv._vulkanSwapChain._imageViews
                              , msaaSamples = Vk.SAMPLE_COUNT_1_BIT
                              , mbAllocator = Nothing
-                             , checkResult = fail . show
+                             , checkResult = \x -> when (x /= Vk.SUCCESS) (fail $ show x)
                              }
   
   initRes <- IM.vulkanInit initInfo renderPass
+
+
+
   pure (IMCtx imGuiDPool imCtx initRes)
 
 destroyImCtx :: ImCtx -> Renderer ()
-destroyImCtx (IMCtx a b c) = liftIO $ putStrLn "TODO: Destroy ImCtx"
-
+destroyImCtx (IMCtx pool imCtx initRes) = do
+  IM.vulkanShutdown initRes
+  IM.destroyContext imCtx
+  device <- getDevice
+  Vk.destroyDescriptorPool device pool Nothing
 
 

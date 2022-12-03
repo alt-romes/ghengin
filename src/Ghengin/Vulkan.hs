@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -31,6 +32,7 @@ import Ghengin.Vulkan.SwapChain
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Frame
 import Ghengin.Vulkan.GLFW.Window
+import Ghengin.Vulkan.ImmediateSubmit
 import Ghengin.Utils
 
 data RendererEnv = REnv { _instance        :: !Vk.Instance
@@ -40,6 +42,7 @@ data RendererEnv = REnv { _instance        :: !Vk.Instance
                         , _commandPool     :: !Vk.CommandPool
                         , _frames          :: !(Vector VulkanFrameData)
                         , _frameInFlight   :: !(IORef Int)
+                        , _immediateSubmit :: !ImmediateSubmitCtx
                         }
 newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv)
 
@@ -61,6 +64,8 @@ runVulkanRenderer r =
 
     swapChain <- createSwapChain win device
 
+    imsCtx <- createImmediateSubmitCtx device
+
     -- (For now) we allocate just one command pool and one command buffer
     commandPool <- createCommandPool device
     cmdBuffers <- createCommandBuffers (device._device) commandPool MAX_FRAMES_IN_FLIGHT
@@ -69,11 +74,11 @@ runVulkanRenderer r =
 
     frameInFlight <- newIORef 0 
 
-    pure (REnv inst device win swapChain commandPool frameDatas frameInFlight)
+    pure (REnv inst device win swapChain commandPool frameDatas frameInFlight imsCtx)
 
     )
 
-  (\(REnv inst device win swapchain commandPool frames _) -> do
+  (\(REnv inst device win swapchain commandPool frames _ioref imsCtx) -> do
 
     liftIO $ putStrLn "[Start] Clean up"
 
@@ -81,6 +86,7 @@ runVulkanRenderer r =
 
     destroyCommandPool device._device commandPool
 
+    destroyImmediateSubmitCtx device._device imsCtx
     destroySwapChain device._device swapchain
     destroyVulkanDevice device
     destroyVulkanWindow inst win
@@ -256,6 +262,7 @@ rateFn surface d = do
         isSuitablePresent  i = Vk.getPhysicalDeviceSurfaceSupportKHR pd (fromIntegral i) sr
 
 
+
 -- :| Utils |:
 
 getRenderExtent :: Renderer Vk.Extent2D
@@ -269,3 +276,12 @@ rendererBracket x f g = Renderer $ ReaderT $ \renv ->
   bracket (runReaderT (unRenderer x) renv)
           ((`runReaderT` renv) . unRenderer . f)
           ((`runReaderT` renv) . unRenderer . g)
+
+-- | Submit a command to the immediate submit command buffer that synchronously
+-- submits it to the graphics queue
+immediateSubmit :: Command -> Renderer ()
+immediateSubmit cmd = do
+  device <- asks (._vulkanDevice)
+  ims <- asks (._immediateSubmit)
+  immediateSubmit' device._device device._graphicsQueue ims cmd
+
