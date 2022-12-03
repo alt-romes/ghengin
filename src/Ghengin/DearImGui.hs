@@ -1,17 +1,25 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
-module Ghengin.DearImGui where
+module Ghengin.DearImGui
+  ( module Ghengin.DearImGui
+  , IM.vulkanNewFrame
+  , IM.glfwNewFrame
+  , module DearImGui
+  ) where
 
 import Foreign
 import Control.Monad.Reader
 
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
+import DearImGui
 import qualified DearImGui as IM
 import qualified DearImGui.Vulkan as IM
+import qualified DearImGui.GLFW   as IM
 import qualified DearImGui.GLFW.Vulkan as IM
 
+import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.SwapChain
 import Ghengin.Vulkan.Device
@@ -21,7 +29,7 @@ data ImCtx = IMCtx Vk.DescriptorPool IM.Context (FunPtr (Vk.Result -> IO ()), Bo
 
 -- | Init ImGui (for some renderpass?)
 initImGui :: Vk.RenderPass -> Renderer ImCtx
-initImGui renderPass = do
+initImGui renderPass' = do
   -- Quite big descriptors but is taken from example
   let poolSizes = [ Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_SAMPLER 1000
                   , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER 1000
@@ -67,9 +75,11 @@ initImGui renderPass = do
                              , checkResult = \x -> when (x /= Vk.SUCCESS) (fail $ show x)
                              }
   
-  initRes <- IM.vulkanInit initInfo renderPass
+  initRes <- IM.vulkanInit initInfo renderPass'
 
+  immediateSubmit $ withCmdBuffer ((() <$) . IM.vulkanCreateFontsTexture)
 
+  IM.vulkanDestroyFontUploadObjects
 
   pure (IMCtx imGuiDPool imCtx initRes)
 
@@ -79,5 +89,12 @@ destroyImCtx (IMCtx pool imCtx initRes) = do
   IM.destroyContext imCtx
   device <- getDevice
   Vk.destroyDescriptorPool device pool Nothing
+
+
+renderDrawData :: RenderPassCmd -- IM.DrawData ->
+renderDrawData = makeRenderPassCmd $ \b -> do
+  dd <- IM.getDrawData
+  IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
+
 
 

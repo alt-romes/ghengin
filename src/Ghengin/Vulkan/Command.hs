@@ -30,6 +30,8 @@ module Ghengin.Vulkan.Command
   , pushConstants
   , draw
   , drawIndexed
+  , withCmdBuffer
+  , makeRenderPassCmd
 
   , createCommandPool
   , destroyCommandPool
@@ -182,6 +184,12 @@ bindGraphicsDescriptorSets :: Vk.PipelineLayout -> Vector Vk.DescriptorSet -> Re
 bindGraphicsDescriptorSets pipelay dsets = RenderPassCmd $ ask >>= \buf -> do
   Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pipelay 0 dsets [] -- offsets array not used
 
+-- | Lift a function that uses a command buffer to a Command
+withCmdBuffer :: (Vk.CommandBuffer -> IO ()) -> Command
+withCmdBuffer f = Command $ ask >>= lift . f
+
+makeRenderPassCmd :: (Vk.CommandBuffer -> IO ()) -> RenderPassCmd
+makeRenderPassCmd f = RenderPassCmd $ ask >>= lift . f
 
 -- :| Creation and Destruction |:
 

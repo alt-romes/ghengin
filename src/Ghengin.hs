@@ -46,7 +46,7 @@ import Ghengin.Vulkan
 import Ghengin.Shaders
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 
-import Ghengin.DearImGui
+import qualified Ghengin.DearImGui as IM
 
 import Ghengin.Component.Camera
 import Ghengin.Component.Mesh
@@ -109,7 +109,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   pipeline           <- lift $ createGraphicsPipeline vert frag simpleRenderPass._renderPass [descriptorSetLayout]
 
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
-  imCtx <- lift $ initImGui simpleRenderPass._renderPass
+  imCtx <- lift $ IM.initImGui simpleRenderPass._renderPass
 
   objUBs <- lift $ mapM (const createMappedUniformBuffer) [1..MAX_FRAMES_IN_FLIGHT]
   (dsets, dpool) <- lift $ createUniformBufferDescriptorSets [descriptorSetLayout | _ <- [1..MAX_FRAMES_IN_FLIGHT]]
@@ -138,8 +138,18 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
     frameTime <- diffUTCTime newTime <$> liftIO(readIORef currentTime)
     liftIO(writeIORef currentTime newTime)
 
+    -- Game loop step
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime)
 
+    -- DearImGui frame
+    -- TODO: Draw UI (define all UI components in the frame)
+    IM.vulkanNewFrame
+    IM.glfwNewFrame
+    IM.newFrame
+
+    IM.showDemoWindow
+
+    -- Render frame
     drawFrame pipeline simpleRenderPass objUBs dsets
 
     pure b
@@ -147,7 +157,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   Vk.deviceWaitIdle =<< lift getDevice
 
   lift $ do
-    destroyImCtx imCtx
+    IM.destroyImCtx imCtx
     destroyDescriptorPool dpool
     mapM_ destroyUniformBuffer objUBs
     destroyDescriptorSetLayout descriptorSetLayout
@@ -196,10 +206,15 @@ drawFrame pipeline rpass objUBs dsets = do
       projM <- lift $ makeProjection proj
       let viewM = makeView camTr view
 
-      -- Render each object mesh
+      -- Get each object mesh render cmd
       meshRenderCmds <- cfold (\acc (mesh :: Mesh, tr :: Maybe Transform) -> (renderMesh mesh, fromMaybe noTransform tr):acc) []
 
       lift $ withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
+
+        -- Draw frame is actually here, within 'withCurrentFramePresent'
+        
+        -- Draw UI
+        IM.render
 
         writeUniformBuffer (objUBs V.! currentFrame) (UBO viewM projM)
 
@@ -216,6 +231,8 @@ drawFrame pipeline rpass objUBs dsets = do
               bindGraphicsDescriptorSets pipeline._pipelineLayout [dsets V.! currentFrame]
               pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform)
               meshRenderCmd
+
+            IM.renderDrawData
         
   pure ()
 
