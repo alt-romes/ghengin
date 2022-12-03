@@ -1,3 +1,4 @@
+{-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeApplications #-}
@@ -107,7 +108,9 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   pipeline           <- lift $ createGraphicsPipeline vert frag simpleRenderPass._renderPass [descriptorSetLayout]
 
   objUBs <- lift $ mapM (const createMappedUniformBuffer) [1..MAX_FRAMES_IN_FLIGHT]
-  liftIO $ print (length objUBs)
+  (dsets, dpool) <- lift $ createUniformBufferDescriptorSets [descriptorSetLayout | _ <- [1..MAX_FRAMES_IN_FLIGHT]]
+
+  lift $ V.zipWithM_ writeUniformBufferDescriptorSet (fmap (.buffer) objUBs) dsets
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
@@ -133,13 +136,14 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime)
 
-    drawFrame pipeline simpleRenderPass objUBs
+    drawFrame pipeline simpleRenderPass objUBs dsets
 
     pure b
 
   Vk.deviceWaitIdle =<< lift getDevice
 
   lift $ do
+    destroyDescriptorPool dpool
     mapM_ destroyUniformBuffer objUBs
     destroyDescriptorSetLayout descriptorSetLayout
     destroyRenderPass simpleRenderPass
@@ -156,8 +160,9 @@ drawFrame :: WorldConstraints w
           => VulkanPipeline
           -> VulkanRenderPass
           -> Vector (UniformBuffer UniformBufferObject)
+          -> Vector Vk.DescriptorSet
           -> Ghengin w ()
-drawFrame pipeline rpass objUBs = do
+drawFrame pipeline rpass objUBs dsets = do
 
   extent <- lift getRenderExtent
   let
@@ -203,6 +208,7 @@ drawFrame pipeline rpass objUBs = do
 
             forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
 
+              bindGraphicsDescriptorSets pipeline._pipelineLayout [dsets V.! currentFrame]
               pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform)
               meshRenderCmd
         

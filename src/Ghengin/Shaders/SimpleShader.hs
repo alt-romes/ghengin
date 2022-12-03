@@ -25,6 +25,10 @@ type VertexDefs
      , "in_colour"  ':-> Input '[ Location 2 ] (V 3 Float)
      , "out_colour" ':-> Output '[ Location 0 ] (V 4 Float)
      , "push"       ':-> PushConstant '[] (Struct '[ "mat" ':-> M 4 4 Float ])
+     , "ubo"        ':-> Uniform '[ Binding 0, DescriptorSet 0 ]
+                                  ( Struct '[ "view" ':-> M 4 4 Float
+                                            , "proj" ':-> M 4 4 Float ] ) -- column-major matrix (Vulkan convention)
+
      , "main"       ':-> EntryPoint '[] Vertex
      ]
 
@@ -32,9 +36,11 @@ vertex :: Module VertexDefs
 vertex = Module $ entryPoint @"main" @Vertex do
   ~(Vec3 x y z) <- get @"in_position"
   ~(Vec3 r g b) <- get @"in_colour"
-  transform <- use @(Name "push" :.: Name "mat")
-  put @"out_colour"  (Vec4 r g b 1)
-  put @"gl_Position" (transform !*^ (Vec4 x y z 1))
+  modelM <- use @(Name "push" :.: Name "mat")
+  viewM  <- use @(Name "ubo" :.: Name "view")
+  projM  <- use @(Name "ubo" :.: Name "proj")
+  _ <- put @"out_colour"  (Vec4 r g b 1)
+  put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ (Vec4 x y z 1))
 
 -------------------
 -- Frag shader   --

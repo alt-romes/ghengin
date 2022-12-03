@@ -21,6 +21,7 @@ module Ghengin.Vulkan.Command
   , bindGraphicsPipeline
   , bindComputePipeline
   , bindRayTracingPipeline
+  , bindGraphicsDescriptorSets
   , setViewport
   , setScissor
   , bindVertexBuffers
@@ -176,6 +177,12 @@ pushConstants pipelineLayout stageFlags values =
       poke ptr values
       Vk.cmdPushConstants buf pipelineLayout stageFlags 0 (fromIntegral $ sizeOf values) (castPtr ptr)
 {-# INLINE pushConstants #-}
+
+bindGraphicsDescriptorSets :: Vk.PipelineLayout -> Vector Vk.DescriptorSet -> RenderPassCmd
+bindGraphicsDescriptorSets pipelay dsets = RenderPassCmd $ ask >>= \buf -> do
+  Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pipelay 0 dsets [] -- offsets array not used
+
+
 
 -- :| Creation and Destruction |:
 
