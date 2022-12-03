@@ -51,6 +51,7 @@ import qualified Ghengin.DearImGui as IM
 import Ghengin.Component.Camera
 import Ghengin.Component.Mesh
 import Ghengin.Component.Transform
+import Ghengin.Component.UI
 
 
 -- TODO: Somehow systems that want to delete entities should call a special
@@ -83,7 +84,7 @@ instance Storable UniformBufferObject where
     poke p vi
     pokeElemOff p 1 pr
 
-type WorldConstraints w = (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform), HasField "cameras" w (Storage Camera))
+type WorldConstraints w = (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform), HasField "cameras" w (Storage Camera), HasField "uiwindows" w (Storage UIWindow))
 ghengin :: WorldConstraints w
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
@@ -143,11 +144,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
     -- DearImGui frame
     -- TODO: Draw UI (define all UI components in the frame)
-    IM.vulkanNewFrame
-    IM.glfwNewFrame
-    IM.newFrame
-
-    IM.showDemoWindow
+    drawUI
 
     -- Render frame
     drawFrame pipeline simpleRenderPass objUBs dsets
@@ -167,6 +164,14 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   _ <- finalize
 
   pure ()
+
+drawUI :: WorldConstraints w => Ghengin w ()
+drawUI = do
+    IM.vulkanNewFrame
+    IM.glfwNewFrame
+    IM.newFrame
+
+    cmapM $ \(uiw :: UIWindow) -> lift $ IM.pushWindow uiw
 
 
 -- TODO: Eventually move drawFrame to a better contained renderer part

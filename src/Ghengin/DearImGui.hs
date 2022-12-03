@@ -1,3 +1,5 @@
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -9,7 +11,10 @@ module Ghengin.DearImGui
   ) where
 
 import Foreign
+import Data.IORef
 import Control.Monad.Reader
+
+import Unsafe.Coerce
 
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
@@ -24,6 +29,8 @@ import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.SwapChain
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan
+
+import Ghengin.Component.UI
 
 data ImCtx = IMCtx Vk.DescriptorPool IM.Context (FunPtr (Vk.Result -> IO ()), Bool)
 
@@ -95,6 +102,21 @@ renderDrawData :: RenderPassCmd -- IM.DrawData ->
 renderDrawData = makeRenderPassCmd $ \b -> do
   dd <- IM.getDrawData
   IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
+
+
+pushWindow :: UIWindow -> Renderer ()
+pushWindow (UIWindow wname wcomps) = do
+  begin wname
+
+  forM_ wcomps pushComp
+
+  end
+
+pushComp :: UIComponent -> Renderer ()
+pushComp = fmap (() <$) \case
+  ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3)
+  SliderFloat t ref f1 f2 -> IM.sliderFloat t ref f1 f2
+
 
 
 

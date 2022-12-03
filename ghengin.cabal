@@ -83,6 +83,7 @@ library
 
                       Ghengin.DearImGui,
 
+                      Ghengin.Component.UI,
                       Ghengin.Component.Camera,
                       Ghengin.Component.Transform,
                       Ghengin.Component.Mesh,
@@ -105,6 +106,7 @@ library
                       fir     >=0.1,
                       bytestring,
                       mtl,
+                      text,
                       containers,
                       apecs,
                       geomancy,
