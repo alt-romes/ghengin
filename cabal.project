@@ -1,7 +1,13 @@
 packages: .
 
---package dear-imgui
---  flags: +glfw +vulkan -sdl -opengl3
+package dear-imgui
+  flags: +glfw +vulkan -sdl -opengl3
+
+allow-newer:
+    dear-imgui:base
+
+allow-newer:
+    dear-imgui:template-haskell
 
 allow-newer:
     vector-sized:vector

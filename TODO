@@ -1,3 +1,4 @@
+[ ] Who's pulling in lens? Maybe I can benefit from them if I already have to have them.
 [ ] Bundle descriptor sets, render passes, and pipelines into a single abstraction
 [ ] Toon Shader
 [ ] MonadRenderer to be able to call mesh creation and such from SystemT

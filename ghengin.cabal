@@ -108,7 +108,7 @@ library
                       wavefront,
                       time,
                       split,
-                      -- dear-imgui
+                      dear-imgui
 
     -- Directories containing source files.
     hs-source-dirs:   src
