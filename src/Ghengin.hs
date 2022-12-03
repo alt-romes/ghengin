@@ -46,6 +46,8 @@ import Ghengin.Vulkan
 import Ghengin.Shaders
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 
+import Ghengin.DearImGui
+
 import Ghengin.Component.Camera
 import Ghengin.Component.Mesh
 import Ghengin.Component.Transform
@@ -107,6 +109,9 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   simpleRenderPass   <- lift $ createSimpleRenderPass
   pipeline           <- lift $ createGraphicsPipeline vert frag simpleRenderPass._renderPass [descriptorSetLayout]
 
+  -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
+  imCtx <- lift $ initImGui simpleRenderPass._renderPass
+
   objUBs <- lift $ mapM (const createMappedUniformBuffer) [1..MAX_FRAMES_IN_FLIGHT]
   (dsets, dpool) <- lift $ createUniformBufferDescriptorSets [descriptorSetLayout | _ <- [1..MAX_FRAMES_IN_FLIGHT]]
 
@@ -143,6 +148,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   Vk.deviceWaitIdle =<< lift getDevice
 
   lift $ do
+    destroyImCtx imCtx
     destroyDescriptorPool dpool
     mapM_ destroyUniformBuffer objUBs
     destroyDescriptorSetLayout descriptorSetLayout

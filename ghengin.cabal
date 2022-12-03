@@ -80,6 +80,7 @@ library
                       Ghengin.Vulkan.GLFW.Window,
                       Ghengin.Vulkan.DescriptorSet,
 
+                      Ghengin.DearImGui,
 
                       Ghengin.Component.Camera,
                       Ghengin.Component.Transform,

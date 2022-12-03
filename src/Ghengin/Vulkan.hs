@@ -33,7 +33,8 @@ import Ghengin.Vulkan.Frame
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Utils
 
-data RendererEnv = REnv { _vulkanDevice    :: !VulkanDevice
+data RendererEnv = REnv { _instance        :: !Vk.Instance
+                        , _vulkanDevice    :: !VulkanDevice
                         , _vulkanWindow    :: !VulkanWindow
                         , _vulkanSwapChain :: !VulkanSwapChain
                         , _commandPool     :: !Vk.CommandPool
@@ -54,7 +55,7 @@ runVulkanRenderer r =
 
     inst <- createInstance validationLayers
 
-    win  <- createVulkanWindow inst (800, 600) "Ghengin"
+    win  <- createVulkanWindow inst (1280, 720) "Ghengin"
 
     device <- createVulkanDevice inst validationLayers deviceExtensions (rateFn win._surface)
 
@@ -68,11 +69,11 @@ runVulkanRenderer r =
 
     frameInFlight <- newIORef 0 
 
-    pure (inst, REnv device win swapChain commandPool frameDatas frameInFlight)
+    pure (REnv inst device win swapChain commandPool frameDatas frameInFlight)
 
     )
 
-  (\(inst, REnv device win swapchain commandPool frames _) -> do
+  (\(REnv inst device win swapchain commandPool frames _) -> do
 
     liftIO $ putStrLn "[Start] Clean up"
 
@@ -91,7 +92,7 @@ runVulkanRenderer r =
 
     )
 
-  (\(_, renv) -> do
+  (\renv -> do
 
     runReaderT (unRenderer r) renv
 
