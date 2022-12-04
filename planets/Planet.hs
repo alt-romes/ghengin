@@ -17,15 +17,15 @@ import Ghengin.Component.UI
 --                                      , color  :: Vec3
 --                                      }
 
-planetSettings :: IORef Float -- ^ Resolution
+planetSettings :: IORef Int   -- ^ Resolution
                -> IORef Vec3  -- ^ Color
                -> [UIComponent]
 planetSettings res color =
-  [ SliderFloat "Resolution" res 2 256
+  [ SliderInt "Resolution" res 2 256
   , ColorPicker "Color" color
   ]
 
-newPlanet :: Int -> Renderer Mesh
-newPlanet = newSphere
+newPlanet :: Int -> Vec3 -> Renderer Mesh
+newPlanet i c = newSphere i (Just c)
 
 

@@ -114,8 +114,9 @@ pushWindow (UIWindow wname wcomps) = do
 
 pushComp :: UIComponent -> Renderer ()
 pushComp = fmap (() <$) \case
-  ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3)
+  ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation.
   SliderFloat t ref f1 f2 -> IM.sliderFloat t ref f1 f2
+  SliderInt   t ref f1 f2 -> IM.sliderInt t ref f1 f2
 
 
 

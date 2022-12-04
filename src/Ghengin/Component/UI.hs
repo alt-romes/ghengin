@@ -18,6 +18,7 @@ data UIWindow = UIWindow Text [UIComponent]
 
 data UIComponent = ColorPicker Text (IORef Vec3)
                  | SliderFloat Text (IORef Float) Float Float
+                 | SliderInt   Text (IORef Int)   Int   Int
 
 
 instance Component UIWindow where

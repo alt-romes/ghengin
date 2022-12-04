@@ -34,8 +34,10 @@ newUnitFace res up =
 
    in UF positions' ixs
 
-newSphere :: Int -> Renderer Mesh
-newSphere res =
+newSphere :: Int -- ^ Resolution
+          -> Maybe Vec3 -- ^ Color, use the normals if Nothing
+          -> Renderer Mesh
+newSphere res color =
   let UF v1 i1 = newUnitFace res (vec3 0 1 0)
       UF v2 i2 = newUnitFace res (vec3 0 (-1) 0)
       UF v3 i3 = newUnitFace res (vec3 1 0 0)
@@ -46,6 +48,7 @@ newSphere res =
       is = i1 <> map (+l) i2 <> map (+l*2) i3 <> map (+l*3) i4 <> map (+l*4) i5 <> map (+l*5) i6
       ps = v1 <> v2 <> v3 <> v4 <> v5 <> v6
       ns = calculateFlatNormals is ps
+      cls = maybe (map ((^/2) . (+ vec3 1 1 1)) ns) (\x -> map (const x) ns) color
    in do
-     createMeshWithIxs (zipWith3 Vertex ps ns (map ((^/2) . (+ vec3 1 1 1)) ns)) is
+     createMeshWithIxs (zipWith3 Vertex ps ns cls) is
 

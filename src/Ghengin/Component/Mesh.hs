@@ -155,6 +155,9 @@ calculateSmoothNormals ixs pos =
 
    in map (\p -> case smoothNormalsMap M.! p of (n,b) -> n^/b) pos
 
+-- Doesn't work because we don't have the original vertices to reconstruct the mesh
+-- updateMeshColors :: (Vec3 -> Vec3) -> Mesh -> Mesh
+-- updateMeshColors f m = m{vertexBuffer = fmap (\(Vertex p n c) -> Vertex p n (f c)) m.vertexBuffer}
 
 vertexInputBindingDescription :: Vk.VertexInputBindingDescription
 vertexInputBindingDescription = Vk.VertexInputBindingDescription { binding = 0 -- We use only one binding for now?, its index is always 0

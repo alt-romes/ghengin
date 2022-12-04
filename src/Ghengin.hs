@@ -221,6 +221,9 @@ drawFrame pipeline rpass objUBs dsets = do
         -- Draw UI
         IM.render
 
+        -- TODO: Should be specific to each pipeline. E.g. if I have a color
+        -- attribute that should be displayed that should be described in the
+        -- pipeline constructor
         writeUniformBuffer (objUBs V.! currentFrame) (UBO viewM projM)
 
         recordCommand cmdBuffer $ do
