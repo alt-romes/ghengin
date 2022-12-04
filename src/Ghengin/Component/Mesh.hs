@@ -20,6 +20,7 @@ module Ghengin.Component.Mesh
   , calculateFlatNormals
   , calculateSmoothNormals
   , renderMesh
+  , freeMesh
   , vertexInputBindingDescription
   , vertexInputAttributeDescriptions
   , chunksOf
@@ -124,6 +125,12 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
   (ibuffer, ibMem) <- createIndex32Buffer (SV.map fromIntegral ixs)
 
   pure (IndexedMesh vbuffer vbMem ibuffer ibMem (fromIntegral nixs))
+
+
+freeMesh :: Mesh -> Renderer ()
+freeMesh = \case
+  SimpleMesh a b _ -> destroyBuffer a b
+  IndexedMesh a b c d _ -> destroyBuffer a b >> destroyBuffer c d
 
 
 -- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)

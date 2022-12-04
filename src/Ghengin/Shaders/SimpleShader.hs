@@ -7,10 +7,6 @@
 {-# LANGUAGE ViewPatterns     #-}
 module Ghengin.Shaders.SimpleShader (vertex, fragment) where
 
-import Data.Maybe
-import qualified Data.Vector.Sized as Vector
-  ( fromList )
-
 import FIR
 import FIR.Syntax.Labels
 import Math.Linear -- for vectors
@@ -34,13 +30,20 @@ type VertexDefs
 
 vertex :: Module VertexDefs
 vertex = Module $ entryPoint @"main" @Vertex do
+  let dirToLight = normalise (Vec4 1 (-3) (-1) 1) :: Code (V 4 Float)
   ~(Vec3 x y z) <- get @"in_position"
+  ~(Vec3 nx ny nz) <- get @"in_normal"
   ~(Vec3 r g b) <- get @"in_colour"
   modelM <- use @(Name "push" :.: Name "mat")
   viewM  <- use @(Name "ubo" :.: Name "view")
   projM  <- use @(Name "ubo" :.: Name "proj")
-  _ <- put @"out_colour"  (Vec4 r g b 1)
+
+  let normalInWorldSpace = normalise (modelM !*^ (Vec4 nx ny nz 1))
+      lightItensity      = max (dot dirToLight normalInWorldSpace) 0 -- light intensity given by cosine of direction to light and the normal in world space
+
+  _ <- put @"out_colour" (lightItensity *^ Vec4 r g b 1)
   put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ (Vec4 x y z 1))
+
 
 -------------------
 -- Frag shader   --

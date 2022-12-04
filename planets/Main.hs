@@ -37,7 +37,7 @@ initG = do
   oldColorR <- liftIO $ newIORef (vec3 1 0 0)
   newEntity ( UIWindow "Planet" (planetSettings resR colorR) )
 
-  s <- lift $ newPlanet 15 (vec3 0.5 0.5 0.5)
+  s <- lift $ newPlanet 15 (vec3 1 1 1)
 
   newEntity ( s, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
   newEntity ( s, Transform (vec3 0 0 (-4)) (vec3 1 1 1) (vec3 0 0 0) )
@@ -59,16 +59,19 @@ updateG (resR, colorR, oldColorR) dt = do
   oldColor <- liftIO $ readIORef oldColorR
 
   when (color /= oldColor) $
+    -- TODO: Must free mesh
     cmapM $ \(m :: Mesh) -> lift $ newPlanet res color
 
   liftIO $ writeIORef oldColorR color
 
-  -- cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+1*dt) z) } :: Transform)
+  cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+1*dt) z) } :: Transform)
 
   pure False
 
 endG :: Ghengin World ()
-endG = liftIO $ putStrLn "Goodbye"
+endG = do
+  cmapM $ \(m :: Mesh) -> lift $ freeMesh m
+  liftIO $ putStrLn "Goodbye"
 
 main :: IO ()
 main = do
