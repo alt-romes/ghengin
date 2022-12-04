@@ -89,7 +89,9 @@ ghengin :: WorldConstraints w
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
         -> Ghengin w b -- ^ Run every simulation step (currently ignored)
-        -> (a -> DeltaTime -> Ghengin w Bool) -- ^ Run every game loop? iteration. Bool indicates whether we should exit the gameloop
+        -> (a -> DeltaTime -> [[Bool]] -> Ghengin w Bool) -- ^ Run every game
+                                                          -- loop? iteration. The list of list of bools indicates whether each component in
+                                                          -- the UI were changed. Bool indicates whether we should exit the gameloop
         -- -> Ghengin w c -- ^ Run every draw step?
         -> Ghengin w c -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
@@ -139,12 +141,12 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
     frameTime <- diffUTCTime newTime <$> liftIO(readIORef currentTime)
     liftIO(writeIORef currentTime newTime)
 
-    -- Game loop step
-    b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime)
-
     -- DearImGui frame
     -- TODO: Draw UI (define all UI components in the frame)
-    drawUI
+    bs <- drawUI
+
+    -- Game loop step
+    b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime) bs
 
     -- Render frame
     drawFrame pipeline simpleRenderPass objUBs dsets
@@ -165,13 +167,15 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
   pure ()
 
-drawUI :: WorldConstraints w => Ghengin w ()
+drawUI :: WorldConstraints w => Ghengin w [[Bool]]
 drawUI = do
     IM.vulkanNewFrame
     IM.glfwNewFrame
     IM.newFrame
 
-    cmapM $ \(uiw :: UIWindow) -> lift $ IM.pushWindow uiw
+    cfoldM (\acc (uiw :: UIWindow) -> do
+      bs <- lift $ IM.pushWindow uiw
+      pure (bs:acc)) []
 
 
 -- TODO: Eventually move drawFrame to a better contained renderer part

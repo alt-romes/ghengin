@@ -104,16 +104,21 @@ renderDrawData = makeRenderPassCmd $ \b -> do
   IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
 
 
-pushWindow :: UIWindow -> Renderer ()
+-- | Returns a list of booleans indicating whether each component was changed
+-- in the previous frame
+pushWindow :: UIWindow -> Renderer [Bool]
 pushWindow (UIWindow wname wcomps) = do
   begin wname
 
-  forM_ wcomps pushComp
+  bs <- forM wcomps pushComp
 
   end
 
-pushComp :: UIComponent -> Renderer ()
-pushComp = fmap (() <$) \case
+  pure bs
+
+-- | Returns a boolean indicating whether the component was changed in the previous frame
+pushComp :: UIComponent -> Renderer Bool
+pushComp = \case
   ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation.
   SliderFloat t ref f1 f2 -> IM.sliderFloat t ref f1 f2
   SliderInt   t ref f1 f2 -> IM.sliderInt t ref f1 f2

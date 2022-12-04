@@ -48,8 +48,8 @@ main = do
   ghengin w initG undefined loopStepG endG
 
 
-loopStepG :: () -> DeltaTime -> Ghengin World Bool
-loopStepG () dt = do
+loopStepG :: () -> DeltaTime -> [[Bool]] -> Ghengin World Bool
+loopStepG () dt _ = do
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr
   cmap  $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+1*dt) z) } :: Transform)
