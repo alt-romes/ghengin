@@ -31,6 +31,7 @@ type VertexDefs
 vertex :: Module VertexDefs
 vertex = Module $ entryPoint @"main" @Vertex do
   let dirToLight = normalise (Vec4 1 (-3) (-1) 1) :: Code (V 4 Float)
+      ambient    = 0.2
   ~(Vec3 x y z) <- get @"in_position"
   ~(Vec3 nx ny nz) <- get @"in_normal"
   ~(Vec3 r g b) <- get @"in_colour"
@@ -38,8 +39,8 @@ vertex = Module $ entryPoint @"main" @Vertex do
   viewM  <- use @(Name "ubo" :.: Name "view")
   projM  <- use @(Name "ubo" :.: Name "proj")
 
-  let normalInWorldSpace = normalise (modelM !*^ (Vec4 nx ny nz 1))
-      lightItensity      = max (dot dirToLight normalInWorldSpace) 0 -- light intensity given by cosine of direction to light and the normal in world space
+  let normalInWorldSpace = normalise (modelM !*^ (Vec4 nx ny nz 0)) -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
+      lightItensity      = ambient + max (dot dirToLight normalInWorldSpace) 0 -- light intensity given by cosine of direction to light and the normal in world space
 
   _ <- put @"out_colour" (lightItensity *^ Vec4 r g b 1)
   put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ (Vec4 x y z 1))
