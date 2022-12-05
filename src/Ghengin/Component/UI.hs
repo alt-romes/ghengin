@@ -20,12 +20,16 @@ data UIComponent = ColorPicker Text (IORef Vec3)
                  | SliderFloat Text (IORef Float) Float Float
                  | SliderInt   Text (IORef Int)   Int   Int
 
-
 instance Component UIWindow where
   type Storage UIWindow = Map UIWindow
 
 -- TODO: Instructions on having a World record with "transforms"
 instance (Monad m, HasField "uiwindows" w (Storage UIWindow)) => Has w m UIWindow where
   getStore = SystemT (asks (.uiwindows))
+
+
+class UISettings a where
+  makeSettings   :: IO a
+  makeComponents :: a -> [UIComponent]
 
 

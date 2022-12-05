@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
 module Planet where
@@ -27,34 +28,36 @@ data NoiseSettings = NoiseSettings { strength  :: !(IORef Float)
                                    , center    :: !(IORef Vec3)
                                    }
 
-planetSettings :: PlanetSettings
-               -> [UIComponent]
-planetSettings (PlanetSettings re ra co (NoiseSettings st ro ce)) =
-  [ SliderInt "Resolution" re 2 200
-  , SliderFloat "Radius" ra 0 3
-  , ColorPicker "Color" co
-  -- What an amazing bug. If I increase one more letter from these two
-  -- following UI components the game will crash.
-  , SliderFloat "Noise Roughnes" ro 0 2
-  , SliderFloat "Noise Strength" st 0 2
-  , ColorPicker "Noise Center" ce
-  ]
+instance UISettings NoiseSettings where
+  makeSettings = do
+    strengthR  <- newIORef 1
+    roughnessR <- newIORef 1
+    centerR    <- newIORef (vec3 0 0 0)
+    pure $ NoiseSettings strengthR roughnessR centerR
 
-newNoiseSettings :: IO NoiseSettings
-newNoiseSettings = do
-  strengthR  <- newIORef 1
-  roughnessR <- newIORef 1
-  centerR    <- newIORef (vec3 0 0 0)
-  pure $ NoiseSettings strengthR roughnessR centerR
+  makeComponents (NoiseSettings st ro ce) =
+   
+    -- What an amazing bug. If I increase one more letter from the first two
+    -- following UI components the game will crash.
+    [ SliderFloat "Noise Roughnes" ro 0 5
+    , SliderFloat "Noise Strength" st 0 2
+    , ColorPicker "Noise Center" ce ]
 
-newPlanetSettings :: IO PlanetSettings
-newPlanetSettings = do
-  resR   <- newIORef 5
-  radR   <- newIORef 1
-  colorR <- newIORef (vec3 1 0 0)
-  ns     <- newNoiseSettings
-  pure $ PlanetSettings resR radR colorR ns
 
+instance UISettings PlanetSettings where
+  makeSettings = do
+    resR   <- newIORef 5
+    radR   <- newIORef 1
+    colorR <- newIORef (vec3 1 0 0)
+    ns     <- makeSettings @NoiseSettings
+    pure $ PlanetSettings resR radR colorR ns
+
+  makeComponents (PlanetSettings re ra co ns) =
+    [ SliderInt "Resolution" re 2 200
+    , SliderFloat "Radius" ra 0 3
+    , ColorPicker "Color" co
+    ]
+    <> makeComponents ns
 
 newPlanet :: PlanetSettings -> Renderer Mesh
 newPlanet (PlanetSettings re ra co ns@(NoiseSettings st ro ce)) = do

@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -31,8 +32,8 @@ instance Has World Renderer EntityCounter where getStore = SystemT (asks entityC
 initG :: Ghengin World PlanetSettings
 initG = do
 
-  ps <- liftIO $ newPlanetSettings
-  newEntity ( UIWindow "Planet" (planetSettings ps) )
+  ps <- liftIO $ makeSettings @PlanetSettings
+  newEntity ( UIWindow "Planet" (makeComponents ps) )
 
   s <- lift $ newPlanet ps
 
