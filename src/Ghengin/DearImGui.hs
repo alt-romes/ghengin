@@ -10,6 +10,8 @@ module Ghengin.DearImGui
   , module DearImGui
   ) where
 
+import Debug.Trace
+
 import Foreign
 import Data.IORef
 import Control.Monad.Reader
@@ -119,8 +121,9 @@ pushWindow (UIWindow wname wcomps) = do
 -- | Returns a boolean indicating whether the component was changed in the previous frame
 pushComp :: UIComponent -> Renderer Bool
 pushComp = \case
-  ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation.
+  ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
   SliderFloat t ref f1 f2 -> IM.sliderFloat t ref f1 f2
+  DragFloat   t ref f1 f2 -> trace "DragFloat is behaving weird..." $ IM.dragFloat t ref 0.05 f1 f2
   SliderInt   t ref f1 f2 -> IM.sliderInt t ref f1 f2
 
 

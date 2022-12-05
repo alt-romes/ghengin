@@ -34,13 +34,11 @@ initG = do
 
   ps <- liftIO $ makeSettings @PlanetSettings
   newEntity ( UIWindow "Planet" (makeComponents ps) )
+  newEntity ( UIWindow "Noise"  (makeComponents ps.noiseSettings) )
 
   s <- lift $ newPlanet ps
 
   newEntity ( s, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
-  -- newEntity ( s, Transform (vec3 0 0 (-4)) (vec3 1 1 1) (vec3 0 0 0) )
-  -- newEntity ( s, Transform (vec3 4 0 0) (vec3 1 1 1) (vec3 0 0 0) )
-  -- newEntity ( s, Transform (vec3 (-4) 0 0) (vec3 1 1 1) (vec3 0 0 0) )
   newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
             , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0) )
 
@@ -55,10 +53,12 @@ updateG ps dt uichanges = do
   -- TODO: perhaps all UI colors could be combined with the uichanges variables and be always provided on request depending on whether they were changed or not
   -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
   when (any id (concat uichanges)) $
-    -- TODO: Must free mesh
-    cmapM $ \(m :: Mesh) -> lift $ newPlanet ps
+    cmapM $ \(m :: Mesh) -> lift $ do
+      x <- newPlanet ps
+      freeMesh m -- Can we hide/enforce this somehow?
+      pure x
 
-  cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+1*dt) z) } :: Transform)
+  cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 
   pure False
 
