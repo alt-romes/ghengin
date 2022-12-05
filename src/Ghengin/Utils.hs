@@ -5,10 +5,14 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE TypeApplications #-}
-module Ghengin.Utils where
+module Ghengin.Utils
+  ( module Ghengin.Utils
+  , module Data.StateVar
+  ) where
 
 import Data.Kind
 import Geomancy.Vec3
+import Data.StateVar
 
 import Data.Bits
 

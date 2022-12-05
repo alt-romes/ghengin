@@ -10,7 +10,8 @@ import Control.Monad
 import Numeric.Noise
 import Numeric.Noise.Perlin
 
-import Ghengin
+import Ghengin hiding (get)
+import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Component.Mesh.Sphere
 import Ghengin.Component.Mesh
@@ -29,12 +30,14 @@ data NoiseSettings = NoiseSettings { strength  :: !(IORef Float)
 planetSettings :: PlanetSettings
                -> [UIComponent]
 planetSettings (PlanetSettings re ra co (NoiseSettings st ro ce)) =
-  [ SliderInt "Resolution" re 2 256
-  , SliderFloat "Radius" ra 0 200
+  [ SliderInt "Resolution" re 2 200
+  , SliderFloat "Radius" ra 0 3
   , ColorPicker "Color" co
-  , SliderFloat "Noise Strength" st 0 20000
-  -- , SliderFloat "Noise Roughness" ro 0 20000
-  -- , ColorPicker "Noise Center" ce 0 200
+  -- What an amazing bug. If I increase one more letter from these two
+  -- following UI components the game will crash.
+  , SliderFloat "Noise Roughnes" ro 0 2
+  , SliderFloat "Noise Strength" st 0 2
+  , ColorPicker "Noise Center" ce
   ]
 
 newNoiseSettings :: IO NoiseSettings
@@ -54,7 +57,7 @@ newPlanetSettings = do
 
 
 newPlanet :: PlanetSettings -> Renderer Mesh
-newPlanet (PlanetSettings re ra co (NoiseSettings st ro ce)) = do
+newPlanet (PlanetSettings re ra co ns@(NoiseSettings st ro ce)) = do
   re' <- liftIO $ readIORef re
   ra' <- liftIO $ readIORef ra
   co' <- liftIO $ readIORef co
@@ -62,7 +65,7 @@ newPlanet (PlanetSettings re ra co (NoiseSettings st ro ce)) = do
   ro' <- liftIO $ readIORef ro
   ce' <- liftIO $ readIORef ce
   let UnitSphere vs is = newUnitSphere re' (Just co')
-      noiseElevation x = evaluateNoise x
+      noiseElevation = evaluateNoise st' ro' ce'
       -- TODO better code but oh well
       ps' = map (\(Vertex p n c) -> p ^* (ra' * (1 + noiseElevation p))) vs
       ns' = calculateSmoothNormals is ps'
@@ -79,8 +82,14 @@ defPerlin :: Perlin
 defPerlin = perlin 2 5 1 1
 
 -- | Evaluate Noise at a certain point
-evaluateNoise :: Vec3 -> Float
-evaluateNoise v = double2Float $ ((noiseValue defPerlin (toPoint v)) + 1)*0.5
+evaluateNoise :: Float -- ^ Strength
+              -> Float -- ^ Roughness
+              -> Vec3  -- ^ Center
+              -> Vec3
+              -> Float
+evaluateNoise stren rough cent v =
+  let val = ((noiseValue defPerlin (toPoint (v ^* rough + cent))) + 1)*0.5
+   in double2Float val * stren
 
 
 

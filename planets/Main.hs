@@ -6,7 +6,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
-import qualified Graphics.UI.GLFW as GLFW
 import Data.IORef
 import Control.Monad
 
@@ -41,7 +40,7 @@ initG = do
   -- newEntity ( s, Transform (vec3 0 0 (-4)) (vec3 1 1 1) (vec3 0 0 0) )
   -- newEntity ( s, Transform (vec3 4 0 0) (vec3 1 1 1) (vec3 0 0 0) )
   -- newEntity ( s, Transform (vec3 (-4) 0 0) (vec3 1 1 1) (vec3 0 0 0) )
-  newEntity ( Camera (Perspective (radians 65) 0.1 10) ViewTransform
+  newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
             , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0) )
 
   pure ps

@@ -113,7 +113,8 @@ library
                       wavefront,
                       time,
                       split,
-                      dear-imgui
+                      dear-imgui,
+                      StateVar
 
     -- Directories containing source files.
     hs-source-dirs:   src
@@ -203,7 +204,7 @@ executable planets
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.17.0.0,
-        ghengin, mtl, vector, GLFW-b, hsnoise
+        ghengin, mtl, vector, hsnoise
 
     -- ghc-options: -ddump-simpl
                  -- -ddump-to-file
