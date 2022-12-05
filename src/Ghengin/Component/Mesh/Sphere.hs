@@ -1,3 +1,4 @@
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Component.Mesh.Sphere where
@@ -11,6 +12,10 @@ import Ghengin.Component.Mesh
 data UnitFace = UF { positions :: [Vec3]
                    , indices   :: [Int]
                    }
+
+data UnitSphere = UnitSphere { positions :: [Vertex]
+                             , indices   :: [Int]
+                             }
 
 newUnitFace :: Int  -- ^ Resolution
             -> Vec3 -- ^ Local up
@@ -34,10 +39,10 @@ newUnitFace res up =
 
    in UF positions' ixs
 
-newSphere :: Int -- ^ Resolution
+newUnitSphere :: Int -- ^ Resolution
           -> Maybe Vec3 -- ^ Color, use the normals if Nothing
-          -> Renderer Mesh
-newSphere res color =
+          -> UnitSphere
+newUnitSphere res color =
   let UF v1 i1 = newUnitFace res (vec3 0 1 0)
       UF v2 i2 = newUnitFace res (vec3 0 (-1) 0)
       UF v3 i3 = newUnitFace res (vec3 1 0 0)
@@ -49,6 +54,13 @@ newSphere res color =
       ps = v1 <> v2 <> v3 <> v4 <> v5 <> v6
       ns = calculateSmoothNormals is ps
       cls = maybe (map ((^/2) . (+ vec3 1 1 1)) ns) (\x -> map (const x) ns) color
-   in do
-     createMeshWithIxs (zipWith3 Vertex ps ns cls) is
+   in
+      UnitSphere (zipWith3 Vertex ps ns cls) is
+
+newSphereMesh :: Int -- ^ Resolution
+          -> Maybe Vec3 -- ^ Color, use the normals if Nothing
+          -> Renderer Mesh
+newSphereMesh res color =
+  let UnitSphere vs is = newUnitSphere res color
+   in createMeshWithIxs vs is
 
