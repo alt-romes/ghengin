@@ -19,7 +19,11 @@ data UIWindow = UIWindow Text [UIComponent]
 data UIComponent = ColorPicker Text (IORef Vec3)
                  | SliderFloat Text (IORef Float) Float Float
                  | DragFloat   Text (IORef Float) Float Float
+                 | SliderVec3  Text (IORef Vec3)  Float Float
                  | SliderInt   Text (IORef Int)   Int   Int
+                 | WithTree    Text [UIComponent]
+                 -- | TabBar      Text [(Text, Bool, [UIComponent])]
+                 -- | Menu        Text [UIComponent]
 
 instance Component UIWindow where
   type Storage UIWindow = Map UIWindow

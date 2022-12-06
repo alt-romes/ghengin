@@ -173,6 +173,8 @@ drawUI = do
     IM.glfwNewFrame
     IM.newFrame
 
+    -- IM.showDemoWindow
+
     cfoldM (\acc (uiw :: UIWindow) -> do
       bs <- lift $ IM.pushWindow uiw
       pure (bs:acc)) []

@@ -4,6 +4,7 @@
 {-# LANGUAGE BlockArguments #-}
 module Planet where
 
+import Data.String
 import Data.List (foldl')
 import GHC.Float
 import Data.IORef
@@ -22,7 +23,7 @@ import Ghengin.Component.UI
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
                                      , color      :: !(IORef Vec3)
-                                     , noiseSettings :: !NoiseSettings
+                                     , noiseSettings :: ![NoiseSettings]
                                      }
 data NoiseSettings = NoiseSettings { numLayers :: !(IORef Int)
                                    , strength  :: !(IORef Float)
@@ -30,6 +31,7 @@ data NoiseSettings = NoiseSettings { numLayers :: !(IORef Int)
                                    , baseRoughness :: !(IORef Float)
                                    , persistence   :: !(IORef Float)
                                    , center    :: !(IORef Vec3)
+                                   , minValue  :: !(IORef Float)
                                    }
 
 instance UISettings NoiseSettings where
@@ -40,10 +42,10 @@ instance UISettings NoiseSettings where
     roughnessR <- newIORef 2
     persistenceR <- newIORef 0.5
     centerR    <- newIORef (vec3 0 0 0)
-    pure $ NoiseSettings numLayersR strengthR roughnessR baseRoughnessR persistenceR centerR
+    minValR <- newIORef 0
+    pure $ NoiseSettings numLayersR strengthR roughnessR baseRoughnessR persistenceR centerR minValR
 
-  makeComponents (NoiseSettings nl st ro br ps ce) =
-   
+  makeComponents (NoiseSettings nl st ro br ps ce mv) =
     -- What an amazing bug. If I increase one more letter from the first two
     -- following UI components the game will crash.
     [ SliderInt "Num Layers" nl 1 8
@@ -51,7 +53,9 @@ instance UISettings NoiseSettings where
     , SliderFloat "Roughness" ro 0 5
     , SliderFloat "Base Roughn" br 0 5
     , SliderFloat "Persistence" ps 0 2
-    , ColorPicker "Center" ce ]
+    , SliderVec3  "Center" ce 0 5
+    , SliderFloat "Minval" mv 0 5
+    ]
 
 
 instance UISettings PlanetSettings where
@@ -59,25 +63,38 @@ instance UISettings PlanetSettings where
     resR   <- newIORef 5
     radR   <- newIORef 1
     colorR <- newIORef (vec3 1 0 0)
-    ns     <- makeSettings @NoiseSettings
-    pure $ PlanetSettings resR radR colorR ns
+    ns1    <- makeSettings @NoiseSettings
+    ns2    <- makeSettings @NoiseSettings
+    pure $ PlanetSettings resR radR colorR [ns1, ns2]
 
-  makeComponents (PlanetSettings re ra co ns) =
-    [ SliderInt "Resolution" re 2 200
-    , SliderFloat "Radius" ra 0 3
-    , ColorPicker "Color" co
+  makeComponents (PlanetSettings re ra co nss) =
+    [ WithTree "Planet" [ SliderInt "Resolution" re 2 200
+                        , SliderFloat "Radius" ra 0 3
+                        , ColorPicker "Color" co
+                        ]
     ]
-    -- <> makeComponents ns
+    -- Careful! The tree's cannot have the same Id otherwise they will behave
+    -- the same.
+    <> map (\(ns, i) -> WithTree ("Layer " <> fromString (show i)) $ makeComponents ns) (zip nss [1..])
+    -- <> concatMap makeComponents nss
 
 newPlanet :: PlanetSettings -> Renderer Mesh
-newPlanet (PlanetSettings re ra co ns@(NoiseSettings nl st ro bro pers ce)) = do
+newPlanet (PlanetSettings re ra co nss) = do
   re' <- get re
   ra' <- get ra
   co' <- get co
-  noiseElevation <- evaluateNoise <$> get nl <*> get st <*> get ro <*> get bro <*> get pers <*> get ce
+
+
   let UnitSphere vs is = newUnitSphere re' (Just co')
-      -- TODO better code but oh well
-      ps' = map (\(Vertex p _ _) -> p ^* (ra' * (1 + noiseElevation p))) vs
+
+  ps' <- forM vs $ \(Vertex p _ _) -> do
+    noiseElevation <- foldM (\acc (NoiseSettings nl st ro bro pers ce mv) -> do
+                                    nv <- evaluateNoise <$> get nl <*> get st <*> get ro <*> get bro <*> get pers <*> get ce <*> get mv <*> pure p
+                                    pure $ nv + acc
+                            ) 0 nss
+    pure $ p ^* (ra' * (1 + noiseElevation))
+
+  let
       ns' = calculateSmoothNormals is ps'
       cs  = map (\(Vertex _ _ c) -> c) vs
       vs'' = zipWith3 Vertex ps' ns' cs
@@ -98,9 +115,10 @@ evaluateNoise :: Int   -- ^ Num layers
               -> Float -- ^ Base Roughness
               -> Float -- ^ Persistence
               -> Vec3  -- ^ Center
+              -> Float -- ^ Min value
               -> Vec3  -- ^ Point
               -> Float
-evaluateNoise nlayers stren rough baseRoughness (float2Double -> persi) cent point =
+evaluateNoise nlayers stren rough baseRoughness (float2Double -> persi) cent minVal point =
   -- Accumulator is noiseValue, frequency, and amplitude, and get updated for each layer
   let (finalVal,_,_) = foldl' (\(noiseVal, freq, amplitude) _ ->
                                 let v          = noiseValue defPerlin (toPoint (point ^* freq + cent))
@@ -109,7 +127,7 @@ evaluateNoise nlayers stren rough baseRoughness (float2Double -> persi) cent poi
                                     amplitude' = amplitude*persi -- <1 persistence implies amplitude decreases with each layer
                                  in (noiseVal', freq', amplitude')
                                 ) (0,baseRoughness,1) [1..nlayers]
-   in double2Float finalVal * stren
+   in max (double2Float finalVal - minVal) 0 * stren
 
 
 

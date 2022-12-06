@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -10,11 +11,15 @@ module Ghengin.DearImGui
   , module DearImGui
   ) where
 
+#define IMGUI_DEBUG
+
 import Debug.Trace
 
 import Foreign
 import Data.IORef
+import Data.StateVar
 import Control.Monad.Reader
+import Geomancy.Vec3
 
 import Unsafe.Coerce
 
@@ -122,10 +127,63 @@ pushWindow (UIWindow wname wcomps) = do
 pushComp :: UIComponent -> Renderer Bool
 pushComp = \case
   ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
+
+    -- get ref >>= \case
+    --   WithVec3 x y z -> do
+    --     tmpRef <- liftIO $ newIORef (ImVec3 x y z)
+    --     b <- IM.colorPicker3 t tmpRef -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
+    --     ImVec3 x' y' z' <- get tmpRef
+    --     ref $= vec3 x' y' z'
+    --     pure b
+
   SliderFloat t ref f1 f2 -> IM.sliderFloat t ref f1 f2
+  SliderVec3  t ref f1 f2 -> do
+    v <- get ref
+    withVec3 v $ \x y z -> do
+      tmpR <- liftIO $ newIORef (x,y,z)
+      x <- IM.sliderFloat3 t tmpR f1 f2
+      (x',y',z') <- get tmpR
+      ref $= vec3 x' y' z'
+      pure x
   DragFloat   t ref f1 f2 -> trace "DragFloat is behaving weird..." $ IM.dragFloat t ref 0.05 f1 f2
   SliderInt   t ref f1 f2 -> IM.sliderInt t ref f1 f2
+  WithTree    t cmops     -> do
+    b <- IM.treeNode t
+    if b then do
+      b' <- mapM pushComp cmops
+      IM.treePop
+      pure $ any id b'
+    else
+      pure False
 
+  -- TabBar      t sc        -> IM.beginTabBar t IM.ImGuiTabBarFlags_None >>= \case
+  --                             False -> do
+  --                                 b' <- mapM (\(t',b'',cs) -> do
+  --                                   br <- liftIO $ newIORef b''
+  --                                   bt <- IM.beginTabItem t' br IM.ImGuiTabBarFlags_None
+  --                                   if bt then do
+  --                                     b''' <- mapM pushComp cs
+  --                                     IM.endTabItem
+  --                                     pure $ any id b'''
+  --                                   else do
+  --                                     b''' <- mapM pushComp cs
+  --                                     pure $ any id b''') sc
+  --                                 pure $ any id b'
+  --                             True  -> do
+  --                               b' <- mapM (\(t',b'',cs) -> do
+  --                                 br <- liftIO $ newIORef b''
+  --                                 bt <- IM.beginTabItem t' br IM.ImGuiTabBarFlags_None
+  --                                 if bt then do
+  --                                     b''' <- mapM pushComp cs
+  --                                     IM.endTabItem
+  --                                     pure $ any id b'''
+  --                                 else do
+  --                                     b''' <- mapM pushComp cs
+  --                                     pure $ any id b'''
+
+  --                                                                   ) sc
+  --                               IM.endTabBar
+  --                               pure $ any id b'
 
 
 

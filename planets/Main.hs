@@ -34,7 +34,7 @@ initG = do
 
   ps <- liftIO $ makeSettings @PlanetSettings
   newEntity ( UIWindow "Planet" (makeComponents ps) )
-  newEntity ( UIWindow "Noise"  (makeComponents ps.noiseSettings) )
+  -- mapM (\ns -> newEntity ( UIWindow "Noise"  (makeComponents ns) )) ps.noiseSettings
 
   s <- lift $ newPlanet ps
 
