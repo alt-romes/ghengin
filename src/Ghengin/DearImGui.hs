@@ -147,6 +147,7 @@ pushComp = \case
       pure x
   DragFloat   t ref f1 f2 -> trace "DragFloat is behaving weird..." $ IM.dragFloat t ref 0.05 f1 f2
   SliderInt   t ref f1 f2 -> IM.sliderInt t ref f1 f2
+  Checkbox    t ref -> IM.checkbox t ref
   WithTree    t cmops     -> do
     b <- IM.treeNode t
     if b then do
@@ -155,6 +156,7 @@ pushComp = \case
       pure $ any id b'
     else
       pure False
+
 
   -- TabBar      t sc        -> IM.beginTabBar t IM.ImGuiTabBarFlags_None >>= \case
   --                             False -> do

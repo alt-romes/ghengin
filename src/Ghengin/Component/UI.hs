@@ -1,3 +1,4 @@
+{-# LANGUAGE Strict #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -16,12 +17,13 @@ import Apecs
 
 data UIWindow = UIWindow Text [UIComponent]
 
-data UIComponent = ColorPicker Text (IORef Vec3)
-                 | SliderFloat Text (IORef Float) Float Float
-                 | DragFloat   Text (IORef Float) Float Float
-                 | SliderVec3  Text (IORef Vec3)  Float Float
-                 | SliderInt   Text (IORef Int)   Int   Int
-                 | WithTree    Text [UIComponent]
+data UIComponent = ColorPicker !Text !(IORef Vec3)
+                 | SliderFloat !Text !(IORef Float) !Float !Float
+                 | DragFloat   !Text !(IORef Float) !Float !Float
+                 | SliderVec3  !Text !(IORef Vec3)  !Float !Float
+                 | SliderInt   !Text !(IORef Int)   !Int   !Int
+                 | WithTree    !Text ![UIComponent]
+                 | Checkbox    !Text !(IORef Bool)
                  -- | TabBar      Text [(Text, Bool, [UIComponent])]
                  -- | Menu        Text [UIComponent]
 

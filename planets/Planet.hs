@@ -32,6 +32,7 @@ data NoiseSettings = NoiseSettings { numLayers :: !(IORef Int)
                                    , persistence   :: !(IORef Float)
                                    , center    :: !(IORef Vec3)
                                    , minValue  :: !(IORef Float)
+                                   , enabled   :: !(IORef Bool)
                                    }
 
 instance UISettings NoiseSettings where
@@ -43,12 +44,14 @@ instance UISettings NoiseSettings where
     persistenceR <- newIORef 0.5
     centerR    <- newIORef (vec3 0 0 0)
     minValR <- newIORef 0
-    pure $ NoiseSettings numLayersR strengthR roughnessR baseRoughnessR persistenceR centerR minValR
+    enabledR <- newIORef True
+    pure $ NoiseSettings numLayersR strengthR roughnessR baseRoughnessR persistenceR centerR minValR enabledR
 
-  makeComponents (NoiseSettings nl st ro br ps ce mv) =
+  makeComponents (NoiseSettings nl st ro br ps ce mv cb) =
     -- What an amazing bug. If I increase one more letter from the first two
     -- following UI components the game will crash.
-    [ SliderInt "Num Layers" nl 1 8
+    [ Checkbox "Enabled" cb
+    , SliderInt "Num Layers" nl 1 8
     , SliderFloat "Strength" st 0 2
     , SliderFloat "Roughness" ro 0 5
     , SliderFloat "Base Roughn" br 0 5
@@ -88,8 +91,8 @@ newPlanet (PlanetSettings re ra co nss) = do
   let UnitSphere vs is = newUnitSphere re' (Just co')
 
   ps' <- forM vs $ \(Vertex p _ _) -> do
-    noiseElevation <- foldM (\acc (NoiseSettings nl st ro bro pers ce mv) -> do
-                                    nv <- evaluateNoise <$> get nl <*> get st <*> get ro <*> get bro <*> get pers <*> get ce <*> get mv <*> pure p
+    noiseElevation <- foldM (\acc (NoiseSettings nl st ro bro pers ce mv en) -> do
+                                    nv <- evaluateNoise <$> get nl <*> get st <*> get ro <*> get bro <*> get pers <*> get ce <*> get mv <*> get en <*> pure p
                                     pure $ nv + acc
                             ) 0 nss
     pure $ p ^* (ra' * (1 + noiseElevation))
@@ -116,9 +119,10 @@ evaluateNoise :: Int   -- ^ Num layers
               -> Float -- ^ Persistence
               -> Vec3  -- ^ Center
               -> Float -- ^ Min value
+              -> Bool  -- ^ Enabled
               -> Vec3  -- ^ Point
               -> Float
-evaluateNoise nlayers stren rough baseRoughness (float2Double -> persi) cent minVal point =
+evaluateNoise nlayers stren rough baseRoughness (float2Double -> persi) cent minVal enabled point =
   -- Accumulator is noiseValue, frequency, and amplitude, and get updated for each layer
   let (finalVal,_,_) = foldl' (\(noiseVal, freq, amplitude) _ ->
                                 let v          = noiseValue defPerlin (toPoint (point ^* freq + cent))
@@ -127,7 +131,7 @@ evaluateNoise nlayers stren rough baseRoughness (float2Double -> persi) cent min
                                     amplitude' = amplitude*persi -- <1 persistence implies amplitude decreases with each layer
                                  in (noiseVal', freq', amplitude')
                                 ) (0,baseRoughness,1) [1..nlayers]
-   in max (double2Float finalVal - minVal) 0 * stren
+   in if enabled then max (double2Float finalVal - minVal) 0 * stren else 0
 
 
 
