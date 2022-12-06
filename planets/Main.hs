@@ -45,14 +45,14 @@ initG = do
   pure ps
 
 
-updateG :: PlanetSettings -> DeltaTime -> [[Bool]] -> Ghengin World Bool
+updateG :: PlanetSettings -> DeltaTime -> [Bool] -> Ghengin World Bool
 updateG ps dt uichanges = do
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr
 
   -- TODO: perhaps all UI colors could be combined with the uichanges variables and be always provided on request depending on whether they were changed or not
   -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
-  when (any id (concat uichanges)) $
+  when (or uichanges) $
     cmapM $ \(m :: Mesh) -> lift $ do
       x <- newPlanet ps
       freeMesh m -- Can we hide/enforce this somehow?

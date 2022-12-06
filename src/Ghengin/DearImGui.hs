@@ -115,69 +115,69 @@ renderDrawData = makeRenderPassCmd $ \b -> do
 
 -- | Returns a list of booleans indicating whether each component was changed
 -- in the previous frame
-pushWindow :: UIWindow -> Renderer [Bool]
-pushWindow (UIWindow wname wcomps) = do
+pushWindow :: UIWindow -> Renderer Bool
+pushWindow (UIWindow wname act) = do
   _begined <- begin wname
 
-  bs <- forM wcomps pushComp
+  b <- liftIO $ act
 
   end
 
-  pure bs
+  pure b
 
 -- | Returns a boolean indicating whether the component was changed in the previous frame
-pushComp :: UIComponent -> Renderer Bool
-pushComp = \case
-  ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
+-- pushComp :: UIComponent -> Renderer Bool
+-- pushComp = \case
+--   ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
 
-    -- get ref >>= \case
-    --   WithVec3 x y z -> do
-    --     tmpRef <- liftIO $ newIORef (ImVec3 x y z)
-    --     b <- IM.colorPicker3 t tmpRef -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
-    --     ImVec3 x' y' z' <- get tmpRef
-    --     ref $= vec3 x' y' z'
-    --     pure b
+--     -- get ref >>= \case
+--     --   WithVec3 x y z -> do
+--     --     tmpRef <- liftIO $ newIORef (ImVec3 x y z)
+--     --     b <- IM.colorPicker3 t tmpRef -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
+--     --     ImVec3 x' y' z' <- get tmpRef
+--     --     ref $= vec3 x' y' z'
+--     --     pure b
 
-  SliderFloat t ref f1 f2 -> IM.sliderFloat t ref f1 f2
-  SliderVec3  t ref f1 f2 -> do
-    v <- get ref
-    withVec3 v $ \x y z -> do
-      tmpR <- liftIO $ newIORef (x,y,z)
-      b <- IM.sliderFloat3 t tmpR f1 f2
-      (x',y',z') <- get tmpR
-      ref $= vec3 x' y' z'
-      pure b
-  DragFloat   t ref f1 f2 -> trace "DragFloat is behaving weird..." $ IM.dragFloat t ref 0.05 f1 f2
-  SliderInt   t ref f1 f2 -> IM.sliderInt t ref f1 f2
-  Checkbox    t ref -> IM.checkbox t ref
-  WithTree    t cmops     -> do
-    b <- IM.treeNode t
-    if b then do
-      b' <- mapM pushComp cmops
-      IM.treePop
-      pure $ any id b'
-    else
-      pure False
+--   SliderFloat t ref f1 f2 -> IM.sliderFloat t ref f1 f2
+--   SliderVec3  t ref f1 f2 -> do
+--     v <- get ref
+--     withVec3 v $ \x y z -> do
+--       tmpR <- liftIO $ newIORef (x,y,z)
+--       b <- IM.sliderFloat3 t tmpR f1 f2
+--       (x',y',z') <- get tmpR
+--       ref $= vec3 x' y' z'
+--       pure b
+--   DragFloat   t ref f1 f2 -> trace "DragFloat is behaving weird..." $ IM.dragFloat t ref 0.05 f1 f2
+--   SliderInt   t ref f1 f2 -> IM.sliderInt t ref f1 f2
+--   Checkbox    t ref -> IM.checkbox t ref
+--   WithTree    t cmops     -> do
+--     b <- IM.treeNode t
+--     if b then do
+--       b' <- mapM pushComp cmops
+--       IM.treePop
+--       pure $ any id b'
+--     else
+--       pure False
 
-  WithCombo t ref (opt:|opts) -> do
+--   WithCombo t ref (opt:|opts) -> do
 
-    b <- IM.beginCombo t (pack $ show opt)
-    if b then do
+--     b <- IM.beginCombo t (pack $ show opt)
+--     if b then do
 
-      currIx <- liftIO $ newIORef 0
-      bs <- forM (zip (opt:opts) [1..]) $ \(o, n) -> do
-              currIx' <- get currIx
-              let is_selected = currIx' == n
-              b' <- selectableWith (defSelectableOptions{selected=is_selected}) (pack $ show o)
-              when b' $ currIx $= n
-              pure b'
-              -- when is_selected (IM.setItemDefaultFocus)
-      currIx' <- get currIx
-      ref $= ((opt:opts) !! (currIx' - 1))
-      IM.endCombo
-      pure $ any id bs
-    else
-      pure False
+--       currIx <- liftIO $ newIORef 0
+--       bs <- forM (zip (opt:opts) [0..]) $ \(o, n) -> do
+--               currIx' <- get currIx
+--               let is_selected = currIx' == n
+--               b' <- selectableWith (defSelectableOptions{selected=is_selected}) (pack $ show o)
+--               when b' $ currIx $= n
+--               -- when is_selected (IM.setItemDefaultFocus)
+--               pure b'
+--       currIx' <- get currIx
+--       ref $= ((opt:opts) !! currIx')
+--       IM.endCombo
+--       pure $ any id bs
+--     else
+--       pure False
 
 
   -- TabBar      t sc        -> IM.beginTabBar t IM.ImGuiTabBarFlags_None >>= \case

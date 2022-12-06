@@ -35,19 +35,21 @@ instance UISettings PlanetSettings where
     boolR  <- newIORef False
     ns1    <- makeSettings @NoiseSettings
     ns2    <- makeSettings @NoiseSettings
-    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2]
+    ns3    <- makeSettings @NoiseSettings
+    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2, ns3]
 
-  makeComponents (PlanetSettings re ra co bo nss) =
-    [ WithTree "Planet" [ SliderInt "Resolution" re 2 200
-                        , SliderFloat "Radius" ra 0 3
-                        , ColorPicker "Color" co
-                        , Checkbox "Mask" bo
-                        ]
-    ]
-    -- Careful! The tree's cannot have the same Id otherwise they will behave
-    -- the same.
-    <> NE.toList (fmap (\(ns, i) -> WithTree ("Layer " <> fromString (show i)) $ makeComponents ns) (NE.zip nss [1..]))
-    -- <> concatMap makeComponents nss
+  makeComponents (PlanetSettings re ra co bo nss) = do
+    b1 <- withTree "Planet" do
+      b1 <- sliderInt "Resolution" re 2 200
+      b2 <- sliderFloat "Radius" ra 0 3
+      b3 <- colorPicker "Color" co
+      b4 <- checkBox "Mask" bo
+      pure $ or ([b1,b2,b3,b4] :: [Bool])
+      -- Careful! The components cannot have the same Id otherwise they will behave
+      -- the same.
+    bs <- mapM (\(ns, i) -> withTree ("Layer " <> fromString (show i)) $
+                                makeComponents ns) (NE.zip nss [1..])
+    pure $ b1 || or bs
 
 newPlanet :: PlanetSettings -> Renderer Mesh
 newPlanet (PlanetSettings re ra co bo nss) = do

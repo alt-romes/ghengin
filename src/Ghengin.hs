@@ -89,9 +89,9 @@ ghengin :: WorldConstraints w
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
         -> Ghengin w b -- ^ Run every simulation step (currently ignored)
-        -> (a -> DeltaTime -> [[Bool]] -> Ghengin w Bool) -- ^ Run every game
-                                                          -- loop? iteration. The list of list of bools indicates whether each component in
-                                                          -- the UI were changed. Bool indicates whether we should exit the gameloop
+        -> (a -> DeltaTime -> [Bool] -> Ghengin w Bool) -- ^ Run every game
+                                                          -- loop? iteration. The list of list of bools indicates whether the components in
+                                                          -- a UI window were changed. The returned Bool indicates whether we should exit the gameloop
         -- -> Ghengin w c -- ^ Run every draw step?
         -> Ghengin w c -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
@@ -167,7 +167,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
   pure ()
 
-drawUI :: WorldConstraints w => Ghengin w [[Bool]]
+drawUI :: WorldConstraints w => Ghengin w [Bool]
 drawUI = do
     IM.vulkanNewFrame
     IM.glfwNewFrame
