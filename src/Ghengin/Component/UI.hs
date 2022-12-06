@@ -40,6 +40,9 @@ newIOSelectRef x = IOSelectRef <$> liftIO (newIORef x) <*> liftIO (newIORef 0)
 readIOSelectRef :: MonadIO m => IOSelectRef a -> m a
 readIOSelectRef (IOSelectRef r _) = liftIO $ readIORef r
 
+instance HasGetter (IOSelectRef a) a where
+  get = liftIO . readIOSelectRef
+
 -- Returns a boolean indicating whether the component was changed in the previous frame
 
 

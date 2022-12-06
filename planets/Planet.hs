@@ -26,7 +26,11 @@ data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , color      :: !(IORef Vec3)
                                      , useFirstLayerAsMask :: !(IORef Bool)
                                      , noiseSettings :: !(NE.NonEmpty NoiseSettings)
+                                     , displayFace   :: !(IOSelectRef DisplayFace)
                                      }
+
+data DisplayFace = All | FaceUp | FaceRight deriving Show
+
 instance UISettings PlanetSettings where
   makeSettings = do
     resR   <- newIORef 5
@@ -36,15 +40,17 @@ instance UISettings PlanetSettings where
     ns1    <- makeSettings @NoiseSettings
     ns2    <- makeSettings @NoiseSettings
     ns3    <- makeSettings @NoiseSettings
-    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2, ns3]
+    df     <- newIOSelectRef All
+    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2, ns3] df
 
-  makeComponents (PlanetSettings re ra co bo nss) = do
+  makeComponents (PlanetSettings re ra co bo nss df) = do
     b1 <- withTree "Planet" do
       b1 <- sliderInt "Resolution" re 2 200
       b2 <- sliderFloat "Radius" ra 0 3
       b3 <- colorPicker "Color" co
       b4 <- checkBox "Mask" bo
-      pure $ or ([b1,b2,b3,b4] :: [Bool])
+      b5 <- withCombo "Faces" df [All, FaceUp, FaceRight]
+      pure $ or ([b1,b2,b3,b4,b5] :: [Bool])
       -- Careful! The components cannot have the same Id otherwise they will behave
       -- the same.
     bs <- mapM (\(ns, i) -> withTree ("Layer " <> fromString (show i)) $
@@ -52,14 +58,20 @@ instance UISettings PlanetSettings where
     pure $ b1 || or bs
 
 newPlanet :: PlanetSettings -> Renderer Mesh
-newPlanet (PlanetSettings re ra co bo nss) = do
+newPlanet (PlanetSettings re ra co bo nss df) = do
   re' <- get re
   ra' <- get ra
   co' <- get co
+  df' <- get df
   enableMask <- get bo
 
 
-  let UnitSphere vs is = newUnitSphere re' (Just co')
+  let (vs, is) = case df' of
+                   All -> let UnitSphere v i = newUnitSphere re' (Just co') in (v, i)
+                   FaceUp -> let UF v i = newUnitFace re' (vec3 0 (-1) 0)
+                              in (zipWith3 Vertex v (calculateSmoothNormals i v) (repeat co'),i)
+                   FaceRight -> let UF v i = newUnitFace re' (vec3 1 0 0)
+                              in (zipWith3 Vertex v (calculateSmoothNormals i v) (repeat co'),i)
 
   ps' <- forM vs $ \(Vertex p _ _) -> do
     case nss of
