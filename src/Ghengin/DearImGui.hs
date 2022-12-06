@@ -15,6 +15,8 @@ module Ghengin.DearImGui
 
 import Debug.Trace
 
+import Data.Text (pack)
+import Data.List.NonEmpty (NonEmpty(..))
 import Foreign
 import Data.IORef
 import Data.StateVar
@@ -115,7 +117,7 @@ renderDrawData = makeRenderPassCmd $ \b -> do
 -- in the previous frame
 pushWindow :: UIWindow -> Renderer [Bool]
 pushWindow (UIWindow wname wcomps) = do
-  begin wname
+  _begined <- begin wname
 
   bs <- forM wcomps pushComp
 
@@ -141,10 +143,10 @@ pushComp = \case
     v <- get ref
     withVec3 v $ \x y z -> do
       tmpR <- liftIO $ newIORef (x,y,z)
-      x <- IM.sliderFloat3 t tmpR f1 f2
+      b <- IM.sliderFloat3 t tmpR f1 f2
       (x',y',z') <- get tmpR
       ref $= vec3 x' y' z'
-      pure x
+      pure b
   DragFloat   t ref f1 f2 -> trace "DragFloat is behaving weird..." $ IM.dragFloat t ref 0.05 f1 f2
   SliderInt   t ref f1 f2 -> IM.sliderInt t ref f1 f2
   Checkbox    t ref -> IM.checkbox t ref
@@ -154,6 +156,26 @@ pushComp = \case
       b' <- mapM pushComp cmops
       IM.treePop
       pure $ any id b'
+    else
+      pure False
+
+  WithCombo t ref (opt:|opts) -> do
+
+    b <- IM.beginCombo t (pack $ show opt)
+    if b then do
+
+      currIx <- liftIO $ newIORef 0
+      bs <- forM (zip (opt:opts) [1..]) $ \(o, n) -> do
+              currIx' <- get currIx
+              let is_selected = currIx' == n
+              b' <- selectableWith (defSelectableOptions{selected=is_selected}) (pack $ show o)
+              when b' $ currIx $= n
+              pure b'
+              -- when is_selected (IM.setItemDefaultFocus)
+      currIx' <- get currIx
+      ref $= ((opt:opts) !! (currIx' - 1))
+      IM.endCombo
+      pure $ any id bs
     else
       pure False
 
