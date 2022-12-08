@@ -48,7 +48,7 @@ main = do
   ghengin w initG undefined loopStepG endG
 
 
-loopStepG :: () -> DeltaTime -> [[Bool]] -> Ghengin World Bool
+loopStepG :: () -> DeltaTime -> [Bool] -> Ghengin World Bool
 loopStepG () dt _ = do
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr

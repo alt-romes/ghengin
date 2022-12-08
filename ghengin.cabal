@@ -64,6 +64,7 @@ library
 
                       Ghengin.Shaders,
                       Ghengin.Shaders.SimpleShader,
+                      Ghengin.Shaders.FIR,
                       Ghengin.Utils,
                       
                       Ghengin.Vulkan,
@@ -196,7 +197,7 @@ executable planets
     main-is:          Main.hs
 
     -- Modules included in this executable, other than Main.
-    other-modules: Planet, Noise
+    other-modules: Planet, Noise, Shader
 
     -- LANGUAGE extensions used by modules in this package.
     -- other-extensions:

@@ -58,7 +58,7 @@ updateG ps dt uichanges = do
       freeMesh m -- Can we hide/enforce this somehow?
       pure x
 
-  cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
+  -- cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 
   pure False
 
