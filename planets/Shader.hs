@@ -47,7 +47,7 @@ type FragmentDefs
   =  '[ "out_col" ':-> Output  '[ Location 0                 ] (V 4 Float)
       , "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
 
-      -- TODO: How to (automatically) take into consideration that min max has to be bound (almost?) only once?
+      -- TODO: How to (automatically) take into consideration that min max has to be bound (almost?) only once (the meshes are known statically)?
       , "minmax"     ':-> Uniform '[ Binding 1, DescriptorSet 0 ]
                                   ( Struct '[ "min" ':-> Float, "max" ':-> Float ] ) -- Careful with alighnemt
       , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment

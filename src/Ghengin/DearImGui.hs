@@ -107,9 +107,8 @@ destroyImCtx (IMCtx pool imCtx initRes) = do
   Vk.destroyDescriptorPool device pool Nothing
 
 
-renderDrawData :: RenderPassCmd -- IM.DrawData ->
-renderDrawData = makeRenderPassCmd $ \b -> do
-  dd <- IM.getDrawData
+renderDrawData :: IM.DrawData -> RenderPassCmd
+renderDrawData dd = makeRenderPassCmd $ \b -> do
   IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
 
 
@@ -117,11 +116,11 @@ renderDrawData = makeRenderPassCmd $ \b -> do
 -- in the previous frame
 pushWindow :: UIWindow -> Renderer Bool
 pushWindow (UIWindow wname act) = do
-  _begined <- begin wname
+  _begined <- IM.begin wname
 
   b <- liftIO $ act
 
-  end
+  IM.end
 
   pure b
 

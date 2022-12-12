@@ -6,8 +6,8 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-} -- HasField Has Transform
-{-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Component.UI where
 
 import Debug.Trace
@@ -99,7 +99,7 @@ withCombo t (IOSelectRef ref currIx) (opt:|opts) = do
 
   currSelected <- get currIx
 
-  b <- IM.beginCombo t (pack . show $ (opt:opts) !! currSelected)
+  b <- IM.beginCombo t ((<> "\0") . pack . show $ (opt:opts) !! currSelected)
   if b then do
 
     bs <- forM (zip (opt:opts) [0..]) $ \(o, n) -> do

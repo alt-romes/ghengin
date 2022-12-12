@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonadComprehensions #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
@@ -175,10 +176,17 @@ drawUI = do
 
     -- IM.showDemoWindow
 
-    cfoldM (\acc (uiw :: UIWindow) -> do
+    -- IM.begin "Planet\0"
+    -- IM.text "A planet is a sphere with layers of noise\0"
+    -- IM.end
+
+    bs <- cfoldM (\acc (uiw :: UIWindow) -> do
       bs <- lift $ IM.pushWindow uiw
       pure (bs:acc)) []
 
+    IM.render
+
+    pure bs
 
 -- TODO: Eventually move drawFrame to a better contained renderer part
 
@@ -222,10 +230,8 @@ drawFrame pipeline rpass objUBs dsets = do
 
       lift $ withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
+
         -- Draw frame is actually here, within 'withCurrentFramePresent'
-        
-        -- Draw UI
-        IM.render
 
         -- TODO: Should be specific to each pipeline. E.g. if I have a color
         -- attribute that should be displayed that should be described in the
@@ -246,7 +252,8 @@ drawFrame pipeline rpass objUBs dsets = do
               pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform)
               meshRenderCmd
 
-            IM.renderDrawData
+            -- Draw UI
+            IM.renderDrawData =<< IM.getDrawData
         
   pure ()
 

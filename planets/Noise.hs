@@ -47,15 +47,15 @@ instance UISettings NoiseSettings where
   makeComponents (NoiseSettings nl st ro br ps ce mv cb nt) = do
     -- TODO: What an amazing bug. If I increase one more letter from some of
     -- the following UI components the game will crash.
-    b1 <- checkBox "Enabled" cb
-    b2 <- withCombo "Type" nt [SimpleNoise, RigidNoise]
-    b3 <- sliderInt "Num Layers" nl 1 8
-    b4 <- sliderFloat "Strength" st 0 2
-    b5 <- sliderFloat "Roughness" ro 0 5
-    b6 <- sliderFloat "Base Roughn" br 0 5
-    b7 <- sliderFloat "Persistence" ps 0 2
-    b8 <- sliderVec3  "Center" ce 0 5
-    b9 <- sliderFloat "Minval" mv 0 5
+    b1 <- checkBox "Enabled\0" cb
+    b2 <- withCombo "Type\0" nt [SimpleNoise, RigidNoise]
+    b3 <- sliderInt "Num Layers\0" nl 1 8
+    b4 <- sliderFloat "Strength\0" st 0 2
+    b5 <- sliderFloat "Roughness\0" ro 0 5
+    b6 <- sliderFloat "Base Roughn\0" br 0 5
+    b7 <- sliderFloat "Persistence\0" ps 0 2
+    b8 <- sliderVec3  "Center\0" ce 0 5
+    b9 <- sliderFloat "Minval\0" mv 0 5
     -- 
     pure $ or ([b1,b2,b3,b4,b5,b6,b7,b8,b9] :: [Bool])
 
