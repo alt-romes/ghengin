@@ -107,14 +107,14 @@ library
                       fir     >=0.1,
                       bytestring,
                       mtl,
-                      text,
+                      text >= 2.0.1,
                       containers,
                       apecs,
                       geomancy,
                       wavefront,
                       time,
                       split,
-                      dear-imgui,
+                      dear-imgui >= 2.1.2,
                       StateVar
 
     -- Directories containing source files.

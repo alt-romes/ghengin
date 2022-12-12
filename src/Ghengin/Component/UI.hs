@@ -105,7 +105,7 @@ withCombo t (IOSelectRef ref currIx) (opt:|opts) = do
     bs <- forM (zip (opt:opts) [0..]) $ \(o, n) -> do
             currIx' <- get currIx
             let is_selected = currIx' == n
-            b' <- IM.selectableWith (IM.defSelectableOptions{IM.selected=is_selected}) (pack $ show o)
+            b' <- IM.selectableWith (IM.defSelectableOptions{IM.selected=is_selected}) ((<> "\0") . pack $ show o)
             when b' $ currIx $= n
             -- when is_selected (IM.setItemDefaultFocus)
             pure b'
