@@ -11,7 +11,7 @@ module Ghengin.DearImGui
   , module DearImGui
   ) where
 
-#define IMGUI_DEBUG
+-- #define IMGUI_DEBUG
 
 import Debug.Trace
 
@@ -116,13 +116,18 @@ renderDrawData dd = makeRenderPassCmd $ \b -> do
 -- in the previous frame
 pushWindow :: UIWindow -> Renderer Bool
 pushWindow (UIWindow wname act) = do
-  _begined <- IM.begin wname
+  beginnt <- IM.begin wname
+  if beginnt then do
+    b <- liftIO $ act
 
-  b <- liftIO $ act
+    IM.end
+    pure b
+  else do
+    -- Optimization, if window is closed we end the the window and avoid
+    -- drawing the ui inside it.
+    IM.end
+    pure False
 
-  IM.end
-
-  pure b
 
 -- | Returns a boolean indicating whether the component was changed in the previous frame
 -- pushComp :: UIComponent -> Renderer Bool

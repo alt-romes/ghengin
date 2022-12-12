@@ -44,16 +44,16 @@ instance UISettings PlanetSettings where
     pure $ PlanetSettings resR radR colorR boolR [ns1, ns2, ns3] df
 
   makeComponents (PlanetSettings re ra co bo nss df) = do
-    b1 <- withTree "Planet\0" do
-      b1 <- sliderInt "Resolution\0" re 2 200
-      b2 <- sliderFloat "Radius\0" ra 0 3
-      b3 <- colorPicker "Color\0" co
-      b4 <- checkBox "Mask\0" bo
-      b5 <- withCombo "Faces\0" df [All, FaceUp, FaceRight]
+    b1 <- withTree "Planet" do
+      b1 <- sliderInt "Resolution" re 2 200
+      b2 <- sliderFloat "Radius" ra 0 3
+      b3 <- colorPicker "Color" co
+      b4 <- checkBox "Mask" bo
+      b5 <- withCombo "Faces" df [All, FaceUp, FaceRight]
       pure $ or ([b1,b2,b3,b4,b5] :: [Bool])
       -- Careful! The components cannot have the same Id otherwise they will behave
       -- the same.
-    bs <- mapM (\(ns, i) -> withTree ("Layer " <> fromString (show i) <> "\0") $
+    bs <- mapM (\(ns, i) -> withTree ("Layer " <> fromString (show i)) $
                                 makeComponents ns) (NE.zip nss [1..])
     pure $ b1 || or bs
 
