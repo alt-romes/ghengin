@@ -114,7 +114,7 @@ library
                       wavefront,
                       time,
                       split,
-                      dear-imgui >= 2.1.2,
+                      dear-imgui >= 2.1.3,
                       StateVar
 
     -- Directories containing source files.
