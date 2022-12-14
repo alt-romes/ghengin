@@ -123,48 +123,6 @@ library
     -- Base language which the package is written in.
     default-language: Haskell2010
 
-executable ghengin
-    -- Import common warning flags.
-    import:           warnings
-
-    -- .hs or .lhs file containing the Main module.
-    main-is:          Main.hs
-
-    -- Modules included in this executable, other than Main.
-    other-modules:    Main.Apecs
-
-    -- LANGUAGE extensions used by modules in this package.
-    -- other-extensions:
-
-    -- Other library packages from which modules are imported.
-    build-depends:
-        base ^>=4.17.0.0,
-        ghengin,
-        vulkan ^>=3.23,
-        GLFW-b ^>=3.3,
-        vector ^>=0.13,
-        mtl, time,
-        apecs,
-        geomancy
-
-    -- ghc-options: -ddump-simpl
-                 -- -ddump-to-file
-                 -- -dsuppress-ticks
-                 -- -dsuppress-stg-exts
-                 -- -dsuppress-coercions
-                 -- -dsuppress-idinfo
-                 -- -dsuppress-unfoldings
-                 -- -dsuppress-module-prefixes
-                 -- -dsuppress-timestamps
-                 -- -dsuppress-uniques
-                 -- -dsuppress-var-kinds
-
-    -- Directories containing source files.
-    hs-source-dirs:   app
-
-    -- Base language which the package is written in.
-    default-language: Haskell2010
-
 test-suite ghengin-test
     -- Import common warning flags.
     import:           warnings

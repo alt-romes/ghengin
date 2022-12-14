@@ -32,9 +32,10 @@ instance Has World Renderer EntityCounter where getStore = SystemT (asks entityC
 initG :: Ghengin World PlanetSettings
 initG = do
 
+  -- vikingRoom <- lift $ loadObjMesh "assets/viking_room.obj"
+
   ps <- liftIO $ makeSettings @PlanetSettings
   newEntity ( UIWindow "Planet" (makeComponents ps) )
-  -- mapM (\ns -> newEntity ( UIWindow "Noise"  (makeComponents ns) )) ps.noiseSettings
 
   s <- lift $ newPlanet ps
 
