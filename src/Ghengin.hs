@@ -108,7 +108,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
   -- BIG:TODO: Bundle descriptor sets, render passes, and pipelines into a single abstraction
   -- TODO: Use linear types here. Can I make the monad stack over a multiplicity polymorphic monad?
-  ssp <- liftIO SimpleShader.shaderPipeline
+  let ssp = SimpleShader.shaderPipeline
   descriptorSetLayout <- lift $ createDescriptorSetLayout
   simpleRenderPass   <- lift $ createSimpleRenderPass
   pipeline           <- lift $ createGraphicsPipeline ssp simpleRenderPass._renderPass [descriptorSetLayout] [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }]

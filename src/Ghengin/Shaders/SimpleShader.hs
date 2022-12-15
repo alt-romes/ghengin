@@ -76,11 +76,8 @@ type VertexData =
    , Slot 2 0 ':-> V 3 Float -- in color
    ]
 
-shaderPipeline :: IO GhenginShaderPipeline
-shaderPipeline = Prelude.do
-  vm <- compileFIRShader vertex
-  fm <- compileFIRShader fragment
-  Prelude.pure $ ShaderPipeline
+shaderPipeline :: ShaderPipeline ()
+shaderPipeline = ShaderPipeline
          $    StructInput @VertexData @(Triangle List)
-         :>-> (vertex, vm)
-         :>-> (fragment, fm)
+         :>-> (vertex, ())
+         :>-> (fragment, ())

@@ -70,7 +70,7 @@ dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT -- TODO: Eventually only the viewpor
 
 createGraphicsPipeline :: -- (KnownDefinitions vertexdefs, KnownDefinitions fragdefs)
                         -- (CompilableProgram v, CompilableProgram f)
-                       GhenginShaderPipeline
+                       ShaderPipeline a
                        -> Vk.RenderPass
                        -> V.Vector Vk.DescriptorSetLayout
                        -> V.Vector Vk.PushConstantRange
@@ -87,15 +87,24 @@ createGraphicsPipeline shaderPipeline rp sls pcr = Renderer $ ReaderT (\renv -> 
 createGraphicsPipeline' :: -- (KnownDefinitions vertexdefs, KnownDefinitions fragdefs)
                         -- (CompilableProgram v, CompilableProgram f)
                         Vk.Device
-                        -> GhenginShaderPipeline
+                        -> ShaderPipeline a
                         -> Vk.RenderPass
                         -> V.Vector Vk.DescriptorSetLayout
                         -> V.Vector Vk.PushConstantRange
                         -> IO VulkanPipeline
-createGraphicsPipeline' dev shaderPipeline@(ShaderPipeline (_ :: PipelineStages info ShaderByteCode)) renderP descriptorSetLayouts pushConstantRanges = do
+createGraphicsPipeline' dev (ShaderPipeline (ppstages :: PipelineStages info a)) renderP descriptorSetLayouts pushConstantRanges = do
 
-  shaders <- mapM (\(a,b) -> createShaderModule dev b >>= pure . (a,))
-                  (FIR.pipelineShaders shaderPipeline) :: IO [(FIR.Shader, Vk.ShaderModule)]
+  let
+      pipelineShaders :: [(FIR.Shader, Vk.ShaderModule)] -> PipelineStages info2 a -> IO [(FIR.Shader, Vk.ShaderModule)]
+      pipelineShaders acc FIR.VertexInput = pure $ reverse acc
+      pipelineShaders acc ( info FIR.:>-> ( sm@(FIR.ShaderModule _ :: FIR.ShaderModule name shader defs endState) , _) )
+        = do
+          vksm <- createShaderModule dev =<< compileFIRShader sm
+          pipelineShaders ( (knownValue @shader, vksm) : acc) info
+
+
+  shaders <- liftIO $ pipelineShaders [] ppstages
+
   let
     shaderStageInfos = map (uncurry shaderInfo) shaders :: [Vk.PipelineShaderStageCreateInfo '[]]
 

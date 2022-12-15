@@ -39,7 +39,3 @@ compileFIRShader m = do
 readShaderFile :: FilePath -> IO ShaderByteCode
 readShaderFile = fmap SBC . BS.readFile
 
--- | Must be created in the shader side
--- The destruction of the ShaderModule is handled on pipeline creation
-type GhenginShaderPipeline = FIR.ShaderPipeline ShaderByteCode
-

@@ -19,7 +19,7 @@ type VertexDefs
      , "in_normal"   ':-> Input '[ Location 1 ] (V 3 Float)
      , "out_position" ':-> Output '[ Location 0 ] (V 3 Float) 
      , "push"        ':-> PushConstant '[] (Struct '[ "model" ':-> M 4 4 Float ])
-     , "ubo"         ':-> Uniform '[ Binding 0, DescriptorSet 0 ]
+     , "ubo"         ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
                                   ( Struct '[ "view" ':-> M 4 4 Float
                                             , "proj" ':-> M 4 4 Float ] )
      , "main"        ':-> EntryPoint '[] Vertex
@@ -51,7 +51,7 @@ type FragmentDefs
       , "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
 
       -- TODO: How to (automatically) take into consideration that min max has to be bound (almost?) only once (the meshes are known statically)?
-      , "minmax"     ':-> Uniform '[ Binding 1, DescriptorSet 0 ]
+      , "minmax"     ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                                   ( Struct '[ "min" ':-> Float, "max" ':-> Float ] ) -- Careful with alighnemt
       , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment
       ]
@@ -76,15 +76,12 @@ type VertexData =
    , Slot 1 0 ':-> V 3 Float -- in normal
    ]
 
-shaderPipeline :: IO GhenginShaderPipeline
+shaderPipeline :: ShaderPipeline ()
 shaderPipeline
-  = Prelude.do
-    vSM <- compileFIRShader vertex
-    fSM <- compileFIRShader fragment
-    Prelude.pure $ ShaderPipeline
-           $    StructInput @VertexData @(Triangle List)
-           :>-> (vertex, vSM)
-           :>-> (fragment, fSM)
+  = ShaderPipeline
+     $    StructInput @VertexData @(Triangle List)
+     :>-> (vertex, ())
+     :>-> (fragment, ())
 
 
 

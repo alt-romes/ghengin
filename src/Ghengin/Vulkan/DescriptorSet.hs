@@ -1,3 +1,5 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.DescriptorSet where
@@ -7,13 +9,14 @@ import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
 
+import qualified Ghengin.Shaders.FIR as FIR
 import Ghengin.Vulkan
 
 createDescriptorSetLayout :: Renderer Vk.DescriptorSetLayout
 createDescriptorSetLayout = getDevice >>= \device -> do
   let uboBindingLayout = Vk.DescriptorSetLayoutBinding { binding = 0
                                                        , descriptorType = Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
-                                                       , descriptorCount = 1
+                                                       , descriptorCount = 1 -- if this binding was an array of multiple items this number would be larger
                                                        , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT
                                                        , immutableSamplers = []
                                                        }
@@ -90,4 +93,24 @@ writeUniformBufferDescriptorSet buf dset = do
 
   dev <- getDevice
   Vk.updateDescriptorSets dev [Vk.SomeStruct descriptorWrite] []
+
+
+
+-- :| From Shaders |:
+
+
+createDescriptorSetLayouts :: FIR.ShaderPipeline a -> Renderer (V.Vector Vk.DescriptorSetLayout)
+createDescriptorSetLayouts (FIR.ShaderPipeline ppstages) = getDevice >>= \device -> do
+  undefined
+
+  -- error $ show $ go [] ppstages
+  
+    where
+      -- go acc FIR.VertexInput = reverse acc
+      -- go acc (pipe FIR.:>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState,_)) = go (FIR.annotations @defs:acc) pipe
+
+
+
+
+  -- Vk.createDescriptorSetLayout device layoutInfo Nothing
 
