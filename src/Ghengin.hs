@@ -109,15 +109,15 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   -- BIG:TODO: Bundle descriptor sets, render passes, and pipelines into a single abstraction
   -- TODO: Use linear types here. Can I make the monad stack over a multiplicity polymorphic monad?
   let ssp = SimpleShader.shaderPipeline
-  descriptorSetLayout <- lift $ createDescriptorSetLayout
+  descriptorSetLayouts <- lift $ createDescriptorSetLayouts ssp
   simpleRenderPass   <- lift $ createSimpleRenderPass
-  pipeline           <- lift $ createGraphicsPipeline ssp simpleRenderPass._renderPass [descriptorSetLayout] [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }]
+  pipeline           <- lift $ createGraphicsPipeline ssp simpleRenderPass._renderPass descriptorSetLayouts [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }]
 
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
   imCtx <- lift $ IM.initImGui simpleRenderPass._renderPass
 
   objUBs <- lift $ mapM (const createMappedUniformBuffer) [1..MAX_FRAMES_IN_FLIGHT]
-  (dsets, dpool) <- lift $ createUniformBufferDescriptorSets [descriptorSetLayout | _ <- [1..MAX_FRAMES_IN_FLIGHT]]
+  (dsets, dpool) <- lift $ createUniformBufferDescriptorSets [l | _ <- [1..MAX_FRAMES_IN_FLIGHT], l <- descriptorSetLayouts]
 
   lift $ V.zipWithM_ writeUniformBufferDescriptorSet (fmap (.buffer) objUBs) dsets
 
@@ -161,7 +161,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
     IM.destroyImCtx imCtx
     destroyDescriptorPool dpool
     mapM_ destroyUniformBuffer objUBs
-    destroyDescriptorSetLayout descriptorSetLayout
+    mapM_ destroyDescriptorSetLayout descriptorSetLayouts
     destroyRenderPass simpleRenderPass
     destroyPipeline pipeline
 
