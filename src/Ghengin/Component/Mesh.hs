@@ -21,8 +21,6 @@ module Ghengin.Component.Mesh
   , calculateSmoothNormals
   , renderMesh
   , freeMesh
-  , vertexInputBindingDescription
-  , vertexInputAttributeDescriptions
   , chunksOf
   ) where
 
@@ -166,27 +164,27 @@ calculateSmoothNormals ixs pos =
 -- updateMeshColors :: (Vec3 -> Vec3) -> Mesh -> Mesh
 -- updateMeshColors f m = m{vertexBuffer = fmap (\(Vertex p n c) -> Vertex p n (f c)) m.vertexBuffer}
 
-vertexInputBindingDescription :: Vk.VertexInputBindingDescription
-vertexInputBindingDescription = Vk.VertexInputBindingDescription { binding = 0 -- We use only one binding for now?, its index is always 0
-                                                                 , stride  = fromIntegral $ sizeOf @Vertex undefined
-                                                                 , inputRate = Vk.VERTEX_INPUT_RATE_VERTEX -- Move to the next data entry after each vertex
-                                                                 }
+-- vertexInputBindingDescription :: Vk.VertexInputBindingDescription
+-- vertexInputBindingDescription = Vk.VertexInputBindingDescription { binding = 0 -- We use only one binding for now?, its index is always 0
+--                                                                  , stride  = fromIntegral $ sizeOf @Vertex undefined
+--                                                                  , inputRate = Vk.VERTEX_INPUT_RATE_VERTEX -- Move to the next data entry after each vertex
+--                                                                  }
 
-vertexInputAttributeDescriptions :: Vector Vk.VertexInputAttributeDescription
-vertexInputAttributeDescriptions = [ Vk.VertexInputAttributeDescription { binding = 0
-                                                                        , location = 0
-                                                                        , format = Vk.FORMAT_R32G32B32_SFLOAT
-                                                                        , offset = 0
-                                                                        }
-                                   , Vk.VertexInputAttributeDescription { binding = 0
-                                                                        , location = 1
-                                                                        , format = Vk.FORMAT_R32G32B32_SFLOAT
-                                                                        , offset = fromIntegral $ sizeOf @Vec3 undefined
-                                                                        }
-                                   , Vk.VertexInputAttributeDescription { binding = 0
-                                                                        , location = 2
-                                                                        , format = Vk.FORMAT_R32G32B32_SFLOAT
-                                                                        , offset = fromIntegral $ 2 * sizeOf @Vec3 undefined
-                                                                        }
-                                   ]
+-- vertexInputAttributeDescriptions :: Vector Vk.VertexInputAttributeDescription
+-- vertexInputAttributeDescriptions = [ Vk.VertexInputAttributeDescription { binding = 0
+--                                                                         , location = 0
+--                                                                         , format = Vk.FORMAT_R32G32B32_SFLOAT
+--                                                                         , offset = 0
+--                                                                         }
+--                                    , Vk.VertexInputAttributeDescription { binding = 0
+--                                                                         , location = 1
+--                                                                         , format = Vk.FORMAT_R32G32B32_SFLOAT
+--                                                                         , offset = fromIntegral $ sizeOf @Vec3 undefined
+--                                                                         }
+--                                    , Vk.VertexInputAttributeDescription { binding = 0
+--                                                                         , location = 2
+--                                                                         , format = Vk.FORMAT_R32G32B32_SFLOAT
+--                                                                         , offset = fromIntegral $ 2 * sizeOf @Vec3 undefined
+--                                                                         }
+--                                    ]
 

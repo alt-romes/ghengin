@@ -1,3 +1,5 @@
+{-# LANGUAGE QualifiedDo #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE BlockArguments   #-} -- cleaner syntax for 'do' blocks (optional)
 {-# LANGUAGE DataKinds        #-} -- for datatype promotion and type-level literals
@@ -5,11 +7,13 @@
 {-# LANGUAGE TypeApplications #-} -- to specify type-level arguments
 {-# LANGUAGE TypeOperators    #-} -- for type operators such as ':->, which stands for key/value assignment
 {-# LANGUAGE ViewPatterns     #-}
-module Ghengin.Shaders.SimpleShader (vertex, fragment) where
+module Ghengin.Shaders.SimpleShader (vertex, fragment, shaderPipeline) where
 
+import qualified Prelude
 import FIR
 import FIR.Syntax.Labels
 import Math.Linear -- for vectors
+import Ghengin.Shaders
 
 -------------------
 -- Vertex shader --
@@ -28,8 +32,8 @@ type VertexDefs
      , "main"       ':-> EntryPoint '[] Vertex
      ]
 
-vertex :: Module VertexDefs
-vertex = Module $ entryPoint @"main" @Vertex do
+vertex :: ShaderModule "main" VertexShader VertexDefs _
+vertex = shader do
   let dirToLight = normalise (Vec4 1 (-3) (-1) 1) :: Code (V 4 Float)
       ambient    = 0.2
   ~(Vec3 x y z) <- get @"in_position"
@@ -60,9 +64,23 @@ type FragmentDefs
       --  "in_pos"  ':-> Input      '[ Location 0                 ] (V 2 Float)   -- input  (varying) of type V 2 Float and memory location 0
       -- , "image"   ':-> Texture2D  '[ DescriptorSet 0, Binding 0 ] (RGBA8 UNorm) -- input sampled image (provided as binding 0 of descriptor set 0)
 
-fragment :: Module FragmentDefs
-fragment = Module $
-  entryPoint @"main" @Fragment do
-    ~(Vec4 r g b a) <- get @"in_col"
-    put @"out_col" (Vec4 r g b a)
+fragment :: ShaderModule "main" FragmentShader FragmentDefs _
+fragment = shader do
+  ~(Vec4 r g b a) <- get @"in_col"
+  put @"out_col" (Vec4 r g b a)
 
+
+type VertexData =
+  '[ Slot 0 0 ':-> V 3 Float -- in pos
+   , Slot 1 0 ':-> V 3 Float -- in normal
+   , Slot 2 0 ':-> V 3 Float -- in color
+   ]
+
+shaderPipeline :: IO GhenginShaderPipeline
+shaderPipeline = Prelude.do
+  vm <- compileFIRShader vertex
+  fm <- compileFIRShader fragment
+  Prelude.pure $ ShaderPipeline
+         $    StructInput @VertexData @(Triangle List)
+         :>-> (vertex, vm)
+         :>-> (fragment, fm)

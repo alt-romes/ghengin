@@ -1,9 +1,20 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Shaders where
+module Ghengin.Shaders
+  ( module Ghengin.Shaders
+  , FIR.Module
+  , FIR.ShaderPipeline
+  , FIR.pipelineStages
+  , FIR.CompilableProgram
+  ) where
 
 import qualified Data.ByteString.Lazy as BS
 
 import qualified FIR
+import qualified Vulkan as Vk
+-- import qualified FIR.Definition as FIR
 
 newtype ShaderByteCode = SBC BS.ByteString
 
@@ -27,3 +38,8 @@ compileFIRShader m = do
 -- datatype which can then be used, e.g., by 'createPipeline'
 readShaderFile :: FilePath -> IO ShaderByteCode
 readShaderFile = fmap SBC . BS.readFile
+
+-- | Must be created in the shader side
+-- The destruction of the ShaderModule is handled on pipeline creation
+type GhenginShaderPipeline = FIR.ShaderPipeline ShaderByteCode
+

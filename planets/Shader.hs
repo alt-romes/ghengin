@@ -1,3 +1,4 @@
+{-# LANGUAGE QualifiedDo      #-}
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE BlockArguments        #-}
 {-# LANGUAGE DataKinds             #-}
@@ -7,7 +8,9 @@
 {-# LANGUAGE TypeOperators         #-}
 module Shader where
 
+import qualified Prelude
 import Ghengin.Shaders.FIR
+import Ghengin.Shaders
 
 ---- Vertex -----
 
@@ -23,21 +26,21 @@ type VertexDefs
      ]
 
 
-vertex :: Module VertexDefs
-vertex = Module $ entryPoint @"main" @Vertex do
-  let dirToLight = normalise (Vec4 1 (-3) (-1) 1) :: Code (V 4 Float)
-      ambient    = 0.2
-  ~(Vec3 x y z)    <- get @"in_position"
-  ~(Vec3 nx ny nz) <- get @"in_normal"
-  modelM <- use @(Name "push" :.: Name "model")
-  viewM  <- use @(Name "ubo" :.: Name "view")
-  projM  <- use @(Name "ubo" :.: Name "proj")
+vertex :: ShaderModule "main" VertexShader VertexDefs _
+vertex = shader do
+    let dirToLight = normalise (Vec4 1 (-3) (-1) 1) :: Code (V 4 Float)
+        ambient    = 0.2
+    ~(Vec3 x y z)    <- get @"in_position"
+    ~(Vec3 nx ny nz) <- get @"in_normal"
+    modelM <- use @(Name "push" :.: Name "model")
+    viewM  <- use @(Name "ubo" :.: Name "view")
+    projM  <- use @(Name "ubo" :.: Name "proj")
 
-  let normalInWorldSpace = normalise (modelM !*^ (Vec4 nx ny nz 0)) -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
-      lightItensity      = ambient + max (dot dirToLight normalInWorldSpace) 0 -- light intensity given by cosine of direction to light and the normal in world space
+    let normalInWorldSpace = normalise (modelM !*^ (Vec4 nx ny nz 0)) -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
+        lightItensity      = ambient + max (dot dirToLight normalInWorldSpace) 0 -- light intensity given by cosine of direction to light and the normal in world space
 
-  put @"out_position" (Vec3 x y z)
-  put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ (Vec4 x y z 1))
+    put @"out_position" (Vec3 x y z)
+    put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ (Vec4 x y z 1))
 
 
 ---- Fragment -----
@@ -54,10 +57,8 @@ type FragmentDefs
       ]
 
 
-fragment :: Module FragmentDefs
-fragment = Module $
-
-  entryPoint @"main" @Fragment do
+fragment :: ShaderModule "main" FragmentShader FragmentDefs _
+fragment = shader do
 
     pos <- get @"in_position"
 
@@ -67,6 +68,24 @@ fragment = Module $
     let col = invLerp (norm pos) min max 
 
     put @"out_col" (Vec4 col col col 1)
+
+--- Pipeline ----
+
+type VertexData =
+  '[ Slot 0 0 ':-> V 3 Float -- in pos
+   , Slot 1 0 ':-> V 3 Float -- in normal
+   ]
+
+shaderPipeline :: IO GhenginShaderPipeline
+shaderPipeline
+  = Prelude.do
+    vSM <- compileFIRShader vertex
+    fSM <- compileFIRShader fragment
+    Prelude.pure $ ShaderPipeline
+           $    StructInput @VertexData @(Triangle List)
+           :>-> (vertex, vSM)
+           :>-> (fragment, fSM)
+
 
 
 invLerp :: DivisionRing a => a -> a -> a -> a

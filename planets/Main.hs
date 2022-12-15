@@ -18,6 +18,7 @@ import Ghengin.Component.UI
 import Ghengin.Utils
 import Ghengin.Vulkan
 
+import qualified Shader
 import Planet
 
 data World = World { meshes     :: !(Storage Mesh)
@@ -37,9 +38,10 @@ initG = do
   ps <- liftIO $ makeSettings @PlanetSettings
   newEntity ( UIWindow "Planet" (makeComponents ps) )
 
-  s <- lift $ newPlanet ps
+  planetMesh <- lift $ newPlanet ps
+  -- planetRenderPacket <- lift $ newRenderPacket planetMesh Shader.vertex Shader.fragment -- also take a type that instances material (that passes the parameters for this shader?)
 
-  newEntity ( s, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
+  newEntity ( planetMesh, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
   newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
             , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0) )
 
