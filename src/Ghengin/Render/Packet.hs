@@ -1,9 +1,17 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances #-} -- instance Has w m RenderPacket
 module Ghengin.Render.Packet where
+ 
+import GHC.Records
 
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.IntMap (IntMap)
@@ -12,6 +20,7 @@ import Foreign.Storable
 
 import Geomancy.Mat4
 import qualified Vulkan as Vk
+import Apecs
 
 import Ghengin.Component.Mesh
 import Ghengin.Shaders
@@ -27,6 +36,16 @@ data RenderPacket = RenderPacket { _renderPipeline :: RenderPipeline
                                  , _renderMesh     :: Mesh
                                  , _renderMaterial :: Material
                                  }
+
+instance Component RenderPacket where
+  type Storage RenderPacket = Map RenderPacket
+
+-- TODO: Instructions on having a World record with "meshes"
+
+instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m RenderPacket where
+  getStore = SystemT (asks (.renderPackets))
+
+
 
 -- | A render pipeline consists of the descriptor sets and a graphics pipeline
 -- required to render certain 'RenderPacket's
@@ -64,14 +83,14 @@ makeRenderPipeline shaderPipeline = do
   dsetsSet@(dsets:|_) <- mapM (const (createDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
   pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (fmap (._descriptorSetLayout) (fst dsets)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }]
 
-  pure $ RenderPipeline pipeline simpleRenderPass dsetsSet
+  pure $ RenderPipeline pipeline simpleRenderPass dsetsSet shaderPipeline
 
 
-makeRenderPacket :: RenderPipeline
+newRenderPacket :: RenderPipeline
                  -> Mesh     -- TODO: Must be compatible with input type of RenderPipeline
                  -> Material -- TODO: Must be compatible with input type of RenderPipeline
                  -> Renderer RenderPacket
-makeRenderPacket rp@(RenderPipeline pipeline renderPass descriptorSetsSet) mesh material = do
+newRenderPacket rp@(RenderPipeline pipeline renderPass descriptorSetsSet _) mesh material = do
 
 
   pure $ RenderPacket rp mesh material

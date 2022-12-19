@@ -124,14 +124,14 @@ library
     hs-source-dirs:   src
 
     -- Base language which the package is written in.
-    default-language: Haskell2010
+    default-language: GHC2021
 
 test-suite ghengin-test
     -- Import common warning flags.
     import:           warnings
 
     -- Base language which the package is written in.
-    default-language: Haskell2010
+    default-language: GHC2021
 
     -- Modules included in this executable, other than Main.
     -- other-modules:    Main.Apecs
@@ -166,7 +166,7 @@ executable planets
     -- Other library packages from which modules are imported.
     build-depends:
         base ^>=4.17.0.0,
-        ghengin, mtl, vector, hsnoise
+        ghengin, mtl, vector, hsnoise, containers
 
     -- ghc-options: -ddump-simpl
                  -- -ddump-to-file
@@ -184,4 +184,4 @@ executable planets
     hs-source-dirs:   planets
 
     -- Base language which the package is written in.
-    default-language: Haskell2010
+    default-language: GHC2021

@@ -20,6 +20,7 @@ module Ghengin
   ) where
 
 import GHC.Records
+import Unsafe.Coerce
 
 import Foreign.Storable
 import Foreign.Ptr
@@ -31,7 +32,9 @@ import Data.IORef
 
 import Data.Time.Clock
 import Data.Vector (Vector)
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
+import qualified Data.IntMap as IM
 import qualified Vulkan as Vk
 import Apecs
 import Geomancy.Vec3
@@ -44,6 +47,7 @@ import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
+import Ghengin.Render.Packet
 
 import Ghengin.Shaders
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
@@ -85,7 +89,7 @@ instance Storable UniformBufferObject where
     poke p vi
     pokeElemOff p 1 pr
 
-type WorldConstraints w = (HasField "meshes" w (Storage Mesh), HasField "transforms" w (Storage Transform), HasField "cameras" w (Storage Camera), HasField "uiwindows" w (Storage UIWindow))
+type WorldConstraints w = (HasField "renderPackets" w (Storage RenderPacket), HasField "transforms" w (Storage Transform), HasField "cameras" w (Storage Camera), HasField "uiwindows" w (Storage UIWindow))
 ghengin :: WorldConstraints w
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
@@ -109,7 +113,9 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   -- TODO: Use linear types. Can I make the monad stack over a multiplicity polymorphic monad?
 
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
-  imCtx <- lift $ IM.initImGui simpleRenderPass._renderPass
+  -- TODO: Don't hardcode the renderpass from the first renderpacket...
+  renderPackets <- cfold (\acc (renderPacket :: RenderPacket) -> (renderPacket:acc)) []
+  imCtx <- lift $ IM.initImGui (head renderPackets)._renderPipeline._renderPass._renderPass
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
@@ -141,7 +147,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime) bs
 
     -- Render frame
-    drawFrame pipeline simpleRenderPass objUBs dsets
+    drawFrame
 
     pure b
 
@@ -149,11 +155,12 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
   lift $ do
     IM.destroyImCtx imCtx
-    destroyDescriptorPool dpool
-    mapM_ destroyUniformBuffer objUBs
-    mapM_ destroyDescriptorSetLayout descriptorSetLayouts
-    destroyRenderPass simpleRenderPass
-    destroyPipeline pipeline
+    -- BIG:TODO: Destroy allocated 'RenderPipeline's
+    -- destroyDescriptorPool dpool
+    -- mapM_ destroyUniformBuffer objUBs
+    -- mapM_ destroyDescriptorSetLayout descriptorSetLayouts
+    -- destroyRenderPass simpleRenderPass
+    -- destroyPipeline pipeline
 
   _ <- finalize
 
@@ -182,12 +189,12 @@ drawUI = do
 -- TODO: Eventually move drawFrame to a better contained renderer part
 
 drawFrame :: WorldConstraints w
-          => VulkanPipeline
-          -> VulkanRenderPass
-          -> Vector (UniformBuffer UniformBufferObject)
-          -> Vector Vk.DescriptorSet
-          -> Ghengin w ()
-drawFrame pipeline rpass objUBs dsets = do
+          -- => VulkanPipeline
+          -- -> VulkanRenderPass
+          -- -> Vector (UniformBuffer UniformBufferObject)
+          -- -> Vector Vk.DescriptorSet
+          => Ghengin w ()
+drawFrame = do
 
   extent <- lift getRenderExtent
   let
@@ -208,7 +215,7 @@ drawFrame pipeline rpass objUBs dsets = do
 
   -- TODO: Is cfold as efficient as cmap?
 
-  -- Get main camera
+  -- Get main camera, we currently can't do anything without it
   cfold (\acc (cam :: Camera, tr :: Maybe Transform) -> (cam, fromMaybe noTransform tr):acc) [] >>= \case
     [] -> liftIO $ fail "No camera"
     (Camera proj view, camTr):_ -> do
@@ -216,8 +223,12 @@ drawFrame pipeline rpass objUBs dsets = do
       projM <- lift $ makeProjection proj
       let viewM = makeView camTr view
 
+      -- BIG:TODO: Iterate over known graphics pipelines rather than switching it for every different mesh...
+
       -- Get each object mesh render cmd
-      meshRenderCmds <- cfold (\acc (mesh :: Mesh, tr :: Maybe Transform) -> (renderMesh mesh, fromMaybe noTransform tr):acc) []
+      renderPackets <- cfold (\acc (renderPacket :: RenderPacket, tr :: Maybe Transform) -> (renderPacket, fromMaybe noTransform tr):acc) []
+      let wrongSharedPipeline = (fst $ head renderPackets)._renderPipeline
+          (wspp, wsrp, wsds) = (wrongSharedPipeline._graphicsPipeline, wrongSharedPipeline._renderPass, fmap fst $ wrongSharedPipeline._descriptorSetsSet)
 
       lift $ withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
@@ -227,21 +238,24 @@ drawFrame pipeline rpass objUBs dsets = do
         -- TODO: Should be specific to each pipeline. E.g. if I have a color
         -- attribute that should be displayed that should be described in the
         -- pipeline constructor
-        writeUniformBuffer (objUBs V.! currentFrame) (UBO viewM projM)
+        -- TODO: Should be done in separate stages: descriptor sets with different indexes get bound a different number of times...
+        writeMappedBuffer (case fst $ ((wsds NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
 
         recordCommand cmdBuffer $ do
 
-          renderPass rpass._renderPass (rpass._framebuffers V.! currentImage) extent $ do
+          renderPass wsrp._renderPass (wsrp._framebuffers V.! currentImage) extent $ do
 
-            bindGraphicsPipeline (pipeline._pipeline)
+            bindGraphicsPipeline (wspp._pipeline)
             setViewport viewport
             setScissor  scissor
 
-            forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
+            -- TODO: Render all meshes that share the same descriptor sets and graphics pipeline...
+            -- forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
 
-              bindGraphicsDescriptorSets pipeline._pipelineLayout [dsets V.! currentFrame]
-              pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform)
-              meshRenderCmd
+            bindGraphicsDescriptorSets wspp._pipelineLayout (fmap (._descriptorSet) $ wsds NE.!! currentFrame)
+            -- pushConstants wspp._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform)
+            pushConstants wspp._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform (snd $ head renderPackets))
+            renderMesh (fst $ head renderPackets)._renderMesh
 
             -- Draw UI
             IM.renderDrawData =<< IM.getDrawData

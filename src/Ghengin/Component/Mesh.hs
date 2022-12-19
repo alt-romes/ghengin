@@ -104,14 +104,6 @@ data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a v
 
       -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
 
-instance Component Mesh where
-  type Storage Mesh = Map Mesh
-
--- TODO: Instructions on having a World record with "meshes"
-
-instance (Monad m, HasField "meshes" w (Storage Mesh)) => Has w m Mesh where
-  getStore = SystemT (asks (.meshes))
-
 
 -- Render a mesh command
 renderMesh :: Mesh -> RenderPassCmd

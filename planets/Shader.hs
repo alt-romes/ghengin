@@ -12,6 +12,9 @@ import qualified Data.IntMap as IM
 import qualified Prelude
 import Ghengin.Shaders.FIR
 import Ghengin.Shaders
+import Ghengin.Component.Mesh (VertexN)
+import Ghengin.Utils (SomeStorable(..))
+import Ghengin (Mat4)
 
 ---- Vertex -----
 
@@ -77,12 +80,12 @@ type VertexData =
    , Slot 1 0 ':-> V 3 Float -- in normal
    ]
 
-shaderPipeline :: GhenginShaderPipeline
+shaderPipeline :: GShaderPipeline
 shaderPipeline
   = ShaderPipeline
      $    StructInput @VertexData @(Triangle List)
-     :>-> (vertex, IM.singleton 1 (IM.singleton 0 (SomeStorable @(VertexV3 2))))
-     :>-> (fragment, ())
+     :>-> (vertex, IM.singleton 1 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2))))
+     :>-> (fragment, IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Float 2))))
 
 
 
