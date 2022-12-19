@@ -99,7 +99,8 @@ data MappedBuffer a = UniformBuffer { buffer :: Vk.Buffer
                                     }
 
 
-data SomeMappedBuffer = forall a. Storable a => SomeMappedBuffer (MappedBuffer a)
+data SomeMappedBuffer where
+  SomeMappedBuffer :: ∀ a. Storable a => MappedBuffer a -> SomeMappedBuffer
 
 -- data Buffer where
 --   -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
@@ -126,7 +127,7 @@ data SomeMappedBuffer = forall a. Storable a => SomeMappedBuffer (MappedBuffer a
 -- for that.
 --
 -- The size is given by the type of the storable to store in the uniform buffer.
-createMappedBuffer :: forall a. Storable a => Vk.DescriptorType -> Renderer (MappedBuffer a)
+createMappedBuffer :: ∀ a. Storable a => Vk.DescriptorType -> Renderer (MappedBuffer a)
 createMappedBuffer descriptorType = do
   device <- getDevice
 

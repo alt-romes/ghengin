@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
@@ -22,7 +23,8 @@ import Data.Proxy
 
 import Data.Bits
 
-data SomeStorable = forall a. Storable a => SomeStorable
+data SomeStorable where
+  SomeStorable :: ∀ a. Storable a => SomeStorable
 
 (.&&.) :: Bits a => a -> a -> Bool
 x .&&. y = (/= zeroBits) (x .&. y)
@@ -30,7 +32,7 @@ x .&&. y = (/= zeroBits) (x .&. y)
 -- | Returns the first element in a foldable structure for that the
 -- monadic predicate holds true, and @Nothing@ if no such element
 -- exists.
-findM :: forall m t a. (Monad m, Foldable t)
+findM :: ∀ m t a. (Monad m, Foldable t)
       => (a -> m Bool) -> t a -> m (Maybe a)
 findM p = foldr go (pure Nothing)
   where

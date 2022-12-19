@@ -378,7 +378,7 @@ makeAssemblyInfo primTop =
     }
 
 assemblyAndVertexInputStateInfo
-  :: forall
+  :: ∀
       ( info    :: PipelineInfo               )
       ( top     :: PrimitiveTopology Nat      )
       ( descs   :: VertexLocationDescriptions )

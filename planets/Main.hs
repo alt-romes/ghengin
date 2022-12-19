@@ -50,7 +50,6 @@ initG = do
 
   pure ps
 
-
 updateG :: PlanetSettings -> DeltaTime -> [Bool] -> Ghengin World Bool
 updateG ps dt uichanges = do
 

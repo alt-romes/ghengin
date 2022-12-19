@@ -50,7 +50,6 @@ import Ghengin.Vulkan
 import Ghengin.Render.Packet
 
 import Ghengin.Shaders
-import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 
 import qualified Ghengin.DearImGui as IM
 
@@ -113,7 +112,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   -- TODO: Use linear types. Can I make the monad stack over a multiplicity polymorphic monad?
 
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
-  -- TODO: Don't hardcode the renderpass from the first renderpacket...
+  -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
   renderPackets <- cfold (\acc (renderPacket :: RenderPacket) -> (renderPacket:acc)) []
   imCtx <- lift $ IM.initImGui (head renderPackets)._renderPipeline._renderPass._renderPass
 
@@ -172,12 +171,6 @@ drawUI = do
     IM.glfwNewFrame
     IM.newFrame
 
-    -- IM.showDemoWindow
-
-    -- IM.begin "Planet\0"
-    -- IM.text "A planet is a sphere with layers of noise\0"
-    -- IM.end
-
     bs <- cfoldM (\acc (uiw :: UIWindow) -> do
       bs <- lift $ IM.pushWindow uiw
       pure (bs:acc)) []
@@ -189,10 +182,6 @@ drawUI = do
 -- TODO: Eventually move drawFrame to a better contained renderer part
 
 drawFrame :: WorldConstraints w
-          -- => VulkanPipeline
-          -- -> VulkanRenderPass
-          -- -> Vector (UniformBuffer UniformBufferObject)
-          -- -> Vector Vk.DescriptorSet
           => Ghengin w ()
 drawFrame = do
 

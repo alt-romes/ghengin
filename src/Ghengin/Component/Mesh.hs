@@ -28,7 +28,6 @@ module Ghengin.Component.Mesh
   ) where
 
 -- import GHC.IsList
-import GHC.Records
 import Data.List.Split (chunksOf)
 import Data.List (sort, foldl')
 

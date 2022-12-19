@@ -13,17 +13,8 @@ module Ghengin.DearImGui
 
 -- #define IMGUI_DEBUG
 
-import Debug.Trace
-
-import Data.Text (pack)
-import Data.List.NonEmpty (NonEmpty(..))
 import Foreign
-import Data.IORef
-import Data.StateVar
 import Control.Monad.Reader
-import Geomancy.Vec3
-
-import Unsafe.Coerce
 
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk

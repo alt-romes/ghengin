@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedLabels #-}
@@ -11,9 +12,8 @@ module Ghengin.Shaders.SimpleShader (vertex, fragment, shaderPipeline) where
 
 import Geomancy.Mat4 (Mat4)
 import qualified Data.IntMap as IM
-import qualified Prelude
 import FIR
-import FIR.Syntax.Labels
+-- import FIR.Syntax.Labels
 import Math.Linear -- for vectors
 import Ghengin.Shaders
 import Ghengin.Component.Mesh (VertexN)

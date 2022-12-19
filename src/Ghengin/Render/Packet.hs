@@ -87,9 +87,9 @@ makeRenderPipeline shaderPipeline = do
 
 
 newRenderPacket :: RenderPipeline
-                 -> Mesh     -- TODO: Must be compatible with input type of RenderPipeline
-                 -> Material -- TODO: Must be compatible with input type of RenderPipeline
-                 -> Renderer RenderPacket
+                -> Mesh     -- TODO: Must be compatible with input type of RenderPipeline
+                -> Material -- TODO: Must be compatible with input type of RenderPipeline
+                -> Renderer RenderPacket
 newRenderPacket rp@(RenderPipeline pipeline renderPass descriptorSetsSet _) mesh material = do
 
 

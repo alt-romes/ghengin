@@ -172,7 +172,7 @@ copyFullBuffer src dst size = Command $ ask >>= \buf -> do
   Vk.cmdCopyBuffer buf src dst [Vk.BufferCopy 0 0 size]
 {-# INLINE copyFullBuffer #-}
 
-pushConstants :: forall a. Storable a => Vk.PipelineLayout -> Vk.ShaderStageFlags -> a -> RenderPassCmd
+pushConstants :: ∀ a. Storable a => Vk.PipelineLayout -> Vk.ShaderStageFlags -> a -> RenderPassCmd
 pushConstants pipelineLayout stageFlags values =
   RenderPassCmd $ ask >>= \buf ->
     liftIO $ alloca @a $ \ptr -> do

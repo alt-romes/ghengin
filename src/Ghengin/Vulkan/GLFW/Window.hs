@@ -71,7 +71,7 @@ destroySurface i s = Vk.destroySurfaceKHR i s Nothing
 
 -- -- | Run an IO action many many times until the window is closed by a normal
 -- -- window-closing event.
-loopUntilClosedOr :: forall m. MonadIO m => GLFW.Window -> m Bool -> m ()
+loopUntilClosedOr :: ∀ m. MonadIO m => GLFW.Window -> m Bool -> m ()
 loopUntilClosedOr = loopUntilClosedOr' False
   where
   loopUntilClosedOr' :: MonadIO m => Bool -> GLFW.Window -> m Bool -> m ()

@@ -20,10 +20,6 @@ import qualified Data.Set as S
 import qualified Vulkan.CStruct.Extends as VkC
 import qualified Vulkan as Vk
 
-import Ghengin.Vulkan.Device.Instance
-import Ghengin.Vulkan.GLFW.Window
-import Ghengin.Utils
-
 -- We create a logical device always with a graphics queue and a present queue
 
 type GraphicsQueueFamily = Word32
