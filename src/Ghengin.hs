@@ -214,6 +214,32 @@ drawFrame = do
 
       -- BIG:TODO: Iterate over known graphics pipelines rather than switching it for every different mesh...
 
+      {-
+         Here's a rundown of the draw function:
+
+         ∀ pipeline ∈ registeredPipelines do
+            bind global descriptor set at set #0
+
+            ∀ material ∈ pipeline.registeredMaterials do
+              bind material descriptor set at set #1
+
+              ∀ object that uses material do
+                
+                bind object descriptor set at set #2
+                bind object model (vertex buffer)
+                draw object
+
+          This makes the descriptor set #0 bound once per pipeline
+                     the descriptor set #1 bound once per material
+                     the descriptor set #2 bound once per object
+
+          The data bound globally for the pipeline must be compatible with the descriptor set #0 layout
+          All materials bound in a certain pipeline must be compatible with the descriptor set #1 layout
+          All object data bound in a certain pipeline must be compatible with descriptor set #2 layout
+          All object's vertex buffers bound in a certain pipeline must be compatible with the vertex input of that pipeline
+
+       -}
+
       -- Get each object mesh render cmd
       renderPackets <- cfold (\acc (renderPacket :: RenderPacket, tr :: Maybe Transform) -> (renderPacket, fromMaybe noTransform tr):acc) []
       let wrongSharedPipeline = (fst $ head renderPackets)._renderPipeline

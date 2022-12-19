@@ -59,6 +59,7 @@ data Vertex = Vertex { position :: {-# UNPACK #-} !Vec3
 -- | A Vertex with 'n' times 'a's
 -- TODO: Move to Ghengin.Component.Mesh.Vertex
 newtype VertexN a (n :: Nat) = VertexN (SV.Vector a)
+-- TODO: Possibly make 'n' be the amount of floats.
 
 -- instance IsList (VertexN a n) where
 
