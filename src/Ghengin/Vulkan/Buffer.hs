@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -16,7 +17,6 @@ import Foreign.Marshal.Utils
 import Data.Bits
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
-import qualified Vulkan.CStruct.Extends as Vk
 
 import qualified Ghengin.Vulkan.Command as Cmd
 import Ghengin.Vulkan.Device
@@ -93,10 +93,21 @@ createIndex32Buffer :: SV.Vector Int32 -> Renderer (Vk.Buffer, Vk.DeviceMemory)
 createIndex32Buffer = createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT
 
 -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
-data UniformBuffer a = UniformBuffer { buffer :: Vk.Buffer
-                                     , devMem :: Vk.DeviceMemory
-                                     , hostMem :: Ptr a
-                                     }
+data MappedBuffer a = UniformBuffer { buffer :: Vk.Buffer
+                                    , devMem :: Vk.DeviceMemory
+                                    , hostMem :: Ptr a
+                                    }
+
+
+data SomeMappedBuffer = forall a. SomeMappedBuffer (MappedBuffer a)
+
+-- data Buffer where
+--   -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
+--   UniformBuffer { buffer :: Vk.Buffer
+--                 , devMem :: Vk.DeviceMemory
+--                 , hostMem :: Storable a => Ptr a
+--                 } :: Buffer
+
 -- UniformBuffer:
 --
 -- You can then copy data to the mapped memory using 'copyBytes'
@@ -115,29 +126,32 @@ data UniformBuffer a = UniformBuffer { buffer :: Vk.Buffer
 -- for that.
 --
 -- The size is given by the type of the storable to store in the uniform buffer.
-createMappedUniformBuffer :: forall a. Storable a => Renderer (UniformBuffer a)
-createMappedUniformBuffer = do
+createMappedBuffer :: forall a. Storable a => Vk.DescriptorType -> Renderer (MappedBuffer a)
+createMappedBuffer descriptorType = do
   device <- getDevice
 
-  let bsize = fromIntegral $ sizeOf @a undefined
+  case descriptorType of
+    Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -> do
 
-  -- ptr <- mallocBytes (fromIntegral bsize)
-  (buf, devMem) <- createBuffer bsize Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
+      let bsize = fromIntegral $ sizeOf @a undefined
 
-  data' <- Vk.mapMemory device devMem 0 bsize zero
+      (buf, devMem) <- createBuffer bsize Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
-  pure $ UniformBuffer buf devMem (castPtr data')
+      data' <- Vk.mapMemory device devMem 0 bsize zero
 
-destroyUniformBuffer :: UniformBuffer a -> Renderer ()
-destroyUniformBuffer (UniformBuffer b dm _hostMemory) = do
-  -- Is hostMemory freed with unmap? Or with destroyMemory? Or?
+      pure $ UniformBuffer buf devMem (castPtr data')
+
+    t -> error $ "Unexpected/unsupported storage class for descriptor: " <> show t
+
+destroyMappedBuffer :: MappedBuffer a -> Renderer ()
+destroyMappedBuffer (UniformBuffer b dm _hostMemory) = do
+  -- TODO: Is hostMemory freed with unmap? Or with destroyMemory? Or?
   device <- getDevice
   Vk.unmapMemory device dm
   destroyBuffer b dm
 
-
 -- | Note how the storable must be the same as the storable of the uniform buffer so that the sizes match
-writeUniformBuffer :: Storable a => UniformBuffer a -> a -> Renderer ()
-writeUniformBuffer (UniformBuffer _ _ ptr) x = liftIO $ poke ptr x
+writeMappedBuffer :: Storable a => MappedBuffer a -> a -> Renderer ()
+writeMappedBuffer (UniformBuffer _ _ ptr) x = liftIO $ poke ptr x
 
 

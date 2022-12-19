@@ -21,10 +21,10 @@ import Ghengin.Vulkan
 import qualified Shader
 import Planet
 
-data World = World { meshes     :: !(Storage Mesh)
-                   , transforms :: !(Storage Transform)
-                   , cameras :: !(Storage Camera)
-                   , uiwindows :: !(Storage UIWindow)
+data World = World { meshes        :: !(Storage Mesh)
+                   , transforms    :: !(Storage Transform)
+                   , cameras       :: !(Storage Camera)
+                   , uiwindows     :: !(Storage UIWindow)
                    , entityCounter :: !(Storage EntityCounter)
                    }
 
@@ -39,9 +39,9 @@ initG = do
   newEntity ( UIWindow "Planet" (makeComponents ps) )
 
   planetMesh <- lift $ newPlanet ps
-  -- planetRenderPacket <- lift $ newRenderPacket planetMesh Shader.vertex Shader.fragment -- also take a type that instances material (that passes the parameters for this shader?)
+  planetRenderPacket <- lift $ newRenderPacket planetMesh Shader.shaderPipeline -- also take a type that instances material (that passes the parameters for this shader?)
 
-  newEntity ( planetMesh, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
+  newEntity ( planetRenderPacket, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
   newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
             , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0) )
 

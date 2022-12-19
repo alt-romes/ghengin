@@ -5,14 +5,19 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.DescriptorSet where
 
+import Data.Maybe
+import Data.List.NonEmpty (NonEmpty((:|)))
+import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad
 import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
+import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
@@ -23,83 +28,49 @@ import qualified Ghengin.Shaders.FIR as FIR
 import qualified FIR.Internals as FIR
 import qualified SPIRV
 import qualified SPIRV.Storage
+import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan
 import Ghengin.Shaders
 
--- | Create N descriptor sets from a uniform buffer descriptor pool using each
--- respective descriptor set layout
---
--- Only the pool needs to be destroyed
---
--- TODO: Linear types...
-createUniformBufferDescriptorSets :: V.Vector Vk.DescriptorSetLayout -- ^ The descriptor set layouts to use. This is used to calculate the amount of descriptor sets to allocate
-                                  -> Renderer (V.Vector Vk.DescriptorSet, Vk.DescriptorPool)
-createUniformBufferDescriptorSets layouts = do
-  let
-      amount = fromIntegral $ length layouts
-      poolSize = Vk.DescriptorPoolSize { descriptorCount = amount
-                                       , type' = Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
-                                       }
-
-      poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = [poolSize]
-                                             , maxSets = amount
-                                             , flags = Vk.zero
-                                             , next = ()
-                                             }
-
-  device <- getDevice
-  descriptorPool <- Vk.createDescriptorPool device poolInfo Nothing
-
-  let
-      allocInfo = Vk.DescriptorSetAllocateInfo { descriptorPool = descriptorPool
-                                               , setLayouts = layouts
-                                               , next = ()
-                                               }
-
-  descriptorSets <- Vk.allocateDescriptorSets device allocInfo
-  pure (descriptorSets, descriptorPool)
-  
-
-destroyDescriptorPool :: Vk.DescriptorPool -> Renderer ()
-destroyDescriptorPool p = getDevice >>= \dev -> Vk.destroyDescriptorPool dev p Nothing
-
--- | Write a descriptor set with a single uniform buffer bound on the 0 binding.
-writeUniformBufferDescriptorSet :: Vk.Buffer -- ^ The uniform buffer
-                                -> Vk.DescriptorSet -- ^ The descriptor set to write
-                                -> Renderer ()
-writeUniformBufferDescriptorSet buf dset = do
-
-  let
-      bufferInfo = Vk.DescriptorBufferInfo { buffer = buf
-                                           , offset = 0
-                                           , range  = Vk.WHOLE_SIZE -- the whole buffer
-                                           }
-
-      descriptorWrite = Vk.WriteDescriptorSet { next = ()
-                                              , dstSet = dset
-                                              , dstBinding = 0
-                                              , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
-                                              , descriptorType = Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
-                                              , descriptorCount = 1 -- Only one descriptor in this descriptor set (the buffer)
-                                              , bufferInfo = [bufferInfo]
-                                              , imageInfo = []
-                                              , texelBufferView = []
-                                              }
-
-  dev <- getDevice
-  Vk.updateDescriptorSets dev [Vk.SomeStruct descriptorWrite] []
-
-
+data DescriptorSet = DescriptorSet { _ix :: Int
+                                   , _descriptorSet :: Vk.DescriptorSet
+                                   , _descriptorSetLayout :: Vk.DescriptorSetLayout
+                                   , _bindings :: [(Int, SomeMappedBuffer, Vk.DescriptorType)]
+                                   }
 
 -- :| From Shaders |:
 
 
-createDescriptorSetLayouts :: FIR.ShaderPipeline a
-                           -> Renderer (V.Vector Vk.DescriptorSetLayout)
-createDescriptorSetLayouts (FIR.ShaderPipeline ppstages) =
+-- | Create all required descriptor sets for a shader pipeline.
+--
+-- This will create the descriptor set layouts, the pool from where the
+-- descriptor sets will be allocated, the actual descriptor sets, the buffers
+-- and mapped memory, and will update the descriptor sets with the buffers
+-- information
+createDescriptorSets :: FIR.ShaderPipeline a
+                     -> Renderer (Vector DescriptorSet, Vk.DescriptorPool)
+createDescriptorSets (FIR.ShaderPipeline ppstages) = do
 
-  V.fromList <$>
-    mapM createDescriptorSetLayout (IM.toList $ makeDescriptorSetMap (go [] ppstages))
+  let descriptorSetMap = makeDescriptorSetMap (go [] ppstages)
+
+  layoutsAndBuffers :: [(Int, [(Int,(Vk.DescriptorType,Vk.ShaderStageFlags))], Vk.DescriptorSetLayout, [SomeMappedBuffer])]
+      <- forM (IM.toAscList descriptorSetMap) $ \(setNumber, (IM.toAscList -> bindingsList)) -> do
+          layout <- createDescriptorSetLayout bindingsList
+          -- TODO; Currently this only creates uniform buffers but later it should also create storage buffers, etc
+          buffers <- mapM (fmap SomeMappedBuffer . createMappedBuffer . fst . snd) bindingsList
+          pure (setNumber,bindingsList,layout,buffers)
+
+  (dsets, dpool) <- allocateDescriptorSets (map (\(_,bs,l,_) -> (l,map (fst . snd) bs)) layoutsAndBuffers)
+
+  -- Depends on the order of the layouts and the dsets matching, which they do
+  configuredDescriptorSets :: Vector DescriptorSet
+    <- V.zipWithM (\(dsetIx, bindingsList, dslayout, buffers) dset -> do
+                       let finalBindings = zipWith (\(ix,(dt,_ssf)) b -> (ix,b,dt)) bindingsList buffers
+                       updateBufferDescriptorSet dset finalBindings
+                       pure (DescriptorSet dsetIx dset dslayout finalBindings)
+                  ) (V.fromList layoutsAndBuffers) dsets
+
+  pure (configuredDescriptorSets, dpool)
   
     where
       go :: [(FIR.Shader, (SPIRV.PointerTy,SPIRV.Decorations))] -> FIR.PipelineStages info a -> [(FIR.Shader, (SPIRV.PointerTy,SPIRV.Decorations))]
@@ -120,12 +91,10 @@ createDescriptorSetLayouts (FIR.ShaderPipeline ppstages) =
               Nothing -> error "Can't have descriptor set without binding ix"
             Nothing -> acc
           ) mempty
-        where
-          mergeSameDS :: IM.IntMap (Vk.DescriptorType, Vk.ShaderStageFlags) -> IM.IntMap (Vk.DescriptorType, Vk.ShaderStageFlags) -> IM.IntMap (Vk.DescriptorType, Vk.ShaderStageFlags)
-          mergeSameDS = IM.mergeWithKey (\_ (dt,sf) (dt',sf') -> if dt == dt' then Just (dt, sf .|. sf') else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id
 
+      mergeSameDS :: IM.IntMap (Vk.DescriptorType, Vk.ShaderStageFlags) -> IM.IntMap (Vk.DescriptorType, Vk.ShaderStageFlags) -> IM.IntMap (Vk.DescriptorType, Vk.ShaderStageFlags)
+      mergeSameDS = IM.mergeWithKey (\_ (dt,sf) (dt',sf') -> if dt == dt' then Just (dt, sf .|. sf') else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id
 
-  -- Vk.createDescriptorSetLayout device layoutInfo Nothing
 
 descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType
 descriptorType = \case
@@ -134,10 +103,11 @@ descriptorType = \case
     _ -> error "Unexpected/unsupported storage class for descriptor"
 
 
-createDescriptorSetLayout :: (Int,IM.IntMap (Vk.DescriptorType, Vk.ShaderStageFlags)) -> Renderer Vk.DescriptorSetLayout
-createDescriptorSetLayout (_setNumber, (IM.toList -> bindingsList)) = getDevice >>= \device -> do
+createDescriptorSetLayout :: [(Int, (Vk.DescriptorType, Vk.ShaderStageFlags))] -- ^ Binding, type and stage flags for each descriptor in the set to create
+                          -> Renderer Vk.DescriptorSetLayout
+createDescriptorSetLayout bindingsList = getDevice >>= \device -> do
   let makeBinding (bindingIx,(descriptorType,sflags)) =
-        Vk.DescriptorSetLayoutBinding { binding = 0
+        Vk.DescriptorSetLayoutBinding { binding = fromIntegral bindingIx
                                       , descriptorType = descriptorType
                                       , descriptorCount = 1 -- if this binding was an array of multiple items this number would be larger
                                       , stageFlags = sflags
@@ -153,6 +123,74 @@ createDescriptorSetLayout (_setNumber, (IM.toList -> bindingsList)) = getDevice 
 destroyDescriptorSetLayout :: Vk.DescriptorSetLayout -> Renderer ()
 destroyDescriptorSetLayout layout = getDevice >>= \dev -> Vk.destroyDescriptorSetLayout dev layout Nothing
 
+
+-- | Create N descriptor sets from a uniform buffer descriptor pool using each
+-- respective descriptor set layout
+--
+-- Only the pool needs to be destroyed
+--
+-- TODO: Linear types...
+allocateDescriptorSets :: [(Vk.DescriptorSetLayout,[Vk.DescriptorType])] -- ^ The descriptors we need for each set (indexed by set). This is used to calculate the amount of descriptor sets to allocate and the amoumt of descriptors of each type
+                       -> Renderer (Vector Vk.DescriptorSet, Vk.DescriptorPool)
+allocateDescriptorSets sets = do
+
+  let 
+      descriptorsAmounts = map (\(t :| ls) -> (t, length ls + 1)) . NonEmpty.group . L.sort $ concatMap snd sets
+      poolsSizes = map (\(t,fromIntegral -> a) -> Vk.DescriptorPoolSize {descriptorCount = a, type' = t}) descriptorsAmounts
+
+      setsAmount = fromIntegral $ length sets
+      poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = V.fromList poolsSizes
+                                             , maxSets = setsAmount
+                                             , flags = Vk.zero
+                                             , next = ()
+                                             }
+
+  device <- getDevice
+  descriptorPool <- Vk.createDescriptorPool device poolInfo Nothing
+
+  let
+      allocInfo = Vk.DescriptorSetAllocateInfo { descriptorPool = descriptorPool
+                                               , setLayouts = V.fromList $ map fst sets
+                                               , next = ()
+                                               }
+
+  descriptorSets <- Vk.allocateDescriptorSets device allocInfo
+  pure (descriptorSets, descriptorPool)
+  
+
+destroyDescriptorPool :: Vk.DescriptorPool -> Renderer ()
+destroyDescriptorPool p = getDevice >>= \dev -> Vk.destroyDescriptorPool dev p Nothing
+
+
+-- | Update the configuration of a descriptor set with multiple buffers
+updateBufferDescriptorSet :: Vk.DescriptorSet   -- ^ The descriptor set we're writing with these buffers
+                          -> [(Int, SomeMappedBuffer, Vk.DescriptorType)] -- ^ The buffers, their bindings, and the type of buffer as a DescriptorType
+                          -> Renderer ()
+updateBufferDescriptorSet dset bufs = do
+
+  let amount = fromIntegral $ length bufs
+      makeBufferWrite i buf dty =
+        -- Each descriptor only has one buffer. If we had an array of buffers in a descriptor we would need multiple descriptor buffer infos
+        let bufferInfo = Vk.DescriptorBufferInfo
+                                             { buffer = case buf of SomeMappedBuffer b -> b.buffer
+                                             , offset = 0
+                                             , range  = Vk.WHOLE_SIZE -- the whole buffer
+                                             }
+
+         in Vk.SomeStruct Vk.WriteDescriptorSet
+                                  { next = ()
+                                  , dstSet = dset -- the descriptor set to update with this write
+                                  , dstBinding = fromIntegral i
+                                  , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+                                  , descriptorType = dty -- The type of buffer
+                                  , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+                                  , bufferInfo = [bufferInfo] -- The one buffer info
+                                  , imageInfo = []
+                                  , texelBufferView = []
+                                  }
+
+  dev <- getDevice
+  Vk.updateDescriptorSets dev (V.fromList $ map (\(a,b,c) -> makeBufferWrite a b c) bufs) []
 
 
 

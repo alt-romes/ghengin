@@ -63,9 +63,6 @@ import Ghengin.Component.UI
 
 type Ghengin w a = SystemT w Renderer a
 
--- Isto seria fixe num per-pipeline basis
-newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
-
 windowLoop :: Ghengin w Bool -> Ghengin w ()
 windowLoop action = do
   win <- lift (asks (._vulkanWindow._window))
@@ -107,19 +104,10 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   a <- initialize
 
   -- BIG:TODO: Bundle descriptor sets, render passes, and pipelines into a single abstraction
-  -- TODO: Use linear types here. Can I make the monad stack over a multiplicity polymorphic monad?
-  let ssp = SimpleShader.shaderPipeline
-  descriptorSetLayouts <- lift $ createDescriptorSetLayouts ssp
-  simpleRenderPass   <- lift $ createSimpleRenderPass
-  pipeline           <- lift $ createGraphicsPipeline ssp simpleRenderPass._renderPass descriptorSetLayouts [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }]
+  -- TODO: Use linear types. Can I make the monad stack over a multiplicity polymorphic monad?
 
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
   imCtx <- lift $ IM.initImGui simpleRenderPass._renderPass
-
-  objUBs <- lift $ mapM (const createMappedUniformBuffer) [1..MAX_FRAMES_IN_FLIGHT]
-  (dsets, dpool) <- lift $ createUniformBufferDescriptorSets [l | _ <- [1..MAX_FRAMES_IN_FLIGHT], l <- descriptorSetLayouts]
-
-  lift $ V.zipWithM_ writeUniformBufferDescriptorSet (fmap (.buffer) objUBs) dsets
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
