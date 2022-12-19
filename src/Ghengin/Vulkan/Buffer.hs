@@ -99,7 +99,7 @@ data MappedBuffer a = UniformBuffer { buffer :: Vk.Buffer
                                     }
 
 
-data SomeMappedBuffer = forall a. SomeMappedBuffer (MappedBuffer a)
+data SomeMappedBuffer = forall a. Storable a => SomeMappedBuffer (MappedBuffer a)
 
 -- data Buffer where
 --   -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@

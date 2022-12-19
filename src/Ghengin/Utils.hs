@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE KindSignatures #-}
@@ -8,13 +10,19 @@
 module Ghengin.Utils
   ( module Ghengin.Utils
   , module Data.StateVar
+  , (.|.)
+  , Proxy(..)
   ) where
 
 import Data.Kind
 import Geomancy.Vec3
 import Data.StateVar
+import Foreign.Storable
+import Data.Proxy
 
 import Data.Bits
+
+data SomeStorable = forall a. Storable a => SomeStorable
 
 (.&&.) :: Bits a => a -> a -> Bool
 x .&&. y = (/= zeroBits) (x .&. y)
