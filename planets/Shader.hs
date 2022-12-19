@@ -8,6 +8,7 @@
 {-# LANGUAGE TypeOperators         #-}
 module Shader where
 
+import qualified Data.IntMap as IM
 import qualified Prelude
 import Ghengin.Shaders.FIR
 import Ghengin.Shaders
@@ -76,11 +77,11 @@ type VertexData =
    , Slot 1 0 ':-> V 3 Float -- in normal
    ]
 
-shaderPipeline :: ShaderPipeline ()
+shaderPipeline :: GhenginShaderPipeline
 shaderPipeline
   = ShaderPipeline
      $    StructInput @VertexData @(Triangle List)
-     :>-> (vertex, ())
+     :>-> (vertex, IM.singleton 1 (IM.singleton 0 (SomeStorable @(VertexV3 2))))
      :>-> (fragment, ())
 
 

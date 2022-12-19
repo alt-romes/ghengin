@@ -12,9 +12,16 @@ module Ghengin.Shaders
 
 import qualified Data.ByteString.Lazy as BS
 
+import Data.IntMap (IntMap)
 import qualified FIR
 import qualified Vulkan as Vk
+import Ghengin.Utils
 -- import qualified FIR.Definition as FIR
+
+
+type GShaderPipeline = FIR.ShaderPipeline StorableMap
+type StorableMap = IntMap (IntMap SomeStorable)
+
 
 newtype ShaderByteCode = SBC BS.ByteString
 

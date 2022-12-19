@@ -104,6 +104,8 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   a <- initialize
 
   -- BIG:TODO: Bundle descriptor sets, render passes, and pipelines into a single abstraction
+  -- ^^ This is going well, they are created in Render.Packet
+  --
   -- TODO: Use linear types. Can I make the monad stack over a multiplicity polymorphic monad?
 
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)

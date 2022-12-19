@@ -1,3 +1,5 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
@@ -15,6 +17,7 @@
 module Ghengin.Component.Mesh
   ( Mesh
   , Vertex(..)
+  , VertexN
   , createMesh
   , createMeshWithIxs
   , calculateFlatNormals
@@ -24,10 +27,12 @@ module Ghengin.Component.Mesh
   , chunksOf
   ) where
 
+-- import GHC.IsList
 import GHC.Records
 import Data.List.Split (chunksOf)
 import Data.List (sort, foldl')
 
+import GHC.TypeNats
 import Foreign.Ptr
 import Foreign.Storable
 import Data.Word
@@ -51,6 +56,22 @@ data Vertex = Vertex { position :: {-# UNPACK #-} !Vec3
                      , normal   :: {-# UNPACK #-} !Vec3
                      , color    :: {-# UNPACK #-} !Vec3
                      } deriving Show
+
+-- | A Vertex with 'n' times 'a's
+-- TODO: Move to Ghengin.Component.Mesh.Vertex
+newtype VertexN a (n :: Nat) = VertexN (SV.Vector a)
+
+-- instance IsList (VertexN a n) where
+
+instance (Storable a, KnownNat n) => Storable (VertexN a n) where
+  sizeOf _ = fromIntegral (natVal (Proxy @n)) * sizeOf @a undefined
+  alignment _ = 4
+  peek (castPtr -> p) = do
+    let amount = fromIntegral (natVal (Proxy @n))
+    v3s <- SV.forM [0..amount-1] $ \i -> do
+      peekElemOff @a p i
+    pure $ VertexN v3s
+  poke (castPtr -> p) (VertexN vs) = SV.imapM_ (pokeElemOff @a p) vs
 
 instance Storable Vertex where
   sizeOf _ = 3 * sizeOf @Vec3 undefined

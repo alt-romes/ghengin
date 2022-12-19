@@ -9,7 +9,6 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.DescriptorSet where
 
-import Data.Maybe
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad
@@ -51,7 +50,7 @@ type BindingsMap = IntMap (Vk.DescriptorType, SomeStorable, Vk.ShaderStageFlags)
 -- descriptor sets will be allocated, the actual descriptor sets, the buffers
 -- and mapped memory, and will update the descriptor sets with the buffers
 -- information
-createDescriptorSets :: FIR.ShaderPipeline SomeStorable -- ^ Each shader stage must be associated with a list of the storables in the order of each corresponding descriptor set binding
+createDescriptorSets :: FIR.ShaderPipeline StorableMap -- ^ Each shader stage must be associated with a list of the storables in the order of each corresponding descriptor set binding
                      -> Renderer (Vector DescriptorSet, Vk.DescriptorPool)
 createDescriptorSets (FIR.ShaderPipeline ppstages) = do
 
@@ -78,12 +77,14 @@ createDescriptorSets (FIR.ShaderPipeline ppstages) = do
   pure (configuredDescriptorSets, dpool)
   
     where
-      go :: [(FIR.Shader, (SPIRV.PointerTy,SomeStorable,SPIRV.Decorations))] -> FIR.PipelineStages info SomeStorable -> [(FIR.Shader, (SPIRV.PointerTy,SomeStorable,SPIRV.Decorations))] -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
+      go :: [(FIR.Shader, (SPIRV.PointerTy,StorableMap,SPIRV.Decorations))]
+         -> FIR.PipelineStages info StorableMap
+         -> [(FIR.Shader, (SPIRV.PointerTy,StorableMap,SPIRV.Decorations))] -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
       go acc FIR.VertexInput = acc
       go acc (pipe FIR.:>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState,storable)) = go (((map (\(pt,dc) -> (FIR.knownValue @stage,(pt,storable,dc))) $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs)) <> acc) pipe
 
 
-      makeDescriptorSetMap :: Map FIR.Shader (SPIRV.PointerTy, SomeStorable, SPIRV.Decorations)
+      makeDescriptorSetMap :: Map FIR.Shader (SPIRV.PointerTy, StorableMap, SPIRV.Decorations)
                            -> IntMap BindingsMap -- ^ Mapping from descriptor set indexes to a list of their bindings (corresponding binding type, shader stage)
       makeDescriptorSetMap =
         M.foldrWithKey (\shader (pt,ss,S.toList -> decs) acc ->
@@ -91,9 +92,9 @@ createDescriptorSets (FIR.ShaderPipeline ppstages) = do
           --   [Binding bindingIx, DescriptorSet descriptorSetIx] ->
           --   _ -> error $ "Invalid decorations for descriptor set: " <> show decs
           -- TODO: Rewrite
-          case L.find (\case SPIRV.DescriptorSet x -> True; _ -> False) decs of
-            Just (SPIRV.DescriptorSet (fromIntegral -> descriptorIx)) -> case L.find (\case SPIRV.Binding x -> True; _ -> False) decs of
-              Just (SPIRV.Binding (fromIntegral -> bindingIx)) -> IM.insertWith mergeSameDS descriptorIx (IM.singleton bindingIx (descriptorType pt, ss, stageFlag shader)) acc
+          case L.find (\case SPIRV.DescriptorSet _ -> True; _ -> False) decs of
+            Just (SPIRV.DescriptorSet (fromIntegral -> descriptorIx)) -> case L.find (\case SPIRV.Binding _ -> True; _ -> False) decs of
+              Just (SPIRV.Binding (fromIntegral -> bindingIx)) -> IM.insertWith mergeSameDS descriptorIx (IM.singleton bindingIx (descriptorType pt, ss IM.! descriptorIx IM.! bindingIx, stageFlag shader)) acc
               Nothing -> error "Can't have descriptor set without binding ix"
             Nothing -> acc
           ) mempty
