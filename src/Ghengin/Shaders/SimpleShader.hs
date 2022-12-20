@@ -80,8 +80,8 @@ type VertexData =
    , Slot 2 0 ':-> V 3 Float -- in color
    ]
 
-shaderPipeline :: GShaderPipeline
-shaderPipeline = ShaderPipeline
-         $    StructInput @VertexData @(Triangle List)
-         :>-> (vertex, IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2))))
-         :>-> (fragment, mempty)
+shaderPipeline :: GShaderPipeline _
+shaderPipeline =
+  StructInput @VertexData @(Triangle List)
+  :>-> (vertex, IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2))))
+  :>-> (fragment, mempty)

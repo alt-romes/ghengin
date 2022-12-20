@@ -19,7 +19,7 @@ import Ghengin.Utils
 -- import qualified FIR.Definition as FIR
 
 
-type GShaderPipeline = FIR.ShaderPipeline StorableMap
+type GShaderPipeline info = FIR.PipelineStages info StorableMap
 type StorableMap = IntMap (IntMap SomeStorable)
 
 

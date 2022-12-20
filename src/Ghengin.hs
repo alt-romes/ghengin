@@ -1,3 +1,4 @@
+{-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonadComprehensions #-}
@@ -114,7 +115,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
   -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
   renderPackets <- cfold (\acc (renderPacket :: RenderPacket) -> (renderPacket:acc)) []
-  imCtx <- lift $ IM.initImGui (head renderPackets)._renderPipeline._renderPass._renderPass
+  imCtx <- lift $ IM.initImGui $ case (head renderPackets) of RenderPacket {_renderPipeline = pp} -> pp._renderPass._renderPass
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
@@ -242,39 +243,41 @@ drawFrame = do
 
       -- Get each object mesh render cmd
       renderPackets <- cfold (\acc (renderPacket :: RenderPacket, tr :: Maybe Transform) -> (renderPacket, fromMaybe noTransform tr):acc) []
-      let wrongSharedPipeline = (fst $ head renderPackets)._renderPipeline
-          (wspp, wsrp, wsds) = (wrongSharedPipeline._graphicsPipeline, wrongSharedPipeline._renderPass, fmap fst $ wrongSharedPipeline._descriptorSetsSet)
+      -- let wrongSharedPipeline = (fst $ head renderPackets)._renderPipeline
+      --     (wspp, wsrp, wsds) = (wrongSharedPipeline._graphicsPipeline, wrongSharedPipeline._renderPass, fmap fst $ wrongSharedPipeline._descriptorSetsSet)
 
-      lift $ withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
+      withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
+      -- Draw frame is actually here, within 'withCurrentFramePresent'
+      
+        let pipelines = [(fst (head renderPackets))] :: [RenderPacket] -- getAllPipelines
+        forM pipelines $ \RenderPacket {_renderPipeline = pipeline} -> do
 
-        -- Draw frame is actually here, within 'withCurrentFramePresent'
+          -- TODO: Should be specific to each pipeline. E.g. if I have a color
+          -- attribute that should be displayed that should be described in the
+          -- pipeline constructor
+          -- TODO: Should be done in separate stages: descriptor sets with different indexes get bound a different number of times...
+          lift $ writeMappedBuffer (case fst $ ((fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
 
-        -- TODO: Should be specific to each pipeline. E.g. if I have a color
-        -- attribute that should be displayed that should be described in the
-        -- pipeline constructor
-        -- TODO: Should be done in separate stages: descriptor sets with different indexes get bound a different number of times...
-        writeMappedBuffer (case fst $ ((wsds NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
+          recordCommand cmdBuffer $ do
 
-        recordCommand cmdBuffer $ do
+            renderPass pipeline._renderPass._renderPass (pipeline._renderPass._framebuffers V.! currentImage) extent $ do
 
-          renderPass wsrp._renderPass (wsrp._framebuffers V.! currentImage) extent $ do
+              bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
+              setViewport viewport
+              setScissor  scissor
 
-            bindGraphicsPipeline (wspp._pipeline)
-            setViewport viewport
-            setScissor  scissor
+              -- TODO: Render all meshes that share the same descriptor sets and graphics pipeline...
+              -- forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
 
-            -- TODO: Render all meshes that share the same descriptor sets and graphics pipeline...
-            -- forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
+              bindGraphicsDescriptorSets pipeline._graphicsPipeline._pipelineLayout (fmap (._descriptorSet) $ fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame)
+              -- pushConstants wspp._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform)
+              pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform (snd $ head renderPackets))
+              renderMesh (fst $ head renderPackets)._renderMesh
 
-            bindGraphicsDescriptorSets wspp._pipelineLayout (fmap (._descriptorSet) $ wsds NE.!! currentFrame)
-            -- pushConstants wspp._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform)
-            pushConstants wspp._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform (snd $ head renderPackets))
-            renderMesh (fst $ head renderPackets)._renderMesh
-
-            -- Draw UI
-            IM.renderDrawData =<< IM.getDrawData
-        
+              -- Draw UI
+              IM.renderDrawData =<< IM.getDrawData
+          
   pure ()
 
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -32,7 +33,8 @@ import Ghengin.Vulkan
 
 data Material
 
-data RenderPacket = RenderPacket { _renderPipeline :: RenderPipeline
+data RenderPacket = forall info.
+                    RenderPacket { _renderPipeline :: RenderPipeline info
                                  , _renderMesh     :: Mesh
                                  , _renderMaterial :: Material
                                  }
@@ -49,11 +51,11 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 
 -- | A render pipeline consists of the descriptor sets and a graphics pipeline
 -- required to render certain 'RenderPacket's
-data RenderPipeline = RenderPipeline { _graphicsPipeline  :: VulkanPipeline
-                                     , _renderPass        :: VulkanRenderPass
-                                     , _descriptorSetsSet :: NonEmpty (Vector DescriptorSet, Vk.DescriptorPool) -- We need descriptor sets for each frame in flight
-                                     , _shaderPipeline    :: GShaderPipeline
-                                     }
+data RenderPipeline info = RenderPipeline { _graphicsPipeline  :: VulkanPipeline
+                                          , _renderPass        :: VulkanRenderPass
+                                          , _descriptorSetsSet :: NonEmpty (Vector DescriptorSet, Vk.DescriptorPool) -- We need descriptor sets for each frame in flight
+                                          , _shaderPipeline    :: GShaderPipeline info
+                                          }
 
 -- TODO: PushConstants must also be inferred from the shader code
 newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
@@ -64,8 +66,9 @@ newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Sto
 -- TODO: Currently we assume all our descriptor sets are Uniform buffers and
 -- our buffers too but eventually Uniform will be just a constructor of a more
 -- general Buffer and we should select the correct type of buffer individually.
-makeRenderPipeline :: GShaderPipeline
-                   -> Renderer RenderPipeline
+makeRenderPipeline :: PipelineConstraints info tops descs strides
+                   => GShaderPipeline info
+                   -> Renderer (RenderPipeline info)
 makeRenderPipeline shaderPipeline = do
 
   simpleRenderPass <- createSimpleRenderPass
@@ -81,12 +84,16 @@ makeRenderPipeline shaderPipeline = do
   --
   -- We need to do 'createDescriptorSets' as many times as there are frames in flight.
   dsetsSet@(dsets:|_) <- mapM (const (createDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
-  pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (fmap (._descriptorSetLayout) (fst dsets)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }]
 
-  pure $ RenderPipeline pipeline simpleRenderPass dsetsSet shaderPipeline
+  pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (fmap (._descriptorSetLayout) (fst dsets)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
+  let rp = RenderPipeline pipeline simpleRenderPass dsetsSet shaderPipeline
 
-newRenderPacket :: RenderPipeline
+  -- insertRenderPipeline rp
+
+  pure rp
+
+newRenderPacket :: RenderPipeline info
                 -> Mesh     -- TODO: Must be compatible with input type of RenderPipeline
                 -> Material -- TODO: Must be compatible with input type of RenderPipeline
                 -> Renderer RenderPacket

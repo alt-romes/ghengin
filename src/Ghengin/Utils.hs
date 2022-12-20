@@ -23,6 +23,12 @@ import Data.Proxy
 
 import Data.Bits
 
+data HList xs where
+    HNil :: HList '[]
+    (:::) :: a -> HList as -> HList (a ': as)
+
+infixr 6 :::
+
 data SomeStorable where
   SomeStorable :: ∀ a. Storable a => SomeStorable
 

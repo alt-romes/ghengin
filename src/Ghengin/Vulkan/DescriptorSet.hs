@@ -50,9 +50,9 @@ type BindingsMap = IntMap (Vk.DescriptorType, SomeStorable, Vk.ShaderStageFlags)
 -- descriptor sets will be allocated, the actual descriptor sets, the buffers
 -- and mapped memory, and will update the descriptor sets with the buffers
 -- information
-createDescriptorSets :: FIR.ShaderPipeline StorableMap -- ^ Each shader stage must be associated with a list of the storables in the order of each corresponding descriptor set binding
+createDescriptorSets :: FIR.PipelineStages info StorableMap -- ^ Each shader stage must be associated with a list of the storables in the order of each corresponding descriptor set binding
                      -> Renderer (Vector DescriptorSet, Vk.DescriptorPool)
-createDescriptorSets (FIR.ShaderPipeline ppstages) = do
+createDescriptorSets ppstages = do
 
   let descriptorSetMap :: IntMap BindingsMap -- ^ Map each set ix to a bindings map
       descriptorSetMap = makeDescriptorSetMap (M.fromList $ go [] ppstages)

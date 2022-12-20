@@ -42,11 +42,20 @@ initG = do
 
   planetMesh <- lift $ newPlanet ps
   planetPipeline <- lift $ makeRenderPipeline SimpleShader.shaderPipeline
+
+  -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )
+  -- which can be later modified. this data is bound once per pipeline.
+  -- The global data in this example is actually the Camera transform
+
   planetRenderPacket <- lift $ newRenderPacket planetPipeline planetMesh undefined  -- also take a type that instances material (that passes the parameters for this shader?)
 
+  -- let planetMaterial = Material planetPipeline
+
   newEntity ( planetRenderPacket, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
+
   newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
-            , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0) )
+            , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
+            -- , PipelineData @Transform self planetPipeline)
 
   pure ps
 

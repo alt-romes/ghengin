@@ -43,8 +43,9 @@ data RendererEnv = REnv { _instance        :: !Vk.Instance
                         , _frames          :: !(Vector VulkanFrameData)
                         , _frameInFlight   :: !(IORef Int)
                         , _immediateSubmit :: !ImmediateSubmitCtx
+                        -- , _renderPipelines :: IORef [SomeRenderPipeline]
                         }
-newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv)
+newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv, MonadFail)
 
 pattern MAX_FRAMES_IN_FLIGHT :: Word32
 pattern MAX_FRAMES_IN_FLIGHT = 2 -- We want to work on multiple frames but we don't want the CPU to get too far ahead of the GPU
@@ -125,18 +126,19 @@ runVulkanRenderer r =
 -- N is 'MAX_FRAMES_IN_FLIGHT'
 --
 -- TODO: Figure out mismatch between current image index and current image frame.
-withCurrentFramePresent :: (  Vk.CommandBuffer
-                           -> Int -- ^ Current image index
-                           -> Int -- ^ Current frame index
-                           -> Renderer a
+withCurrentFramePresent :: (MonadTrans t, Monad (t Renderer), MonadIO (t Renderer))
+                        => ( Vk.CommandBuffer
+                             -> Int -- ^ Current image index
+                             -> Int -- ^ Current frame index
+                             -> t Renderer a
                            )
-                        -> Renderer a
+                        -> t Renderer a
 withCurrentFramePresent action = do
 
-  device <- getDevice
+  device <- lift $ getDevice
 
-  currentFrameIndex <- asks (._frameInFlight) >>= liftIO . readIORef
-  currentFrame <- advanceCurrentFrame
+  currentFrameIndex <- lift $ asks (._frameInFlight) >>= liftIO . readIORef
+  currentFrame <- lift $ advanceCurrentFrame
   let
       cmdBuffer = currentFrame._commandBuffer
       inFlightFence = currentFrame._renderFence
@@ -151,16 +153,16 @@ withCurrentFramePresent action = do
   _ <- Vk.waitForFences device [inFlightFence] True maxBound
   Vk.resetFences device [inFlightFence]
 
-  i <- acquireNextImage imageAvailableSem
+  i <- lift $ acquireNextImage imageAvailableSem
 
   Vk.resetCommandBuffer cmdBuffer zero
 
   a <- action cmdBuffer i currentFrameIndex
 
   -- Finally, submit and present
-  submitGraphicsQueue cmdBuffer imageAvailableSem renderFinishedSem inFlightFence
+  lift $ submitGraphicsQueue cmdBuffer imageAvailableSem renderFinishedSem inFlightFence
 
-  presentPresentQueue renderFinishedSem i
+  lift $ presentPresentQueue renderFinishedSem i
 
   pure a
 

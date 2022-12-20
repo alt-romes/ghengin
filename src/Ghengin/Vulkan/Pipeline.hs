@@ -15,6 +15,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.Pipeline where
 
+import Data.Kind
 import Data.Maybe
 import GHC.TypeNats
   ( Nat )
@@ -30,6 +31,7 @@ import qualified Vulkan.CStruct.Extends as VkC
 import qualified Vulkan as Vk
 
 import qualified Ghengin.Shaders.FIR as FIR
+import FIR.Validation.Pipeline (ValidPipelineInfo)
 import FIR
   ( ImageFormat(ImageFormat), pattern UI, pattern I, pattern F
   , Word32
@@ -68,15 +70,13 @@ dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT -- TODO: Eventually only the viewpor
 --                                             ((`runReaderT` renv) . unRenderer . destroyPipeline)
 --                                             ((`runReaderT` renv) . unRenderer . f)
 
-createGraphicsPipeline :: -- (KnownDefinitions vertexdefs, KnownDefinitions fragdefs)
-                        -- (CompilableProgram v, CompilableProgram f)
-                       ShaderPipeline a
-                       -> Vk.RenderPass
-                       -> V.Vector Vk.DescriptorSetLayout
-                       -> V.Vector Vk.PushConstantRange
-                       -> Renderer VulkanPipeline
-createGraphicsPipeline shaderPipeline rp sls pcr = Renderer $ ReaderT (\renv -> createGraphicsPipeline' (renv._vulkanDevice._device) shaderPipeline rp sls pcr)
-
+type PipelineConstraints info top descs strides =
+          ( ValidPipelineInfo info
+          , '(top, descs, strides) ~ GetVertexInputInfo info
+          , Known (PrimitiveTopology Nat)    top
+          , Known VertexLocationDescriptions descs
+          , Known BindingStrides             strides
+          )
 
 -- | Create a pipeline given a vertex shader and a fragment shader (in this
 -- order)
@@ -84,15 +84,20 @@ createGraphicsPipeline shaderPipeline rp sls pcr = Renderer $ ReaderT (\renv -> 
 -- Note that the returned vulkan pipeline must be managed in a structure that
 -- ensures each pipeline renders all related items in sequence instead of
 -- jumping in between pipeline
-createGraphicsPipeline' :: -- (KnownDefinitions vertexdefs, KnownDefinitions fragdefs)
+createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fragdefs)
                         -- (CompilableProgram v, CompilableProgram f)
-                        Vk.Device
-                        -> ShaderPipeline a
+                        ∀  ( info    :: PipelineInfo               )
+                           ( top     :: PrimitiveTopology Nat      )
+                           ( descs   :: VertexLocationDescriptions )
+                           ( strides :: BindingStrides             )
+                        .  PipelineConstraints info top descs strides
+                        => GShaderPipeline info
                         -> Vk.RenderPass
                         -> V.Vector Vk.DescriptorSetLayout
                         -> V.Vector Vk.PushConstantRange
-                        -> IO VulkanPipeline
-createGraphicsPipeline' dev (ShaderPipeline (ppstages :: PipelineStages info a)) renderP descriptorSetLayouts pushConstantRanges = do
+                        -> Renderer VulkanPipeline
+createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges = do
+  dev <- getDevice
 
   let
       pipelineShaders :: [(FIR.Shader, Vk.ShaderModule)] -> PipelineStages info2 a -> IO [(FIR.Shader, Vk.ShaderModule)]
@@ -258,7 +263,7 @@ createGraphicsPipeline' dev (ShaderPipeline (ppstages :: PipelineStages info a))
 
   (_, [pipeline]) <- Vk.createGraphicsPipelines dev Vk.NULL_HANDLE [VkC.SomeStruct pipelineInfo] Nothing
 
-  mapM_ (destroyShaderModule dev . snd) shaders
+  mapM_ (liftIO . destroyShaderModule dev . snd) shaders
 
   pure $ VulkanPipeline pipeline pipelineLayout
 

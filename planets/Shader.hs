@@ -17,6 +17,10 @@ import Ghengin.Component.Mesh (VertexN)
 import Ghengin.Utils (SomeStorable(..))
 import Ghengin (Mat4)
 
+-- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
+-- Descriptor Set #1 for things bound once per material
+-- Descriptor Set #2 for things bound once per object
+
 ---- Vertex -----
 
 type VertexDefs
@@ -81,12 +85,11 @@ type VertexData =
    , Slot 1 0 ':-> V 3 Float -- in normal
    ]
 
-shaderPipeline :: GShaderPipeline
+shaderPipeline :: GShaderPipeline _
 shaderPipeline
-  = ShaderPipeline
-     $    StructInput @VertexData @(Triangle List)
-     :>-> (vertex, IM.singleton 1 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2))))
-     :>-> (fragment, IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Float 2))))
+  = StructInput @VertexData @(Triangle List)
+    :>-> (vertex, IM.singleton 1 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2))))
+    :>-> (fragment, IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Float 2))))
 
 
 
