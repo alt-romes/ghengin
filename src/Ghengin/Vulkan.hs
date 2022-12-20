@@ -281,7 +281,7 @@ rendererBracket x f g = Renderer $ ReaderT $ \renv ->
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
-immediateSubmit :: Command -> Renderer ()
+immediateSubmit :: Command Renderer -> Renderer ()
 immediateSubmit cmd = do
   device <- asks (._vulkanDevice)
   ims <- asks (._immediateSubmit)

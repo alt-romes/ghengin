@@ -14,6 +14,7 @@ module Ghengin.Component.Transform
   ) where
 
 import GHC.Records
+import Control.Monad.IO.Class
 
 import Geomancy hiding (Transform)
 import Geomancy.Mat4
@@ -42,7 +43,7 @@ instance Component Transform where
 instance (Monad m, HasField "transforms" w (Storage Transform)) => Has w m Transform where
   getStore = SystemT (asks (.transforms))
 
-applyTransform :: VulkanPipeline -> Transform -> RenderPassCmd
+applyTransform :: MonadIO m => VulkanPipeline -> Transform -> RenderPassCmd m
 applyTransform pipeline tr = do
   pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform tr)
 

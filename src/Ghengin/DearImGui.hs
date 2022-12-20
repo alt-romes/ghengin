@@ -98,7 +98,7 @@ destroyImCtx (IMCtx pool imCtx initRes) = do
   Vk.destroyDescriptorPool device pool Nothing
 
 
-renderDrawData :: IM.DrawData -> RenderPassCmd
+renderDrawData :: MonadIO m => IM.DrawData -> RenderPassCmd m
 renderDrawData dd = makeRenderPassCmd $ \b -> do
   IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
 

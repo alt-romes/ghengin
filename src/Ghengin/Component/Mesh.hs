@@ -30,6 +30,7 @@ module Ghengin.Component.Mesh
 -- import GHC.IsList
 import Data.List.Split (chunksOf)
 import Data.List (sort, foldl')
+import Control.Monad.IO.Class
 
 import GHC.TypeNats
 import Foreign.Ptr
@@ -106,7 +107,7 @@ data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a v
 
 
 -- Render a mesh command
-renderMesh :: Mesh -> RenderPassCmd
+renderMesh :: MonadIO m => Mesh -> RenderPassCmd m
 renderMesh = \case
   SimpleMesh buf _ nverts -> do
       let buffers = [buf] :: Vector Vk.Buffer

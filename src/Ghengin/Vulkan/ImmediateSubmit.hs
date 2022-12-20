@@ -44,7 +44,7 @@ immediateSubmit' :: MonadIO m
                 => Vk.Device
                 -> Vk.Queue -- ^ Graphics queue
                 -> ImmediateSubmitCtx
-                -> Command
+                -> Command m
                 -> m ()
 immediateSubmit' device graphicsQueue (ImmediateSubmitCtx fence pool buffer) cmd = do
 

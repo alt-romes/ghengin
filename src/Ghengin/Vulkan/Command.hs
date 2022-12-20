@@ -64,7 +64,7 @@ import Ghengin.Vulkan.Device
 --    setScissor  scissor
 --    draw 3
 -- @
-type Command = CommandM ()
+type Command m = CommandM m ()
 
 -- | A render pass command description: a language to describe the subset of commands to record in a render pass command
 --
@@ -78,17 +78,17 @@ type Command = CommandM ()
 --    setScissor  scissor
 --    draw 3
 -- @
-type RenderPassCmd = RenderPassCmdM ()
+type RenderPassCmd m = RenderPassCmdM m ()
 
-newtype CommandM a = Command (ReaderT Vk.CommandBuffer IO a)
+newtype CommandM m a = Command (ReaderT Vk.CommandBuffer m a)
   deriving (Functor, Applicative, Monad, MonadIO)
 
-newtype RenderPassCmdM a = RenderPassCmd (ReaderT Vk.CommandBuffer IO a)
+newtype RenderPassCmdM m a = RenderPassCmd (ReaderT Vk.CommandBuffer m a)
   deriving (Functor, Applicative, Monad, MonadIO)
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
-recordCommand :: MonadIO m => Vk.CommandBuffer -> Command -> m ()
+recordCommand :: MonadIO m => Vk.CommandBuffer -> Command m -> m ()
 recordCommand buf (Command cmds) = do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.zero
                                             , inheritanceInfo = Nothing }
@@ -97,22 +97,22 @@ recordCommand buf (Command cmds) = do
   Vk.beginCommandBuffer buf beginInfo
 
   -- Record commands
-  liftIO $ runReaderT cmds buf
+  runReaderT cmds buf
 
   -- Finish recording
   Vk.endCommandBuffer buf
 {-# INLINE recordCommand #-}
 
-recordCommandOneShot :: MonadIO m => Vk.CommandBuffer -> Command -> m ()
+recordCommandOneShot :: MonadIO m => Vk.CommandBuffer -> Command m -> m ()
 recordCommandOneShot buf (Command cmds) = do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, inheritanceInfo = Nothing }
   Vk.beginCommandBuffer buf beginInfo
-  liftIO $ runReaderT cmds buf
+  runReaderT cmds buf
   Vk.endCommandBuffer buf
 {-# INLINE recordCommandOneShot #-}
 
 -- | Make a render pass part a command blueprint that can be further composed with other commands
-renderPass :: Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd -> Command
+renderPass :: MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd m -> Command m
 renderPass rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ask >>= \buf -> do
   let
     renderPassInfo = Vk.RenderPassBeginInfo { next = ()
@@ -129,50 +129,51 @@ renderPass rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $
   Vk.cmdEndRenderPass buf
 {-# INLINE renderPass #-}
 
-bindGraphicsPipeline :: Vk.Pipeline -> RenderPassCmd
+bindGraphicsPipeline :: MonadIO m => Vk.Pipeline -> RenderPassCmd m
 bindGraphicsPipeline pp = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_GRAPHICS pp
 {-# INLINE bindGraphicsPipeline #-}
 
-bindComputePipeline :: Vk.Pipeline -> RenderPassCmd
+bindComputePipeline :: MonadIO m => Vk.Pipeline -> RenderPassCmd m
 bindComputePipeline pp = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_COMPUTE pp
 {-# INLINE bindComputePipeline #-}
 
-bindRayTracingPipeline :: Vk.Pipeline -> RenderPassCmd
+bindRayTracingPipeline :: MonadIO m => Vk.Pipeline -> RenderPassCmd m
 bindRayTracingPipeline pp = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_RAY_TRACING_KHR pp
 {-# INLINE bindRayTracingPipeline #-}
 
-setViewport :: Vk.Viewport -> RenderPassCmd
+setViewport :: MonadIO m => Vk.Viewport -> RenderPassCmd m
 setViewport viewport = RenderPassCmd $ ask >>= \buf -> Vk.cmdSetViewport buf 0 [viewport]
 {-# INLINE setViewport #-}
 
-setScissor :: Vk.Rect2D   -> RenderPassCmd
+setScissor :: MonadIO m => Vk.Rect2D   -> RenderPassCmd m
 setScissor scissor = RenderPassCmd $ ask >>= \buf -> Vk.cmdSetScissor  buf 0 [scissor]
 {-# INLINE setScissor #-}
 
-bindVertexBuffers :: Word32 -> Vector Vk.Buffer -> Vector Vk.DeviceSize -> RenderPassCmd
+bindVertexBuffers :: MonadIO m => Word32 -> Vector Vk.Buffer -> Vector Vk.DeviceSize -> RenderPassCmd m
 bindVertexBuffers i bufs offsets = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindVertexBuffers buf i bufs offsets
 {-# INLINE bindVertexBuffers #-}
 
-bindIndex32Buffer :: Vk.Buffer -- ^ Index buffer
+bindIndex32Buffer :: MonadIO m
+                  => Vk.Buffer -- ^ Index buffer
                   -> Vk.DeviceSize -- ^ Offset into index buffer
-                  -> RenderPassCmd
+                  -> RenderPassCmd m
 bindIndex32Buffer ibuffer offset = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindIndexBuffer buf ibuffer offset Vk.INDEX_TYPE_UINT32
 {-# INLINE bindIndex32Buffer #-}
 
-draw :: Word32 -> RenderPassCmd
+draw :: MonadIO m => Word32 -> RenderPassCmd m
 draw vertexCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDraw buf vertexCount 1 0 0
 {-# INLINE draw #-}
 
-drawIndexed :: Word32 -> RenderPassCmd
+drawIndexed :: MonadIO m => Word32 -> RenderPassCmd m
 drawIndexed ixCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDrawIndexed buf ixCount 1 0 0 0
 {-# INLINE drawIndexed #-}
 
-copyFullBuffer :: Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Command
+copyFullBuffer :: MonadIO m => Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Command m
 copyFullBuffer src dst size = Command $ ask >>= \buf -> do
   Vk.cmdCopyBuffer buf src dst [Vk.BufferCopy 0 0 size]
 {-# INLINE copyFullBuffer #-}
 
-pushConstants :: ∀ a. Storable a => Vk.PipelineLayout -> Vk.ShaderStageFlags -> a -> RenderPassCmd
+pushConstants :: ∀ a m. (MonadIO m, Storable a) => Vk.PipelineLayout -> Vk.ShaderStageFlags -> a -> RenderPassCmd m
 pushConstants pipelineLayout stageFlags values =
   RenderPassCmd $ ask >>= \buf ->
     liftIO $ alloca @a $ \ptr -> do
@@ -180,15 +181,15 @@ pushConstants pipelineLayout stageFlags values =
       Vk.cmdPushConstants buf pipelineLayout stageFlags 0 (fromIntegral $ sizeOf values) (castPtr ptr)
 {-# INLINE pushConstants #-}
 
-bindGraphicsDescriptorSets :: Vk.PipelineLayout -> Vector Vk.DescriptorSet -> RenderPassCmd
+bindGraphicsDescriptorSets :: MonadIO m => Vk.PipelineLayout -> Vector Vk.DescriptorSet -> RenderPassCmd m
 bindGraphicsDescriptorSets pipelay dsets = RenderPassCmd $ ask >>= \buf -> do
   Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pipelay 0 dsets [] -- offsets array not used
 
 -- | Lift a function that uses a command buffer to a Command
-withCmdBuffer :: (Vk.CommandBuffer -> IO ()) -> Command
+withCmdBuffer :: MonadIO m => (Vk.CommandBuffer -> m ()) -> Command m
 withCmdBuffer f = Command $ ask >>= lift . f
 
-makeRenderPassCmd :: (Vk.CommandBuffer -> IO ()) -> RenderPassCmd
+makeRenderPassCmd :: MonadIO m => (Vk.CommandBuffer -> m ()) -> RenderPassCmd m
 makeRenderPassCmd f = RenderPassCmd $ ask >>= lift . f
 
 -- :| Creation and Destruction |:
