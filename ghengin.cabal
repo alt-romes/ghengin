@@ -87,13 +87,15 @@ library
                       Ghengin.Component.UI,
                       Ghengin.Component.Camera,
                       Ghengin.Component.Transform,
+                      Ghengin.Component.Material,
                       Ghengin.Component.Mesh,
                       Ghengin.Component.Mesh.Cube,
                       Ghengin.Component.Mesh.Sphere,
                       Ghengin.Component.Mesh.Obj,
 
                       Ghengin.Render,
-                      Ghengin.Render.Packet
+                      Ghengin.Render.Packet,
+                      Ghengin.Render.Pipeline
 
     -- Modules included in this library but not exported.
     -- other-modules:

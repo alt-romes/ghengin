@@ -7,6 +7,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -55,6 +56,7 @@ import Ghengin.Shaders
 import qualified Ghengin.DearImGui as IM
 
 import Ghengin.Component.Camera
+import Ghengin.Component.Material
 import Ghengin.Component.Mesh
 import Ghengin.Component.Transform
 import Ghengin.Component.UI
@@ -96,7 +98,12 @@ instance Storable UniformBufferObject where
     poke p vi
     pokeElemOff p 1 pr
 
-type WorldConstraints w = (HasField "renderPackets" w (Storage RenderPacket), HasField "transforms" w (Storage Transform), HasField "cameras" w (Storage Camera), HasField "uiwindows" w (Storage UIWindow))
+type WorldConstraints w = ( HasField "meshes" w (Storage Mesh)
+                          , HasField "materials" w (Storage SomeMaterial)
+                          , HasField "transforms" w (Storage Transform)
+                          , HasField "cameras" w (Storage Camera)
+                          , HasField "uiwindows" w (Storage UIWindow)
+                          )
 ghengin :: WorldConstraints w
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
@@ -121,8 +128,8 @@ ghengin world initialize _simstep loopstep finalize = (\x -> initGEnv >>= flip r
 
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
   -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
-  renderPackets <- cfold (\acc (renderPacket :: RenderPacket) -> (renderPacket:acc)) []
-  imCtx <- lift $ IM.initImGui $ case (head renderPackets) of RenderPacket {_renderPipeline = pp} -> pp._renderPass._renderPass
+  (head -> pp) <- liftIO . readIORef =<< lift (asks (._extension._renderPipelines))
+  imCtx <- lift $ IM.initImGui (case pp of SomeRenderPipeline pp _ -> pp._renderPass._renderPass)
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
@@ -236,23 +243,20 @@ drawFrame = do
 
    -}
 
-
-  -- Get each object mesh render cmd
-  renderPackets <- cfold (\acc (renderPacket :: RenderPacket, tr :: Maybe Transform) -> (renderPacket, fromMaybe noTransform tr):acc) []
-  -- let wrongSharedPipeline = (fst $ head renderPackets)._renderPipeline
-  --     (wspp, wsrp, wsds) = (wrongSharedPipeline._graphicsPipeline, wrongSharedPipeline._renderPass, fmap fst $ wrongSharedPipeline._descriptorSetsSet)
-
   withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
   -- Draw frame is actually here, within 'withCurrentFramePresent'
   
     pipelines <- liftIO . readIORef =<< lift (asks (._extension._renderPipelines))
-    forM pipelines $ \(SomeRenderPipeline pipeline) -> do
+    forM pipelines $ \(SomeRenderPipeline pipeline materialsRef) -> do
+
+      materials <- liftIO (readIORef materialsRef)
+      let descriptorSet setIx = fst (pipeline._descriptorSetsSet NE.!! currentFrame) V.! setIx
+          descriptorSetBinding setIx bindingIx = fst $ (descriptorSet setIx)._bindings IM.! bindingIx
 
       -- TODO: Should be specific to each pipeline. E.g. if I have a color
       -- attribute that should be displayed that should be described in the
       -- pipeline constructor
-      -- TODO: Should be done in separate stages: descriptor sets with different indexes get bound a different number of times...
 
       recordCommand cmdBuffer $ do
 
@@ -267,18 +271,51 @@ drawFrame = do
           -- The last camera will override the write buffer
           lift $ cmapM $ \(Camera proj view, camTr :: Maybe Transform) -> do
 
-            -- TODO: All buffers should already be computed by the time we get to the draw phase: means we only have to bind things and that things only have a cost if changed?
+            -- TODO: Some buffers should already be computed by the time we get to the draw phase: means we only have to bind things and that things only have a cost if changed?
             projM <- lift $ makeProjection proj
             let viewM = makeView (fromMaybe noTransform camTr) view
 
-            lift $ writeMappedBuffer (case fst $ ((fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
+                ubo   = UBO viewM projM
 
-          bindGraphicsDescriptorSets pipeline._graphicsPipeline._pipelineLayout (fmap (._descriptorSet) $ fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame)
+            -- TODO : Move out of cmapM
+            case descriptorSetBinding 0 0 of
+              SomeMappedBuffer b -> lift $ writeMappedBuffer (unsafeCoerce b) ubo
 
-          -- TODO: Render all meshes that share the same descriptor sets and graphics pipeline...
-          embed cmapM $ \(renderPacket :: RenderPacket, fromMaybe noTransform -> tr) -> do
-            pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform tr)
-            renderMesh renderPacket._renderMesh
+
+          -- Bind descriptor set #0
+          bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
+            0 (descriptorSet 0)._descriptorSet
+
+          forM materials $ \(SomeMaterial material) -> do
+
+            case material of
+              StaticMaterial -> undefined -- TODO: Bind the static descriptor set
+              DynamicMaterial formulas -> do
+                forM (zip formulas [0..]) $ \(SomeFormula formula, binding) -> do
+                  case descriptorSetBinding 1 binding of
+                    -- TODO: Ensure unsafeCoerce is safe here by only allowing
+                    -- the construction of dynamic materials if validated at
+                    -- compile time against the shader pipeline in each
+                    -- matching position
+                    SomeMappedBuffer b -> do
+                      lift $ writeMappedBuffer (b) (formula )
+
+                      -- Bind descriptor set #1
+                      bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
+                        1 (descriptorSet 1)._descriptorSet
+
+            embed cmapM $ \(mesh :: Mesh, SomeMaterial mat, fromMaybe noTransform -> tr) -> do
+
+              -- TODO: Is it bad that we're going over *all* meshes for each
+              -- material? Probably yes, we should have a good scene graph
+              -- that sorts material in render order, handles hierarchy, and
+              -- can additionally partition the visible space :)
+              when (sameMaterial material mat) $ do
+
+                -- TODO: Bind descriptor set #2
+
+                pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform tr)
+                renderMesh mesh
 
           -- Draw UI
           IM.renderDrawData =<< IM.getDrawData

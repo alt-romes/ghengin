@@ -1,9 +1,16 @@
+[ ] Scene graph should (polymorphically?) cull the space, and
+in the visible space order meshes by pipeline and material
+type. Good algorithm that sorts geometry in the best possible way for the engine
+[ ] Free render pipelines
+[ ] Should each static material have its own descriptor set which simply gets bound instead of writing always over the one created with the pipeline?
+[ ] Validate at compile time the meshes and materials registered for a render pipeline
+[ ] Scene graph (BSP, quad/octtree)
 [ ] Automatically derive UISettings
 [ ] Disallow non-uniform scaling so that calculating the normal in world space is simpler
 [ ] Who's pulling in lens? Maybe I can benefit from them if I already have to have them.
-[ ] Bundle descriptor sets, render passes, and pipelines into a single abstraction
+[.] Bundle descriptor sets, render passes, and pipelines into a single abstraction
 [ ] Toon Shader
 [ ] MonadRenderer to be able to call mesh creation and such from SystemT
 [ ] Linear types for resource management
-[ ] Index buffer
+[x] Index buffer
 [ ] Since for now we decide a game can ever only use one window, we could have the Ghengin monad propagate the window thorought the program

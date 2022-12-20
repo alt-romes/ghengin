@@ -21,6 +21,14 @@ import Ghengin.Component.UI
 
 import Noise
 
+data MinMax = MinMax Float Float
+
+-- type MinMaxMaterial = Material [ 0 :-> MinMax ]
+
+-- instance Material (Material [ 0 :-> MinMax ]) where
+--   writeBindings
+
+
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
                                      , color      :: !(IORef Vec3)
@@ -57,7 +65,7 @@ instance UISettings PlanetSettings where
                                 makeComponents ns) (NE.zip nss [1..])
     pure $ b1 || or bs
 
-newPlanet :: PlanetSettings -> Renderer e Mesh
+newPlanet :: PlanetSettings -> Renderer e (Mesh, MinMax)
 newPlanet (PlanetSettings re ra co bo nss df) = do
   re' <- get re
   ra' <- get ra
@@ -73,19 +81,22 @@ newPlanet (PlanetSettings re ra co bo nss df) = do
                    FaceRight -> let UF v i = newUnitFace re' (vec3 1 0 0)
                               in (zipWith3 Vertex v (calculateSmoothNormals i v) (repeat co'),i)
 
-  ps' <- forM vs $ \(Vertex p _ _) -> do
+  (ps', elevations) <- unzip <$> forM vs \(Vertex p _ _) -> do
     case nss of
       ns NE.:| nss' -> do
         initialElevation <- evalNoise ns p
         let mask = if enableMask then initialElevation else 1
         noiseElevation <- foldM (\acc ns' -> evalNoise ns' p >>= pure . (+acc) . (* mask)) initialElevation nss'
-        pure $ p ^* (ra' * (1 + noiseElevation))
+        let elevation = ra' * (1 + noiseElevation)
+        pure $ (p ^* elevation, elevation)
 
   let
       ns' = calculateSmoothNormals is ps'
       cs  = map (\(Vertex _ _ c) -> c) vs
       vs'' = zipWith3 Vertex ps' ns' cs
-   in createMeshWithIxs vs'' is
+
+      minmax = MinMax (minimum elevations) (maximum elevations)
+   in (,minmax) <$> createMeshWithIxs vs'' is
 
 
 

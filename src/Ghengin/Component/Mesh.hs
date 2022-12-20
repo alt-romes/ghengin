@@ -27,7 +27,7 @@ module Ghengin.Component.Mesh
   , chunksOf
   ) where
 
--- import GHC.IsList
+import GHC.Records
 import Data.List.Split (chunksOf)
 import Data.List (sort, foldl')
 import Control.Monad.IO.Class
@@ -51,6 +51,12 @@ import qualified Vulkan as Vk
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan
+
+instance (Monad m, HasField "meshes" w (Storage Mesh)) => Has w m Mesh where
+  getStore = SystemT (asks (.meshes))
+
+instance Component Mesh where
+  type Storage Mesh = Map Mesh
 
 data Vertex = Vertex { position :: {-# UNPACK #-} !Vec3
                      , normal   :: {-# UNPACK #-} !Vec3

@@ -22,7 +22,7 @@ module Ghengin.Vulkan.Command
   , bindGraphicsPipeline
   , bindComputePipeline
   , bindRayTracingPipeline
-  , bindGraphicsDescriptorSets
+  , bindGraphicsDescriptorSet
   , setViewport
   , setScissor
   , bindVertexBuffers
@@ -184,9 +184,12 @@ pushConstants pipelineLayout stageFlags values =
       Vk.cmdPushConstants buf pipelineLayout stageFlags 0 (fromIntegral $ sizeOf values) (castPtr ptr)
 {-# INLINE pushConstants #-}
 
-bindGraphicsDescriptorSets :: MonadIO m => Vk.PipelineLayout -> Vector Vk.DescriptorSet -> RenderPassCmd m
-bindGraphicsDescriptorSets pipelay dsets = RenderPassCmd $ ask >>= \buf -> do
-  Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pipelay 0 dsets [] -- offsets array not used
+bindGraphicsDescriptorSet :: MonadIO m
+                          => Vk.PipelineLayout
+                          -> Word32 -- ^ Set index at which to bind the descriptor set
+                          -> Vk.DescriptorSet -> RenderPassCmd m
+bindGraphicsDescriptorSet pipelay ix dset = RenderPassCmd $ ask >>= \buf -> do
+  Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pipelay ix [dset] [] -- offsets array not used
 
 -- | Lift a function that uses a command buffer to a Command
 withCmdBuffer :: MonadIO m => (Vk.CommandBuffer -> m ()) -> Command m

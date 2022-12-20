@@ -28,7 +28,7 @@ type VertexDefs
      , "in_normal"   ':-> Input '[ Location 1 ] (V 3 Float)
      , "out_position" ':-> Output '[ Location 0 ] (V 3 Float) 
      , "push"        ':-> PushConstant '[] (Struct '[ "model" ':-> M 4 4 Float ])
-     , "ubo"         ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
+     , "ubo"         ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                                   ( Struct '[ "view" ':-> M 4 4 Float
                                             , "proj" ':-> M 4 4 Float ] )
      , "main"        ':-> EntryPoint '[] Vertex
@@ -60,7 +60,7 @@ type FragmentDefs
       , "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
 
       -- TODO: How to (automatically) take into consideration that min max has to be bound (almost?) only once (the meshes are known statically)?
-      , "minmax"     ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
+      , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
                                   ( Struct '[ "min" ':-> Float, "max" ':-> Float ] ) -- Careful with alighnemt
       , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment
       ]

@@ -41,18 +41,19 @@ initG = do
   ps <- liftIO $ makeSettings @PlanetSettings
   newEntity ( UIWindow "Planet" (makeComponents ps) )
 
-  planetMesh <- lift $ newPlanet ps
   planetPipeline <- lift $ makeRenderPipeline SimpleShader.shaderPipeline
+  (planetMesh,minmax) <- lift $ newPlanet ps -- TODO: Also require shader pipeline to validate it
+  minmaxMaterial <- lift $ makeMaterial planetPipeline
 
   -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )
   -- which can be later modified. this data is bound once per pipeline.
   -- The global data in this example is actually the Camera transform
 
-  planetRenderPacket <- lift $ newRenderPacket planetPipeline planetMesh undefined  -- also take a type that instances material (that passes the parameters for this shader?)
+  -- planetRenderPacket <- lift $ newRenderPacket planetPipeline planetMesh undefined  -- also take a type that instances material (that passes the parameters for this shader?)
 
   -- let planetMaterial = Material planetPipeline
 
-  newEntity ( planetRenderPacket, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
+  newEntity ( planetMesh, minmax, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
 
   newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
             , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
@@ -69,7 +70,7 @@ updateG ps dt uichanges = do
   -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
   when (or uichanges) $
     cmapM $ \(m :: RenderPacket) -> lift $ do
-      x <- newPlanet ps
+      (x,_useme) <- newPlanet ps
       freeMesh (m._renderMesh) -- Can we hide/enforce this somehow?
       pure (m{_renderMesh = x})
 

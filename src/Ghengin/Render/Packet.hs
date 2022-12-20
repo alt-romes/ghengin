@@ -10,7 +10,10 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-} -- instance Has w m RenderPacket
-module Ghengin.Render.Packet where
+module Ghengin.Render.Packet
+  ( module Ghengin.Render.Packet
+  , module Ghengin.Render.Pipeline
+  ) where
  
 import GHC.Records
 import Data.IORef
@@ -24,7 +27,9 @@ import Geomancy.Mat4
 import qualified Vulkan as Vk
 import Apecs
 
+import Ghengin.Render.Pipeline
 import Ghengin.Component.Mesh
+import Ghengin.Component.Material
 import Ghengin.Shaders
 import Ghengin.Utils
 import Ghengin.Vulkan.RenderPass
@@ -32,34 +37,23 @@ import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan
 
-data Material
+-- data RenderPacket = forall info.
+--                     RenderPacket { _renderPipeline :: RenderPipeline info
+--                                  , _renderMesh     :: Mesh
+--                                  , _renderMaterial :: Material
+--                                  }
 
-data RenderPacket = forall info.
-                    RenderPacket { _renderPipeline :: RenderPipeline info
-                                 , _renderMesh     :: Mesh
-                                 , _renderMaterial :: Material
-                                 }
+-- instance Component RenderPacket where
+--   type Storage RenderPacket = Map RenderPacket
 
-instance Component RenderPacket where
-  type Storage RenderPacket = Map RenderPacket
+-- instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m RenderPacket where
+--   getStore = SystemT (asks (.renderPackets))
 
--- TODO: Instructions on having a World record with "meshes"
-
-instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m RenderPacket where
-  getStore = SystemT (asks (.renderPackets))
-
-
-
--- | A render pipeline consists of the descriptor sets and a graphics pipeline
--- required to render certain 'RenderPacket's
-data RenderPipeline info = RenderPipeline { _graphicsPipeline  :: VulkanPipeline
-                                          , _renderPass        :: VulkanRenderPass
-                                          , _descriptorSetsSet :: NonEmpty (Vector DescriptorSet, Vk.DescriptorPool) -- We need descriptor sets for each frame in flight
-                                          , _shaderPipeline    :: GShaderPipeline info
-                                          }
 
 data SomeRenderPipeline where
-  SomeRenderPipeline :: ∀ α. RenderPipeline α -> SomeRenderPipeline
+  SomeRenderPipeline :: ∀ α. RenderPipeline α
+                     -> IORef [SomeMaterial] -- ^ To insert materials in this list use the function that validates them
+                     -> SomeRenderPipeline
 
 -- TODO: PushConstants must also be inferred from the shader code
 newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
@@ -96,18 +90,19 @@ makeRenderPipeline shaderPipeline = do
 
   -- Add this render pipeline to the registered pipelines
   renderPipelines <- asks (._extension._renderPipelines)
-  liftIO(modifyIORef' renderPipelines (SomeRenderPipeline rp:))
+  matsRef <- liftIO $ newIORef []
+  liftIO(modifyIORef' renderPipelines (SomeRenderPipeline rp matsRef:))
 
   pure rp
 
-newRenderPacket :: RenderPipeline info
-                -> Mesh     -- TODO: Must be compatible with input type of RenderPipeline
-                -> Material -- TODO: Must be compatible with input type of RenderPipeline
-                -> Renderer ext RenderPacket
-newRenderPacket rp@(RenderPipeline pipeline renderPass descriptorSetsSet _) mesh material = do
+-- newRenderPacket :: RenderPipeline info
+--                 -> Mesh     -- TODO: Must be compatible with input type of RenderPipeline
+--                 -> Material -- TODO: Must be compatible with input type of RenderPipeline
+--                 -> Renderer ext RenderPacket
+-- newRenderPacket rp@(RenderPipeline pipeline renderPass descriptorSetsSet _) mesh material = do
 
 
-  pure $ RenderPacket rp mesh material
+--   pure $ RenderPacket rp mesh material
 
 
 
