@@ -43,7 +43,6 @@ data RendererEnv = REnv { _instance        :: !Vk.Instance
                         , _frames          :: !(Vector VulkanFrameData)
                         , _frameInFlight   :: !(IORef Int)
                         , _immediateSubmit :: !ImmediateSubmitCtx
-                        -- , _renderPipelines :: IORef [SomeRenderPipeline]
                         }
 newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv, MonadFail)
 
@@ -126,14 +125,15 @@ runVulkanRenderer r =
 -- N is 'MAX_FRAMES_IN_FLIGHT'
 --
 -- TODO: Figure out mismatch between current image index and current image frame.
-withCurrentFramePresent :: (MonadTrans t, Monad (t Renderer), MonadIO (t Renderer))
-                        => ( Vk.CommandBuffer
+withCurrentFramePresent :: (MonadIO t)
+                        => ( ∀ α. Renderer α -> t α ) -- ^ A lift function
+                        -> ( Vk.CommandBuffer
                              -> Int -- ^ Current image index
                              -> Int -- ^ Current frame index
-                             -> t Renderer a
+                             -> t a
                            )
-                        -> t Renderer a
-withCurrentFramePresent action = do
+                        -> t a
+withCurrentFramePresent lift action = do
 
   device <- lift $ getDevice
 

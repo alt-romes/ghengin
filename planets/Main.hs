@@ -30,7 +30,8 @@ data World = World { renderPackets :: !(Storage RenderPacket)
                    , entityCounter :: !(Storage EntityCounter)
                    }
 
-instance Has World Renderer EntityCounter where getStore = SystemT (asks entityCounter)
+-- TODO: Move to somewhere within the engine and put together requirements on record fields
+instance Monad m => Has World m EntityCounter where getStore = SystemT (asks entityCounter)
 
 initG :: Ghengin World PlanetSettings
 initG = do
@@ -40,14 +41,14 @@ initG = do
   ps <- liftIO $ makeSettings @PlanetSettings
   newEntity ( UIWindow "Planet" (makeComponents ps) )
 
-  planetMesh <- lift $ newPlanet ps
-  planetPipeline <- lift $ makeRenderPipeline SimpleShader.shaderPipeline
+  planetMesh <- liftR $ newPlanet ps
+  planetPipeline <- liftR $ makeRenderPipeline SimpleShader.shaderPipeline
 
   -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )
   -- which can be later modified. this data is bound once per pipeline.
   -- The global data in this example is actually the Camera transform
 
-  planetRenderPacket <- lift $ newRenderPacket planetPipeline planetMesh undefined  -- also take a type that instances material (that passes the parameters for this shader?)
+  planetRenderPacket <- liftR $ newRenderPacket planetPipeline planetMesh undefined  -- also take a type that instances material (that passes the parameters for this shader?)
 
   -- let planetMaterial = Material planetPipeline
 
@@ -62,12 +63,12 @@ initG = do
 updateG :: PlanetSettings -> DeltaTime -> [Bool] -> Ghengin World Bool
 updateG ps dt uichanges = do
 
-  cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr
+  cmapM $ \(_ :: Camera, tr :: Transform) -> liftR $ updateFirstPersonCameraTransform dt tr
 
   -- TODO: perhaps all UI colors could be combined with the uichanges variables and be always provided on request depending on whether they were changed or not
   -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
   when (or uichanges) $
-    cmapM $ \(m :: RenderPacket) -> lift $ do
+    cmapM $ \(m :: RenderPacket) -> liftR $ do
       x <- newPlanet ps
       freeMesh (m._renderMesh) -- Can we hide/enforce this somehow?
       pure (m{_renderMesh = x})
@@ -78,7 +79,7 @@ updateG ps dt uichanges = do
 
 endG :: Ghengin World ()
 endG = do
-  cmapM $ \(m :: RenderPacket) -> lift $ freeMesh (m._renderMesh)
+  cmapM $ \(m :: RenderPacket) -> liftR $ freeMesh (m._renderMesh)
   liftIO $ putStrLn "Goodbye"
 
 main :: IO ()

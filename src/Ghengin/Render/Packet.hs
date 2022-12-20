@@ -57,6 +57,9 @@ data RenderPipeline info = RenderPipeline { _graphicsPipeline  :: VulkanPipeline
                                           , _shaderPipeline    :: GShaderPipeline info
                                           }
 
+data SomeRenderPipeline where
+  SomeRenderPipeline :: ∀ α. RenderPipeline α -> SomeRenderPipeline
+
 -- TODO: PushConstants must also be inferred from the shader code
 newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
 

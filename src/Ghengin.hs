@@ -65,11 +65,22 @@ import Ghengin.Component.UI
 -- meshes
 
 
-type Ghengin w a = SystemT w Renderer a
+type Ghengin w a = SystemT w (ReaderT GEnv Renderer) a
+
+data GEnv = GEnv { _renderPipelines :: IORef [SomeRenderPipeline]
+                 }
+
+-- | Lift a 'Renderer' action to 'Ghengin'
+liftR :: Renderer a -> Ghengin w a
+liftR = lift . lift
+
+initGEnv :: MonadIO m => m GEnv
+initGEnv = do
+  GEnv <$> liftIO (newIORef [])
 
 windowLoop :: Ghengin w Bool -> Ghengin w ()
 windowLoop action = do
-  win <- lift (asks (._vulkanWindow._window))
+  win <- liftR (asks (._vulkanWindow._window))
   loopUntilClosedOr win action
 
 type DeltaTime = Float -- Converted from NominalDiffTime
@@ -100,7 +111,7 @@ ghengin :: WorldConstraints w
         -- -> Ghengin w c -- ^ Run every draw step?
         -> Ghengin w c -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
-ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runSystem` world) $ do
+ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (\x -> initGEnv >>= runReaderT x) . (`runSystem` world) $ do
 
   -- TODO: If the materials added to each entity are ordered, when we get all
   -- the materials will the materials be ordered? If so, we can simply render
@@ -115,7 +126,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
   -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
   renderPackets <- cfold (\acc (renderPacket :: RenderPacket) -> (renderPacket:acc)) []
-  imCtx <- lift $ IM.initImGui $ case (head renderPackets) of RenderPacket {_renderPipeline = pp} -> pp._renderPass._renderPass
+  imCtx <- liftR $ IM.initImGui $ case (head renderPackets) of RenderPacket {_renderPipeline = pp} -> pp._renderPass._renderPass
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
@@ -151,9 +162,9 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (`runS
 
     pure b
 
-  Vk.deviceWaitIdle =<< lift getDevice
+  Vk.deviceWaitIdle =<< liftR getDevice
 
-  lift $ do
+  liftR $ do
     IM.destroyImCtx imCtx
     -- BIG:TODO: Destroy allocated 'RenderPipeline's
     -- destroyDescriptorPool dpool
@@ -173,7 +184,7 @@ drawUI = do
     IM.newFrame
 
     bs <- cfoldM (\acc (uiw :: UIWindow) -> do
-      bs <- lift $ IM.pushWindow uiw
+      bs <- liftR $ IM.pushWindow uiw
       pure (bs:acc)) []
 
     IM.render
@@ -186,7 +197,7 @@ drawFrame :: WorldConstraints w
           => Ghengin w ()
 drawFrame = do
 
-  extent <- lift getRenderExtent
+  extent <- liftR getRenderExtent
   let
     -- The region of the framebuffer that the output will be rendered to. We
     -- render from (0,0) to (width, height) i.e. the whole framebuffer
@@ -203,61 +214,61 @@ drawFrame = do
     -- outside of the scissor will be discarded. We keep it as the whole viewport
     scissor = Vk.Rect2D (Vk.Offset2D 0 0) extent
 
-  -- TODO: Is cfold as efficient as cmap?
+  {-
+     Here's a rundown of the draw function:
+
+     ∀ pipeline ∈ registeredPipelines do
+        bind global descriptor set at set #0
+
+        ∀ material ∈ pipeline.registeredMaterials do
+          bind material descriptor set at set #1
+
+          ∀ object that uses material do
+            
+            bind object descriptor set at set #2
+            bind object model (vertex buffer)
+            draw object
+
+      This makes the descriptor set #0 bound once per pipeline
+                 the descriptor set #1 bound once per material
+                 the descriptor set #2 bound once per object
+
+      The data bound globally for the pipeline must be compatible with the descriptor set #0 layout
+      All materials bound in a certain pipeline must be compatible with the descriptor set #1 layout
+      All object data bound in a certain pipeline must be compatible with descriptor set #2 layout
+      All object's vertex buffers bound in a certain pipeline must be compatible with the vertex input of that pipeline
+
+   -}
+
 
   -- Get main camera, we currently can't do anything without it
   cfold (\acc (cam :: Camera, tr :: Maybe Transform) -> (cam, fromMaybe noTransform tr):acc) [] >>= \case
     [] -> liftIO $ fail "No camera"
     (Camera proj view, camTr):_ -> do
 
-      projM <- lift $ makeProjection proj
+      projM <- liftR $ makeProjection proj
       let viewM = makeView camTr view
 
       -- BIG:TODO: Iterate over known graphics pipelines rather than switching it for every different mesh...
-
-      {-
-         Here's a rundown of the draw function:
-
-         ∀ pipeline ∈ registeredPipelines do
-            bind global descriptor set at set #0
-
-            ∀ material ∈ pipeline.registeredMaterials do
-              bind material descriptor set at set #1
-
-              ∀ object that uses material do
-                
-                bind object descriptor set at set #2
-                bind object model (vertex buffer)
-                draw object
-
-          This makes the descriptor set #0 bound once per pipeline
-                     the descriptor set #1 bound once per material
-                     the descriptor set #2 bound once per object
-
-          The data bound globally for the pipeline must be compatible with the descriptor set #0 layout
-          All materials bound in a certain pipeline must be compatible with the descriptor set #1 layout
-          All object data bound in a certain pipeline must be compatible with descriptor set #2 layout
-          All object's vertex buffers bound in a certain pipeline must be compatible with the vertex input of that pipeline
-
-       -}
 
       -- Get each object mesh render cmd
       renderPackets <- cfold (\acc (renderPacket :: RenderPacket, tr :: Maybe Transform) -> (renderPacket, fromMaybe noTransform tr):acc) []
       -- let wrongSharedPipeline = (fst $ head renderPackets)._renderPipeline
       --     (wspp, wsrp, wsds) = (wrongSharedPipeline._graphicsPipeline, wrongSharedPipeline._renderPass, fmap fst $ wrongSharedPipeline._descriptorSetsSet)
 
-      withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
+      -- TODO: move out
+      withCurrentFramePresent liftR $ \cmdBuffer currentImage currentFrame -> do
 
       -- Draw frame is actually here, within 'withCurrentFramePresent'
       
-        let pipelines = [(fst (head renderPackets))] :: [RenderPacket] -- getAllPipelines
-        forM pipelines $ \RenderPacket {_renderPipeline = pipeline} -> do
+        pipelines <- liftIO . readIORef =<< lift (asks (._renderPipelines))
+        forM pipelines $ \(SomeRenderPipeline pipeline) -> do
 
           -- TODO: Should be specific to each pipeline. E.g. if I have a color
           -- attribute that should be displayed that should be described in the
           -- pipeline constructor
           -- TODO: Should be done in separate stages: descriptor sets with different indexes get bound a different number of times...
-          lift $ writeMappedBuffer (case fst $ ((fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
+          liftR $ writeMappedBuffer (case fst $ ((fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
 
           recordCommand cmdBuffer $ do
 
