@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE UnicodeSyntax #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -37,6 +38,8 @@ module Ghengin.Vulkan.Command
   , destroyCommandPool
   , createCommandBuffers
   , destroyCommandBuffers
+
+  , embed
   ) where
 
 import Control.Monad.Reader
@@ -81,10 +84,10 @@ type Command m = CommandM m ()
 type RenderPassCmd m = RenderPassCmdM m ()
 
 newtype CommandM m a = Command (ReaderT Vk.CommandBuffer m a)
-  deriving (Functor, Applicative, Monad, MonadIO)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadTrans)
 
 newtype RenderPassCmdM m a = RenderPassCmd (ReaderT Vk.CommandBuffer m a)
-  deriving (Functor, Applicative, Monad, MonadIO)
+  deriving (Functor, Applicative, Monad, MonadIO, MonadTrans)
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
@@ -221,4 +224,7 @@ createCommandBuffers dev cpool n = do
 destroyCommandBuffers :: MonadIO m => Vk.Device -> Vk.CommandPool -> Vector Vk.CommandBuffer -> m ()
 destroyCommandBuffers = Vk.freeCommandBuffers
 
+-- | A peculiar function to be sure. Best used with 'cmapM' from apecs
+embed :: MonadIO m => ((x -> m ()) -> m ()) -> ((x -> RenderPassCmd m) -> RenderPassCmd m)
+embed g h = RenderPassCmd $ ask >>= \buf -> lift $ g (fmap (\case RenderPassCmd act -> runReaderT act buf) h)
 

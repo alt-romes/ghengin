@@ -237,54 +237,53 @@ drawFrame = do
    -}
 
 
-  -- Get main camera, we currently can't do anything without it
-  cfold (\acc (cam :: Camera, tr :: Maybe Transform) -> (cam, fromMaybe noTransform tr):acc) [] >>= \case
-    [] -> liftIO $ fail "No camera"
-    (Camera proj view, camTr):_ -> do
+  -- Get each object mesh render cmd
+  renderPackets <- cfold (\acc (renderPacket :: RenderPacket, tr :: Maybe Transform) -> (renderPacket, fromMaybe noTransform tr):acc) []
+  -- let wrongSharedPipeline = (fst $ head renderPackets)._renderPipeline
+  --     (wspp, wsrp, wsds) = (wrongSharedPipeline._graphicsPipeline, wrongSharedPipeline._renderPass, fmap fst $ wrongSharedPipeline._descriptorSetsSet)
 
-      projM <- lift $ makeProjection proj
-      let viewM = makeView camTr view
+  withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
-      -- BIG:TODO: Iterate over known graphics pipelines rather than switching it for every different mesh...
+  -- Draw frame is actually here, within 'withCurrentFramePresent'
+  
+    pipelines <- liftIO . readIORef =<< lift (asks (._extension._renderPipelines))
+    forM pipelines $ \(SomeRenderPipeline pipeline) -> do
 
-      -- Get each object mesh render cmd
-      renderPackets <- cfold (\acc (renderPacket :: RenderPacket, tr :: Maybe Transform) -> (renderPacket, fromMaybe noTransform tr):acc) []
-      -- let wrongSharedPipeline = (fst $ head renderPackets)._renderPipeline
-      --     (wspp, wsrp, wsds) = (wrongSharedPipeline._graphicsPipeline, wrongSharedPipeline._renderPass, fmap fst $ wrongSharedPipeline._descriptorSetsSet)
+      -- TODO: Should be specific to each pipeline. E.g. if I have a color
+      -- attribute that should be displayed that should be described in the
+      -- pipeline constructor
+      -- TODO: Should be done in separate stages: descriptor sets with different indexes get bound a different number of times...
 
-      -- TODO: move out
-      withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
+      recordCommand cmdBuffer $ do
 
-      -- Draw frame is actually here, within 'withCurrentFramePresent'
+        renderPass pipeline._renderPass._renderPass (pipeline._renderPass._framebuffers V.! currentImage) extent $ do
+
+          bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
+          setViewport viewport
+          setScissor  scissor
+
+          -- TODO: Bind pipeline-global data to descriptor set #0
+          -- Get main camera, for the time being it's the only possible pipeline data for the shader
+          -- The last camera will override the write buffer
+          lift $ cmapM $ \(Camera proj view, camTr :: Maybe Transform) -> do
+
+            -- TODO: All buffers should already be computed by the time we get to the draw phase: means we only have to bind things and that things only have a cost if changed?
+            projM <- lift $ makeProjection proj
+            let viewM = makeView (fromMaybe noTransform camTr) view
+
+            lift $ writeMappedBuffer (case fst $ ((fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
+
+          bindGraphicsDescriptorSets pipeline._graphicsPipeline._pipelineLayout (fmap (._descriptorSet) $ fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame)
+
+          -- TODO: Render all meshes that share the same descriptor sets and graphics pipeline...
+          embed cmapM $ \(renderPacket :: RenderPacket, fromMaybe noTransform -> tr) -> do
+            pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform tr)
+            renderMesh renderPacket._renderMesh
+
+          -- Draw UI
+          IM.renderDrawData =<< IM.getDrawData
+
       
-        pipelines <- liftIO . readIORef =<< lift (asks (._extension._renderPipelines))
-        forM pipelines $ \(SomeRenderPipeline pipeline) -> do
-
-          -- TODO: Should be specific to each pipeline. E.g. if I have a color
-          -- attribute that should be displayed that should be described in the
-          -- pipeline constructor
-          -- TODO: Should be done in separate stages: descriptor sets with different indexes get bound a different number of times...
-          lift $ writeMappedBuffer (case fst $ ((fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
-
-          recordCommand cmdBuffer $ do
-
-            renderPass pipeline._renderPass._renderPass (pipeline._renderPass._framebuffers V.! currentImage) extent $ do
-
-              bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
-              setViewport viewport
-              setScissor  scissor
-
-              -- TODO: Render all meshes that share the same descriptor sets and graphics pipeline...
-              -- forM_ meshRenderCmds $ \(meshRenderCmd, transform) -> do
-
-              bindGraphicsDescriptorSets pipeline._graphicsPipeline._pipelineLayout (fmap (._descriptorSet) $ fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame)
-              -- pushConstants wspp._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform transform)
-              pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform (snd $ head renderPackets))
-              renderMesh (fst $ head renderPackets)._renderMesh
-
-              -- Draw UI
-              IM.renderDrawData =<< IM.getDrawData
-          
   pure ()
 
 
