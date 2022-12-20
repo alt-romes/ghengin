@@ -57,7 +57,7 @@ instance UISettings PlanetSettings where
                                 makeComponents ns) (NE.zip nss [1..])
     pure $ b1 || or bs
 
-newPlanet :: PlanetSettings -> Renderer Mesh
+newPlanet :: PlanetSettings -> Renderer e Mesh
 newPlanet (PlanetSettings re ra co bo nss df) = do
   re' <- get re
   ra' <- get ra

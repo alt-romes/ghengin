@@ -16,7 +16,7 @@ import Codec.Wavefront
 import Ghengin.Vulkan
 import Ghengin.Component.Mesh
 
-loadObjMesh :: FilePath -> Renderer Mesh
+loadObjMesh :: FilePath -> Renderer ext Mesh
 loadObjMesh filepath = do
   fromFile filepath >>= \case
     Left err -> liftIO $ fail err

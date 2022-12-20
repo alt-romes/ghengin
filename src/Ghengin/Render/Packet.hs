@@ -13,6 +13,7 @@
 module Ghengin.Render.Packet where
  
 import GHC.Records
+import Data.IORef
 
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.IntMap (IntMap)
@@ -69,9 +70,10 @@ newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Sto
 -- TODO: Currently we assume all our descriptor sets are Uniform buffers and
 -- our buffers too but eventually Uniform will be just a constructor of a more
 -- general Buffer and we should select the correct type of buffer individually.
-makeRenderPipeline :: PipelineConstraints info tops descs strides
+makeRenderPipeline :: ( PipelineConstraints info tops descs strides
+                      , HasField "_renderPipelines" ext (IORef [SomeRenderPipeline]) )
                    => GShaderPipeline info
-                   -> Renderer (RenderPipeline info)
+                   -> Renderer ext (RenderPipeline info)
 makeRenderPipeline shaderPipeline = do
 
   simpleRenderPass <- createSimpleRenderPass
@@ -92,14 +94,16 @@ makeRenderPipeline shaderPipeline = do
 
   let rp = RenderPipeline pipeline simpleRenderPass dsetsSet shaderPipeline
 
-  -- insertRenderPipeline rp
+  -- Add this render pipeline to the registered pipelines
+  renderPipelines <- asks (._extension._renderPipelines)
+  liftIO(modifyIORef' renderPipelines (SomeRenderPipeline rp:))
 
   pure rp
 
 newRenderPacket :: RenderPipeline info
                 -> Mesh     -- TODO: Must be compatible with input type of RenderPipeline
                 -> Material -- TODO: Must be compatible with input type of RenderPipeline
-                -> Renderer RenderPacket
+                -> Renderer ext RenderPacket
 newRenderPacket rp@(RenderPipeline pipeline renderPass descriptorSetsSet _) mesh material = do
 
 

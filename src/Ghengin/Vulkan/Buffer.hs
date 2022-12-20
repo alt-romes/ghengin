@@ -22,7 +22,7 @@ import qualified Ghengin.Vulkan.Command as Cmd
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan
 
-createBuffer :: Vk.DeviceSize -> Vk.BufferUsageFlags -> Vk.MemoryPropertyFlags -> Renderer (Vk.Buffer, Vk.DeviceMemory)
+createBuffer :: Vk.DeviceSize -> Vk.BufferUsageFlags -> Vk.MemoryPropertyFlags -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
 createBuffer size usage properties = do
   device <- getDevice
   let bufferInfo = Vk.BufferCreateInfo { next = ()
@@ -46,19 +46,19 @@ createBuffer size usage properties = do
   pure (buffer, devMem)
 
 -- TODO: Can't forget to call this to free buffer memories after meshes (or the related entities) die
-destroyBuffer :: Vk.Buffer -> Vk.DeviceMemory -> Renderer ()
+destroyBuffer :: Vk.Buffer -> Vk.DeviceMemory -> Renderer ext ()
 destroyBuffer buffer mem = do
   device <- getDevice
   Vk.destroyBuffer device buffer Nothing
   Vk.freeMemory device mem Nothing
 
-copyBuffer :: Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Renderer ()
+copyBuffer :: Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Renderer ext ()
 copyBuffer src dst size = immediateSubmit $ Cmd.copyFullBuffer src dst size
 
 -- | Fills a device local buffer with the provided flags and the provided data
 -- by first copying the data to a staging buffer and then running a buffer copy
 -- one-shot command.
-createDeviceLocalBuffer :: Storable a => Vk.BufferUsageFlags -> SV.Vector a -> Renderer (Vk.Buffer, Vk.DeviceMemory)
+createDeviceLocalBuffer :: Storable a => Vk.BufferUsageFlags -> SV.Vector a -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
 createDeviceLocalBuffer flags bufferData = do
 
   let l          = SV.length bufferData
@@ -86,10 +86,10 @@ createDeviceLocalBuffer flags bufferData = do
 
   pure (devBuffer, devMem)
 
-createVertexBuffer :: Storable a => SV.Vector a -> Renderer (Vk.Buffer, Vk.DeviceMemory)
+createVertexBuffer :: Storable a => SV.Vector a -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
 createVertexBuffer = createDeviceLocalBuffer Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT
 
-createIndex32Buffer :: SV.Vector Int32 -> Renderer (Vk.Buffer, Vk.DeviceMemory)
+createIndex32Buffer :: SV.Vector Int32 -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
 createIndex32Buffer = createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT
 
 -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
@@ -127,7 +127,7 @@ data SomeMappedBuffer where
 -- for that.
 --
 -- The size is given by the type of the storable to store in the uniform buffer.
-createMappedBuffer :: ∀ a. Storable a => Vk.DescriptorType -> Renderer (MappedBuffer a)
+createMappedBuffer :: ∀ a ext. Storable a => Vk.DescriptorType -> Renderer ext (MappedBuffer a)
 createMappedBuffer descriptorType = do
   device <- getDevice
 
@@ -144,7 +144,7 @@ createMappedBuffer descriptorType = do
 
     t -> error $ "Unexpected/unsupported storage class for descriptor: " <> show t
 
-destroyMappedBuffer :: MappedBuffer a -> Renderer ()
+destroyMappedBuffer :: MappedBuffer a -> Renderer ext ()
 destroyMappedBuffer (UniformBuffer b dm _hostMemory) = do
   -- TODO: Is hostMemory freed with unmap? Or with destroyMemory? Or?
   device <- getDevice
@@ -152,7 +152,7 @@ destroyMappedBuffer (UniformBuffer b dm _hostMemory) = do
   destroyBuffer b dm
 
 -- | Note how the storable must be the same as the storable of the uniform buffer so that the sizes match
-writeMappedBuffer :: Storable a => MappedBuffer a -> a -> Renderer ()
+writeMappedBuffer :: Storable a => MappedBuffer a -> a -> Renderer ext ()
 writeMappedBuffer (UniformBuffer _ _ ptr) x = liftIO $ poke ptr x
 
 

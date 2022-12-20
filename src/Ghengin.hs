@@ -65,14 +65,10 @@ import Ghengin.Component.UI
 -- meshes
 
 
-type Ghengin w a = SystemT w (ReaderT GEnv Renderer) a
+type Ghengin w a = SystemT w (Renderer GEnv) a
 
 data GEnv = GEnv { _renderPipelines :: IORef [SomeRenderPipeline]
                  }
-
--- | Lift a 'Renderer' action to 'Ghengin'
-liftR :: Renderer a -> Ghengin w a
-liftR = lift . lift
 
 initGEnv :: MonadIO m => m GEnv
 initGEnv = do
@@ -80,7 +76,7 @@ initGEnv = do
 
 windowLoop :: Ghengin w Bool -> Ghengin w ()
 windowLoop action = do
-  win <- liftR (asks (._vulkanWindow._window))
+  win <- lift (asks (._vulkanWindow._window))
   loopUntilClosedOr win action
 
 type DeltaTime = Float -- Converted from NominalDiffTime
@@ -111,7 +107,7 @@ ghengin :: WorldConstraints w
         -- -> Ghengin w c -- ^ Run every draw step?
         -> Ghengin w c -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
-ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (\x -> initGEnv >>= runReaderT x) . (`runSystem` world) $ do
+ghengin world initialize _simstep loopstep finalize = (\x -> initGEnv >>= flip runVulkanRenderer x) . (`runSystem` world) $ do
 
   -- TODO: If the materials added to each entity are ordered, when we get all
   -- the materials will the materials be ordered? If so, we can simply render
@@ -126,7 +122,7 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (\x ->
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
   -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
   renderPackets <- cfold (\acc (renderPacket :: RenderPacket) -> (renderPacket:acc)) []
-  imCtx <- liftR $ IM.initImGui $ case (head renderPackets) of RenderPacket {_renderPipeline = pp} -> pp._renderPass._renderPass
+  imCtx <- lift $ IM.initImGui $ case (head renderPackets) of RenderPacket {_renderPipeline = pp} -> pp._renderPass._renderPass
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
@@ -162,9 +158,9 @@ ghengin world initialize _simstep loopstep finalize = runVulkanRenderer . (\x ->
 
     pure b
 
-  Vk.deviceWaitIdle =<< liftR getDevice
+  Vk.deviceWaitIdle =<< lift getDevice
 
-  liftR $ do
+  lift $ do
     IM.destroyImCtx imCtx
     -- BIG:TODO: Destroy allocated 'RenderPipeline's
     -- destroyDescriptorPool dpool
@@ -184,7 +180,7 @@ drawUI = do
     IM.newFrame
 
     bs <- cfoldM (\acc (uiw :: UIWindow) -> do
-      bs <- liftR $ IM.pushWindow uiw
+      bs <- lift $ IM.pushWindow uiw
       pure (bs:acc)) []
 
     IM.render
@@ -197,7 +193,7 @@ drawFrame :: WorldConstraints w
           => Ghengin w ()
 drawFrame = do
 
-  extent <- liftR getRenderExtent
+  extent <- lift getRenderExtent
   let
     -- The region of the framebuffer that the output will be rendered to. We
     -- render from (0,0) to (width, height) i.e. the whole framebuffer
@@ -246,7 +242,7 @@ drawFrame = do
     [] -> liftIO $ fail "No camera"
     (Camera proj view, camTr):_ -> do
 
-      projM <- liftR $ makeProjection proj
+      projM <- lift $ makeProjection proj
       let viewM = makeView camTr view
 
       -- BIG:TODO: Iterate over known graphics pipelines rather than switching it for every different mesh...
@@ -257,18 +253,18 @@ drawFrame = do
       --     (wspp, wsrp, wsds) = (wrongSharedPipeline._graphicsPipeline, wrongSharedPipeline._renderPass, fmap fst $ wrongSharedPipeline._descriptorSetsSet)
 
       -- TODO: move out
-      withCurrentFramePresent liftR $ \cmdBuffer currentImage currentFrame -> do
+      withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
       -- Draw frame is actually here, within 'withCurrentFramePresent'
       
-        pipelines <- liftIO . readIORef =<< lift (asks (._renderPipelines))
+        pipelines <- liftIO . readIORef =<< lift (asks (._extension._renderPipelines))
         forM pipelines $ \(SomeRenderPipeline pipeline) -> do
 
           -- TODO: Should be specific to each pipeline. E.g. if I have a color
           -- attribute that should be displayed that should be described in the
           -- pipeline constructor
           -- TODO: Should be done in separate stages: descriptor sets with different indexes get bound a different number of times...
-          liftR $ writeMappedBuffer (case fst $ ((fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
+          lift $ writeMappedBuffer (case fst $ ((fmap fst (pipeline._descriptorSetsSet) NE.!! currentFrame) V.! 0)._bindings IM.! 0 of SomeMappedBuffer b -> unsafeCoerce b) (UBO viewM projM)
 
           recordCommand cmdBuffer $ do
 

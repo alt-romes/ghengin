@@ -60,7 +60,7 @@ newUnitSphere res color =
 
 newSphereMesh :: Int -- ^ Resolution
           -> Maybe Vec3 -- ^ Color, use the normals if Nothing
-          -> Renderer Mesh
+          -> Renderer ext Mesh
 newSphereMesh res color =
   let UnitSphere vs is = newUnitSphere res color
    in createMeshWithIxs vs is

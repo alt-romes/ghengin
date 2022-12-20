@@ -63,7 +63,7 @@ dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT -- TODO: Eventually only the viewpor
 --                      -> Vk.RenderPass
 --                      -> V.Vector Vk.DescriptorSetLayout
 --                      -> V.Vector Vk.PushConstantRange
---                      -> (VulkanPipeline -> Renderer a) -> Renderer a
+--                      -> (VulkanPipeline -> Renderer ext a) -> Renderer a
 -- withGraphicsPipeline vert frag rp sls pcr f = Renderer $ ReaderT $ \renv ->
 --                                           bracket
 --                                             (runReaderT (unRenderer $ createGraphicsPipeline vert frag rp sls pcr) renv)
@@ -90,12 +90,13 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( top     :: PrimitiveTopology Nat      )
                            ( descs   :: VertexLocationDescriptions )
                            ( strides :: BindingStrides             )
+                           ( ext     :: Type                       )
                         .  PipelineConstraints info top descs strides
                         => GShaderPipeline info
                         -> Vk.RenderPass
                         -> V.Vector Vk.DescriptorSetLayout
                         -> V.Vector Vk.PushConstantRange
-                        -> Renderer VulkanPipeline
+                        -> Renderer ext VulkanPipeline
 createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges = do
   dev <- getDevice
 
@@ -269,7 +270,7 @@ createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges 
 
 
 
-destroyPipeline :: VulkanPipeline -> Renderer ()
+destroyPipeline :: VulkanPipeline -> Renderer ext ()
 destroyPipeline (VulkanPipeline pipeline pipelineLayout) = getDevice >>= \d -> do
   Vk.destroyPipeline d pipeline Nothing
   Vk.destroyPipelineLayout d pipelineLayout Nothing

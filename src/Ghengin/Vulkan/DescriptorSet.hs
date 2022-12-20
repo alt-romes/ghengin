@@ -51,7 +51,7 @@ type BindingsMap = IntMap (Vk.DescriptorType, SomeStorable, Vk.ShaderStageFlags)
 -- and mapped memory, and will update the descriptor sets with the buffers
 -- information
 createDescriptorSets :: FIR.PipelineStages info StorableMap -- ^ Each shader stage must be associated with a list of the storables in the order of each corresponding descriptor set binding
-                     -> Renderer (Vector DescriptorSet, Vk.DescriptorPool)
+                     -> Renderer ext (Vector DescriptorSet, Vk.DescriptorPool)
 createDescriptorSets ppstages = do
 
   let descriptorSetMap :: IntMap BindingsMap -- ^ Map each set ix to a bindings map
@@ -113,7 +113,7 @@ descriptorType = \case
 
 
 createDescriptorSetLayout :: BindingsMap -- ^ Binding, type and stage flags for each descriptor in the set to create
-                          -> Renderer Vk.DescriptorSetLayout
+                          -> Renderer ext Vk.DescriptorSetLayout
 createDescriptorSetLayout bindingsMap = getDevice >>= \device -> do
 
   let
@@ -133,7 +133,7 @@ createDescriptorSetLayout bindingsMap = getDevice >>= \device -> do
   Vk.createDescriptorSetLayout device layoutInfo Nothing
 
 
-destroyDescriptorSetLayout :: Vk.DescriptorSetLayout -> Renderer ()
+destroyDescriptorSetLayout :: Vk.DescriptorSetLayout -> Renderer ext ()
 destroyDescriptorSetLayout layout = getDevice >>= \dev -> Vk.destroyDescriptorSetLayout dev layout Nothing
 
 
@@ -144,7 +144,7 @@ destroyDescriptorSetLayout layout = getDevice >>= \dev -> Vk.destroyDescriptorSe
 --
 -- TODO: Linear types...
 allocateDescriptorSets :: [(Vk.DescriptorSetLayout,[Vk.DescriptorType])] -- ^ The descriptors we need for each set (indexed by set). This is used to calculate the amount of descriptor sets to allocate and the amoumt of descriptors of each type
-                       -> Renderer (Vector Vk.DescriptorSet, Vk.DescriptorPool)
+                       -> Renderer ext (Vector Vk.DescriptorSet, Vk.DescriptorPool)
 allocateDescriptorSets sets = do
 
   let 
@@ -171,14 +171,14 @@ allocateDescriptorSets sets = do
   pure (descriptorSets, descriptorPool)
   
 
-destroyDescriptorPool :: Vk.DescriptorPool -> Renderer ()
+destroyDescriptorPool :: Vk.DescriptorPool -> Renderer ext ()
 destroyDescriptorPool p = getDevice >>= \dev -> Vk.destroyDescriptorPool dev p Nothing
 
 
 -- | Update the configuration of a descriptor set with multiple buffers
 updateBufferDescriptorSet :: Vk.DescriptorSet   -- ^ The descriptor set we're writing with these buffers
                           -> IntMap (SomeMappedBuffer, Vk.DescriptorType) -- ^ The buffers, their bindings, and the type of buffer as a DescriptorType
-                          -> Renderer ()
+                          -> Renderer ext ()
 updateBufferDescriptorSet dset bufs = do
 
   let makeBufferWrite i (buf, dty) =

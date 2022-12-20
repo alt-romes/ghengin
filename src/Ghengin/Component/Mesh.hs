@@ -124,13 +124,13 @@ renderMesh = \case
 
 -- | Create a Mesh given a vector of vertices
 -- TODO: Clean all Mesh vertex buffers
-createMesh :: SV.Vector Vertex -> Renderer Mesh
+createMesh :: SV.Vector Vertex -> Renderer ext Mesh
 createMesh vs = do
   let nverts = SV.length vs
   (buffer, devMem) <- createVertexBuffer vs
   pure (SimpleMesh buffer devMem (fromIntegral nverts))
 
-createMeshWithIxs :: [Vertex] -> [Int] -> Renderer Mesh
+createMeshWithIxs :: [Vertex] -> [Int] -> Renderer ext Mesh
 createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
   let nixs = SV.length ixs
   (vbuffer, vbMem) <- createVertexBuffer vertices
@@ -139,7 +139,7 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
   pure (IndexedMesh vbuffer vbMem ibuffer ibMem (fromIntegral nixs))
 
 
-freeMesh :: Mesh -> Renderer ()
+freeMesh :: Mesh -> Renderer ext ()
 freeMesh = \case
   SimpleMesh a b _ -> destroyBuffer a b
   IndexedMesh a b c d _ -> destroyBuffer a b >> destroyBuffer c d

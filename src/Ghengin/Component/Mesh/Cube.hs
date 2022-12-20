@@ -63,6 +63,6 @@ cubeMeshVertices =
  where
    vertex' a b c d e f = Vertex (vec3 a b c) (vec3 0 0 0) (vec3 d e f)
 
-cubeMesh :: Renderer Mesh
+cubeMesh :: Renderer ext Mesh
 cubeMesh = createMesh cubeMeshVertices
 
