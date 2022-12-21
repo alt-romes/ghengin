@@ -34,6 +34,9 @@ infixr 6 :#
 data SomeStorable where
   SomeStorable :: ∀ a. Storable a => SomeStorable
 
+instance Show SomeStorable where
+  show _ = "SomeStorable"
+
 (.&&.) :: Bits a => a -> a -> Bool
 x .&&. y = (/= zeroBits) (x .&. y)
 

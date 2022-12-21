@@ -9,6 +9,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.DescriptorSet where
 
+import Control.Monad.IO.Class
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad
@@ -55,7 +56,7 @@ createDescriptorSets :: FIR.PipelineStages info StorableMap -- ^ Each shader sta
 createDescriptorSets ppstages = do
 
   let descriptorSetMap :: IntMap BindingsMap -- ^ Map each set ix to a bindings map
-      descriptorSetMap = makeDescriptorSetMap (M.fromList $ go [] ppstages)
+      descriptorSetMap = makeDescriptorSetMap (go [] ppstages)
 
   layoutsAndBuffers :: [(Int,BindingsMap,Vk.DescriptorSetLayout,IntMap SomeMappedBuffer)]
       <- forM (IM.toAscList descriptorSetMap) $ \(setNumber, bindingsMap) -> do
@@ -77,26 +78,29 @@ createDescriptorSets ppstages = do
   pure (configuredDescriptorSets, dpool)
   
     where
-      go :: [(FIR.Shader, (SPIRV.PointerTy,StorableMap,SPIRV.Decorations))]
+      go :: Map FIR.Shader [(SPIRV.PointerTy,StorableMap,SPIRV.Decorations)]
          -> FIR.PipelineStages info StorableMap
-         -> [(FIR.Shader, (SPIRV.PointerTy,StorableMap,SPIRV.Decorations))] -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
+         -> Map FIR.Shader [(SPIRV.PointerTy,StorableMap,SPIRV.Decorations)] -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
       go acc FIR.VertexInput = acc
-      go acc (pipe FIR.:>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState,storable)) = go (((map (\(pt,dc) -> (FIR.knownValue @stage,(pt,storable,dc))) $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs)) <> acc) pipe
+      go acc (pipe FIR.:>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState,storable)) =
+        go (M.insertWith (<>) (FIR.knownValue @stage) (map (\(pt,dc) -> (pt,storable,dc)) $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) acc) pipe
 
 
-      makeDescriptorSetMap :: Map FIR.Shader (SPIRV.PointerTy, StorableMap, SPIRV.Decorations)
+      makeDescriptorSetMap :: Map FIR.Shader [(SPIRV.PointerTy, StorableMap, SPIRV.Decorations)]
                            -> IntMap BindingsMap -- ^ Mapping from descriptor set indexes to a list of their bindings (corresponding binding type, shader stage)
       makeDescriptorSetMap =
-        M.foldrWithKey (\shader (pt,ss,S.toList -> decs) acc ->
-          -- case L.sort (S.toList decs) of
-          --   [Binding bindingIx, DescriptorSet descriptorSetIx] ->
-          --   _ -> error $ "Invalid decorations for descriptor set: " <> show decs
-          -- TODO: Rewrite
-          case L.find (\case SPIRV.DescriptorSet _ -> True; _ -> False) decs of
-            Just (SPIRV.DescriptorSet (fromIntegral -> descriptorIx)) -> case L.find (\case SPIRV.Binding _ -> True; _ -> False) decs of
-              Just (SPIRV.Binding (fromIntegral -> bindingIx)) -> IM.insertWith mergeSameDS descriptorIx (IM.singleton bindingIx (descriptorType pt, ss IM.! descriptorIx IM.! bindingIx, stageFlag shader)) acc
-              Nothing -> error "Can't have descriptor set without binding ix"
-            Nothing -> acc
+        M.foldrWithKey (\shader ls acc' -> 
+          foldr (\(pt,ss,S.toList -> decs) acc ->
+            -- case L.sort (S.toList decs) of
+            --   [Binding bindingIx, DescriptorSet descriptorSetIx] ->
+            --   _ -> error $ "Invalid decorations for descriptor set: " <> show decs
+            -- TODO: Rewrite
+            case L.find (\case SPIRV.DescriptorSet _ -> True; _ -> False) decs of
+              Just (SPIRV.DescriptorSet (fromIntegral -> descriptorIx)) ->
+                case L.find (\case SPIRV.Binding _ -> True; _ -> False) decs of
+                  Just (SPIRV.Binding (fromIntegral -> bindingIx)) -> IM.insertWith mergeSameDS descriptorIx (IM.singleton bindingIx (descriptorType pt, ss IM.! descriptorIx IM.! bindingIx, stageFlag shader)) acc
+                  Nothing -> error "Can't have descriptor set without binding ix"
+              Nothing -> acc) acc' ls
           ) mempty
 
       mergeSameDS :: BindingsMap
@@ -205,5 +209,25 @@ updateBufferDescriptorSet dset bufs = do
   Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeBufferWrite bufs) []
 
 
-
-
+-- fromList [(VertexShader,
+-- [(PtrTy {pointerTy = Pointer Input (Vector {size = 3, eltTy = Scalar (Floating W32)})},fromList [(0,fromList [(0,SomeStorable)])],fromList [Location 2]),
+-- (PtrTy {pointerTy = Pointer Input (Vector {size = 3, eltTy = Scalar (Floating W32)})},fromList [(0,fromList [(0,SomeStorable)])],fromList [Location 1]),
+-- (PtrTy {pointerTy = Pointer Input (Vector {size = 3, eltTy = Scalar (Floating W32)})},fromList [(0,fromList [(0,SomeStorable)])],fromList [Location 0]),
+-- (PtrTy {pointerTy = Pointer Output (Vector {size = 3, eltTy = Scalar (Floating W32)})},fromList [(0,fromList [(0,SomeStorable)])],fromList [Location 0]),
+-- (PtrTy {pointerTy = Pointer PushConstant (Struct {eltTys = [(Just "model",Matrix {rows = 4, cols = 4, entryTy = Floating W32},fromList [])],
+-- decs = fromList [], usage = NotForBuiltins})},fromList [(0,fromList [(0,SomeStorable)])],fromList [])
+--
+--   ,(PtrTy {pointerTy = Pointer Uniform (Struct {eltTys = [(Just
+--   "view",Matrix {rows = 4, cols = 4, entryTy = Floating W32},fromList []),(Just
+--   "proj",Matrix {rows = 4, cols = 4, entryTy = Floating W32},fromList [])],
+--   decs = fromList [], usage = NotForBuiltins})},fromList [(0,fromList
+--   [(0,SomeStorable)])],fromList [Binding 0,DescriptorSet
+--   0])]),
+--
+--
+--   (FragmentShader,[
+--
+--   (PtrTy {pointerTy = Pointer Input (Vector {size = 3, eltTy = Scalar (Floating W32)})},fromList [(1,fromList [(0,SomeStorable)])],fromList [Location 0]),
+--   (PtrTy {pointerTy = Pointer Uniform (Struct {eltTys = [(Just "min",Scalar (Floating W32),fromList []),(Just "max",Scalar (Floating W32),fromList [])], decs = fromList [], usage = NotForBuiltins})},fromList [(1,fromList [(0,SomeStorable)])],fromList [Binding 0,DescriptorSet 1]),
+--   (PtrTy {pointerTy = Pointer Output (Vector {size = 4, eltTy = Scalar (Floating W32)})},fromList [(1,fromList [(0,SomeStorable)])],fromList [Location 0])
+--     ])]

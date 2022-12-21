@@ -1,3 +1,4 @@
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImpredicativeTypes #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -23,6 +24,8 @@ module Ghengin
 
 import GHC.Records
 import Unsafe.Coerce
+
+import GHC.Stack
 
 import Foreign.Storable
 import Foreign.Ptr
@@ -196,7 +199,7 @@ drawUI = do
 
 -- TODO: Eventually move drawFrame to a better contained renderer part
 
-drawFrame :: WorldConstraints w
+drawFrame :: (WorldConstraints w, HasCallStack)
           => Ghengin w ()
 drawFrame = do
 

@@ -26,6 +26,7 @@ import Ghengin (Mat4)
 type VertexDefs
   = '[ "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
      , "in_normal"   ':-> Input '[ Location 1 ] (V 3 Float)
+     , "ignored_color"    ':-> Input '[ Location 2 ] (V 3 Float)
      , "out_position" ':-> Output '[ Location 0 ] (V 3 Float) 
      , "push"        ':-> PushConstant '[] (Struct '[ "model" ':-> M 4 4 Float ])
      , "ubo"         ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
@@ -88,8 +89,8 @@ type VertexData =
 shaderPipeline :: GShaderPipeline _
 shaderPipeline
   = StructInput @VertexData @(Triangle List)
-    :>-> (vertex, IM.singleton 1 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2))))
-    :>-> (fragment, IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Float 2))))
+    :>-> (vertex, IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2)))) -- move these data types out of here... into the types
+    :>-> (fragment, IM.singleton 1 (IM.singleton 0 (SomeStorable @(VertexN Float 2))))
 
 
 

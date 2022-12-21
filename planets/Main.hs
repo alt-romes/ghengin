@@ -43,7 +43,7 @@ initG = do
   ps <- liftIO $ makeSettings @PlanetSettings
   newEntity ( UIWindow "Planet" (makeComponents ps) )
 
-  planetPipeline <- lift $ makeRenderPipeline SimpleShader.shaderPipeline
+  planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
   (planetMesh,minmax) <- lift $ newPlanet ps -- TODO: Also require shader pipeline to validate it
   minmaxMaterial <- lift $ makeMaterial planetPipeline (makeMinMaxMaterial minmax)
 
