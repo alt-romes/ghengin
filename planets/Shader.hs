@@ -26,12 +26,15 @@ import Ghengin (Mat4)
 type VertexDefs
   = '[ "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
      , "in_normal"   ':-> Input '[ Location 1 ] (V 3 Float)
-     , "ignored_color" ':-> Input '[ Location 2 ] (V 3 Float)
-     , "out_pos"     ':-> Output '[ Location 0 ] (V 3 Float)
+     , "ignored_color"    ':-> Input '[ Location 2 ] (V 3 Float)
+     , "out_col"     ':-> Output '[ Location 0 ] Float 
      , "push"        ':-> PushConstant '[] (Struct '[ "model" ':-> M 4 4 Float ])
      , "ubo"         ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                                   ( Struct '[ "view" ':-> M 4 4 Float
                                             , "proj" ':-> M 4 4 Float ] )
+      -- TODO: MinMax material should be a static material because it only needs to be bound, not written every frame, because we statically know it and only change it when the mesh changes
+      , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
+                                  ( Struct '[ "min" ':-> Float, "max" ':-> Float ] ) -- Careful with alighnemt
      , "main"        ':-> EntryPoint '[] Vertex
      ]
 
@@ -49,7 +52,12 @@ vertex = shader do
     let normalInWorldSpace = normalise (modelM !*^ (Vec4 nx ny nz 0)) -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
         lightItensity      = ambient + max (dot dirToLight normalInWorldSpace) 0 -- light intensity given by cosine of direction to light and the normal in world space
 
-    put @"out_pos" (Vec3 x y z)
+    min <- use @(Name "minmax" :.: Name "min")
+    max <- use @(Name "minmax" :.: Name "max")
+
+    let col = invLerp (norm (Vec3 x y z)) min max 
+
+    put @"out_col" col
     put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ (Vec4 x y z 1))
 
 
@@ -58,10 +66,7 @@ vertex = shader do
 
 type FragmentDefs
   =  '[ "out_col" ':-> Output  '[ Location 0                 ] (V 4 Float)
-      , "in_pos" ':-> Input '[ Location 0 ] (V 3 Float)
-      -- TODO: MinMax should be a static shader because we don't change it often so we don't need to write the buffer every frame, just bind it
-      , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
-                                  ( Struct '[ "min" ':-> Float, "max" ':-> Float ] ) -- Careful with alighnemt
+      , "in_col" ':-> Input '[ Location 0 ] Float
       , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment
       ]
 
@@ -69,12 +74,7 @@ type FragmentDefs
 fragment :: ShaderModule "main" FragmentShader FragmentDefs _
 fragment = shader do
 
-    pos <- get @"in_pos"
-
-    min <- use @(Name "minmax" :.: Name "min")
-    max <- use @(Name "minmax" :.: Name "max")
-
-    let col = invLerp (norm pos) min max 
+    col <- get @"in_col"
 
     put @"out_col" (Vec4 col col col 1)
 
@@ -91,8 +91,8 @@ type VertexData =
 shaderPipeline :: GShaderPipeline _
 shaderPipeline
   = StructInput @VertexData @(Triangle List)
-    :>-> (vertex, IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2)))) -- move these data types out of here... into the types
-    :>-> (fragment, IM.singleton 1 (IM.singleton 0 (SomeStorable @(VertexN Float 2))))
+    :>-> (vertex, IM.insert 1 (IM.singleton 0 (SomeStorable @(VertexN Float 2))) $ IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2)))) -- move these data types out of here... into the types
+    :>-> (fragment, mempty)
 
 
 
