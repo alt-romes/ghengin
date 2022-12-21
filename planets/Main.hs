@@ -11,6 +11,7 @@ import Data.IORef
 import Control.Monad
 
 import Ghengin
+import Ghengin.Component.Material
 import Ghengin.Component.Mesh
 import Ghengin.Component.Camera
 import Ghengin.Component.Transform
@@ -23,7 +24,8 @@ import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 import qualified Shader
 import Planet
 
-data World = World { renderPackets :: !(Storage RenderPacket)
+data World = World { meshes :: !(Storage Mesh)
+                   , materials    :: !(Storage SomeMaterial)
                    , transforms    :: !(Storage Transform)
                    , cameras       :: !(Storage Camera)
                    , uiwindows     :: !(Storage UIWindow)
@@ -43,7 +45,7 @@ initG = do
 
   planetPipeline <- lift $ makeRenderPipeline SimpleShader.shaderPipeline
   (planetMesh,minmax) <- lift $ newPlanet ps -- TODO: Also require shader pipeline to validate it
-  minmaxMaterial <- lift $ makeMaterial planetPipeline
+  minmaxMaterial <- lift $ makeMaterial planetPipeline (makeMinMaxMaterial minmax)
 
   -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )
   -- which can be later modified. this data is bound once per pipeline.
@@ -53,7 +55,7 @@ initG = do
 
   -- let planetMaterial = Material planetPipeline
 
-  newEntity ( planetMesh, minmax, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
+  newEntity ( planetMesh, minmaxMaterial, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
 
   newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
             , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
@@ -69,10 +71,10 @@ updateG ps dt uichanges = do
   -- TODO: perhaps all UI colors could be combined with the uichanges variables and be always provided on request depending on whether they were changed or not
   -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
   when (or uichanges) $
-    cmapM $ \(m :: RenderPacket) -> lift $ do
-      (x,_useme) <- newPlanet ps
-      freeMesh (m._renderMesh) -- Can we hide/enforce this somehow?
-      pure (m{_renderMesh = x})
+    cmapM $ \(oldMesh :: Mesh) -> lift $ do
+      (newMesh,_TODOuseme) <- newPlanet ps
+      freeMesh (oldMesh) -- Can we hide/enforce this somehow?
+      pure (newMesh)
 
   -- cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 
@@ -80,12 +82,12 @@ updateG ps dt uichanges = do
 
 endG :: Ghengin World ()
 endG = do
-  cmapM $ \(m :: RenderPacket) -> lift $ freeMesh (m._renderMesh)
+  cmapM $ \(m :: Mesh) -> lift $ freeMesh m
   liftIO $ putStrLn "Goodbye"
 
 main :: IO ()
 main = do
-  w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit
+  w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
   ghengin w initG undefined updateG endG
 
 radians d = d * (pi/180)

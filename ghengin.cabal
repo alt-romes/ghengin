@@ -121,7 +121,8 @@ library
                       split,
                       dear-imgui >= 2.1.3,
                       StateVar,
-                      witch
+                      witch,
+                      derive-storable
 
     -- Directories containing source files.
     hs-source-dirs:   src

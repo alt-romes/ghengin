@@ -11,6 +11,7 @@
 module Ghengin.Utils
   ( module Ghengin.Utils
   , module Data.StateVar
+  , module Foreign.Storable.Generic
   , (.|.)
   , Proxy(..)
   ) where
@@ -19,6 +20,7 @@ import Data.Kind
 import Geomancy.Vec3
 import Data.StateVar
 import Foreign.Storable
+import Foreign.Storable.Generic
 import Data.Proxy
 
 import Data.Bits

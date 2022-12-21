@@ -251,7 +251,7 @@ drawFrame = do
     forM pipelines $ \(SomeRenderPipeline pipeline materialsRef) -> do
 
       materials <- liftIO (readIORef materialsRef)
-      let descriptorSet setIx = fst (pipeline._descriptorSetsSet NE.!! currentFrame) V.! setIx
+      let descriptorSet setIx = fst (pipeline._descriptorSetsSet NE.!! currentFrame) V.! setIx -- must guarantee that there exist this amount of sets in this pipeline
           descriptorSetBinding setIx bindingIx = fst $ (descriptorSet setIx)._bindings IM.! bindingIx
 
       -- TODO: Should be specific to each pipeline. E.g. if I have a color
@@ -288,21 +288,22 @@ drawFrame = do
 
           forM materials $ \(SomeMaterial material) -> do
 
-            case material of
-              StaticMaterial -> undefined -- TODO: Bind the static descriptor set
-              DynamicMaterial formulas -> do
-                forM (zip formulas [0..]) $ \(SomeFormula formula, binding) -> do
-                  case descriptorSetBinding 1 binding of
+            () <- case material of
+              -- StaticMaterial -> undefined -- TODO: Bind the static descriptor set
+              DynamicBinding (a :: α) _ -> do
+                -- forM (zip formulas [0..]) $ \(SomeFormula formula, binding) -> do
+                  case descriptorSetBinding 1 0 of
                     -- TODO: Ensure unsafeCoerce is safe here by only allowing
                     -- the construction of dynamic materials if validated at
                     -- compile time against the shader pipeline in each
                     -- matching position
-                    SomeMappedBuffer b -> do
-                      lift $ writeMappedBuffer (b) (formula )
+                    SomeMappedBuffer (unsafeCoerce -> buf :: MappedBuffer α) ->
+                      lift . lift $ writeMappedBuffer buf a
 
-                      -- Bind descriptor set #1
-                      bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
-                        1 (descriptorSet 1)._descriptorSet
+            -- static bindings will have to choose a different dset
+            -- Bind descriptor set #1
+            bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
+              1 (descriptorSet 1)._descriptorSet
 
             embed cmapM $ \(mesh :: Mesh, SomeMaterial mat, fromMaybe noTransform -> tr) -> do
 

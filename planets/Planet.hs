@@ -1,3 +1,5 @@
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeApplications #-}
@@ -5,6 +7,7 @@
 {-# LANGUAGE BlockArguments #-}
 module Planet where
 
+import GHC.Generics
 import qualified Data.List.NonEmpty as NE
 import Data.String
 import Data.List (foldl')
@@ -12,16 +15,25 @@ import GHC.Float
 import Data.IORef
 import Control.Monad
 
+import Foreign.Storable
+
 import Ghengin hiding (get)
 import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Component.Mesh.Sphere
 import Ghengin.Component.Mesh
+import Ghengin.Component.Material
 import Ghengin.Component.UI
 
 import Noise
 
 data MinMax = MinMax Float Float
+  deriving Generic
+
+instance GStorable MinMax
+
+makeMinMaxMaterial :: MinMax -> Material '[MinMax]
+makeMinMaxMaterial x = DynamicBinding x Done
 
 -- type MinMaxMaterial = Material [ 0 :-> MinMax ]
 
