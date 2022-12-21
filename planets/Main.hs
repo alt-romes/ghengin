@@ -25,7 +25,7 @@ import qualified Shader
 import Planet
 
 data World = World { meshes :: !(Storage Mesh)
-                   , materials    :: !(Storage SomeMaterial)
+                   , materials    :: !(Storage SharedMaterial)
                    , transforms    :: !(Storage Transform)
                    , cameras       :: !(Storage Camera)
                    , uiwindows     :: !(Storage UIWindow)
@@ -71,9 +71,10 @@ updateG ps dt uichanges = do
   -- TODO: perhaps all UI colors could be combined with the uichanges variables and be always provided on request depending on whether they were changed or not
   -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
   when (or uichanges) $
-    cmapM $ \(oldMesh :: Mesh) -> lift $ do
-      (newMesh,_TODOuseme) <- newPlanet ps
+    cmapM $ \(oldMesh :: Mesh, sm :: SharedMaterial) -> lift $ do
+      (newMesh,newMinMax) <- newPlanet ps
       freeMesh (oldMesh) -- Can we hide/enforce this somehow?
+      writeMaterial sm (makeMinMaxMaterial newMinMax)
       pure (newMesh)
 
   -- cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)

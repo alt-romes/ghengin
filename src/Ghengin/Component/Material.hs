@@ -1,3 +1,4 @@
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -47,15 +48,20 @@ data Material xs where
   -- NextStaticBinding :: Material as -> b -> Material (b':as)
 
 data SomeMaterial where
-  SomeMaterial  :: ∀ α. Material α -> SomeMaterial
+  SomeMaterial  :: ∀ α. Material α -> Int -> SomeMaterial -- ^ Constructs SomeMaterial with the material and its index in the mutable list
 --   StaticMaterial  :: ∀ α. Material α => SomeMaterial
 --   DynamicMaterial :: ∀ α. Material α => SomeMaterial
 
-instance (Monad m, HasField "materials" w (Storage SomeMaterial)) => Has w m SomeMaterial where
+data SharedMaterial = SharedMaterial { pipelineIndex :: Int
+                                     , materialIndex :: Int
+                                     }
+
+-- |  We can only have shared materials be components, because the ones used for rendering are stored in that map
+instance (Monad m, HasField "materials" w (Storage SharedMaterial)) => Has w m SharedMaterial where
   getStore = SystemT (asks (.materials))
 
-instance Component SomeMaterial where
-  type Storage SomeMaterial = Map SomeMaterial
+instance Component SharedMaterial where
+  type Storage SharedMaterial = Map SharedMaterial
 
 
 
@@ -63,16 +69,26 @@ instance Component SomeMaterial where
 -- TODO: VALIDATE MATERIAL IN PIPELINE
 makeMaterial :: ( PipelineConstraints info tops descs strides
                 , HasField "_renderPipelines" ext (IORef [SomeRenderPipeline]) )
-             => RenderPipeline info -> Material a -> Renderer ext SomeMaterial
+             => RenderPipeline info -> Material a -> Renderer ext SharedMaterial
 makeMaterial renderPipeline mat = do
   renderPipelinesRef <- asks (._extension._renderPipelines)
   SomeRenderPipeline _ matsRef <- liftIO $ (!! renderPipeline._index) <$> readIORef renderPipelinesRef
   -- TODO: The reference must be shared between the returned material and the saved one
-  liftIO $ modifyIORef' matsRef (SomeMaterial mat:)
-  pure (SomeMaterial mat)
+  (length -> matIndex) <- liftIO $ readIORef matsRef
+  liftIO $ modifyIORef' matsRef (<> [SomeMaterial mat matIndex])
+  pure (SharedMaterial renderPipeline._index matIndex)
 
 -- TODO
-sameMaterial :: Material α -> Material β -> Bool
-sameMaterial mat1 mat2 = True
+-- sameMaterial :: Material α -> Material β -> Bool
+-- sameMaterial mat1 mat2 = True
 
+-- warning no validation done on the material being overwritten
+writeMaterial :: ( HasField "_renderPipelines" ext (IORef [SomeRenderPipeline]) )
+             => SharedMaterial -> Material a -> Renderer ext SharedMaterial
+writeMaterial (SharedMaterial pipIx matIx) newMat = do
+  renderPipelinesRef <- asks (._extension._renderPipelines)
+  SomeRenderPipeline _ matsRef <- liftIO $ (!! pipIx) <$> readIORef renderPipelinesRef
+  -- TODO: The reference must be shared between the returned material and the saved one
+  liftIO $ modifyIORef' matsRef (map (\(SomeMaterial m ix) -> if ix == matIx then SomeMaterial newMat matIx else SomeMaterial m ix)) -- TODO: use mutable vector here
+  pure (SharedMaterial pipIx matIx)
 

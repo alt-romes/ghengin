@@ -102,7 +102,7 @@ instance Storable UniformBufferObject where
     pokeElemOff p 1 pr
 
 type WorldConstraints w = ( HasField "meshes" w (Storage Mesh)
-                          , HasField "materials" w (Storage SomeMaterial)
+                          , HasField "materials" w (Storage SharedMaterial)
                           , HasField "transforms" w (Storage Transform)
                           , HasField "cameras" w (Storage Camera)
                           , HasField "uiwindows" w (Storage UIWindow)
@@ -289,7 +289,7 @@ drawFrame = do
           bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
             0 (descriptorSet 0)._descriptorSet
 
-          forM materials $ \(SomeMaterial material) -> do
+          forM materials $ \(SomeMaterial material materialIndex) -> do
 
             () <- case material of
               -- StaticMaterial -> undefined -- TODO: Bind the static descriptor set
@@ -308,13 +308,13 @@ drawFrame = do
             bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
               1 (descriptorSet 1)._descriptorSet
 
-            embed cmapM $ \(mesh :: Mesh, SomeMaterial mat, fromMaybe noTransform -> tr) -> do
+            embed cmapM $ \(mesh :: Mesh, SharedMaterial pipIx matIx, fromMaybe noTransform -> tr) -> do
 
               -- TODO: Is it bad that we're going over *all* meshes for each
               -- material? Probably yes, we should have a good scene graph
               -- that sorts material in render order, handles hierarchy, and
               -- can additionally partition the visible space :)
-              when (sameMaterial material mat) $ do
+              when (pipIx == pipeline._index && matIx == materialIndex) $ do
 
                 -- TODO: Bind descriptor set #2
 
