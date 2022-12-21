@@ -1,3 +1,5 @@
+[ ] Textures to use with MinMax terrain height
+[ ] Complete the phong model (and try some Specular lighting)
 [ ] Scene graph should (polymorphically?) cull the space, and
 in the visible space order meshes by pipeline and material
 type. Good algorithm that sorts geometry in the best possible way for the engine

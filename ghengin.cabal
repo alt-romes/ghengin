@@ -67,6 +67,8 @@ library
                       Ghengin.Shaders.FIR,
                       Ghengin.Utils,
                       
+                      Ghengin.Scene,
+                      Ghengin.Scene.Graph,
                       Ghengin.Vulkan,
                       Ghengin.Vulkan.Synchronization,
                       Ghengin.Vulkan.Image,
