@@ -24,6 +24,7 @@ import Ghengin.Component.Mesh.Sphere
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material
 import Ghengin.Component.UI
+import Foreign.Ptr
 
 import Noise
 
@@ -31,6 +32,14 @@ data MinMax = MinMax Float Float
   deriving Generic
 
 instance GStorable MinMax
+-- instance Storable MinMax where
+--   sizeOf _ = 2*sizeOf @Float undefined
+--   alignment _ = 2*sizeOf @Float undefined
+--   peek (castPtr -> p) = do
+--     mi <- peekElemOff p 0
+--     ma <- peekElemOff p 1
+--     pure $ MinMax mi ma
+--   poke (castPtr -> p) (MinMax mi ma) = pokeElemOff p 0 mi >> pokeElemOff p 1 ma
 
 makeMinMaxMaterial :: MinMax -> Material '[MinMax]
 makeMinMaxMaterial x = DynamicBinding x Done

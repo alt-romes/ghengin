@@ -122,7 +122,8 @@ library
                       dear-imgui >= 2.1.3,
                       StateVar,
                       witch,
-                      derive-storable
+                      derive-storable,
+                      algebraic-graphs
 
     -- Directories containing source files.
     hs-source-dirs:   src

@@ -291,10 +291,13 @@ drawFrame = do
 
           forM materials $ \(SomeMaterial material materialIndex) -> do
 
+            -- These materials are compatible with this pipeline in the set #1,
+            -- so the 'descriptorSetBinding' buffer will always be valid to
+            -- write with the corresponding material binding
             () <- case material of
+              Done -> pure ()
               -- StaticMaterial -> undefined -- TODO: Bind the static descriptor set
               DynamicBinding (a :: α) _ -> do
-                -- forM (zip formulas [0..]) $ \(SomeFormula formula, binding) -> do
                   case descriptorSetBinding 1 0 of
                     -- TODO: Ensure unsafeCoerce is safe here by only allowing
                     -- the construction of dynamic materials if validated at
