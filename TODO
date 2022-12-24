@@ -1,3 +1,4 @@
+[ ] Use parent component, a cached world matrix?, and a wrapper api that threads entities ids
 [ ] Textures to use with MinMax terrain height
 [ ] Complete the phong model (and try some Specular lighting)
 [ ] Scene graph should (polymorphically?) cull the space, and

@@ -43,9 +43,16 @@ that organizes objects spatially and solves (1).
 
 All in all, we might have separate abstractions to solve the different
 problems, or we might tie them behind a single abstraction but keep the
-implementation simple by composition rather than trying to do all at the same
-                                                              time.
+implementation simple by composition rather than trying to do all at the same time.
+
+Some more resources:
+
+* Game Engine Architecture
+* http://lspiroengine.com/?p=566
+* https://teamwisp.github.io/research/scene_graph.html
 
  -}
+
+
 
 

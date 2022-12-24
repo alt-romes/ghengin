@@ -97,6 +97,7 @@ library
 
                       Ghengin.Render,
                       Ghengin.Render.Packet,
+                      Ghengin.Render.Queue,
                       Ghengin.Render.Pipeline
 
     -- Modules included in this library but not exported.

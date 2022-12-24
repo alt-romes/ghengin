@@ -92,3 +92,4 @@ writeMaterial (SharedMaterial pipIx matIx) newMat = do
   liftIO $ modifyIORef' matsRef (map (\(SomeMaterial m ix) -> if ix == matIx then SomeMaterial newMat matIx else SomeMaterial m ix)) -- TODO: use mutable vector here
   pure (SharedMaterial pipIx matIx)
 
+
