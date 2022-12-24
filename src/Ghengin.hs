@@ -17,7 +17,6 @@
 {-# LANGUAGE OverloadedLists #-}
 module Ghengin
   ( module Ghengin
-  , module Apecs
   , module Geomancy.Vec3
   , module Geomancy.Mat4
   ) where
@@ -53,6 +52,7 @@ import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
 import Ghengin.Render.Packet
+import Ghengin.Scene
 
 import Ghengin.Shaders
 
@@ -70,7 +70,7 @@ import Ghengin.Component.UI
 -- meshes
 
 
-type Ghengin w a = SystemT w (Renderer GEnv) a
+type Ghengin w = SystemT w (Renderer GEnv)
 
 data GEnv = GEnv { _renderPipelines :: IORef [SomeRenderPipeline]
                  }

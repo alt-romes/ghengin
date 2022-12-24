@@ -1,6 +1,10 @@
-module Ghengin.Scene where
-
-{-
+{-# OPTIONS_GHC -Wno-orphans #-} -- instance for worlds
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE UndecidableInstances #-} -- HasField
+{-|
 
 Note [Scene Graph]
 ~~~~~~~~~~~~~~~~~~
@@ -51,7 +55,99 @@ Some more resources:
 * http://lspiroengine.com/?p=566
 * https://teamwisp.github.io/research/scene_graph.html
 
+Our take:
+~~~~~~~~~
+
+We're going to implement the scene graph to solve (4) only through the ECS
+system by having a parent component in objects not at the root of the scene.
+
+To render, we go through all renderable entities and update a 'WorldMatrix' if
+we haven't done it previously in this render sequence before (which we keep
+track of with identifiers that change each time we render). Note that the world
+matrix isn't computed right away, but rather when it's required because of
+laziness. This world matrix is then passed to the draw call?
+
+We provide an abstraction for writing the scene graph as if it were a graph, but internally create the parent components.
+
+Example scene graph:
+
+@
+registerSceneGraph :: Ghengin w ()
+registerSceneGraph = sceneGraph do
+  -- Create two entities at the root level
+  newEntity (...)
+  newEntity (...)
+
+  -- Create an entity at the root level which has two simple children, and a
+  -- child with two children of their own
+  newEntity' (...) do
+    -- The parent is the entity created above
+    newEntity (...)
+    newEntity (...)
+    newEntity' (...) do
+      newEntity (...)
+      newEntity (...)
+
+  -- A final top level entity
+  newEntity (...)
+  ...
+@
+
  -}
+module Ghengin.Scene
+  ( sceneGraph
+  , newEntity
+  , newEntity'
+  , Parent(..)
+  ) where
+
+import GHC.Records
+import Control.Monad.Reader
+import Apecs (Entity, global, Set, Get, EntityCounter, Storage, Has, Component, Map, SystemT(..))
+import Apecs.Core (ExplSet)
+import qualified Apecs
+import {-# SOURCE #-} Ghengin (Ghengin, GEnv)
+import Ghengin.Vulkan
+
+-- TODO: Move to somewhere within the engine better and put together requirements on record fields
+instance (Monad m, HasField "entityCounter" w (Storage EntityCounter)) => Has w m EntityCounter where
+  getStore = SystemT (asks (.entityCounter))
+
+instance (Monad m, HasField "entityParents" w (Storage Parent)) => Has w m Parent where
+  getStore = SystemT (asks (.entityParents))
+
+instance Component Parent where
+  type Storage Parent = Map Parent
+
+-- TODO: Is having Maybe Entity bad for performance and would perhaps be better to simply have a global parent with an identity transform?
+type SceneGraph w = ReaderT (Maybe Entity) (Ghengin w)
+
+newtype Parent = Parent Entity
+
+sceneGraph :: SceneGraph w a -> Ghengin w a
+sceneGraph = flip runReaderT Nothing
+
+type EntityConstraints w c =
+  ( HasField "entityCounter" w (Storage EntityCounter)
+  , HasField "entityParents" w (Storage Parent)
+  , Has w (Renderer GEnv) c
+  , ExplSet (Renderer GEnv) (Storage c)
+  , Set w (Ghengin w) c, Get w (Ghengin w) EntityCounter
+  )
+
+newEntity :: EntityConstraints w c => c -> SceneGraph w Entity
+newEntity c = ask >>= \mparentId -> lift $ do
+  ne <- Apecs.newEntity c
+  Apecs.set ne (Parent <$> mparentId)
+  pure ne
+
+-- | Create an entity with children
+newEntity' :: EntityConstraints w c => c -> SceneGraph w a -> SceneGraph w (Entity, a)
+newEntity' c sub = ask >>= \mparentId -> do
+  ne <- lift $ Apecs.newEntity c
+  lift $ Apecs.set ne (Parent <$> mparentId)
+  a  <- local (const $ Just ne) sub
+  pure (ne, a)
 
 
 

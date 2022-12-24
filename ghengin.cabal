@@ -86,6 +86,7 @@ library
 
                       Ghengin.DearImGui,
 
+                      Ghengin.Component,
                       Ghengin.Component.UI,
                       Ghengin.Component.Camera,
                       Ghengin.Component.Transform,

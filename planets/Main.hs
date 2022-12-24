@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -9,6 +10,8 @@
 
 import Data.IORef
 import Control.Monad
+import Control.Monad.IO.Class
+import Control.Monad.Trans
 
 import Ghengin
 import Ghengin.Component.Material
@@ -19,6 +22,8 @@ import Ghengin.Component.UI
 import Ghengin.Utils
 import Ghengin.Render.Packet
 import Ghengin.Vulkan
+import Ghengin.Scene -- TODO: .Graph
+import Ghengin.Component (Storage, EntityCounter, explInit, cmap, cmapM)
 
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 import qualified Shader
@@ -29,37 +34,39 @@ data World = World { meshes :: !(Storage Mesh)
                    , transforms    :: !(Storage Transform)
                    , cameras       :: !(Storage Camera)
                    , uiwindows     :: !(Storage UIWindow)
+                   , entityParents :: !(Storage Parent)
                    , entityCounter :: !(Storage EntityCounter)
                    }
 
--- TODO: Move to somewhere within the engine and put together requirements on record fields
-instance Monad m => Has World m EntityCounter where getStore = SystemT (asks entityCounter)
-
 initG :: Ghengin World PlanetSettings
 initG = do
-
   -- vikingRoom <- lift $ loadObjMesh "assets/viking_room.obj"
 
   ps <- liftIO $ makeSettings @PlanetSettings
-  newEntity ( UIWindow "Planet" (makeComponents ps) )
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
   (planetMesh,minmax) <- lift $ newPlanet ps -- TODO: Also require shader pipeline to validate it
+  (planetMesh2,_minmax2) <- lift $ newPlanet ps -- TODO: Also require shader pipeline to validate it
   minmaxMaterial <- lift $ makeMaterial planetPipeline (makeMinMaxMaterial minmax)
 
-  -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )
-  -- which can be later modified. this data is bound once per pipeline.
-  -- The global data in this example is actually the Camera transform
+  -- TODO: Currently we can't share meshes, we're freeing them multiple causing
+  -- a segmentation fault, and even worse if we free it to create a new one
+  -- when someone else is using it
 
-  -- planetRenderPacket <- lift $ newRenderPacket planetPipeline planetMesh undefined  -- also take a type that instances material (that passes the parameters for this shader?)
+  sceneGraph do
+    newEntity ( UIWindow "Planet" (makeComponents ps) )
 
-  -- let planetMaterial = Material planetPipeline
 
-  newEntity ( planetMesh, minmaxMaterial, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) )
+    -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )
+    -- which can be later modified. this data is bound once per pipeline.?
+    -- The global data in this example is actually the Camera transform
 
-  newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
-            , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
-            -- , PipelineData @Transform self planetPipeline)
+    newEntity' ( planetMesh, minmaxMaterial, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) ) do
+      newEntity (planetMesh2, minmaxMaterial, Transform (vec3 0 0 10) (vec3 0.5 0.5 0.4) (vec3 0 0 0) ) 
+
+    newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
+              , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
+              -- , PipelineData @Transform self planetPipeline)
 
   pure ps
 
@@ -88,7 +95,7 @@ endG = do
 
 main :: IO ()
 main = do
-  w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
+  w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
   ghengin w initG undefined updateG endG
 
 radians d = d * (pi/180)

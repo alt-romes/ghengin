@@ -8,7 +8,8 @@ The render queue is responsible for ordering the draw calls in such a way that
 the amount of GPU state changes is minimized in order to optimize the rendering
 engine.
 
-
+TODO:
+* Can we update the ECS storage order based on the render order?
 
 
 Resources:

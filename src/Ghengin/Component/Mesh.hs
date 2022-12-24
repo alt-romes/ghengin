@@ -55,6 +55,7 @@ import Ghengin.Vulkan
 instance (Monad m, HasField "meshes" w (Storage Mesh)) => Has w m Mesh where
   getStore = SystemT (asks (.meshes))
 
+-- TODO: Renderable components should be Cache instead of Map
 instance Component Mesh where
   type Storage Mesh = Map Mesh
 

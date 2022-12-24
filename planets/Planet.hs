@@ -68,9 +68,9 @@ instance UISettings PlanetSettings where
     boolR  <- newIORef False
     ns1    <- makeSettings @NoiseSettings
     ns2    <- makeSettings @NoiseSettings
-    ns3    <- makeSettings @NoiseSettings
+    _ns3    <- makeSettings @NoiseSettings
     df     <- newIOSelectRef All
-    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2, ns3] df
+    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2] df
 
   makeComponents (PlanetSettings re ra co bo nss df) = do
     b1 <- withTree "Planet" do
