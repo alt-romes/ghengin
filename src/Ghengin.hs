@@ -52,7 +52,7 @@ import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
 import Ghengin.Render.Packet
-import Ghengin.Scene
+import Ghengin.Scene.Graph
 
 import Ghengin.Shaders
 
@@ -104,6 +104,8 @@ instance Storable UniformBufferObject where
 type WorldConstraints w = ( HasField "meshes" w (Storage Mesh)
                           , HasField "materials" w (Storage SharedMaterial)
                           , HasField "transforms" w (Storage Transform)
+                          , HasField "modelMatrices" w (Storage ModelMatrix)
+                          , HasField "entityParents" w (Storage Parent)
                           , HasField "cameras" w (Storage Camera)
                           , HasField "uiwindows" w (Storage UIWindow)
                           )
@@ -162,6 +164,9 @@ ghengin world initialize _simstep loopstep finalize = (\x -> initGEnv >>= flip r
 
     -- Game loop step
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime) bs
+
+    -- Create a model matrix for all scene entities
+    traverseSceneGraph =<< liftIO (readIORef frameCounter)
 
     -- Render frame
     drawFrame
@@ -272,11 +277,11 @@ drawFrame = do
           -- TODO: Bind pipeline-global data to descriptor set #0
           -- Get main camera, for the time being it's the only possible pipeline data for the shader
           -- The last camera will override the write buffer
-          lift $ cmapM $ \(Camera proj view, camTr :: Maybe Transform) -> do
+          lift $ cmapM $ \(Camera proj view, fromMaybe noTransform -> camTr) -> do
 
             -- TODO: Some buffers should already be computed by the time we get to the draw phase: means we only have to bind things and that things only have a cost if changed?
             projM <- lift $ makeProjection proj
-            let viewM = makeView (fromMaybe noTransform camTr) view
+            let viewM = makeView camTr view
 
                 ubo   = UBO viewM projM
 
@@ -311,7 +316,7 @@ drawFrame = do
             bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
               1 (descriptorSet 1)._descriptorSet
 
-            embed cmapM $ \(mesh :: Mesh, SharedMaterial pipIx matIx, fromMaybe noTransform -> tr) -> do
+            embed cmapM $ \(mesh :: Mesh, SharedMaterial pipIx matIx, fromMaybe (ModelMatrix identity 0) -> ModelMatrix mm _) -> do
 
               -- TODO: Is it bad that we're going over *all* meshes for each
               -- material? Probably yes, we should have a good scene graph
@@ -321,7 +326,7 @@ drawFrame = do
 
                 -- TODO: Bind descriptor set #2
 
-                pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform tr)
+                pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
                 renderMesh mesh
 
           -- Draw UI

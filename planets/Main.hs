@@ -22,16 +22,18 @@ import Ghengin.Component.UI
 import Ghengin.Utils
 import Ghengin.Render.Packet
 import Ghengin.Vulkan
-import Ghengin.Scene -- TODO: .Graph
+import Ghengin.Scene.Graph
 import Ghengin.Component (Storage, EntityCounter, explInit, cmap, cmapM)
 
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 import qualified Shader
 import Planet
 
+-- TODO: EngineWorld data type in engine-land and then only one field must be of that type
 data World = World { meshes :: !(Storage Mesh)
                    , materials    :: !(Storage SharedMaterial)
                    , transforms    :: !(Storage Transform)
+                   , modelMatrices    :: !(Storage ModelMatrix)
                    , cameras       :: !(Storage Camera)
                    , uiwindows     :: !(Storage UIWindow)
                    , entityParents :: !(Storage Parent)
@@ -61,8 +63,8 @@ initG = do
     -- which can be later modified. this data is bound once per pipeline.?
     -- The global data in this example is actually the Camera transform
 
-    newEntity' ( planetMesh, minmaxMaterial, Transform (vec3 0 0 4) (vec3 1 1 1) (vec3 0 0 0) ) do
-      newEntity (planetMesh2, minmaxMaterial, Transform (vec3 0 0 10) (vec3 0.5 0.5 0.4) (vec3 0 0 0) ) 
+    newEntity' ( planetMesh, minmaxMaterial, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 (pi/2) 0) ) do
+      newEntity (planetMesh2, minmaxMaterial, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
 
     newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
               , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
@@ -95,7 +97,7 @@ endG = do
 
 main :: IO ()
 main = do
-  w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
+  w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
   ghengin w initG undefined updateG endG
 
 radians d = d * (pi/180)
