@@ -214,6 +214,8 @@ API down we can make progress and at a later time, when it matters, come tune
 the scene graph implementation
 
 
+TODO: Move ModelMatrix out of scene graph and make the traversal simply recurse
+on the parents
 -}
 traverseSceneGraph :: TraverseConstraints w
                    => Int -- ^ The frame instance

@@ -28,15 +28,6 @@ render queue, and then traverses the render queue and issues a draw call for
 each renderable entity.
 
 
-
-Note [Renderable entities]
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-A renderable entity is any entity with a RenderPacket component which validated
-the mesh, material and pipeline components. A 'RenderPacket' has a unique key
-which is used to sort all renderable entities in a way which minimizes GPU
-state changes.
-
  -}
 
 -- | 'render' first traverses the scene graph and fills the render queue, and
