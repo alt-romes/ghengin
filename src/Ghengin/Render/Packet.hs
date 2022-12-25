@@ -16,6 +16,16 @@ module Ghengin.Render.Packet
   ) where
 
 import Ghengin.Render.Pipeline
+import Ghengin.Component.Material
+import Ghengin.Component.Mesh
+
+data RenderPacket where
+  -- TODO:
+  --  * CompatibleMaterial mat pipeline
+  --  * Mesh parametrized over type that is also validated against pipeline
+  RenderPacket :: ∀ α β. Mesh -> Material α -> RenderPipeline β -> RenderPacket
+
+-- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 
 -- data RenderPacket = forall info.
 --                     RenderPacket { _renderPipeline :: RenderPipeline info

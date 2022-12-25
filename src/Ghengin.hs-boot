@@ -1,3 +1,4 @@
+{-# LANGUAGE DataKinds #-}
 module Ghengin where
 
 import Apecs

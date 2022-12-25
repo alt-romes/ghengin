@@ -40,6 +40,8 @@ The 32bit key is composed of:
   which will probably be more performant than having more shaders)
 * __26 bits__ to uniquely identify the material?
 
+
+-- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 -}
 module Ghengin.Render.Queue where
 

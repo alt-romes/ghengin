@@ -63,6 +63,7 @@ import Ghengin.Component.Material
 import Ghengin.Component.Mesh
 import Ghengin.Component.Transform
 import Ghengin.Component.UI
+import Ghengin.Render
 
 
 -- TODO: Somehow systems that want to delete entities should call a special
@@ -109,6 +110,7 @@ type WorldConstraints w = ( HasField "meshes" w (Storage Mesh)
                           , HasField "cameras" w (Storage Camera)
                           , HasField "uiwindows" w (Storage UIWindow)
                           )
+
 ghengin :: WorldConstraints w
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
@@ -162,11 +164,14 @@ ghengin world initialize _simstep loopstep finalize = (\x -> initGEnv >>= flip r
     -- TODO: Draw UI (define all UI components in the frame)
     bs <- drawUI
 
+    -- We're currently drawing two equal frames in a row... we probably want all of this to be done on each frame
+
     -- Game loop step
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime) bs
 
-    -- Create a model matrix for all scene entities
-    traverseSceneGraph =<< liftIO (readIORef frameCounter)
+    -- Currently render is called here because it traverses the scene graph and
+    -- populates the render queue
+    render =<< liftIO (readIORef frameCounter)
 
     -- Render frame
     drawFrame

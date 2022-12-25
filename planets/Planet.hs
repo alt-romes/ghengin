@@ -8,6 +8,7 @@
 module Planet where
 
 import GHC.Generics
+import Control.Monad.Trans
 import qualified Data.List.NonEmpty as NE
 import Data.String
 import Data.List (foldl')
@@ -86,8 +87,8 @@ instance UISettings PlanetSettings where
                                 makeComponents ns) (NE.zip nss [1..])
     pure $ b1 || or bs
 
-newPlanet :: PlanetSettings -> Renderer e (Mesh, MinMax)
-newPlanet (PlanetSettings re ra co bo nss df) = do
+newPlanet :: PlanetSettings -> Ghengin w (Mesh, MinMax)
+newPlanet (PlanetSettings re ra co bo nss df) = lift $ do
   re' <- get re
   ra' <- get ra
   co' <- get co

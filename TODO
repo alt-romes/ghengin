@@ -1,4 +1,5 @@
-[ ] Use parent component, a cached world matrix?, and a wrapper api that threads entities ids
+[ ] Better scene graph implementation
+[x] Use parent component, a cached world matrix?, and a wrapper api that threads entities ids
 [ ] Textures to use with MinMax terrain height
 [ ] Complete the phong model (and try some Specular lighting)
 [ ] Scene graph should (polymorphically?) cull the space, and
@@ -16,4 +17,5 @@ type. Good algorithm that sorts geometry in the best possible way for the engine
 [ ] MonadRenderer to be able to call mesh creation and such from SystemT
 [ ] Linear types for resource management
 [x] Index buffer
-[ ] Since for now we decide a game can ever only use one window, we could have the Ghengin monad propagate the window thorought the program
+[ ] Since for now we decide a game can ever only use one window, we could have
+    the Ghengin monad propagate the window thorought the program

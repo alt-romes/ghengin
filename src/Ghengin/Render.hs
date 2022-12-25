@@ -1,7 +1,23 @@
+{-# LANGUAGE DataKinds #-}
 module Ghengin.Render where
+
+import GHC.Records
+import Apecs (Storage)
 
 import Ghengin.Scene.Graph
 import Ghengin.Render.Queue
+import Ghengin.Component.Transform
+import Ghengin.Component.Mesh
+import Ghengin.Component.Material
+import {-# SOURCE #-} Ghengin (Ghengin)
+
+
+type RenderConstraints w = ( HasField "meshes" w (Storage Mesh)
+                           , HasField "materials" w (Storage SharedMaterial)
+                           , HasField "transforms" w (Storage Transform)
+                           , HasField "modelMatrices" w (Storage ModelMatrix)
+                           , HasField "entityParents" w (Storage Parent)
+                           )
 
 {-
 Note [Renderer]
@@ -16,7 +32,10 @@ each renderable entity.
 Note [Renderable entities]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-A renderable entity is any entity with a 'Mesh', a 'Material' component...
+A renderable entity is any entity with a RenderPacket component which validated
+the mesh, material and pipeline components. A 'RenderPacket' has a unique key
+which is used to sort all renderable entities in a way which minimizes GPU
+state changes.
 
  -}
 
@@ -29,7 +48,10 @@ A renderable entity is any entity with a 'Mesh', a 'Material' component...
 --  * Note [Render Queue]
 --  * Note [Scene Graph]
 --  * Note [Renderable entities] (TODO)
--- render :: Ghengin w ()
--- render = do
---   traverseSceneGraph ()
+render :: RenderConstraints w
+       => Int -- frame identifier
+       -> Ghengin w ()
+render i = do
+  -- TODO: Add to render queue which will sort in render order
+  traverseSceneGraph i (const $ pure ())
 

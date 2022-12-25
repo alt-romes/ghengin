@@ -33,27 +33,50 @@ import Planet
 data World = World { meshes :: !(Storage Mesh)
                    , materials    :: !(Storage SharedMaterial)
                    , transforms    :: !(Storage Transform)
-                   , modelMatrices    :: !(Storage ModelMatrix)
+                   , modelMatrices :: !(Storage ModelMatrix)
                    , cameras       :: !(Storage Camera)
                    , uiwindows     :: !(Storage UIWindow)
                    , entityParents :: !(Storage Parent)
                    , entityCounter :: !(Storage EntityCounter)
                    }
 
+-- | A better program:
+-- @
+-- init :: Ghengin World PlanetSettings
+-- init = do
+--  -- Planet's pipeline
+--  planetPipeline <- makeRenderPipeline Shader.shaderPipeline
+--  ps             <- makeSettings @PlanetSettings
+--
+--  (planetMesh,minmax)   <- newPlanet ps
+--  (planetMesh2,minmax2) <- newPlanet ps
+--
+--  let rp1 = RenderPacket planetMesh (makeMinMaxMaterial minmax) planetPipeline
+--      rp2 = RenderPacket planetMesh2 (makeMinMaxMaterial minmax2) planetPipeline
+--
+--  sceneGraph do
+--    newEntity ( UIWindow "Planet" (makeComponents ps) )
+--  
+--    newEntity' ( rp1, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 (pi/2) 0) ) do
+--      newEntity ( rp2, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
+--  
+--    newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
+--              , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
+-- @
+
 initG :: Ghengin World PlanetSettings
 initG = do
-  -- vikingRoom <- lift $ loadObjMesh "assets/viking_room.obj"
 
   ps <- liftIO $ makeSettings @PlanetSettings
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
-  (planetMesh,minmax) <- lift $ newPlanet ps -- TODO: Also require shader pipeline to validate it
-  (planetMesh2,_minmax2) <- lift $ newPlanet ps -- TODO: Also require shader pipeline to validate it
+  (planetMesh,minmax) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
+  (planetMesh2,_minmax2) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
   minmaxMaterial <- lift $ makeMaterial planetPipeline (makeMinMaxMaterial minmax)
 
-  -- TODO: Currently we can't share meshes, we're freeing them multiple causing
-  -- a segmentation fault, and even worse if we free it to create a new one
-  -- when someone else is using it
+  -- TODO: Currently we can't share meshes, we're freeing them multiple times
+  -- causing a segmentation fault, and even worse if we free it to create a new
+  -- one when someone else is using it
 
   sceneGraph do
     newEntity ( UIWindow "Planet" (makeComponents ps) )
@@ -80,10 +103,11 @@ updateG ps dt uichanges = do
   -- TODO: perhaps all UI colors could be combined with the uichanges variables and be always provided on request depending on whether they were changed or not
   -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
   when (or uichanges) $
-    cmapM $ \(oldMesh :: Mesh, sm :: SharedMaterial) -> lift $ do
+    cmapM $ \(oldMesh :: Mesh, sm :: SharedMaterial) -> do
       (newMesh,newMinMax) <- newPlanet ps
-      freeMesh (oldMesh) -- Can we hide/enforce this somehow?
-      writeMaterial sm (makeMinMaxMaterial newMinMax)
+      lift $ do
+        freeMesh (oldMesh) -- Can we hide/enforce this somehow?
+        writeMaterial sm (makeMinMaxMaterial newMinMax)
       pure (newMesh)
 
   -- cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)

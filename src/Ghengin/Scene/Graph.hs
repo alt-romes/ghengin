@@ -105,6 +105,7 @@ module Ghengin.Scene.Graph
   , traverseSceneGraph
   ) where
 
+import Data.Maybe
 import Ghengin.Component.Material
 import Ghengin.Component.Mesh
 import Geomancy.Mat4
@@ -216,14 +217,14 @@ the scene graph implementation
 -}
 traverseSceneGraph :: TraverseConstraints w
                    => Int -- ^ The frame instance
+                   -> ((Mesh, SharedMaterial, ModelMatrix) -> Ghengin w ()) -- ^ A function on renderable entities (by their components)
                    -> Ghengin w ()
-traverseSceneGraph inst = do
+traverseSceneGraph inst f = do
 
   -- TODO: RenderableEntity as a type
-  -- TODO: cmap rather than cmapM. it is probably more efficient
-  cmapM \(mesh :: Mesh, _ :: SharedMaterial, e :: Entity) -> do
-    computeModelMatrix inst e -- Don't need to update the model matrix here, it's already been done
-    pure ()
+  cmapM \(mesh :: Mesh, mat :: SharedMaterial, e :: Entity) -> do
+    mmm <- computeModelMatrix inst e
+    f (mesh, mat, fromMaybe (ModelMatrix identity 0) mmm)
 
 
 -- | Recursively compute the model matrix of an entity and of all transitive parents
