@@ -53,11 +53,10 @@ set #0.
 
 The missing bits:
 
-We should be able to (at least) bind arbitrary data at pipeline binding time to
-descriptor set #0, and bind entity dependent data right before entity draw time
-to descriptor set #2. However, the design here is not clear enough, and without
-a driving example it's harder for now.
-
+  We should be able to (at least) bind arbitrary data at pipeline binding time to
+  descriptor set #0, and bind entity dependent data right before entity draw time
+  to descriptor set #2. However, the design here is not clear enough, and without
+  a driving example it's harder for now.
 
  -}
 

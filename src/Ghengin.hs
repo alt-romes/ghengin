@@ -35,7 +35,6 @@ import Control.Monad.Reader
 import Data.IORef
 
 import Data.Time.Clock
-import Data.Vector (Vector)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 import qualified Data.IntMap as IM
@@ -51,10 +50,11 @@ import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
-import Ghengin.Render.Packet
+import Ghengin.Render.Pipeline
+    ( SomeRenderPipeline(..),
+      RenderPipeline(_renderPass, _descriptorSetsSet, _index,
+                     _graphicsPipeline) )
 import Ghengin.Scene.Graph
-
-import Ghengin.Shaders
 
 import qualified Ghengin.DearImGui as IM
 
@@ -136,7 +136,7 @@ ghengin world initialize _simstep loopstep finalize = (\x -> initGEnv >>= flip r
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
   -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
   (head -> pp) <- liftIO . readIORef =<< lift (asks (._extension._renderPipelines))
-  imCtx <- lift $ IM.initImGui (case pp of SomeRenderPipeline pp _ -> pp._renderPass._renderPass)
+  imCtx <- lift $ IM.initImGui (case pp of SomeRenderPipeline pp' _ -> pp'._renderPass._renderPass)
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
@@ -256,7 +256,7 @@ drawFrame = do
 
    -}
 
-  withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
+  _ <- withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
   -- Draw frame is actually here, within 'withCurrentFramePresent'
   
@@ -299,7 +299,7 @@ drawFrame = do
           bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
             0 (descriptorSet 0)._descriptorSet
 
-          forM materials $ \(SomeMaterial material materialIndex) -> do
+          forM_ materials $ \(SomeMaterial material materialIndex) -> do
 
             -- These materials are compatible with this pipeline in the set #1,
             -- so the 'descriptorSetBinding' buffer will always be valid to
