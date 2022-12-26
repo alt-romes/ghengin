@@ -250,5 +250,5 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
           lift $ writeMappedBuffer buf a
 
       go (n-1) as
-    -- StaticMaterial -> undefined -- TODO: Bind the static descriptor set
+    -- StaticMaterial -> undefined -- TODO: Bind the static descriptor ?
        

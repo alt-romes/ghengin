@@ -127,7 +127,8 @@ library
                       StateVar,
                       witch,
                       derive-storable,
-                      algebraic-graphs
+                      -- ghc-typelits-knownnat
+                      -- algebraic-graphs
 
     -- Directories containing source files.
     hs-source-dirs:   src

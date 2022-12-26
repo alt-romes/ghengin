@@ -25,8 +25,9 @@ import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
 
 import qualified Ghengin.Shaders.FIR as FIR
-import qualified FIR.Internals as FIR
-import qualified SPIRV
+import qualified FIR.Definition as FIR
+import qualified SPIRV.Decoration as SPIRV
+import qualified SPIRV.PrimTy as SPIRV
 import qualified SPIRV.Storage
 import Ghengin.Utils
 import Ghengin.Vulkan.Buffer

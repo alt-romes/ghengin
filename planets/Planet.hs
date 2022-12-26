@@ -47,10 +47,6 @@ makeMinMaxMaterial x = DynamicBinding x Done
 
 -- type MinMaxMaterial = Material [ 0 :-> MinMax ]
 
--- instance Material (Material [ 0 :-> MinMax ]) where
---   writeBindings
-
-
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
                                      , color      :: !(IORef Vec3)

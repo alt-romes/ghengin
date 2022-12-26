@@ -1,12 +1,23 @@
-{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Material where
 
+import GHC.TypeLits
 import Foreign.Storable
+import Data.Proxy
 
 {-
 
@@ -58,9 +69,16 @@ data Material xs where
   -- TODO
   -- StaticBinding :: a -> Material a:b
 
+type family NumberOfBindings α :: Nat where
+  NumberOfBindings '[] = 0
+  NumberOfBindings (_ ': as) = NumberOfBindings as + 1
+
 -- | Returns the number of bindings
-matSizeBindings :: Material α -> Int
-matSizeBindings = \case
-  Done -> 0
-  DynamicBinding _ xs -> 1 + matSizeBindings xs
+matSizeBindings :: ∀ α. KnownNat (NumberOfBindings α) => Material α -> Int
+matSizeBindings _ = fromInteger $ natVal $ Proxy @(NumberOfBindings α)
+-- \case
+  -- Done -> 0
+  -- DynamicBinding _ xs -> 1 + matSizeBindings xs
+
+
 

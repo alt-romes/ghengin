@@ -11,7 +11,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE UndecidableInstances #-} -- instance Has w m RenderPacket
+{-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Render.Packet
   ( module Ghengin.Render.Packet
   , module Ghengin.Render.Pipeline
@@ -21,12 +21,24 @@ import GHC.TypeLits
 import GHC.Records
 import Data.Proxy
 import Data.Kind
+import Data.Type.Bool
 import Data.Word
 import Data.Bits
 import Apecs (Component, Storage, Map, Has, getStore, SystemT(..), asks)
 import Ghengin.Render.Pipeline
 import Ghengin.Component.Material
 import Ghengin.Component.Mesh
+
+import Data.Type.Map
+  ( (:->)((:->)), Values )
+import FIR.Pipeline (PipelineInfo(..))
+import FIR.ProgramState
+import FIR.Definition
+  ( Definition(..)
+  , TriagedDefinitions
+  , TrieDefinitions
+  )
+import SPIRV.Stage ()
 
 {-|
 
@@ -85,13 +97,21 @@ instance Ord RenderPacket where
   compare (RenderPacket _ _ _ k1) (RenderPacket _ _ _ k2) = compare k1 k2
 
 {-|
-   'Compatible' validates at the type level that the mesh and material are
-   compatible with the render pipeline.
+
+Note [Pipeline compatible materials]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A material is compatible with a pipeline if the material bindings are
+compatible with the descriptor set #1 descriptors in the shaders.
+
+For a material binding to be compatible with a descriptor, the type of the
+binding and of the descriptor must have the same size through FIR.Layout.SizeOf
+described in bytes.
+
+
  -}
-type family Compatible xs ys :: Constraint where
-  Compatible _ _ = ()
 
-
+-- BIG:TODO: Cache around this Map storage
 instance Component RenderPacket where
   type Storage RenderPacket = Map RenderPacket
 
@@ -146,7 +166,7 @@ type RenderKey = Word64
 splitKey :: RenderKey -> (Word64, Word64)
 splitKey k = (k .&. 0xf00000000, k .&. 0xffffffff)
 
-makeKey :: ∀ α β. Material α -> RenderPipeline β -> RenderKey
+makeKey :: ∀ α β. (KnownNat (MaterialKey α)) => Material α -> RenderPipeline β -> RenderKey
 makeKey _material _pipeline = fromInteger $ natVal $ Proxy @(RenderKeyNat α β)
 
 -- | Compute the render key at the type level based on the type level information of the mesh, materials and pipeline.
@@ -158,4 +178,40 @@ type family MaterialKey material :: Nat where
 
 type family PipelineKey pipeline :: Nat where
   PipelineKey _ = 0
+
+-- | 'Compatible' validates at the type level that the mesh and material are
+-- compatible with the render pipeline. See Note [Pipeline compatible materials].
+type family Compatible (xs :: [Type]) (ys :: PipelineInfo) :: Constraint where
+  Compatible as bs = Compatible' as bs (NumberOfBindings as)
+
+type family Compatible' (xs :: [Type]) (ys :: PipelineInfo) (n :: Nat) :: Constraint where
+  Compatible' '[] _ 0 = ()
+  Compatible' (x ': xs) ys n = Assert (Matches x n (DSetBinding 1 n ys)) (Text "TODO: Invalid binding error...") (Compatible' xs ys (n-1))
+
+type family Matches t n b :: Bool where
+
+-- | Find descriptor set #set and binding #binding in any of the pipeline stages inputs
+type family DSetBinding (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Type where
+  DSetBinding _ _ (VertexInputInfo _ _ _) = TypeError (Text "Descriptor Set Binding #set #binding does not exist... (TODO: better message)")
+  DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) = FromMaybe (DSetBinding set binding infos) (FindDSetInput set binding (Concat (Values defs)))
+
+type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [Symbol :-> TLInterfaceVariable]) :: Maybe Type where
+  FindDSetInput set binding '[] = 'Nothing
+  FindDSetInput set binding ((_ ':-> i) ': inputs) = 'Nothing
+
+type family Assert (b :: Bool) (e :: ErrorMessage) (t :: k) :: k where
+  Assert 'True e _ = TypeError e
+  Assert 'False _ t = t
+
+type family FromMaybe (a :: k) (m :: Maybe k) :: k where
+  FromMaybe a 'Nothing = a
+  FromMaybe _ ('Just a) = a
+
+type family Concat (as :: [[k]]) :: [k] where
+  Concat '[] = '[]
+  Concat (x ': xs) = x ++ Concat xs
+
+type family (++) as bs where
+  (++) '[] bs = bs
+  (++) (x ': xs) ys = x : xs ++ ys
 

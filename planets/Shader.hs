@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# LANGUAGE QualifiedDo      #-}
+{-# LANGUAGE GADTs      #-}
 {-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE BlockArguments        #-}
 {-# LANGUAGE DataKinds             #-}
@@ -27,14 +28,16 @@ type VertexDefs
   = '[ "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
      , "in_normal"   ':-> Input '[ Location 1 ] (V 3 Float)
      , "ignored_color"    ':-> Input '[ Location 2 ] (V 3 Float)
-     , "out_col"     ':-> Output '[ Location 0 ] Float 
+     , "out_col"     ':-> Output '[ Location 0 ] (V 3 Float)
      , "push"        ':-> PushConstant '[] (Struct '[ "model" ':-> M 4 4 Float ])
      , "ubo"         ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                                   ( Struct '[ "view" ':-> M 4 4 Float
                                             , "proj" ':-> M 4 4 Float ] )
       -- TODO: MinMax material should be a static material because it only needs to be bound, not written every frame, because we statically know it and only change it when the mesh changes
-      , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
+     , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
                                   ( Struct '[ "min" ':-> Float, "max" ':-> Float ] ) -- Careful with alighnemt
+     , "uniform_col" ':-> Uniform '[ DescriptorSet 1, Binding 1 ]
+                                   ( Struct '[ "val" ':-> V 3 Float ] )
      , "main"        ':-> EntryPoint '[] Vertex
      ]
 
@@ -55,7 +58,10 @@ vertex = shader do
     min <- use @(Name "minmax" :.: Name "min")
     max <- use @(Name "minmax" :.: Name "max")
 
-    let col = invLerp (norm (Vec3 x y z)) min max 
+    ~(Vec3 bcx bcy bcz) <- use @(Name "uniform_col" :.: Name "val")
+
+    let col_frac = invLerp (norm (Vec3 x y z)) min max 
+    let col = Vec3 (lerp (bcx * 0.1) bcx col_frac) (lerp (bcy*0.1) bcy col_frac) (lerp (bcz*0.1) bcz col_frac)
 
     put @"out_col" col
     put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ (Vec4 x y z 1))
@@ -65,8 +71,8 @@ vertex = shader do
 
 
 type FragmentDefs
-  =  '[ "out_col" ':-> Output  '[ Location 0                 ] (V 4 Float)
-      , "in_col" ':-> Input '[ Location 0 ] Float
+  =  '[ "in_col"  ':-> Input  '[ Location 0 ] (V 3 Float)
+      , "out_col" ':-> Output '[ Location 0 ] (V 4 Float)
       , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment
       ]
 
@@ -74,9 +80,9 @@ type FragmentDefs
 fragment :: ShaderModule "main" FragmentShader FragmentDefs _
 fragment = shader do
 
-    col <- get @"in_col"
+    ~(Vec3 x y z) <- get @"in_col"
 
-    put @"out_col" (Vec4 col col col 1)
+    put @"out_col" (Vec4 x y z 1)
 
 --- Pipeline ----
 
@@ -98,4 +104,7 @@ shaderPipeline
 
 invLerp :: DivisionRing a => a -> a -> a -> a
 invLerp value from to = (value - from) / (to - from)
+
+lerp :: Ring a => a -> a -> a -> a
+lerp from to value = from + (to - from) * value
 

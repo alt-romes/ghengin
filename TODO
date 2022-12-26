@@ -1,3 +1,4 @@
+[ ] Swap chain recreation...
 [ ] Static bindings which simply choose the descriptor (set?) rather than write to it
 [ ] Better scene graph implementation
 [+] Use parent component, a cached world matrix?, and a wrapper api that threads entities ids
