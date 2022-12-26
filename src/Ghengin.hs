@@ -50,10 +50,7 @@ import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
-import Ghengin.Render.Pipeline
-    ( SomeRenderPipeline(..),
-      RenderPipeline(_renderPass, _descriptorSetsSet, _index,
-                     _graphicsPipeline) )
+import Ghengin.Render.Packet
 import Ghengin.Scene.Graph
 
 import qualified Ghengin.DearImGui as IM

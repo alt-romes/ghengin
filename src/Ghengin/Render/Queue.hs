@@ -42,15 +42,21 @@ The 32bit key is composed of:
 
 
 -- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
+
+
+A map is probably a better representation for the render queue, however we will
+have entities with duplicate render keys, so for now we'll use a simple list
+which is sorted. Eventually, inserting elements directly into a map and then
+traversing it *might* be better.
 -}
 module Ghengin.Render.Queue where
 
 import Data.Word
+import Data.Bits
+-- import qualified Data.Map as M
+import Ghengin.Render.Packet
+
+type RenderQueue = [RenderPacket]
 
 
-
--- type RenderQueue = 
-
-type Key = Word64
-type MaterialKey = Word32
 

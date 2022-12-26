@@ -1,4 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE PolyKinds #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -15,6 +17,12 @@ module Ghengin.Render.Packet
   , module Ghengin.Render.Pipeline
   ) where
 
+import GHC.TypeLits
+import GHC.Records
+import Data.Kind
+import Data.Proxy
+import Data.Word
+import Apecs (Component, Storage, Map, Has, getStore, SystemT(..), asks)
 import Ghengin.Render.Pipeline
 import Ghengin.Component.Material
 import Ghengin.Component.Mesh
@@ -59,27 +67,49 @@ The missing bits:
   a driving example it's harder for now.
 
  -}
-
 data RenderPacket where
   -- TODO:
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ α β. Mesh -> Material α -> RenderPipeline β -> RenderPacket
+  RenderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
+
+type RenderKey = Word64
+
+{-|
+   'Compatible' validates at the type level that the mesh and material are
+   compatible with the render pipeline.
+ -}
+type family Compatible xs ys where
+
+
+instance Component RenderPacket where
+  type Storage RenderPacket = Map RenderPacket
+
+instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m RenderPacket where
+  getStore = SystemT (asks (.renderPackets))
 
 -- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
+-- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
--- data RenderPacket = forall info.
---                     RenderPacket { _renderPipeline :: RenderPipeline info
---                                  , _renderMesh     :: Mesh
---                                  , _renderMaterial :: Material
---                                  }
+-- | Render packet wrapper that creates the key identifier.
+renderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderPacket
+renderPacket mesh material pipeline = RenderPacket mesh material pipeline (makeId mesh material pipeline)
 
--- instance Component RenderPacket where
---   type Storage RenderPacket = Map RenderPacket
+-- | Compute the render key at the type level based on the type level information of the mesh, materials and pipeline.
+type family RenderKeyNat mesh material pipeline :: Nat where
+  RenderKeyNat _ _ _ = 0
 
--- instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m RenderPacket where
---   getStore = SystemT (asks (.renderPackets))
+type family MeshKey     mesh     :: Nat where
+  MeshKey _ = 0
 
+type family MaterialKey material :: Nat where
+  MaterialKey _ = 0
+
+type family PipelineKey pipeline :: Nat where
+  PipelineKey _ = 0
+
+makeId :: ∀ α β. Mesh -> Material α -> RenderPipeline β -> RenderKey
+makeId _mesh _material _pipeline = (fromInteger $ natVal $ Proxy @(RenderKeyNat α β ()))
 
 
