@@ -37,10 +37,12 @@ import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
 import Ghengin.Render.Packet
+import qualified Ghengin.Render.Queue as RQ
 import Ghengin.Scene.Graph
 
 import qualified Ghengin.DearImGui as IM
 
+import Ghengin.Component.Mesh
 import Ghengin.Component.Camera
 import Ghengin.Component.Transform
 import Ghengin.Component.UI
@@ -52,14 +54,7 @@ import Ghengin.Render
 -- meshes
 
 
-type Ghengin w = SystemT w (Renderer GEnv)
-
-data GEnv = GEnv { _renderPipelines :: IORef [SomeRenderPipeline]
-                 }
-
-initGEnv :: MonadIO m => m GEnv
-initGEnv = do
-  GEnv <$> liftIO (newIORef [])
+type Ghengin w = SystemT w (Renderer ())
 
 windowLoop :: Ghengin w Bool -> Ghengin w ()
 windowLoop action = do
@@ -86,22 +81,16 @@ ghengin :: WorldConstraints w
         -- -> Ghengin w c -- ^ Run every draw step?
         -> Ghengin w c -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
-ghengin world initialize _simstep loopstep finalize = (\x -> initGEnv >>= flip runVulkanRenderer x) . (`runSystem` world) $ do
+ghengin world initialize _simstep loopstep finalize = (runVulkanRenderer ()) . (`runSystem` world) $ do
 
-  -- TODO: If the materials added to each entity are ordered, when we get all
-  -- the materials will the materials be ordered? If so, we can simply render
-  -- with them sequentially without being afraid of changing back and forwards
   a <- initialize
 
-  -- BIG:TODO: Bundle descriptor sets, render passes, and pipelines into a single abstraction
-  -- ^^ This is going well, they are created in Render.Packet
-  --
   -- TODO: Use linear types. Can I make the monad stack over a multiplicity polymorphic monad?
 
   -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
   -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
-  (head -> pp) <- liftIO . readIORef =<< lift (asks (._extension._renderPipelines))
-  imCtx <- lift $ IM.initImGui (case pp of SomeRenderPipeline pp' _ -> pp'._renderPass._renderPass)
+  rps <- cfold (\acc (RenderPacket _ _ pp _) -> pp._renderPass._renderPass:acc) []
+  imCtx <- lift $ IM.initImGui (head rps)
 
   currentTime <- liftIO (getCurrentTime >>= newIORef)
   lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
@@ -129,7 +118,7 @@ ghengin world initialize _simstep loopstep finalize = (\x -> initGEnv >>= flip r
     -- TODO: Draw UI (define all UI components in the frame)
     bs <- drawUI
 
-    -- We're currently drawing two equal frames in a row... we probably want all of this to be done on each frame
+    -- TODO: We're currently drawing two equal frames in a row... we probably want all of this to be done on each frame
 
     -- Game loop step
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime) bs
@@ -138,21 +127,24 @@ ghengin world initialize _simstep loopstep finalize = (\x -> initGEnv >>= flip r
     -- populates the render queue, and renders!
     render =<< liftIO (readIORef frameCounter)
 
-    -- Render frame
-    -- drawFrame
-
     pure b
 
   Vk.deviceWaitIdle =<< lift getDevice
 
   lift $ do
     IM.destroyImCtx imCtx
-    -- BIG:TODO: Destroy allocated 'RenderPipeline's
-    -- destroyDescriptorPool dpool
-    -- mapM_ destroyUniformBuffer objUBs
-    -- mapM_ destroyDescriptorSetLayout descriptorSetLayouts
-    -- destroyRenderPass simpleRenderPass
-    -- destroyPipeline pipeline
+
+  -- Destroy all render packets
+  -- We can't do it by traversing the existing render packets because pipelines are shared across them.
+  -- We instead create a last render queue and free it top-down
+  rq <- cfold (flip $ \p -> RQ.insert p ()) mempty
+  RQ.traverseRenderQueue rq
+    (const id)
+    (\(RQ.SomePipeline p) -> lift $ destroyRenderPipeline p)
+    (\_ _ -> pure ()) -- TODO: Free static bindings in materials. The dynamic descriptors are
+                      -- freed with the pipeline
+    (\_ m _ -> lift $ freeMesh m)
+    (pure ())
 
   _ <- finalize
 

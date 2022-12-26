@@ -9,7 +9,6 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.DescriptorSet where
 
-import Control.Monad.IO.Class
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad
@@ -106,7 +105,7 @@ createDescriptorSets ppstages = do
       mergeSameDS :: BindingsMap
                   -> BindingsMap
                   -> BindingsMap
-      mergeSameDS = IM.mergeWithKey (\_ (dt,ss,sf) (dt',ss',sf') -> if dt == dt' then Just (dt, ss, sf .|. sf') else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id -- TODO: Could pattern match on type equality too?
+      mergeSameDS = IM.mergeWithKey (\_ (dt,ss,sf) (dt',_ss',sf') -> if dt == dt' then Just (dt, ss, sf .|. sf') else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id -- TODO: Could pattern match on type equality too?
 
 
 descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType
@@ -121,9 +120,9 @@ createDescriptorSetLayout :: BindingsMap -- ^ Binding, type and stage flags for 
 createDescriptorSetLayout bindingsMap = getDevice >>= \device -> do
 
   let
-      makeBinding bindingIx (descriptorType,_ss,sflags) =
+      makeBinding bindingIx (descriptorType',_ss,sflags) =
         Vk.DescriptorSetLayoutBinding { binding = fromIntegral bindingIx
-                                      , descriptorType = descriptorType
+                                      , descriptorType = descriptorType'
                                       , descriptorCount = 1 -- if this binding was an array of multiple items this number would be larger
                                       , stageFlags = sflags
                                       , immutableSamplers = []
@@ -178,6 +177,11 @@ allocateDescriptorSets sets = do
 destroyDescriptorPool :: Vk.DescriptorPool -> Renderer ext ()
 destroyDescriptorPool p = getDevice >>= \dev -> Vk.destroyDescriptorPool dev p Nothing
 
+destroyDescriptorSet :: DescriptorSet -> Renderer ext ()
+destroyDescriptorSet (DescriptorSet _ _dset dsetlayout dbindings) = do
+  destroyDescriptorSetLayout dsetlayout
+  _ <- traverse ((\case SomeMappedBuffer m -> destroyMappedBuffer m) . fst) dbindings
+  pure ()
 
 -- | Update the configuration of a descriptor set with multiple buffers
 updateBufferDescriptorSet :: Vk.DescriptorSet   -- ^ The descriptor set we're writing with these buffers

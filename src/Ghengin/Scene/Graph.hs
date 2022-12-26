@@ -112,7 +112,7 @@ import Control.Monad.Reader
 import Apecs (Entity, Set, Get, EntityCounter, Storage, Has, Component, Map, SystemT(..), set, get, cmapM)
 import Apecs.Core (ExplSet)
 import qualified Apecs
-import {-# SOURCE #-} Ghengin (Ghengin, GEnv)
+import {-# SOURCE #-} Ghengin (Ghengin)
 import Ghengin.Render.Packet
 import Ghengin.Vulkan
 import Ghengin.Component.Transform
@@ -150,8 +150,8 @@ type EntityConstraints w c =
   ( HasField "entityCounter" w (Storage EntityCounter)
   , HasField "entityParents" w (Storage Parent)
   , HasField "modelMatrices" w (Storage ModelMatrix)
-  , Has w (Renderer GEnv) c
-  , ExplSet (Renderer GEnv) (Storage c)
+  , Has w (Renderer ()) c
+  , ExplSet (Renderer ()) (Storage c)
   , Set w (Ghengin w) c, Get w (Ghengin w) EntityCounter
   )
 

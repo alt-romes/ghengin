@@ -26,14 +26,14 @@ import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.DescriptorSet
-import qualified Ghengin.DearImGui as IM
 import Ghengin.Vulkan.RenderPass
+import qualified Ghengin.DearImGui as IM
 import Ghengin.Vulkan
 import Ghengin.Scene.Graph
 import Ghengin.Render.Packet
 import Ghengin.Render.Queue
 import Ghengin.Component.Mesh
-import Ghengin.Component.Material hiding (SomeMaterial)
+import Ghengin.Component.Material
 import {-# SOURCE #-} Ghengin (Ghengin)
 
 import Unsafe.Coerce
@@ -97,7 +97,7 @@ render i = do
 
 
   -- Get all the 'RenderPacket's to create the 'RenderQueue' ahead
-  renderPackets <- cfold (\acc (p :: RenderPacket, fromMaybe (ModelMatrix identity 0) -> mm) -> (p,mm):acc) mempty
+  renderQueue <- cfold (flip $ \(p :: RenderPacket, fromMaybe (ModelMatrix identity 0) -> mm) -> insert p mm) mempty
 
 
   {-
@@ -144,12 +144,14 @@ render i = do
       -- Now, render the renderable entities from the render queue in the given order.
       -- If everything works as expected, if we blindly bind the descriptor sets as
       -- they come, we should bind the pipeline once and each material once.
-      traverseRenderQueue extent currentImage
-        (makeRenderQueue renderPackets)
+      traverseRenderQueue
+        renderQueue
+        -- Whenever we have a new pipeline, start its renderpass
+        (\(SomePipeline pp') -> renderPass pp'._renderPass._renderPass (pp'._renderPass._framebuffers V.! currentImage) extent)
         (\(SomePipeline pipeline) -> do
 
             -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
-
+            -- Bind the pipeline
             bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
             setViewport viewport
             setScissor  scissor

@@ -30,9 +30,7 @@ import qualified Shader
 import Planet
 
 -- TODO: EngineWorld data type in engine-land and then only one field must be of that type
-data World = World { meshes :: !(Storage Mesh)
-                   , materials    :: !(Storage SharedMaterial)
-                   , renderPackets :: !(Storage RenderPacket)
+data World = World { renderPackets :: !(Storage RenderPacket)
                    , transforms    :: !(Storage Transform)
                    , modelMatrices :: !(Storage ModelMatrix)
                    , cameras       :: !(Storage Camera)
@@ -72,8 +70,9 @@ initG = do
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
   (planetMesh,minmax) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
-  -- (planetMesh2,_minmax2) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
+  (planetMesh2,_minmax2) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
   let p1 = renderPacket planetMesh (makeMinMaxMaterial minmax) planetPipeline
+      p2 = renderPacket planetMesh2 (makeMinMaxMaterial minmax) planetPipeline
 
   -- TODO: Currently we can't share meshes, we're freeing them multiple times
   -- causing a segmentation fault, and even worse if we free it to create a new
@@ -87,8 +86,8 @@ initG = do
     -- which can be later modified. this data is bound once per pipeline.?
     -- The global data in this example is actually the Camera transform
 
-    newEntity ( p1, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 (pi/2) 0) )
-      -- newEntity (planetMesh2, minmaxMaterial, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
+    newEntity' ( p1, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 (pi/2) 0) ) do
+      newEntity ( p2, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
 
     newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
               , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
@@ -107,21 +106,20 @@ updateG ps dt uichanges = do
     cmapM $ \(RenderPacket oldMesh mat pp _) -> do
       (newMesh,newMinMax) <- newPlanet ps
       lift $ do
-        freeMesh (oldMesh) -- Can we hide/enforce this somehow?
+        freeMesh (oldMesh) -- Can we hide/enforce this somehow? Meshes aren't automatically freed when switched! We should make "switching" explicit?
       pure (renderPacket newMesh (makeMinMaxMaterial newMinMax) pp)
 
-  -- cmap $ \(_ :: Mesh, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
+  cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 
   pure False
 
 endG :: Ghengin World ()
 endG = do
-  cmapM $ \(m :: Mesh) -> lift $ freeMesh m
   liftIO $ putStrLn "Goodbye"
 
 main :: IO ()
 main = do
-  w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
+  w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
   ghengin w initG undefined updateG endG
 
 radians d = d * (pi/180)

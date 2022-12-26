@@ -4,22 +4,15 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Render.Pipeline where
 
-import GHC.Records
-import Data.IORef
-
+import Control.Monad
 import Data.List.NonEmpty (NonEmpty((:|)))
-import Data.IntMap (IntMap)
 import Data.Vector (Vector)
 import Foreign.Storable
 
 import Geomancy.Mat4
 import qualified Vulkan as Vk
-import Apecs
 
-import Ghengin.Component.Mesh
-import {-# SOURCE #-} Ghengin.Component.Material (SomeMaterial)
 import Ghengin.Shaders
-import Ghengin.Utils
 import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.DescriptorSet
@@ -27,17 +20,11 @@ import Ghengin.Vulkan
 
 -- | A render pipeline consists of the descriptor sets and a graphics pipeline
 -- required to render certain 'RenderPacket's
-data RenderPipeline info = RenderPipeline { _index :: {-# UNPACK #-} !Int
-                                          , _graphicsPipeline  :: VulkanPipeline
+data RenderPipeline info = RenderPipeline { _graphicsPipeline  :: VulkanPipeline
                                           , _renderPass        :: VulkanRenderPass
                                           , _descriptorSetsSet :: NonEmpty (Vector DescriptorSet, Vk.DescriptorPool) -- We need descriptor sets for each frame in flight
                                           , _shaderPipeline    :: GShaderPipeline info
                                           }
-
-data SomeRenderPipeline where
-  SomeRenderPipeline :: ∀ α. RenderPipeline α
-                     -> IORef [SomeMaterial] -- ^ To insert materials in this list use the function that validates them
-                     -> SomeRenderPipeline
 
 -- TODO: PushConstants must also be inferred from the shader code
 newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
@@ -48,8 +35,7 @@ newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Sto
 -- TODO: Currently we assume all our descriptor sets are Uniform buffers and
 -- our buffers too but eventually Uniform will be just a constructor of a more
 -- general Buffer and we should select the correct type of buffer individually.
-makeRenderPipeline :: ( PipelineConstraints info tops descs strides
-                      , HasField "_renderPipelines" ext (IORef [SomeRenderPipeline]) )
+makeRenderPipeline :: ( PipelineConstraints info tops descs strides )
                    => GShaderPipeline info
                    -> Renderer ext (RenderPipeline info)
 makeRenderPipeline shaderPipeline = do
@@ -70,23 +56,13 @@ makeRenderPipeline shaderPipeline = do
 
   pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (fmap (._descriptorSetLayout) (fst dsets)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
-  renderPipelinesRef <- asks (._extension._renderPipelines)
-  renderPipelines <- liftIO $ readIORef renderPipelinesRef -- Use length as index so that when creating the materials we can access the correct pipeline ref.
-  let rp = RenderPipeline (length renderPipelines) pipeline simpleRenderPass dsetsSet shaderPipeline
+  pure $ RenderPipeline pipeline simpleRenderPass dsetsSet shaderPipeline
 
-  -- Add this render pipeline to the registered pipelines
-  matsRef <- liftIO $ newIORef []
-  liftIO(modifyIORef' renderPipelinesRef (<> [SomeRenderPipeline rp matsRef]))
-
-  pure rp
-
--- newRenderPacket :: RenderPipeline info
---                 -> Mesh     -- TODO: Must be compatible with input type of RenderPipeline
---                 -> Material -- TODO: Must be compatible with input type of RenderPipeline
---                 -> Renderer ext RenderPacket
--- newRenderPacket rp@(RenderPipeline pipeline renderPass descriptorSetsSet _) mesh material = do
-
-
---   pure $ RenderPacket rp mesh material
-
+destroyRenderPipeline :: RenderPipeline α -> Renderer ext ()
+destroyRenderPipeline (RenderPipeline gp rp dss _) = do
+  forM_ dss $ \(dsets, dpool) -> do
+    destroyDescriptorPool dpool
+    mapM_ destroyDescriptorSet dsets
+  destroyRenderPass rp
+  destroyPipeline gp
 

@@ -37,7 +37,7 @@ import FIR
   , Word32
   , Shader(..)
   , PipelineInfo
-  , PipelineStages, ShaderPipeline(..)
+  , PipelineStages
   , PrimitiveConnectedness(..)
   , PrimitiveTopology(..)
   , (:->)((:->))
@@ -48,7 +48,6 @@ import FIR
   )
 import Ghengin.Shaders
 import Ghengin.Vulkan
-import Ghengin.Vulkan.Device
 
 data VulkanPipeline = VulkanPipeline { _pipeline :: Vk.Pipeline
                                      , _pipelineLayout :: Vk.PipelineLayout

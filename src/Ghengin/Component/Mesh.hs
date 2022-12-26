@@ -52,6 +52,15 @@ import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan
 
+{-
+Note [Meshes]
+~~~~~~~~~~~~~
+
+All meshes are freed when the window is closed. However, if you change/discard a
+mesh during the game you must free it explicitly. TODO: Enforce it somehow
+
+ -}
+
 instance (Monad m, HasField "meshes" w (Storage Mesh)) => Has w m Mesh where
   getStore = SystemT (asks (.meshes))
 
