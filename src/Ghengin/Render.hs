@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
@@ -162,13 +163,13 @@ render i = do
             -- The last camera will override the write buffer
             lift $ cmapM $ \(Camera proj view, fromMaybe noTransform -> camTr) -> do
 
-              -- TODO: Some buffers should already be computed by the time we get to the draw phase: means we only have to bind things and that things only have a cost if changed?
               projM <- lift $ makeProjection proj
               let viewM = makeView camTr view
 
                   ubo   = UBO viewM projM
 
               -- TODO : Move out of cmapM
+              -- Currently the descriptor set #0 always has just a uniform buffer object
               case descriptorSetBinding pipeline 0 0 of
                 SomeMappedBuffer b -> lift $ writeMappedBuffer (unsafeCoerce b) ubo
 
@@ -180,21 +181,11 @@ render i = do
           )
         (\(SomePipeline pipeline) (SomeMaterial material) -> do
 
-            -- These materials are compatible with this pipeline in the set #1,
-            -- so the 'descriptorSetBinding' buffer will always be valid to
-            -- write with the corresponding material binding
-            () <- case material of
-              Done -> pure ()
-              -- StaticMaterial -> undefined -- TODO: Bind the static descriptor set
-              DynamicBinding (a :: α) _ -> do
-                  case descriptorSetBinding pipeline 1 0 of
-                    -- TODO: Ensure unsafeCoerce is safe here by only allowing
-                    -- the construction of dynamic materials if validated at
-                    -- compile time against the shader pipeline in each
-                    -- matching position
-                    SomeMappedBuffer (unsafeCoerce -> buf :: MappedBuffer α) ->
-                      lift . lift $ writeMappedBuffer buf a
-
+            -- These materials are necessarily compatible with this pipeline in
+            -- the set #1, so the 'descriptorSetBinding' buffer will always be
+            -- valid to write with the corresponding material binding
+            lift $ writeMaterial (descriptorSetBinding pipeline 1) material
+            
             -- static bindings will have to choose a different dset
             -- Bind descriptor set #1
             bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
@@ -230,3 +221,34 @@ render i = do
   -- Defines the region in which pixels will actually be stored. Any pixels
   -- outside of the scissor will be discarded. We keep it as the whole viewport
   scissor' extent = Vk.Rect2D (Vk.Offset2D 0 0) extent
+
+-- | Bind a material.
+--
+-- (1) For each binding
+--    (1.1) If it's dynamic, write the default (default-bound) buffer
+--    (1.2) If it's static, bind the static buffer?
+-- (2) Bind the descriptor set #1 with the chosen descriptors
+--
+-- For now we ignore (1.2) (TODO!) and simply write material data into
+-- the default buffers
+--
+-- The material bindings function should be created from a compatible pipeline
+writeMaterial :: ∀ σ ω. (Int -> SomeMappedBuffer) -> Material σ -> Ghengin ω ()
+writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
+
+  go :: ∀ υ. Int -> Material υ -> Ghengin ω ()
+  go n = \case
+    Done -> -- assert (n == 0) (pure ()) (only triggered with -O0)
+      if n == (-1) then pure () else error $ "Assertion failed: writeMaterial n /= 0. " <> "n = " <> show n
+    DynamicBinding (a :: α) as -> do
+      case materialBinding n of
+        -- TODO: Ensure unsafeCoerce is safe here by only allowing
+        -- the construction of dynamic materials if validated at
+        -- compile time against the shader pipeline in each
+        -- matching position
+        SomeMappedBuffer (unsafeCoerce -> buf :: MappedBuffer α) ->
+          lift $ writeMappedBuffer buf a
+
+      go (n-1) as
+    -- StaticMaterial -> undefined -- TODO: Bind the static descriptor set
+       

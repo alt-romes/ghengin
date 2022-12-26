@@ -103,7 +103,7 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 
 -- | Render packet wrapper that creates the key identifier.
 renderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderPacket
-renderPacket mesh material pipeline = RenderPacket mesh material pipeline (makeKey mesh material pipeline)
+renderPacket mesh material pipeline = RenderPacket mesh material pipeline (makeKey material pipeline)
 
 {-
 Note [Render Packet Key]
@@ -120,7 +120,7 @@ Our key is 64 bits long:
 
 Current view of the key:
 
-[ padding | 4 bits: Pipeline | 32 bits: Material ]
+[ 28 bits: Padding | 4 bits: Pipeline | 32 bits: Material ]
 
 
 Note [Material Key]
@@ -146,15 +146,12 @@ type RenderKey = Word64
 splitKey :: RenderKey -> (Word64, Word64)
 splitKey k = (k .&. 0xf00000000, k .&. 0xffffffff)
 
-makeKey :: ∀ α β. Mesh -> Material α -> RenderPipeline β -> RenderKey
-makeKey _mesh _material _pipeline = fromInteger $ natVal $ Proxy @(RenderKeyNat α β ())
+makeKey :: ∀ α β. Material α -> RenderPipeline β -> RenderKey
+makeKey _material _pipeline = fromInteger $ natVal $ Proxy @(RenderKeyNat α β)
 
 -- | Compute the render key at the type level based on the type level information of the mesh, materials and pipeline.
-type family RenderKeyNat mesh material pipeline :: Nat where
-  RenderKeyNat _ _ _ = 0
-
-type family MeshKey     mesh     :: Nat where
-  MeshKey _ = 0
+type family RenderKeyNat material pipeline :: Nat where
+  RenderKeyNat m p = MaterialKey m + PipelineKey p
 
 type family MaterialKey material :: Nat where
   MaterialKey _ = 0

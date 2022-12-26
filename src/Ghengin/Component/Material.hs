@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -56,4 +57,10 @@ data Material xs where
                  -> Material (α:β)
   -- TODO
   -- StaticBinding :: a -> Material a:b
+
+-- | Returns the number of bindings
+matSizeBindings :: Material α -> Int
+matSizeBindings = \case
+  Done -> 0
+  DynamicBinding _ xs -> 1 + matSizeBindings xs
 
