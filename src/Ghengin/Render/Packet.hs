@@ -20,6 +20,7 @@ module Ghengin.Render.Packet
 import GHC.TypeLits
 import GHC.Records
 import Data.Proxy
+import Data.Kind
 import Data.Word
 import Data.Bits
 import Apecs (Component, Storage, Map, Has, getStore, SystemT(..), asks)
@@ -87,7 +88,8 @@ instance Ord RenderPacket where
    'Compatible' validates at the type level that the mesh and material are
    compatible with the render pipeline.
  -}
-type family Compatible xs ys where
+type family Compatible xs ys :: Constraint where
+  Compatible _ _ = ()
 
 
 instance Component RenderPacket where

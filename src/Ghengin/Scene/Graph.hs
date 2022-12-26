@@ -106,15 +106,14 @@ module Ghengin.Scene.Graph
   ) where
 
 import Data.Maybe
-import Ghengin.Component.Material
-import Ghengin.Component.Mesh
 import Geomancy.Mat4
 import GHC.Records
 import Control.Monad.Reader
-import Apecs (Entity, global, Set, Get, EntityCounter, Storage, Has, Component, Map, SystemT(..), set, get, cmapM, cmapM_)
+import Apecs (Entity, Set, Get, EntityCounter, Storage, Has, Component, Map, SystemT(..), set, get, cmapM)
 import Apecs.Core (ExplSet)
 import qualified Apecs
 import {-# SOURCE #-} Ghengin (Ghengin, GEnv)
+import Ghengin.Render.Packet
 import Ghengin.Vulkan
 import Ghengin.Component.Transform
 
@@ -171,9 +170,9 @@ newEntity' c sub = ask >>= \mparentId -> do
   pure (ne, a)
 
 type TraverseConstraints w =
-  ( HasField "meshes" w (Storage Mesh)
-  , HasField "transforms" w (Storage Transform)
-  , HasField "materials" w (Storage SharedMaterial)
+  ( 
+    HasField "transforms" w (Storage Transform)
+  , HasField "renderPackets" w (Storage RenderPacket)
   , HasField "entityParents" w (Storage Parent)
   , HasField "modelMatrices" w (Storage ModelMatrix)
   )
@@ -219,14 +218,14 @@ on the parents
 -}
 traverseSceneGraph :: TraverseConstraints w
                    => Int -- ^ The frame instance
-                   -> ((Mesh, SharedMaterial, ModelMatrix) -> Ghengin w ()) -- ^ A function on renderable entities (by their components)
+                   -> (RenderPacket -> ModelMatrix -> Ghengin w ()) -- ^ A function on renderable entities (by their components)
                    -> Ghengin w ()
 traverseSceneGraph inst f = do
 
   -- TODO: RenderableEntity as a type
-  cmapM \(mesh :: Mesh, mat :: SharedMaterial, e :: Entity) -> do
+  cmapM \(p :: RenderPacket, e :: Entity) -> do
     mmm <- computeModelMatrix inst e
-    f (mesh, mat, fromMaybe (ModelMatrix identity 0) mmm)
+    f p (fromMaybe (ModelMatrix identity 0) mmm)
 
 
 -- | Recursively compute the model matrix of an entity and of all transitive parents

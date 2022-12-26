@@ -26,9 +26,6 @@ import Unsafe.Coerce
 
 import GHC.Stack
 
-import Foreign.Storable
-import Foreign.Ptr
-
 import Data.Maybe
 import Control.Monad.Reader
 
@@ -84,24 +81,8 @@ windowLoop action = do
 
 type DeltaTime = Float -- Converted from NominalDiffTime
 
-data UniformBufferObject = UBO { view :: Mat4
-                               , proj :: Mat4
-                               }
--- TODO: Use and export derive-storable?
-instance Storable UniformBufferObject where
-  sizeOf _ = 2 * sizeOf @Mat4 undefined
-  alignment _ = 16
-  peek (castPtr -> p) = do
-    vi <- peek p
-    pr <- peekElemOff p 1
-    pure $ UBO vi pr
-  poke (castPtr -> p) (UBO vi pr) = do
-    poke p vi
-    pokeElemOff p 1 pr
-
-type WorldConstraints w = ( HasField "meshes" w (Storage Mesh)
-                          , HasField "materials" w (Storage SharedMaterial)
-                          , HasField "transforms" w (Storage Transform)
+type WorldConstraints w = ( HasField "transforms" w (Storage Transform)
+                          , HasField "renderPackets" w (Storage RenderPacket)
                           , HasField "modelMatrices" w (Storage ModelMatrix)
                           , HasField "entityParents" w (Storage Parent)
                           , HasField "cameras" w (Storage Camera)
@@ -167,11 +148,11 @@ ghengin world initialize _simstep loopstep finalize = (\x -> initGEnv >>= flip r
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime) bs
 
     -- Currently render is called here because it traverses the scene graph and
-    -- populates the render queue
+    -- populates the render queue, and renders!
     render =<< liftIO (readIORef frameCounter)
 
     -- Render frame
-    drawFrame
+    -- drawFrame
 
     pure b
 
@@ -206,7 +187,7 @@ drawUI = do
 
 -- TODO: Eventually move drawFrame to a better contained renderer part
 
-drawFrame :: (WorldConstraints w, HasCallStack)
+drawFrame :: (WorldConstraints w, HasField "meshes" w (Map Mesh), HasField "materials" w (Map SharedMaterial), HasCallStack)
           => Ghengin w ()
 drawFrame = do
 

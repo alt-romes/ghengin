@@ -1,41 +1,65 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Render where
 
 import GHC.Records
-import Apecs (Storage, cfold)
+import Apecs (Storage, cfold, cmapM)
+import Data.Maybe
 
 import Control.Monad.State
 
+import qualified Data.IntMap as IM
+import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 import qualified Vulkan as Vk
+import Geomancy.Mat4
+import Foreign.Storable
+import Foreign.Ptr
 
+import Ghengin.Component.Camera
+import Ghengin.Component.Transform
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Buffer
-import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.DescriptorSet
+import qualified Ghengin.DearImGui as IM
 import Ghengin.Vulkan.RenderPass
-import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
 import Ghengin.Scene.Graph
 import Ghengin.Render.Packet
 import Ghengin.Render.Queue
-import Ghengin.Component.Transform
 import Ghengin.Component.Mesh
-import Ghengin.Component.Material
+import Ghengin.Component.Material hiding (SomeMaterial)
 import {-# SOURCE #-} Ghengin (Ghengin)
 
+import Unsafe.Coerce
 
-type RenderConstraints w = ( HasField "meshes" w (Storage Mesh)
-                           , HasField "materials" w (Storage SharedMaterial)
-                           , HasField "transforms" w (Storage Transform)
+type RenderConstraints w = ( HasField "transforms" w (Storage Transform)
                            , HasField "renderPackets" w (Storage RenderPacket)
+                           , HasField "cameras" w (Storage Camera)
                            , HasField "modelMatrices" w (Storage ModelMatrix)
                            , HasField "entityParents" w (Storage Parent)
                            )
+
+data UniformBufferObject = UBO { view :: Mat4
+                               , proj :: Mat4
+                               }
+-- TODO: Use and export derive-storable?
+instance Storable UniformBufferObject where
+  sizeOf _ = 2 * sizeOf @Mat4 undefined
+  alignment _ = 16
+  peek (castPtr -> p) = do
+    vi <- peek p
+    pr <- peekElemOff p 1
+    pure $ UBO vi pr
+  poke (castPtr -> p) (UBO vi pr) = do
+    poke p vi
+    pokeElemOff p 1 pr
+
 
 {-
 Note [Renderer]
@@ -69,11 +93,11 @@ render i = do
 
   -- Traverse all nodes in the scene graph updating the model matrices
   -- TODO: Currently called traverseSceneGraph, but the name should reflect that the model matrices are updated
-  traverseSceneGraph i (const $ pure ())
+  traverseSceneGraph i (const . const $ pure ())
 
 
   -- Get all the 'RenderPacket's to create the 'RenderQueue' ahead
-  renderPackets <- cfold (\acc (p :: RenderPacket) -> p:acc) mempty
+  renderPackets <- cfold (\acc (p :: RenderPacket, fromMaybe (ModelMatrix identity 0) -> mm) -> (p,mm):acc) mempty
 
 
   {-
@@ -108,31 +132,85 @@ render i = do
 
   _ <- withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
-    -- Now, render the renderable entities from the render queue in the given order.
-    -- If everything works as expected, if we blindly bind the descriptor sets as
-    -- they come, we should bind the pipeline once and each material once.
-    traverseRenderQueue (makeRenderQueue renderPackets) \(RenderPacket mesh material pipeline key) -> (`evalState` (-1, -1)) do
+    let
+        descriptorSet :: RenderPipeline α -> Int -> DescriptorSet
+        descriptorSet pipeline setIx = fst (pipeline._descriptorSetsSet NE.!! currentFrame) V.! setIx -- must guarantee that there exist this amount of sets in this pipeline
 
-      let (pkey, mkey) = splitKey key
+        descriptorSetBinding :: RenderPipeline α -> Int -> Int -> SomeMappedBuffer
+        descriptorSetBinding pipeline setIx bindingIx = fst $ (descriptorSet pipeline setIx)._bindings IM.! bindingIx
 
-      (previousPKey, previousMKey) <- get
+    recordCommand cmdBuffer $ do
+
+      -- Now, render the renderable entities from the render queue in the given order.
+      -- If everything works as expected, if we blindly bind the descriptor sets as
+      -- they come, we should bind the pipeline once and each material once.
+      traverseRenderQueue
+        (makeRenderQueue renderPackets)
+        (\(SomePipeline pipeline) -> do
+
+          -- Whenever we have a new pipeline, start its renderpass and bind it
+          -- TODO: Integrate render pass in the traverse render queue... get rid of unsafes.
+          unsafeUnterminatedRenderPass pipeline._renderPass._renderPass (pipeline._renderPass._framebuffers V.! currentImage) extent $ do
+
+            bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
+            setViewport viewport
+            setScissor  scissor
+
+            -- TODO: This next bit has got to be re-done
+            -- TODO: Bind pipeline-global data to descriptor set #0
+            -- Get main camera, for the time being it's the only possible pipeline data for the shader
+            -- The last camera will override the write buffer
+            lift $ cmapM $ \(Camera proj view, fromMaybe noTransform -> camTr) -> do
+
+              -- TODO: Some buffers should already be computed by the time we get to the draw phase: means we only have to bind things and that things only have a cost if changed?
+              projM <- lift $ makeProjection proj
+              let viewM = makeView camTr view
+
+                  ubo   = UBO viewM projM
+
+              -- TODO : Move out of cmapM
+              case descriptorSetBinding pipeline 0 0 of
+                SomeMappedBuffer b -> lift $ writeMappedBuffer (unsafeCoerce b) ubo
 
 
-      recordCommand cmdBuffer $ do
+            -- Bind descriptor set #0
+            bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
+              0 (descriptorSet pipeline 0)._descriptorSet
 
-        -- First, bind the pipeline and start its renderpass if it hasn't been bound yet
-        -- when (pkey /= previousPKey) do
+          )
+        (\(SomePipeline pipeline) (SomeMaterial material) -> do
 
-        renderPass pipeline._renderPass._renderPass (pipeline._renderPass._framebuffers V.! currentImage) extent $ do
+            -- These materials are compatible with this pipeline in the set #1,
+            -- so the 'descriptorSetBinding' buffer will always be valid to
+            -- write with the corresponding material binding
+            () <- case material of
+              Done -> pure ()
+              -- StaticMaterial -> undefined -- TODO: Bind the static descriptor set
+              DynamicBinding (a :: α) _ -> do
+                  case descriptorSetBinding pipeline 1 0 of
+                    -- TODO: Ensure unsafeCoerce is safe here by only allowing
+                    -- the construction of dynamic materials if validated at
+                    -- compile time against the shader pipeline in each
+                    -- matching position
+                    SomeMappedBuffer (unsafeCoerce -> buf :: MappedBuffer α) ->
+                      lift . lift $ writeMappedBuffer buf a
 
-          bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
-          setViewport viewport
-          setScissor  scissor
+            -- static bindings will have to choose a different dset
+            -- Bind descriptor set #1
+            bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
+              1 (descriptorSet pipeline 1)._descriptorSet
 
-      when (mkey /= previousMKey) do
-        _
+          )
+        (\(SomePipeline pipeline) (mesh :: Mesh) (ModelMatrix mm _) -> do
 
-      pure ()
+            -- TODO: Bind descriptor set #2
+
+            pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
+            renderMesh mesh
+          )
+
+      -- Draw UI (TODO: Special render pass...?)
+      unsafeCmdFromRenderPassCmd $ IM.renderDrawData =<< IM.getDrawData
 
   pure ()
     
