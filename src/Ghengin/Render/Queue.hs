@@ -17,29 +17,7 @@ Resources:
 TODO
 [ ] Use representation more efficient than simple lists?
 
-The idea is to assign a key to each renderable entity and then do a simple sort
-by key. This key must take into account GPU state changes amonsgt possibly other things.
-
-Our key is 64 bits long:
-* Nothing yet, eventually viewport related stuff, translucency
-* 32bits for the material id
-* Nothing yet, eventually depth sorting
-
-
-Note [Material ID]
-~~~~~~~~~~~~~~~~~~
-
-Every material is uniquely identifiable by a 32bit key which serves to sort
-material in order of binding frequency -- giving us an optimal order to render
-entities with the minimal amount of state changes
-
-The 32bit key is composed of:
-* __6 bits__ for the (shader) pipeline identifier (this allows for a maximum of
-  64 different shaders, which should be enough. If more are needed, you might
-  need to merge two shaders into a more generic one (a generic material shader),
-  which will probably be more performant than having more shaders)
-* __26 bits__ to uniquely identify the material?
-
+See Note [Render Packet Key] and [Material Key]
 
 -- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 
@@ -70,4 +48,6 @@ traverseRenderQueue :: RenderQueue
                     -> (RenderPacket -> Ghengin w a)
                     -> Ghengin w [a]
 traverseRenderQueue (RenderQueue q) f = traverse f q
+
+
 

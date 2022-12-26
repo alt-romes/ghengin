@@ -215,13 +215,13 @@ drawFrame = do
     -- The region of the framebuffer that the output will be rendered to. We
     -- render from (0,0) to (width, height) i.e. the whole framebuffer
     -- Defines a transformation from image to framebuffer
-    viewport = Vk.Viewport {..} where
-                 x = 0.0
-                 y = 0.0
-                 width  = fromIntegral $ extent.width
-                 height = fromIntegral $ extent.height
-                 minDepth = 0
-                 maxDepth = 1
+    viewport = Vk.Viewport { x = 0.0
+                           , y = 0.0
+                           , width  = fromIntegral $ extent.width
+                           , height = fromIntegral $ extent.height
+                           , minDepth = 0
+                           , maxDepth = 1
+                           }
 
     -- Defines the region in which pixels will actually be stored. Any pixels
     -- outside of the scissor will be discarded. We keep it as the whole viewport
