@@ -22,28 +22,17 @@ module Ghengin
   ) where
 
 import GHC.Records
-import Unsafe.Coerce
 
-import GHC.Stack
-
-import Data.Maybe
 import Control.Monad.Reader
 
 import Data.IORef
 
 import Data.Time.Clock
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Vector as V
-import qualified Data.IntMap as IM
 import qualified Vulkan as Vk
 import Apecs
 import Geomancy.Vec3
 import Geomancy.Mat4
 
-import Ghengin.Vulkan.Buffer
-import Ghengin.Vulkan.Command
-import Ghengin.Vulkan.Pipeline
-import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
@@ -53,8 +42,6 @@ import Ghengin.Scene.Graph
 import qualified Ghengin.DearImGui as IM
 
 import Ghengin.Component.Camera
-import Ghengin.Component.Material
-import Ghengin.Component.Mesh
 import Ghengin.Component.Transform
 import Ghengin.Component.UI
 import Ghengin.Render
@@ -184,140 +171,6 @@ drawUI = do
     IM.render
 
     pure bs
-
--- TODO: Eventually move drawFrame to a better contained renderer part
-
-drawFrame :: (WorldConstraints w, HasField "meshes" w (Map Mesh), HasField "materials" w (Map SharedMaterial), HasCallStack)
-          => Ghengin w ()
-drawFrame = do
-
-  extent <- lift getRenderExtent
-  let
-    -- The region of the framebuffer that the output will be rendered to. We
-    -- render from (0,0) to (width, height) i.e. the whole framebuffer
-    -- Defines a transformation from image to framebuffer
-    viewport = Vk.Viewport { x = 0.0
-                           , y = 0.0
-                           , width  = fromIntegral $ extent.width
-                           , height = fromIntegral $ extent.height
-                           , minDepth = 0
-                           , maxDepth = 1
-                           }
-
-    -- Defines the region in which pixels will actually be stored. Any pixels
-    -- outside of the scissor will be discarded. We keep it as the whole viewport
-    scissor = Vk.Rect2D (Vk.Offset2D 0 0) extent
-
-  {-
-     Here's a rundown of the draw function:
-
-     ∀ pipeline ∈ registeredPipelines do
-        bind global descriptor set at set #0
-
-        ∀ material ∈ pipeline.registeredMaterials do
-          bind material descriptor set at set #1
-
-          ∀ object that uses material do
-            
-            bind object descriptor set at set #2
-            bind object model (vertex buffer)
-            draw object
-
-      This makes the descriptor set #0 bound once per pipeline
-                 the descriptor set #1 bound once per material
-                 the descriptor set #2 bound once per object
-
-      The data bound globally for the pipeline must be compatible with the descriptor set #0 layout
-      All materials bound in a certain pipeline must be compatible with the descriptor set #1 layout
-      All object data bound in a certain pipeline must be compatible with descriptor set #2 layout
-      All object's vertex buffers bound in a certain pipeline must be compatible with the vertex input of that pipeline
-
-   -}
-
-  _ <- withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
-
-  -- Draw frame is actually here, within 'withCurrentFramePresent'
-  
-    pipelines <- liftIO . readIORef =<< lift (asks (._extension._renderPipelines))
-    forM pipelines $ \(SomeRenderPipeline pipeline materialsRef) -> do
-
-      materials <- liftIO (readIORef materialsRef)
-      let descriptorSet setIx = fst (pipeline._descriptorSetsSet NE.!! currentFrame) V.! setIx -- must guarantee that there exist this amount of sets in this pipeline
-          descriptorSetBinding setIx bindingIx = fst $ (descriptorSet setIx)._bindings IM.! bindingIx
-
-      -- TODO: Should be specific to each pipeline. E.g. if I have a color
-      -- attribute that should be displayed that should be described in the
-      -- pipeline constructor
-
-      recordCommand cmdBuffer $ do
-
-        renderPass pipeline._renderPass._renderPass (pipeline._renderPass._framebuffers V.! currentImage) extent $ do
-
-          bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
-          setViewport viewport
-          setScissor  scissor
-
-          -- TODO: Bind pipeline-global data to descriptor set #0
-          -- Get main camera, for the time being it's the only possible pipeline data for the shader
-          -- The last camera will override the write buffer
-          lift $ cmapM $ \(Camera proj view, fromMaybe noTransform -> camTr) -> do
-
-            -- TODO: Some buffers should already be computed by the time we get to the draw phase: means we only have to bind things and that things only have a cost if changed?
-            projM <- lift $ makeProjection proj
-            let viewM = makeView camTr view
-
-                ubo   = UBO viewM projM
-
-            -- TODO : Move out of cmapM
-            case descriptorSetBinding 0 0 of
-              SomeMappedBuffer b -> lift $ writeMappedBuffer (unsafeCoerce b) ubo
-
-
-          -- Bind descriptor set #0
-          bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
-            0 (descriptorSet 0)._descriptorSet
-
-          forM_ materials $ \(SomeMaterial material materialIndex) -> do
-
-            -- These materials are compatible with this pipeline in the set #1,
-            -- so the 'descriptorSetBinding' buffer will always be valid to
-            -- write with the corresponding material binding
-            () <- case material of
-              Done -> pure ()
-              -- StaticMaterial -> undefined -- TODO: Bind the static descriptor set
-              DynamicBinding (a :: α) _ -> do
-                  case descriptorSetBinding 1 0 of
-                    -- TODO: Ensure unsafeCoerce is safe here by only allowing
-                    -- the construction of dynamic materials if validated at
-                    -- compile time against the shader pipeline in each
-                    -- matching position
-                    SomeMappedBuffer (unsafeCoerce -> buf :: MappedBuffer α) ->
-                      lift . lift $ writeMappedBuffer buf a
-
-            -- static bindings will have to choose a different dset
-            -- Bind descriptor set #1
-            bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
-              1 (descriptorSet 1)._descriptorSet
-
-            embed cmapM $ \(mesh :: Mesh, SharedMaterial pipIx matIx, fromMaybe (ModelMatrix identity 0) -> ModelMatrix mm _) -> do
-
-              -- TODO: Is it bad that we're going over *all* meshes for each
-              -- material? Probably yes, we should have a good scene graph
-              -- that sorts material in render order, handles hierarchy, and
-              -- can additionally partition the visible space :)
-              when (pipIx == pipeline._index && matIx == materialIndex) $ do
-
-                -- TODO: Bind descriptor set #2
-
-                pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
-                renderMesh mesh
-
-          -- Draw UI
-          IM.renderDrawData =<< IM.getDrawData
-
-      
-  pure ()
-
 
 pattern MAX_FRAME_TIME :: Float
 pattern MAX_FRAME_TIME = 0.5

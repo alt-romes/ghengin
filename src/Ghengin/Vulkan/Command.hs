@@ -39,13 +39,9 @@ module Ghengin.Vulkan.Command
   , createCommandBuffers
   , destroyCommandBuffers
 
-  , unsafeCmdFromRenderPassCmd
-  , unsafeUnterminatedRenderPass
-
   , embed
   ) where
 
-import Data.Coerce
 import Control.Monad.Reader
 import Data.Word
 import Foreign.Storable
@@ -202,21 +198,6 @@ withCmdBuffer f = Command $ ask >>= lift . f
 makeRenderPassCmd :: MonadIO m => (Vk.CommandBuffer -> m ()) -> RenderPassCmd m
 makeRenderPassCmd f = RenderPassCmd $ ask >>= lift . f
 
-unsafeCmdFromRenderPassCmd :: MonadIO m => RenderPassCmd m -> Command m
-unsafeCmdFromRenderPassCmd = coerce
-
-unsafeUnterminatedRenderPass :: MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd m -> Command m
-unsafeUnterminatedRenderPass rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ask >>= \buf -> do
-  let
-    renderPassInfo = Vk.RenderPassBeginInfo { next = ()
-                                            , renderPass  = rpass
-                                            , framebuffer = frameBuffer
-                                            , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
-                                            , clearValues = [Vk.Color $ Vk.Float32 0.1 0.1 0.1 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 1 0]
-                                            }
-
-  Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
-  rpcmds
 
 -- :| Creation and Destruction |:
 

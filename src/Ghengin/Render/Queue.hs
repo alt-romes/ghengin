@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE BlockArguments #-}
 {-|
 Note [Render Queue]
@@ -25,18 +26,17 @@ See Note [Render Packet Key] and [Material Key]
 -}
 module Ghengin.Render.Queue where
 
--- import Data.Word
--- import Data.Bits
--- import qualified Data.Map as M
--- import Data.Ord
+import qualified Vulkan as Vk
 import Control.Monad.IO.Class
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
+import qualified Data.Vector as V
 
 import Ghengin.Vulkan.Command
 import Ghengin.Render.Packet
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material hiding (SomeMaterial)
+import Ghengin.Vulkan.RenderPass
 
 newtype RenderQueue a = RenderQueue (IntMap (SomePipeline, IntMap (SomeMaterial, [(Mesh, a)])))
   -- deriving Show
@@ -66,18 +66,28 @@ makeRenderQueue =
 -- | Traverse the render queue with a function for each different occasion:
 --
 -- * New render pipeline (i.e. one that we haven't seen/bound previously this frame)
+--    * At this stage, a render pass will be initiated
 -- * New material for the previously seen pipeline
 -- * New mesh for the render packet using the previously seen material
 traverseRenderQueue :: MonadIO m
-                    => RenderQueue a
-                    -> (SomePipeline -> Command m) -- ^ The pipeline changed (nothing should be rendered)
+                    => Vk.Extent2D -- ^ The extent for this frame
+                    -> Int -- ^ The current image in this frame
+                    -> RenderQueue a -- ^ The render queue
+                    -> (SomePipeline -> RenderPassCmd m) -- ^ The pipeline changed (nothing should be rendered)
                     -> (SomePipeline -> SomeMaterial -> RenderPassCmd m) -- ^ The material changed (nothing should be rendered)
                     -> (SomePipeline -> Mesh -> a -> RenderPassCmd m) -- ^ The mesh to render
+                    -> RenderPassCmd m -- ^ A command at the end of each render pass
                     -> Command m
-traverseRenderQueue (RenderQueue q) f g h =
-  () <$ traverse (\(pp,mts) ->
-    f pp *> traverse (\(mt,meshes) ->
-      unsafeCmdFromRenderPassCmd (g pp mt) *> traverse (unsafeCmdFromRenderPassCmd . uncurry (h pp)) meshes) mts) q
+traverseRenderQueue extent currentImage (RenderQueue q) f g h finally =
+  () <$ traverse (\(pp@(SomePipeline pp'),mts) ->
+    -- Whenever we have a new pipeline, start its renderpass and bind it
+    -- TODO: Integrate render pass in the traverse render queue... get rid of unsafes.
+    renderPass pp'._renderPass._renderPass (pp'._renderPass._framebuffers V.! currentImage) extent $ do
+      f pp
+      _ <- traverse (\(mt,meshes) ->
+        (g pp mt) <* traverse (uncurry (h pp)) meshes) mts
+      finally -- run after each render pass
+        ) q
 {-# INLINE traverseRenderQueue #-}
 
 

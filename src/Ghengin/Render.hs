@@ -144,13 +144,11 @@ render i = do
       -- Now, render the renderable entities from the render queue in the given order.
       -- If everything works as expected, if we blindly bind the descriptor sets as
       -- they come, we should bind the pipeline once and each material once.
-      traverseRenderQueue
+      traverseRenderQueue extent currentImage
         (makeRenderQueue renderPackets)
         (\(SomePipeline pipeline) -> do
 
-          -- Whenever we have a new pipeline, start its renderpass and bind it
-          -- TODO: Integrate render pass in the traverse render queue... get rid of unsafes.
-          unsafeUnterminatedRenderPass pipeline._renderPass._renderPass (pipeline._renderPass._framebuffers V.! currentImage) extent $ do
+            -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
 
             bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
             setViewport viewport
@@ -208,9 +206,10 @@ render i = do
             pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
             renderMesh mesh
           )
-
-      -- Draw UI (TODO: Special render pass...?)
-      unsafeCmdFromRenderPassCmd $ IM.renderDrawData =<< IM.getDrawData
+        (do
+          -- Draw UI (TODO: Special render pass...?)
+          IM.renderDrawData =<< IM.getDrawData
+        )
 
   pure ()
     
