@@ -15,7 +15,6 @@ import qualified Prelude
 import Ghengin.Shaders.FIR
 import Ghengin.Shaders
 import Ghengin.Component.Mesh (VertexN)
-import Ghengin.Utils (SomeStorable(..))
 import Ghengin (Mat4)
 
 -- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
@@ -97,10 +96,8 @@ type VertexData =
 shaderPipeline :: GShaderPipeline _
 shaderPipeline
   = StructInput @VertexData @(Triangle List)
-    :>-> (vertex, IM.insert 1 (IM.singleton 0 (SomeStorable @(VertexN Float 2))) $ IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2)))) -- move these data types out of here... into the types
-    :>-> (fragment, mempty)
-
-
+    :>-> (vertex, ())
+    :>-> (fragment, ())
 
 invLerp :: DivisionRing a => a -> a -> a -> a
 invLerp value from to = (value - from) / (to - from)

@@ -127,6 +127,7 @@ library
                       StateVar,
                       witch,
                       derive-storable,
+                      constraints
                       -- ghc-typelits-knownnat
                       -- algebraic-graphs
 

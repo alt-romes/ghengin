@@ -10,14 +10,10 @@
 {-# LANGUAGE ViewPatterns     #-}
 module Ghengin.Shaders.SimpleShader (vertex, fragment, shaderPipeline) where
 
-import Geomancy.Mat4 (Mat4)
-import qualified Data.IntMap as IM
 import FIR
 -- import FIR.Syntax.Labels
 import Math.Linear -- for vectors
 import Ghengin.Shaders
-import Ghengin.Component.Mesh (VertexN)
-import Ghengin.Utils (SomeStorable(..))
 
 -------------------
 -- Vertex shader --
@@ -83,5 +79,5 @@ type VertexData =
 shaderPipeline :: GShaderPipeline _
 shaderPipeline =
   StructInput @VertexData @(Triangle List)
-  :>-> (vertex, IM.singleton 0 (IM.singleton 0 (SomeStorable @(VertexN Mat4 2))))
-  :>-> (fragment, mempty)
+  :>-> (vertex, ())
+  :>-> (fragment, ())

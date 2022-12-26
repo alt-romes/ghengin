@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -18,7 +19,7 @@ import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 import qualified Vulkan as Vk
 import Geomancy.Mat4
-import Foreign.Storable
+import qualified Foreign.Storable as S
 import Foreign.Ptr
 
 import Ghengin.Component.Camera
@@ -35,6 +36,7 @@ import Ghengin.Render.Packet
 import Ghengin.Render.Queue
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material
+import Ghengin.Utils
 import {-# SOURCE #-} Ghengin (Ghengin)
 
 import Unsafe.Coerce
@@ -50,17 +52,21 @@ data UniformBufferObject = UBO { view :: Mat4
                                , proj :: Mat4
                                }
 -- TODO: Use and export derive-storable?
-instance Storable UniformBufferObject where
-  sizeOf _ = 2 * sizeOf @Mat4 undefined
+instance S.Storable UniformBufferObject where
+  sizeOf _ = 2 * S.sizeOf @Mat4 undefined
   alignment _ = 16
   peek (castPtr -> p) = do
-    vi <- peek p
-    pr <- peekElemOff p 1
+    vi <- S.peek p
+    pr <- S.peekElemOff p 1
     pure $ UBO vi pr
   poke (castPtr -> p) (UBO vi pr) = do
-    poke p vi
-    pokeElemOff p 1 pr
+    S.poke p vi
+    S.pokeElemOff p 1 pr
 
+instance Poke UniformBufferObject Extended where
+  type SizeOf Extended UniformBufferObject = 128 -- 2*16
+  type Alignment Extended UniformBufferObject = 128 -- 2*16
+  poke = S.poke
 
 {-
 Note [Renderer]
@@ -247,7 +253,7 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
         -- compile time against the shader pipeline in each
         -- matching position
         SomeMappedBuffer (unsafeCoerce -> buf :: MappedBuffer α) ->
-          lift $ writeMappedBuffer buf a
+          lift $ writeMappedBuffer @α buf a
 
       go (n-1) as
     -- StaticMaterial -> undefined -- TODO: Bind the static descriptor ?

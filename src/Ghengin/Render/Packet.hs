@@ -27,13 +27,13 @@ import Apecs (Component, Storage, Map, Has, getStore, SystemT(..), asks)
 import Ghengin.Render.Pipeline
 import Ghengin.Component.Material
 import Ghengin.Component.Mesh
+import Ghengin.Utils
 
 import Data.Type.Map
-  ( Values, Lookup )
+  ( Values )
 import FIR.Pipeline (PipelineInfo(..))
 import FIR.ProgramState
 import SPIRV.Decoration (Decoration(..))
-import SPIRV.Storage (StorageClass(..))
 
 {-|
 
@@ -80,7 +80,8 @@ data RenderPacket where
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
+  -- RenderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ α β. Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
@@ -181,9 +182,16 @@ type family Compatible (xs :: [Type]) (ys :: PipelineInfo) :: Constraint where
 
 type family Compatible' (xs :: [Type]) (ys :: PipelineInfo) (n :: Nat) :: Constraint where
   Compatible' '[] _ 0 = ()
-  Compatible' (x ': xs) ys n = Assert (Matches x (DSetBinding 1 (n-1) ys)) (Text "TODO: Invalid binding error...") (Compatible' xs ys (n-1))
+  Compatible' (x ': xs) ys n =
+   -- This only works for Uniform buffers. One reason is the 'Extended SizeOf
+   -- ( Poke x 'Extended )
+   -- ^ There must be an instance for Poke, but this is guaranteed by the constructors of Material
+   Assert (Matches (SizeOf 'Extended x) (SizeOf 'Extended (DSetBinding 1 (n-1) ys)))
+           (Text "Material binding #" :<>: ShowType (n-1) :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf 'Extended x)
+            :<>: Text " isn't compatible (doesn't have the same size) with the descriptor binding #" :<>: ShowType (n-1) :<>: Text " of size " :<>: ShowType (SizeOf 'Extended (DSetBinding 1 (n-1) ys))
+            :<>: Text " with type " :<>: ShowType (DSetBinding 1 (n-1) ys)) (Compatible' xs ys (n-1))
 
-type family Matches (t :: Type) (t' :: Type) :: Bool where
+type family Matches (t :: Nat) (t' :: Nat) :: Bool where
   Matches x x = True
   Matches _ _ = False
 
@@ -192,7 +200,7 @@ type family Matches (t :: Type) (t' :: Type) :: Bool where
 -- TODO: This assumes this order as the only valid one. At least say it so in the error message.
 type family DSetBinding (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Type where
   DSetBinding set binding (VertexInputInfo _ _ _) = TypeError (Text "Uniform [Descriptor Set #" :<>: ShowType set :<>: Text ", Binding #" :<>: ShowType binding :<>: Text "] not found!")
-  DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) = FromMaybe (DSetBinding set binding infos) (FindDSetInput set binding (Values (FromMaybe '[] (Lookup 'Input defs))))
+  DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) = FromMaybe (DSetBinding set binding infos) (FindDSetInput set binding (Values (Concat (Values defs))))
 
 type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [TLInterfaceVariable]) :: Maybe Type where
   FindDSetInput set binding '[] = 'Nothing
@@ -200,18 +208,6 @@ type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [TLInterfaceV
   FindDSetInput set binding (_ ': inputs) = FindDSetInput set binding inputs
 
 type family Assert (b :: Bool) (e :: ErrorMessage) (t :: k) :: k where
-  Assert 'True e _ = TypeError e
-  Assert 'False _ t = t
-
-type family FromMaybe (a :: k) (m :: Maybe k) :: k where
-  FromMaybe a 'Nothing = a
-  FromMaybe _ ('Just a) = a
-
-type family Concat (as :: [[k]]) :: [k] where
-  Concat '[] = '[]
-  Concat (x ': xs) = x ++ Concat xs
-
-type family (++) as bs where
-  (++) '[] bs = bs
-  (++) (x ': xs) ys = x : xs ++ ys
+  Assert 'False e _ = TypeError e
+  Assert 'True _ t = t
 

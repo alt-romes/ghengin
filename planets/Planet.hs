@@ -1,4 +1,6 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -16,7 +18,7 @@ import GHC.Float
 import Data.IORef
 import Control.Monad
 
-import Foreign.Storable
+import qualified Foreign.Storable as S
 
 import Ghengin hiding (get)
 import Ghengin.Utils
@@ -32,15 +34,21 @@ import Noise
 data MinMax = MinMax Float Float
   deriving Generic
 
-instance GStorable MinMax
--- instance Storable MinMax where
---   sizeOf _ = 2*sizeOf @Float undefined
---   alignment _ = 2*sizeOf @Float undefined
---   peek (castPtr -> p) = do
---     mi <- peekElemOff p 0
---     ma <- peekElemOff p 1
---     pure $ MinMax mi ma
---   poke (castPtr -> p) (MinMax mi ma) = pokeElemOff p 0 mi >> pokeElemOff p 1 ma
+-- instance GStorable MinMax
+instance S.Storable MinMax where
+  sizeOf _ = 2*S.sizeOf @Float undefined
+  alignment _ = 2*S.sizeOf @Float undefined
+  peek (castPtr -> p) = do
+    mi <- S.peekElemOff p 0
+    ma <- S.peekElemOff p 1
+    pure $ MinMax mi ma
+  poke (castPtr -> p) (MinMax mi ma) = S.pokeElemOff p 0 mi >> S.pokeElemOff p 1 ma
+
+instance Poke MinMax α where
+  type SizeOf α MinMax = 8
+  type Alignment α MinMax = 8
+  poke = S.poke
+
 
 makeMinMaxMaterial :: MinMax -> Material '[MinMax]
 makeMinMaxMaterial x = DynamicBinding x Done

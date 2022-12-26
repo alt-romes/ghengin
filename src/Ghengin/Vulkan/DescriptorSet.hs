@@ -1,6 +1,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE TypeApplications #-}
@@ -9,6 +14,11 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.DescriptorSet where
 
+import Unsafe.Coerce
+import Data.Type.Equality
+import Data.Constraint
+import Data.Kind
+import GHC.TypeLits
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import Control.Monad
@@ -26,6 +36,7 @@ import qualified Vulkan as Vk
 
 import qualified Ghengin.Shaders.FIR as FIR
 import qualified FIR.Definition as FIR
+import Data.Type.Map (Lookup, Values)
 import qualified SPIRV.Decoration as SPIRV
 import qualified SPIRV.PrimTy as SPIRV
 import qualified SPIRV.Storage
@@ -40,7 +51,11 @@ data DescriptorSet = DescriptorSet { _ix :: Int
                                    , _bindings :: IntMap (SomeMappedBuffer, Vk.DescriptorType) -- ^ Bindings map: We don't need some storable because SomeMappedBuffer already carries information about the Storable instance
                                    }
 
-type BindingsMap = IntMap (Vk.DescriptorType, SomeStorable, Vk.ShaderStageFlags)
+type BindingsMap = IntMap (Vk.DescriptorType, ExtendedPoke, Vk.ShaderStageFlags)
+
+type DescriptorSetPokeMap = IntMap (IntMap ExtendedPoke)
+
+data SomeDefs = ∀ defs. FIR.KnownDefinitions defs => SomeDefs
 
 -- :| From Shaders |:
 
@@ -51,7 +66,7 @@ type BindingsMap = IntMap (Vk.DescriptorType, SomeStorable, Vk.ShaderStageFlags)
 -- descriptor sets will be allocated, the actual descriptor sets, the buffers
 -- and mapped memory, and will update the descriptor sets with the buffers
 -- information
-createDescriptorSets :: FIR.PipelineStages info StorableMap -- ^ Each shader stage must be associated with a list of the storables in the order of each corresponding descriptor set binding
+createDescriptorSets :: FIR.PipelineStages info () -- ^ Each shader stage must be associated with a list of the storables in the order of each corresponding descriptor set binding
                      -> Renderer ext (Vector DescriptorSet, Vk.DescriptorPool)
 createDescriptorSets ppstages = do
 
@@ -62,7 +77,7 @@ createDescriptorSets ppstages = do
       <- forM (IM.toAscList descriptorSetMap) $ \(setNumber, bindingsMap) -> do
           layout <- createDescriptorSetLayout bindingsMap
           -- TODO; Currently this only creates uniform buffers but later it should also create storage buffers, etc
-          buffers <- traverse (\case (dt,SomeStorable @a,_ssf) -> SomeMappedBuffer <$> createMappedBuffer @a dt) bindingsMap
+          buffers <- traverse (\case (dt,ExtendedPoke @a,_ssf) -> SomeMappedBuffer <$> createMappedBuffer @a dt) bindingsMap
           pure (setNumber,bindingsMap,layout,buffers)
 
   (dsets, dpool) <- allocateDescriptorSets (map (\(_,bs,l,_) -> (l,IM.elems $ fmap (\(dt,_,_) -> dt) bs)) layoutsAndBuffers)
@@ -78,35 +93,94 @@ createDescriptorSets ppstages = do
   pure (configuredDescriptorSets, dpool)
   
     where
-      go :: Map FIR.Shader [(SPIRV.PointerTy,StorableMap,SPIRV.Decorations)]
-         -> FIR.PipelineStages info StorableMap
-         -> Map FIR.Shader [(SPIRV.PointerTy,StorableMap,SPIRV.Decorations)] -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
+      go :: Map FIR.Shader [(SPIRV.PointerTy,SomeDefs,SPIRV.Decorations)]
+         -> FIR.PipelineStages info ()
+         -> Map FIR.Shader [(SPIRV.PointerTy,SomeDefs,SPIRV.Decorations)] -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
       go acc FIR.VertexInput = acc
-      go acc (pipe FIR.:>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState,storable)) =
-        go (M.insertWith (<>) (FIR.knownValue @stage) (map (\(pt,dc) -> (pt,storable,dc)) $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) acc) pipe
+      go acc (pipe FIR.:>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState,())) =
+        go (M.insertWith (<>) (FIR.knownValue @stage) (map (\(pt,dc) -> (pt,SomeDefs @defs,dc)) $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) acc) pipe
 
 
-      makeDescriptorSetMap :: Map FIR.Shader [(SPIRV.PointerTy, StorableMap, SPIRV.Decorations)]
+      makeDescriptorSetMap :: Map FIR.Shader [(SPIRV.PointerTy, SomeDefs, SPIRV.Decorations)]
                            -> IntMap BindingsMap -- ^ Mapping from descriptor set indexes to a list of their bindings (corresponding binding type, shader stage)
       makeDescriptorSetMap =
         M.foldrWithKey (\shader ls acc' -> 
-          foldr (\(pt,ss,S.toList -> decs) acc ->
-            -- case L.sort (S.toList decs) of
-            --   [Binding bindingIx, DescriptorSet descriptorSetIx] ->
-            --   _ -> error $ "Invalid decorations for descriptor set: " <> show decs
+          foldr (\(pt,somedefs,S.toList -> decs) acc ->
+            case decs of
+              [SPIRV.Binding (fromIntegral -> bindingIx), SPIRV.DescriptorSet (fromIntegral -> descriptorSetIx)] ->
+                case somedefs of
+                  SomeDefs @defs ->
+                    let extendedPoke =
+                         case someNatVal (fromIntegral descriptorSetIx) of
+                           Just (SomeNat (Proxy @pSetIx)) ->
+                             case someNatVal (fromIntegral bindingIx) of
+                               Just (SomeNat (Proxy @pBindingIx)) ->
+                                   ExtendedPoke @(What (FindDescriptorType pSetIx pBindingIx (Values defs)))
+                               _ -> error ".."
+                           _ -> error "."
+
+                     in IM.insertWith mergeSameDS descriptorSetIx
+                                  (IM.singleton bindingIx (descriptorType pt, extendedPoke, stageFlag shader))
+                                  acc
+              _ -> error $ "The error is unfortunate bc it invalidates some valid programs, but we force the [DescriptorSet, Binding] syntax for now. Invalid decorations for descriptor set: " <> show decs
             -- TODO: Rewrite
-            case L.find (\case SPIRV.DescriptorSet _ -> True; _ -> False) decs of
-              Just (SPIRV.DescriptorSet (fromIntegral -> descriptorIx)) ->
-                case L.find (\case SPIRV.Binding _ -> True; _ -> False) decs of
-                  Just (SPIRV.Binding (fromIntegral -> bindingIx)) -> IM.insertWith mergeSameDS descriptorIx (IM.singleton bindingIx (descriptorType pt, ss IM.! descriptorIx IM.! bindingIx, stageFlag shader)) acc
-                  Nothing -> error "Can't have descriptor set without binding ix"
-              Nothing -> acc) acc' ls
+            -- case L.find (\case SPIRV.DescriptorSet _ -> True; _ -> False) decs of
+            --   Just (SPIRV.DescriptorSet (fromIntegral -> descriptorIx)) ->
+            --     case L.find (\case SPIRV.Binding _ -> True; _ -> False) decs of
+            --       Just (SPIRV.Binding (fromIntegral -> bindingIx)) -> IM.insertWith mergeSameDS descriptorIx (IM.singleton bindingIx (descriptorType pt, ExtendedPoke (ss IM.! descriptorIx IM.! bindingIx), stageFlag shader)) acc
+            --       Nothing -> error "Can't have descriptor set without binding ix"
+              -- Nothing -> acc
+            ) acc' ls
           ) mempty
 
       mergeSameDS :: BindingsMap
                   -> BindingsMap
                   -> BindingsMap
       mergeSameDS = IM.mergeWithKey (\_ (dt,ss,sf) (dt',_ss',sf') -> if dt == dt' then Just (dt, ss, sf .|. sf') else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id -- TODO: Could pattern match on type equality too?
+
+type family FindDescriptorType (set :: Nat) (binding :: Nat) (defs :: [FIR.Definition]) = (res :: Type) where
+  -- This first case can never happen
+  FindDescriptorType set binding (FIR.Global _ '[SPIRV.DescriptorSet set, SPIRV.Binding binding] t:ds) = t
+  FindDescriptorType set binding (_:ds) = FindDescriptorType set binding ds
+  FindDescriptorType set binding '[] = TypeError (Text "Computing extended poke for descriptor set map")
+
+
+-- | Bring some singletons niceties
+data TyFun :: Type -> Type -> Type
+
+type family (@@) (f :: TyFun k1 k2 -> Type) (x :: k1) :: k2
+
+-- data Some :: (TyFun k Type -> Type) -> Type where
+--   Some :: Sing x -> f @@ x -> Some f
+
+-- data FindDescriptorTypeS :: TyFun (FindDescriptorType set binding defs) Type -> Type
+-- type instance (@@) FindDescriptorTypeS x = FindDescriptorType x
+
+type family Sing :: k -> Type where
+
+-- What)
+-- instance α ~ FindDescriptorType set binding defs => HasDict (Poke α Extended) (What α) where
+  -- evidence :: (What α) -> Dict (Poke α Extended)
+  -- evidence (What _) = undefined -- Dict
+
+-- instance (KnownNat (SizeOf Extended α), KnownNat (Alignment Extended α), α :~: FindDescriptorType i j defs) => Poke α Extended
+
+newtype What α = What α
+instance Poke (What α) 'Extended where
+  type SizeOf Extended (What α) = 0
+  type Alignment Extended (What α) = 0
+  poke = undefined
+
+
+
+-- makeDescriptorSetPokeMap :: ∀ defs. FIR.KnownDefinitions defs => DescriptorSetPokeMap
+-- makeDescriptorSetPokeMap =
+--   foldr
+--     (\[SPIRV.Binding (fromIntegral -> bindingIx), SPIRV.DescriptorSet (fromIntegral -> descriptorSetIx)] ->
+--       M.insertWith (<>) $ M.singleton bindingIx
+--     )
+--     mempty
+--     (map snd $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs)
 
 
 descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType

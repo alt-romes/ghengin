@@ -16,8 +16,7 @@
 module Ghengin.Component.Material where
 
 import GHC.TypeLits
-import Foreign.Storable
-import Data.Proxy
+import Ghengin.Utils (Poke(..), Layout(..))
 
 {-
 
@@ -62,7 +61,7 @@ data Material xs where
   Done :: Material '[]
 
   DynamicBinding :: ∀ α β
-                 .  Storable α
+                 .  (Poke α Extended) -- ^ We might not always want Extended?
                  => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                  -> Material β
                  -> Material (α:β)

@@ -27,14 +27,14 @@ module Ghengin.Component.Mesh
   , chunksOf
   ) where
 
+import GHC.TypeLits
 import GHC.Records
 import Data.List.Split (chunksOf)
 import Data.List (sort, foldl')
 import Control.Monad.IO.Class
 
-import GHC.TypeNats
 import Foreign.Ptr
-import Foreign.Storable
+import qualified Foreign.Storable as S
 import Data.Word
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -51,6 +51,7 @@ import qualified Vulkan as Vk
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan
+import Ghengin.Utils
 
 {-
 Note [Meshes]
@@ -80,28 +81,33 @@ newtype VertexN a (n :: Nat) = VertexN (SV.Vector a)
 
 -- instance IsList (VertexN a n) where
 
-instance (Storable a, KnownNat n) => Storable (VertexN a n) where
-  sizeOf _ = fromIntegral (natVal (Proxy @n)) * sizeOf @a undefined
+instance (S.Storable a, KnownNat n) => S.Storable (VertexN a n) where
+  sizeOf _ = fromIntegral (natVal (Proxy @n)) * S.sizeOf @a undefined
   alignment _ = 4
   peek (castPtr -> p) = do
     let amount = fromIntegral (natVal (Proxy @n))
     v3s <- SV.forM [0..amount-1] $ \i -> do
-      peekElemOff @a p i
+      S.peekElemOff @a p i
     pure $ VertexN v3s
-  poke (castPtr -> p) (VertexN vs) = SV.imapM_ (pokeElemOff @a p) vs
+  poke (castPtr -> p) (VertexN vs) = SV.imapM_ (S.pokeElemOff @a p) vs
 
-instance Storable Vertex where
-  sizeOf _ = 3 * sizeOf @Vec3 undefined
+instance S.Storable Vertex where
+  sizeOf _ = 3 * S.sizeOf @Vec3 undefined
   alignment _ = 4
   peek (castPtr -> p) = do
-    pos <- peek p
-    normal <- peekElemOff p 1
-    color <- peekElemOff p 2
+    pos    <- S.peek p
+    normal <- S.peekElemOff p 1
+    color  <- S.peekElemOff p 2
     pure $ Vertex pos normal color
   poke (castPtr -> p) (Vertex pos normal color) = do
-    poke p pos
-    pokeElemOff p 1 normal
-    pokeElemOff p 2 color
+    S.poke p pos
+    S.pokeElemOff p 1 normal
+    S.pokeElemOff p 2 color
+
+instance Poke Vertex l where
+  type SizeOf l Vertex = 36 -- 3*3*4
+  type Alignment l Vertex = 36 -- 3 * 3 * 4
+  poke = S.poke
 
 data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
                        , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- we later need to free this as well
