@@ -19,7 +19,6 @@ module Ghengin.Render.Packet
 
 import GHC.TypeLits
 import GHC.Records
-import Data.Kind
 import Data.Proxy
 import Data.Word
 import Apecs (Component, Storage, Map, Has, getStore, SystemT(..), asks)
@@ -74,6 +73,15 @@ data RenderPacket where
   --  * Descriptor set #2 and #0 additional data binding?
   RenderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
 
+-- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
+-- Render keys only differentiate the render context, not the render packet itself.
+-- This instance fullfills the purpose of rendering all packets with the same context in a row in the render queue
+instance Eq RenderPacket where
+  (==) (RenderPacket _ _ _ k1) (RenderPacket _ _ _ k2) = k1 == k2
+
+instance Ord RenderPacket where
+  compare (RenderPacket _ _ _ k1) (RenderPacket _ _ _ k2) = compare k1 k2
+
 type RenderKey = Word64
 
 {-|
@@ -110,6 +118,6 @@ type family PipelineKey pipeline :: Nat where
   PipelineKey _ = 0
 
 makeId :: ∀ α β. Mesh -> Material α -> RenderPipeline β -> RenderKey
-makeId _mesh _material _pipeline = (fromInteger $ natVal $ Proxy @(RenderKeyNat α β ()))
+makeId _mesh _material _pipeline = fromInteger $ natVal $ Proxy @(RenderKeyNat α β ())
 
 

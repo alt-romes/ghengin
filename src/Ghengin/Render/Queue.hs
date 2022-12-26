@@ -51,12 +51,23 @@ traversing it *might* be better.
 -}
 module Ghengin.Render.Queue where
 
-import Data.Word
-import Data.Bits
+-- import Data.Word
+-- import Data.Bits
 -- import qualified Data.Map as M
+-- import Data.Ord
+import qualified Data.List as L
 import Ghengin.Render.Packet
+import {-# SOURCE #-} Ghengin (Ghengin)
 
-type RenderQueue = [RenderPacket]
+newtype RenderQueue = RenderQueue [RenderPacket]
+  -- deriving Show
 
+makeRenderQueue :: [RenderPacket] -> RenderQueue
+makeRenderQueue = RenderQueue . L.sort -- On Down?
+{-# INLINE makeRenderQueue #-}
 
+traverseRenderQueue :: RenderQueue
+                    -> (RenderPacket -> Ghengin w a)
+                    -> Ghengin w [a]
+traverseRenderQueue (RenderQueue q) f = traverse f q
 
