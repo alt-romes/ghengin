@@ -74,11 +74,11 @@ type family NumberOfBindings α :: Nat where
   NumberOfBindings (_ ': as) = NumberOfBindings as + 1
 
 -- | Returns the number of bindings
-matSizeBindings :: ∀ α. KnownNat (NumberOfBindings α) => Material α -> Int
-matSizeBindings _ = fromInteger $ natVal $ Proxy @(NumberOfBindings α)
--- \case
-  -- Done -> 0
-  -- DynamicBinding _ xs -> 1 + matSizeBindings xs
+matSizeBindings :: ∀ α. Material α -> Int
+matSizeBindings = -- fromInteger $ natVal $ Proxy @(NumberOfBindings α)
+  \case
+    Done -> 0
+    DynamicBinding _ xs -> 1 + matSizeBindings xs
 
 
 

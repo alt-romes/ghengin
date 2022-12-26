@@ -21,7 +21,6 @@ import GHC.TypeLits
 import GHC.Records
 import Data.Proxy
 import Data.Kind
-import Data.Type.Bool
 import Data.Word
 import Data.Bits
 import Apecs (Component, Storage, Map, Has, getStore, SystemT(..), asks)
@@ -30,15 +29,11 @@ import Ghengin.Component.Material
 import Ghengin.Component.Mesh
 
 import Data.Type.Map
-  ( (:->)((:->)), Values )
+  ( Values, Lookup )
 import FIR.Pipeline (PipelineInfo(..))
 import FIR.ProgramState
-import FIR.Definition
-  ( Definition(..)
-  , TriagedDefinitions
-  , TrieDefinitions
-  )
-import SPIRV.Stage ()
+import SPIRV.Decoration (Decoration(..))
+import SPIRV.Storage (StorageClass(..))
 
 {-|
 
@@ -186,18 +181,23 @@ type family Compatible (xs :: [Type]) (ys :: PipelineInfo) :: Constraint where
 
 type family Compatible' (xs :: [Type]) (ys :: PipelineInfo) (n :: Nat) :: Constraint where
   Compatible' '[] _ 0 = ()
-  Compatible' (x ': xs) ys n = Assert (Matches x n (DSetBinding 1 n ys)) (Text "TODO: Invalid binding error...") (Compatible' xs ys (n-1))
+  Compatible' (x ': xs) ys n = Assert (Matches x (DSetBinding 1 (n-1) ys)) (Text "TODO: Invalid binding error...") (Compatible' xs ys (n-1))
 
-type family Matches t n b :: Bool where
+type family Matches (t :: Type) (t' :: Type) :: Bool where
+  Matches x x = True
+  Matches _ _ = False
 
 -- | Find descriptor set #set and binding #binding in any of the pipeline stages inputs
+--
+-- TODO: This assumes this order as the only valid one. At least say it so in the error message.
 type family DSetBinding (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Type where
-  DSetBinding _ _ (VertexInputInfo _ _ _) = TypeError (Text "Descriptor Set Binding #set #binding does not exist... (TODO: better message)")
-  DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) = FromMaybe (DSetBinding set binding infos) (FindDSetInput set binding (Concat (Values defs)))
+  DSetBinding set binding (VertexInputInfo _ _ _) = TypeError (Text "Uniform [Descriptor Set #" :<>: ShowType set :<>: Text ", Binding #" :<>: ShowType binding :<>: Text "] not found!")
+  DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) = FromMaybe (DSetBinding set binding infos) (FindDSetInput set binding (Values (FromMaybe '[] (Lookup 'Input defs))))
 
-type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [Symbol :-> TLInterfaceVariable]) :: Maybe Type where
+type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [TLInterfaceVariable]) :: Maybe Type where
   FindDSetInput set binding '[] = 'Nothing
-  FindDSetInput set binding ((_ ':-> i) ': inputs) = 'Nothing
+  FindDSetInput set binding ('( '[DescriptorSet set, Binding binding], ty) ': inputs) = 'Just ty
+  FindDSetInput set binding (_ ': inputs) = FindDSetInput set binding inputs
 
 type family Assert (b :: Bool) (e :: ErrorMessage) (t :: k) :: k where
   Assert 'True e _ = TypeError e
