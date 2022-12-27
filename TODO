@@ -1,3 +1,4 @@
+[ ] Materials must have a compile time size to compare with the size of the descriptors defined in the shader.
 [ ] Swap chain recreation...
 [ ] Static bindings which simply choose the descriptor (set?) rather than write to it
 [ ] Better scene graph implementation

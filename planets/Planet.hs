@@ -44,10 +44,10 @@ instance S.Storable MinMax where
     pure $ MinMax mi ma
   poke (castPtr -> p) (MinMax mi ma) = S.pokeElemOff p 0 mi >> S.pokeElemOff p 1 ma
 
-instance Poke MinMax α where
-  type SizeOf α MinMax = 8
-  type Alignment α MinMax = 8
-  poke = S.poke
+-- instance Poke MinMax α where
+--   type SizeOf α MinMax = 8
+--   type Alignment α MinMax = 8
+--   poke = S.poke
 
 
 makeMinMaxMaterial :: MinMax -> Material '[MinMax]

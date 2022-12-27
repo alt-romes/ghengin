@@ -12,23 +12,23 @@
 module Ghengin.Utils
   ( module Ghengin.Utils
   , module Data.StateVar
+  , module Foreign.Storable
   -- , module Foreign.Storable.Generic
   , (.|.)
   , Proxy(..)
-  , Poke(..)
-  , Layout(..)
+  -- , Poke(..)
+  -- , Layout(..)
   ) where
 
 import Data.Kind
 import Geomancy.Vec3
 import Data.StateVar
--- import Foreign.Storable
+import Foreign.Storable
 -- import Foreign.Storable.Generic
 import Data.Proxy
 
 import Data.Bits
 
-import FIR.Layout (Poke(..), Layout(..))
 
 
 data HList xs where
@@ -37,23 +37,7 @@ data HList xs where
 
 infixr 6 :#
 
--- data SomeStorable where
---   SomeStorable :: ∀ a. Storable a => SomeStorable
-
-data ExtendedPoke where
-  ExtendedPoke :: ∀ a. Poke a Extended => ExtendedPoke
-
-data LocationsPoke where
-  LocationsPoke :: ∀ a. Poke a Locations => LocationsPoke
-
-instance Show LocationsPoke where
-  show _ = "LocationsPoke"
-
-instance Show ExtendedPoke where
-  show _ = "ExtendedPoke"
-
--- TODO: Automatically derive Poke ...? avoids mistakes...
--- instance Poke
+type Size = Word
 
 (.&&.) :: Bits a => a -> a -> Bool
 x .&&. y = (/= zeroBits) (x .&. y)

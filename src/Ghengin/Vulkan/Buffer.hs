@@ -1,4 +1,5 @@
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE GADTs #-}
@@ -9,6 +10,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.Buffer where
 
+import Control.Exception
 import Data.Int
 import Control.Monad.Reader
 
@@ -61,11 +63,11 @@ copyBuffer src dst size = immediateSubmit $ Cmd.copyFullBuffer src dst size
 -- | Fills a device local buffer with the provided flags and the provided data
 -- by first copying the data to a staging buffer and then running a buffer copy
 -- one-shot command.
-createDeviceLocalBuffer :: ∀ α χ ext. (SV.Storable α, Poke α χ) => Vk.BufferUsageFlags -> SV.Vector α -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
+createDeviceLocalBuffer :: ∀ α ext. (SV.Storable α) => Vk.BufferUsageFlags -> SV.Vector α -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
 createDeviceLocalBuffer flags bufferData = do
 
   let l          = SV.length bufferData
-      bufferSize = fromIntegral $ fromIntegral l * sizeOf @α @χ
+      bufferSize = fromIntegral $ fromIntegral l * sizeOf @α undefined
   (stagingBuffer, stagingMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_TRANSFER_SRC_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
   device <- getDevice
@@ -89,21 +91,18 @@ createDeviceLocalBuffer flags bufferData = do
 
   pure (devBuffer, devMem)
 
-createVertexBuffer :: ∀ α ext. (SV.Storable α, Poke α Locations) => SV.Vector α -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
-createVertexBuffer = createDeviceLocalBuffer @α @Locations Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT -- use Locations for vertex buffers
+createVertexBuffer :: ∀ α ext. (SV.Storable α) => SV.Vector α -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
+createVertexBuffer = createDeviceLocalBuffer @α Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT -- use Locations for vertex buffers
 
 createIndex32Buffer :: SV.Vector Int32 -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
 createIndex32Buffer = createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT
 
 -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
-data MappedBuffer a = UniformBuffer { buffer :: Vk.Buffer
-                                    , devMem :: Vk.DeviceMemory
-                                    , hostMem :: Ptr a
-                                    }
-
-
-data SomeMappedBuffer where
-  SomeMappedBuffer :: ∀ a. Poke a Extended => MappedBuffer a -> SomeMappedBuffer
+data MappedBuffer = UniformBuffer { buffer :: Vk.Buffer
+                                  , devMem :: Vk.DeviceMemory
+                                  , hostMem :: Ptr ()
+                                  , bufSize :: Size
+                                  }
 
 -- data Buffer where
 --   -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
@@ -130,32 +129,32 @@ data SomeMappedBuffer where
 -- for that.
 --
 -- The size is given by the type of the storable to store in the uniform buffer.
-createMappedBuffer :: ∀ a ext. Poke a Extended => Vk.DescriptorType -> Renderer ext (MappedBuffer a)
-createMappedBuffer descriptorType = do
+createMappedBuffer :: ∀ ext. Size -> Vk.DescriptorType -> Renderer ext MappedBuffer
+createMappedBuffer size descriptorType = do
   device <- getDevice
 
   case descriptorType of
     Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -> do
 
-      let bsize = fromIntegral (sizeOf @a @Extended) -- use extended for the uniform buffer
+      let bsize = fromIntegral size
 
       (buf, devMem) <- createBuffer bsize Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
       data' <- Vk.mapMemory device devMem 0 bsize zero
 
-      pure $ UniformBuffer buf devMem (castPtr data')
+      pure $ UniformBuffer buf devMem (castPtr data') size
 
     t -> error $ "Unexpected/unsupported storage class for descriptor: " <> show t
 
-destroyMappedBuffer :: MappedBuffer a -> Renderer ext ()
-destroyMappedBuffer (UniformBuffer b dm _hostMemory) = do
+destroyMappedBuffer :: MappedBuffer -> Renderer ext ()
+destroyMappedBuffer (UniformBuffer b dm _hostMemory _size) = do
   -- TODO: Is hostMemory freed with unmap? Or with destroyMemory? Or?
   device <- getDevice
   Vk.unmapMemory device dm
   destroyBuffer b dm
 
 -- | Note how the storable must be the same as the storable of the uniform buffer so that the sizes match
-writeMappedBuffer :: ∀ α ext. Poke α Extended => MappedBuffer α -> α -> Renderer ext ()
-writeMappedBuffer (UniformBuffer _ _ ptr) x = liftIO $ poke @α @Extended ptr x
+writeMappedBuffer :: ∀ α ext. SV.Storable α => MappedBuffer -> α -> Renderer ext ()
+writeMappedBuffer (UniformBuffer _ _ (castPtr -> ptr) s) x = assert (fromIntegral (sizeOf @α undefined) == s) $ liftIO $ poke @α ptr x
 
 

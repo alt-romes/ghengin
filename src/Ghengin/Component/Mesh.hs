@@ -104,10 +104,10 @@ instance S.Storable Vertex where
     S.pokeElemOff p 1 normal
     S.pokeElemOff p 2 color
 
-instance Poke Vertex l where
-  type SizeOf l Vertex = 36 -- 3*3*4
-  type Alignment l Vertex = 36 -- 3 * 3 * 4
-  poke = S.poke
+-- instance Poke Vertex l where
+--   type SizeOf l Vertex = 36 -- 3*3*4
+--   type Alignment l Vertex = 36 -- 3 * 3 * 4
+--   poke = S.poke
 
 data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
                        , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- we later need to free this as well

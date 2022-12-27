@@ -3,7 +3,6 @@
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Component.Mesh.Sphere where
 
-import Witch
 import Control.Monad
 
 import Ghengin
@@ -27,7 +26,7 @@ newUnitFace res up =
       axisA = withVec3 up (\x y z -> vec3 y z x)
       axisB = cross up axisA
       
-      fres = unsafeFrom res
+      fres = fromIntegral res
       positions' = map (normalize . \(px,py) -> up + axisA^*(2*(px - 0.5)) + axisB^*(2*(py - 0.5)))
                      do x <- [0..fres-1]
                         y <- [0..fres-1]

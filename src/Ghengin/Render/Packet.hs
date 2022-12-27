@@ -29,6 +29,7 @@ import Ghengin.Component.Material
 import Ghengin.Component.Mesh
 import Ghengin.Utils
 
+import FIR.Layout(SizeOf, Layout(..))
 import Data.Type.Map
   ( Values )
 import FIR.Pipeline (PipelineInfo(..))
@@ -118,7 +119,7 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderPacket
+-- renderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderPacket
 renderPacket mesh material pipeline = RenderPacket mesh material pipeline (makeKey material pipeline)
 
 {-

@@ -39,7 +39,6 @@ import Ghengin.Component.Material
 import Ghengin.Utils
 import {-# SOURCE #-} Ghengin (Ghengin)
 
-import Unsafe.Coerce
 
 type RenderConstraints w = ( HasField "transforms" w (Storage Transform)
                            , HasField "renderPackets" w (Storage RenderPacket)
@@ -51,6 +50,7 @@ type RenderConstraints w = ( HasField "transforms" w (Storage Transform)
 data UniformBufferObject = UBO { view :: Mat4
                                , proj :: Mat4
                                }
+
 -- TODO: Use and export derive-storable?
 instance S.Storable UniformBufferObject where
   sizeOf _ = 2 * S.sizeOf @Mat4 undefined
@@ -63,10 +63,10 @@ instance S.Storable UniformBufferObject where
     S.poke p vi
     S.pokeElemOff p 1 pr
 
-instance Poke UniformBufferObject Extended where
-  type SizeOf Extended UniformBufferObject = 128 -- 2*16
-  type Alignment Extended UniformBufferObject = 128 -- 2*16
-  poke = S.poke
+-- instance Poke UniformBufferObject Extended where
+--   type SizeOf Extended UniformBufferObject = 128 -- 2*16
+--   type Alignment Extended UniformBufferObject = 128 -- 2*16
+--   poke = S.poke
 
 {-
 Note [Renderer]
@@ -143,7 +143,7 @@ render i = do
         descriptorSet :: RenderPipeline α -> Int -> DescriptorSet
         descriptorSet pipeline setIx = fst (pipeline._descriptorSetsSet NE.!! currentFrame) V.! setIx -- must guarantee that there exist this amount of sets in this pipeline
 
-        descriptorSetBinding :: RenderPipeline α -> Int -> Int -> SomeMappedBuffer
+        descriptorSetBinding :: RenderPipeline α -> Int -> Int -> MappedBuffer
         descriptorSetBinding pipeline setIx bindingIx = fst $ (descriptorSet pipeline setIx)._bindings IM.! bindingIx
 
     recordCommand cmdBuffer $ do
@@ -177,7 +177,7 @@ render i = do
               -- TODO : Move out of cmapM
               -- Currently the descriptor set #0 always has just a uniform buffer object
               case descriptorSetBinding pipeline 0 0 of
-                SomeMappedBuffer b -> lift $ writeMappedBuffer (unsafeCoerce b) ubo
+                buf -> lift $ writeMappedBuffer buf ubo
 
 
             -- Bind descriptor set #0
@@ -239,7 +239,7 @@ render i = do
 -- the default buffers
 --
 -- The material bindings function should be created from a compatible pipeline
-writeMaterial :: ∀ σ ω. (Int -> SomeMappedBuffer) -> Material σ -> Ghengin ω ()
+writeMaterial :: ∀ σ ω. (Int -> MappedBuffer) -> Material σ -> Ghengin ω ()
 writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
 
   go :: ∀ υ. Int -> Material υ -> Ghengin ω ()
@@ -252,8 +252,7 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
         -- the construction of dynamic materials if validated at
         -- compile time against the shader pipeline in each
         -- matching position
-        SomeMappedBuffer (unsafeCoerce -> buf :: MappedBuffer α) ->
-          lift $ writeMappedBuffer @α buf a
+        buf -> lift $ writeMappedBuffer @α buf a
 
       go (n-1) as
     -- StaticMaterial -> undefined -- TODO: Bind the static descriptor ?
