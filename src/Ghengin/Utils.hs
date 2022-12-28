@@ -51,6 +51,9 @@ instance Sized (Struct '[]) where
 instance Sized a => Sized (Struct ((k ':-> a) ': xs)) where
   type SizeOf (Struct ((_ ':-> a) ': xs)) = SizeOf a + SizeOf (Struct xs)
 
+instance Sized Vec3 where
+  type SizeOf Vec3 = 3 * SizeOf Float
+
 data HList xs where
     HNil :: HList '[]
     (:#) :: a -> HList as -> HList (a ': as)

@@ -56,8 +56,8 @@ instance Sized MinMax where
 --   poke = S.poke
 
 
-makeMinMaxMaterial :: MinMax -> Material '[MinMax]
-makeMinMaxMaterial x = DynamicBinding x Done
+makeMinMaxMaterial :: MinMax -> Material '[Vec3, MinMax]
+makeMinMaxMaterial x = DynamicBinding (vec3 1 0 0) $ DynamicBinding x Done
 
 -- type MinMaxMaterial = Material [ 0 :-> MinMax ]
 
