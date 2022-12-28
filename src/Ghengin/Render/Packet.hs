@@ -184,11 +184,9 @@ type family PipelineKey pipeline :: Nat where
 -- | 'Compatible' validates at the type level that the mesh and material are
 -- compatible with the render pipeline. See Note [Pipeline compatible materials].
 type family Compatible (xs :: [Type]) (ys :: PipelineInfo) :: Constraint where
-  -- Compatible as bs = Assert (Matches () ()) (Compatible' as bs (NumberOfBindings as))
   -- Reverse because the material bindings are reversed (the last element is the binding #0)
-  Compatible as bs = ( -- Length as ~ Length (Length (DSetBindings 1))
-                     -- ,
-                     Compatible' (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs)
+  Compatible as bs = ( Matches (Length as) (Length (DSetBindings 1 bs)) (Text "There are " :<>: ShowType (Length as) :<>: Text " material properties in material " :<>: ShowType as :<>: Text " but " :<>: ShowType (Length (DSetBindings 1 bs)) :<>: Text " descriptors in descriptor set #1 " :<>: ShowType (DSetBindings 1 bs))
+                     , Compatible' (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs)
 
 -- TODO: If I "return" a type equality constraint can I still have nice type
 -- error messages? perhaps through my own type equality constraint?
@@ -200,18 +198,22 @@ type family Compatible' (xs :: [(Nat,Type)]) (ys :: PipelineInfo) :: Constraint 
                                     (Text "Material binding #" :<>: ShowType n :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf x)
                                      :<>: Text " isn't compatible with (doesn't have the same size as) the descriptor binding #" :<>: ShowType n :<>: Text " of size " :<>: ShowType (SizeOf (DSetBinding' 1 n ys))
                                      :<>: Text " with type " :<>: ShowType (DSetBinding' 1 n ys))
-                                  , (Compatible' xs ys))
+                                  , (Compatible' xs ys) )
 
 type family Matches (t :: k) (t' :: k) (e :: ErrorMessage) :: Constraint where
   Matches x x _ = ()
   Matches x y e = TypeError e
 
 -- To calculate all the bindings in a descriptor set we simply keep trying the next descriptor until there's no more.
--- type family DSetBindings (set :: Nat) (info :: PipelineInfo) :: [Type] where
---   DSetBindings n info = DSetBindings' n info 0
+type family DSetBindings (set :: Nat) (info :: PipelineInfo) :: [Type] where
+  DSetBindings n info = DSetBindings' n info 0
 
--- type family DSetBindings' (set :: Nat) (info :: PipelineInfo) (i :: Nat) :: [Type] where
---   DSetBindings' n info i = Maybe ('[]) ((':) DSetBindings' n info (i+1)) (DSetBinding n i info)
+type family DSetBindings' (set :: Nat) (info :: PipelineInfo) (i :: Nat) :: [Type] where
+  DSetBindings' n info i = DSetBindings'' n info i (DSetBinding n i info)
+
+type family DSetBindings'' set info i x where
+  DSetBindings'' _ _ _ 'Nothing = '[]
+  DSetBindings'' n info i ('Just x) = x ': DSetBindings' n info (i+1)
 
 -- | Find descriptor set #set and binding #binding in any of the pipeline stages inputs
 --
@@ -256,9 +258,4 @@ type family (:<|>:) mx my where
   (:<|>:) ('Just x) _ = 'Just x
   (:<|>:) 'Nothing ('Just y) = 'Just y
   (:<|>:) 'Nothing 'Nothing  = 'Nothing
-
-type MaybeF :: b -> (a -> Maybe b) -> Maybe a -> Maybe b
-type family MaybeF d f mx where
-  MaybeF d f 'Nothing = 'Just d
-  MaybeF d f ('Just x) = f x
 

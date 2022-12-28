@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -9,6 +10,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
+import Unsafe.Coerce
 import GHC.TypeLits
 import Data.IORef
 import Control.Monad
@@ -25,6 +27,7 @@ import Ghengin.Render.Packet
 import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Scene.Graph
+import Ghengin.Shaders
 import Ghengin.Component (Storage, EntityCounter, explInit, cmap, cmapM)
 
 import qualified Ghengin.Shaders.SimpleShader as SimpleShader
@@ -107,11 +110,18 @@ updateG ps dt uichanges = do
   when (or uichanges) $
     cmapM $ \x ->
       case x of
-        (RenderPacket @α @β oldMesh mat pp _) -> do
+        (RenderPacket oldMesh mat pp _) -> do
           (newMesh,newMinMax) <- newPlanet ps
           lift $ do
             freeMesh (oldMesh) -- Can we hide/enforce this somehow? Meshes aren't automatically freed when switched! We should make "switching" explicit?
-          pure (renderPacket newMesh (makeMinMaxMaterial newMinMax) pp)
+          case Shader.shaderPipeline of
+            (spp :: GShaderPipeline i)
+                 -- GIGANTIC:TODO: For some reason I have yet to better
+                 -- understand, the pipeline associated to the render packet
+                 -- can't be used to validate Compatibility with a new material again.
+                 -- It's somehow related to being an existential type and therefore the type not carrying enough information?
+                 -- How can I make the existential type carry enough information to pass Compatible again?
+                 -> pure (renderPacket @_ @i newMesh (makeMinMaxMaterial newMinMax) (unsafeCoerce pp))
 
   cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 
