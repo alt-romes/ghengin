@@ -1,4 +1,6 @@
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -29,7 +31,7 @@ import Ghengin.Component.Material
 import Ghengin.Component.Mesh
 import Ghengin.Utils
 
-import FIR.Layout(SizeOf, Layout(..))
+-- import FIR.Layout(Layout(..))
 import Data.Type.Map
   ( Values )
 import FIR.Pipeline (PipelineInfo(..))
@@ -81,8 +83,7 @@ data RenderPacket where
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  -- RenderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
-  RenderPacket :: ∀ α β. Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
@@ -119,7 +120,7 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
--- renderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderPacket
+renderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderPacket
 renderPacket mesh material pipeline = RenderPacket mesh material pipeline (makeKey material pipeline)
 
 {-
@@ -176,32 +177,51 @@ type family MaterialKey material :: Nat where
 type family PipelineKey pipeline :: Nat where
   PipelineKey _ = 0
 
+-- class Compatible (as :: [Type]) (bs :: PipelineInfo)
+-- instance Compatible' (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs
+--   => Compatible as bs
+
 -- | 'Compatible' validates at the type level that the mesh and material are
 -- compatible with the render pipeline. See Note [Pipeline compatible materials].
 type family Compatible (xs :: [Type]) (ys :: PipelineInfo) :: Constraint where
-  Compatible as bs = Compatible' as bs (NumberOfBindings as)
+  -- Compatible as bs = Assert (Matches () ()) (Compatible' as bs (NumberOfBindings as))
+  -- Reverse because the material bindings are reversed (the last element is the binding #0)
+  Compatible as bs = ( -- Length as ~ Length (Length (DSetBindings 1))
+                     -- ,
+                     Compatible' (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs)
 
-type family Compatible' (xs :: [Type]) (ys :: PipelineInfo) (n :: Nat) :: Constraint where
-  Compatible' '[] _ 0 = ()
-  Compatible' (x ': xs) ys n =
-   -- This only works for Uniform buffers. One reason is the 'Extended SizeOf
-   -- ( Poke x 'Extended )
-   -- ^ There must be an instance for Poke, but this is guaranteed by the constructors of Material
-   Assert (Matches (SizeOf 'Extended x) (SizeOf 'Extended (DSetBinding 1 (n-1) ys)))
-           (Text "Material binding #" :<>: ShowType (n-1) :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf 'Extended x)
-            :<>: Text " isn't compatible (doesn't have the same size) with the descriptor binding #" :<>: ShowType (n-1) :<>: Text " of size " :<>: ShowType (SizeOf 'Extended (DSetBinding 1 (n-1) ys))
-            :<>: Text " with type " :<>: ShowType (DSetBinding 1 (n-1) ys)) (Compatible' xs ys (n-1))
+-- TODO: If I "return" a type equality constraint can I still have nice type
+-- error messages? perhaps through my own type equality constraint?
+type family Compatible' (xs :: [(Nat,Type)]) (ys :: PipelineInfo) :: Constraint where
+  Compatible' '[] _ = ()
+  Compatible' ('(n,x) ': xs) ys = ( Sized x
+                                  , Sized (DSetBinding' 1 n ys)
+                                  , Matches (SizeOf x) (SizeOf (DSetBinding' 1 n ys))
+                                    (Text "Material binding #" :<>: ShowType n :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf x)
+                                     :<>: Text " isn't compatible with (doesn't have the same size as) the descriptor binding #" :<>: ShowType n :<>: Text " of size " :<>: ShowType (SizeOf (DSetBinding' 1 n ys))
+                                     :<>: Text " with type " :<>: ShowType (DSetBinding' 1 n ys))
+                                  , (Compatible' xs ys))
 
-type family Matches (t :: Nat) (t' :: Nat) :: Bool where
-  Matches x x = True
-  Matches _ _ = False
+type family Matches (t :: k) (t' :: k) (e :: ErrorMessage) :: Constraint where
+  Matches x x _ = ()
+  Matches x y e = TypeError e
+
+-- To calculate all the bindings in a descriptor set we simply keep trying the next descriptor until there's no more.
+-- type family DSetBindings (set :: Nat) (info :: PipelineInfo) :: [Type] where
+--   DSetBindings n info = DSetBindings' n info 0
+
+-- type family DSetBindings' (set :: Nat) (info :: PipelineInfo) (i :: Nat) :: [Type] where
+--   DSetBindings' n info i = Maybe ('[]) ((':) DSetBindings' n info (i+1)) (DSetBinding n i info)
 
 -- | Find descriptor set #set and binding #binding in any of the pipeline stages inputs
 --
 -- TODO: This assumes this order as the only valid one. At least say it so in the error message.
-type family DSetBinding (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Type where
-  DSetBinding set binding (VertexInputInfo _ _ _) = TypeError (Text "Uniform [Descriptor Set #" :<>: ShowType set :<>: Text ", Binding #" :<>: ShowType binding :<>: Text "] not found!")
-  DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) = FromMaybe (DSetBinding set binding infos) (FindDSetInput set binding (Values (Concat (Values defs))))
+type family DSetBinding (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Maybe Type where
+  DSetBinding set binding (VertexInputInfo _ _ _) = 'Nothing
+  DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) = (FindDSetInput set binding (Values (Concat (Values defs)))) :<|>: (DSetBinding set binding infos)
+
+type family DSetBinding' (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Type where
+  DSetBinding' set binding info = FromMaybe (TypeError (Text "Uniform [Descriptor Set #" :<>: ShowType set :<>: Text ", Binding #" :<>: ShowType binding :<>: Text "] not found in " :<>: ShowType info)) (DSetBinding set binding info)
 
 type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [TLInterfaceVariable]) :: Maybe Type where
   FindDSetInput set binding '[] = 'Nothing
@@ -211,4 +231,34 @@ type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [TLInterfaceV
 type family Assert (b :: Bool) (e :: ErrorMessage) (t :: k) :: k where
   Assert 'False e _ = TypeError e
   Assert 'True _ t = t
+
+type family Reverse xs acc where
+  Reverse '[] acc = acc
+  Reverse (x ': xs) acc = Reverse xs (x ': acc)
+
+type Zip :: [a] -> [b] -> [(a,b)]
+type family Zip xs ys where
+  Zip '[] _ = '[]
+  Zip _ '[] = '[]
+  Zip (a ': as) (b ': bs) = '(a, b) ': Zip as bs
+
+type NumbersFromTo :: Nat -> Nat -> [Nat]
+type family NumbersFromTo from to where
+  NumbersFromTo to to = '[]
+  NumbersFromTo from to = from ': NumbersFromTo (from+1) to
+
+type family Length α :: Nat where
+  Length '[] = 0
+  Length (_ ': as) = Length as + 1
+
+type (:<|>:) :: Maybe a -> Maybe a -> Maybe a
+type family (:<|>:) mx my where
+  (:<|>:) ('Just x) _ = 'Just x
+  (:<|>:) 'Nothing ('Just y) = 'Just y
+  (:<|>:) 'Nothing 'Nothing  = 'Nothing
+
+type MaybeF :: b -> (a -> Maybe b) -> Maybe a -> Maybe b
+type family MaybeF d f mx where
+  MaybeF d f 'Nothing = 'Just d
+  MaybeF d f ('Just x) = f x
 

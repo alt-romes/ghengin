@@ -40,7 +40,7 @@ import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan
 import Ghengin.Shaders
 
-import FIR.Layout (primTySizeAndAli, Layout(..))
+import qualified FIR.Layout
 
 data DescriptorSet = DescriptorSet { _ix :: Int
                                    , _descriptorSet :: Vk.DescriptorSet
@@ -128,7 +128,7 @@ createDescriptorSets ppstages = do
       mergeSameDS = IM.mergeWithKey (\_ (dt,ss,sf) (dt',_ss',sf') -> if dt == dt' then Just (dt, ss, sf .|. sf') else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id -- TODO: Could pattern match on type equality too?
 
 type family FindDescriptorType (set :: Nat) (binding :: Nat) (defs :: [FIR.Definition]) :: Nat where
-  FindDescriptorType set binding (FIR.Global _ '[SPIRV.DescriptorSet set, SPIRV.Binding binding] t:ds) = SizeOf t
+  FindDescriptorType set binding (FIR.Global _ '[SPIRV.DescriptorSet set, SPIRV.Binding binding] t:ds) = Ghengin.Utils.SizeOf t
   FindDescriptorType set binding (_:ds) = FindDescriptorType set binding ds
   FindDescriptorType set binding '[] = TypeError (Text "Error computing descriptor type")
 
@@ -157,7 +157,7 @@ getDescriptorBindingSize dsix bix = case
       _ -> error "Err calculating PrimTy size"
 
 sizeOfPrimTy :: SPIRV.PrimTy -> Size
-sizeOfPrimTy x = case primTySizeAndAli Extended x of
+sizeOfPrimTy x = case FIR.Layout.primTySizeAndAli FIR.Layout.Extended x of
                    Left e -> error (show e)
                    Right (size,_alignment) -> fromIntegral size
 

@@ -1,4 +1,6 @@
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -13,23 +15,41 @@ module Ghengin.Utils
   ( module Ghengin.Utils
   , module Data.StateVar
   , module Foreign.Storable
-  -- , module Foreign.Storable.Generic
+  , module Foreign.Storable.Generic
   , (.|.)
   , Proxy(..)
-  -- , Poke(..)
-  -- , Layout(..)
   ) where
 
 import Data.Kind
 import Geomancy.Vec3
 import Data.StateVar
 import Foreign.Storable
--- import Foreign.Storable.Generic
+import Foreign.Storable.Generic
 import Data.Proxy
 
 import Data.Bits
 
+import GHC.TypeLits
 
+import Math.Linear (V(..))
+import Data.Type.Map
+import FIR.Prim.Struct
+
+-- TODO Eventually move to its own module
+class Sized a where
+  type SizeOf a :: Nat
+
+instance Sized Float where
+  type SizeOf Float = 4
+
+instance Sized a => Sized (V n a) where
+  type SizeOf (V n a) = n * SizeOf a
+
+instance Sized (Struct '[]) where
+  type SizeOf (Struct '[]) = 0
+
+instance Sized a => Sized (Struct ((k ':-> a) ': xs)) where
+  type SizeOf (Struct ((_ ':-> a) ': xs)) = SizeOf a + SizeOf (Struct xs)
 
 data HList xs where
     HNil :: HList '[]
@@ -68,7 +88,6 @@ type family HasPart (p :: EnginePart) (ps :: [EnginePart]) :: Bool where
 type family (:=>) (b :: Bool) (t :: Type) :: Type where
   (:=>) False t = ()
   (:=>) True  t = t
-
 
 type family FromMaybe (a :: k) (m :: Maybe k) :: k where
   FromMaybe a 'Nothing = a

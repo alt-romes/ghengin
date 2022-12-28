@@ -61,20 +61,16 @@ data Material xs where
   Done :: Material '[]
 
   DynamicBinding :: ∀ α β
-                 .  (Storable α)
+                 .  (Storable α, Sized α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
                  => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                  -> Material β
                  -> Material (α:β)
   -- TODO
   -- StaticBinding :: a -> Material a:b
 
-type family NumberOfBindings α :: Nat where
-  NumberOfBindings '[] = 0
-  NumberOfBindings (_ ': as) = NumberOfBindings as + 1
-
 -- | Returns the number of bindings
 matSizeBindings :: ∀ α. Material α -> Int
-matSizeBindings = -- fromInteger $ natVal $ Proxy @(NumberOfBindings α)
+matSizeBindings = -- fromInteger $ natVal $ Proxy @(ListSize α)
   \case
     Done -> 0
     DynamicBinding _ xs -> 1 + matSizeBindings xs

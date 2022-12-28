@@ -1,5 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE NoStarIsType #-}
+{-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -9,6 +11,7 @@
 {-# LANGUAGE BlockArguments #-}
 module Planet where
 
+import GHC.TypeLits
 import GHC.Generics
 import Control.Monad.Trans
 import qualified Data.List.NonEmpty as NE
@@ -43,6 +46,9 @@ instance S.Storable MinMax where
     ma <- S.peekElemOff p 1
     pure $ MinMax mi ma
   poke (castPtr -> p) (MinMax mi ma) = S.pokeElemOff p 0 mi >> S.pokeElemOff p 1 ma
+
+instance Sized MinMax where
+  type SizeOf MinMax = 2 * SizeOf Float
 
 -- instance Poke MinMax α where
 --   type SizeOf α MinMax = 8

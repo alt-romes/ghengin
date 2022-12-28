@@ -57,7 +57,10 @@ vertex = shader do
     min <- use @(Name "minmax" :.: Name "min")
     max <- use @(Name "minmax" :.: Name "max")
 
-    ~(Vec3 bcx bcy bcz) <- use @(Name "uniform_col" :.: Name "val")
+    -- ~(Vec3 bcx bcy bcz) <- use @(Name "uniform_col" :.: Name "val")
+    let bcx = 1
+        bcy = 1
+        bcz = 1
 
     let col_frac = invLerp (norm (Vec3 x y z)) min max 
     let col = Vec3 (lerp (bcx * 0.1) bcx col_frac) (lerp (bcy*0.1) bcy col_frac) (lerp (bcz*0.1) bcz col_frac)

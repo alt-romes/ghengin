@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -8,6 +9,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
+import GHC.TypeLits
 import Data.IORef
 import Control.Monad
 import Control.Monad.IO.Class
@@ -19,8 +21,8 @@ import Ghengin.Component.Mesh
 import Ghengin.Component.Camera
 import Ghengin.Component.Transform
 import Ghengin.Component.UI
-import Ghengin.Utils
 import Ghengin.Render.Packet
+import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Scene.Graph
 import Ghengin.Component (Storage, EntityCounter, explInit, cmap, cmapM)
@@ -103,11 +105,13 @@ updateG ps dt uichanges = do
   -- TODO: perhaps all UI colors could be combined with the uichanges variables and be always provided on request depending on whether they were changed or not
   -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
   when (or uichanges) $
-    cmapM $ \(RenderPacket oldMesh mat pp _) -> do
-      (newMesh,newMinMax) <- newPlanet ps
-      lift $ do
-        freeMesh (oldMesh) -- Can we hide/enforce this somehow? Meshes aren't automatically freed when switched! We should make "switching" explicit?
-      pure (renderPacket newMesh (makeMinMaxMaterial newMinMax) pp)
+    cmapM $ \x ->
+      case x of
+        (RenderPacket @α @β oldMesh mat pp _) -> do
+          (newMesh,newMinMax) <- newPlanet ps
+          lift $ do
+            freeMesh (oldMesh) -- Can we hide/enforce this somehow? Meshes aren't automatically freed when switched! We should make "switching" explicit?
+          pure (renderPacket newMesh (makeMinMaxMaterial newMinMax) pp)
 
   cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 
