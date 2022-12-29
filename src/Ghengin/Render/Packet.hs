@@ -19,6 +19,7 @@ module Ghengin.Render.Packet
   , module Ghengin.Render.Pipeline
   ) where
 
+import Data.Hashable
 import GHC.TypeLits
 import GHC.Records
 import Data.Proxy
@@ -120,7 +121,7 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderPacket
+renderPacket :: ∀ α β. (Hashable (Material α), Compatible α β) => Mesh -> Material α -> RenderPipeline β -> RenderPacket
 renderPacket mesh material pipeline = RenderPacket mesh material pipeline (makeKey material pipeline)
 
 {-
@@ -164,16 +165,10 @@ type RenderKey = Word64
 splitKey :: RenderKey -> (Word64, Word64)
 splitKey k = (k .&. 0xf00000000, k .&. 0xffffffff)
 
-makeKey :: ∀ α β. (KnownNat (MaterialKey α)) => Material α -> RenderPipeline β -> RenderKey
-makeKey _material _pipeline = fromInteger $ natVal $ Proxy @(RenderKeyNat α β)
+makeKey :: ∀ α β. Hashable (Material α) => Material α -> RenderPipeline β -> RenderKey
+makeKey material _pipeline = fromIntegral $ hash material .&. 0xffffffff
 
--- | Compute the render key at the type level based on the type level information of the mesh, materials and pipeline.
-type family RenderKeyNat material pipeline :: Nat where
-  RenderKeyNat m p = MaterialKey m + PipelineKey p
-
-type family MaterialKey material :: Nat where
-  MaterialKey _ = 0
-
+-- | Compute the pipeline render key at the type level based on the type level information of the mesh, materials and pipeline.
 type family PipelineKey pipeline :: Nat where
   PipelineKey _ = 0
 

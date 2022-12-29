@@ -35,17 +35,18 @@ import Foreign.Ptr
 import Noise
 
 data MinMax = MinMax Float Float
-  deriving Generic
+  deriving (Eq, Generic)
 
--- instance GStorable MinMax
-instance S.Storable MinMax where
-  sizeOf _ = 2*S.sizeOf @Float undefined
-  alignment _ = 2*S.sizeOf @Float undefined
-  peek (castPtr -> p) = do
-    mi <- S.peekElemOff p 0
-    ma <- S.peekElemOff p 1
-    pure $ MinMax mi ma
-  poke (castPtr -> p) (MinMax mi ma) = S.pokeElemOff p 0 mi >> S.pokeElemOff p 1 ma
+instance Hashable MinMax
+instance GStorable MinMax
+-- instance S.Storable MinMax where
+--   sizeOf _ = 2*S.sizeOf @Float undefined
+--   alignment _ = 2*S.sizeOf @Float undefined
+--   peek (castPtr -> p) = do
+--     mi <- S.peekElemOff p 0
+--     ma <- S.peekElemOff p 1
+--     pure $ MinMax mi ma
+--   poke (castPtr -> p) (MinMax mi ma) = S.pokeElemOff p 0 mi >> S.pokeElemOff p 1 ma
 
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
@@ -56,8 +57,8 @@ instance Sized MinMax where
 --   poke = S.poke
 
 
-makeMinMaxMaterial :: MinMax -> Material '[Vec3, MinMax]
-makeMinMaxMaterial x = DynamicBinding (vec3 1 0 0) $ DynamicBinding x Done
+makeMinMaxMaterial :: Vec3 -> MinMax -> Material '[Vec3, MinMax]
+makeMinMaxMaterial v x = DynamicBinding v $ DynamicBinding x Done
 
 -- type MinMaxMaterial = Material [ 0 :-> MinMax ]
 

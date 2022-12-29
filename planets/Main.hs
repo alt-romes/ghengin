@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE GADTs #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE BlockArguments #-}
@@ -10,6 +11,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
+import System.Random
 import Unsafe.Coerce
 import GHC.TypeLits
 import Data.IORef
@@ -72,12 +74,13 @@ initG :: Ghengin World PlanetSettings
 initG = do
 
   ps <- liftIO $ makeSettings @PlanetSettings
+  ps2 <- liftIO $ makeSettings @PlanetSettings
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
   (planetMesh,minmax) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
-  (planetMesh2,_minmax2) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
-  let p1 = renderPacket planetMesh (makeMinMaxMaterial minmax) planetPipeline
-      p2 = renderPacket planetMesh2 (makeMinMaxMaterial minmax) planetPipeline
+  (planetMesh2,minmax2) <- newPlanet ps2 -- TODO: Also require shader pipeline to validate it
+  let p1 = renderPacket planetMesh (makeMinMaxMaterial (vec3 1 0 0) minmax) planetPipeline
+      p2 = renderPacket planetMesh2 (makeMinMaxMaterial (vec3 0 0 1) minmax2) planetPipeline
 
   -- TODO: Currently we can't share meshes, we're freeing them multiple times
   -- causing a segmentation fault, and even worse if we free it to create a new
@@ -85,6 +88,7 @@ initG = do
 
   sceneGraph do
     newEntity ( UIWindow "Planet" (makeComponents ps) )
+    newEntity ( UIWindow "Planet2" (makeComponents ps2) )
 
 
     -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )
@@ -121,7 +125,18 @@ updateG ps dt uichanges = do
                  -- can't be used to validate Compatibility with a new material again.
                  -- It's somehow related to being an existential type and therefore the type not carrying enough information?
                  -- How can I make the existential type carry enough information to pass Compatible again?
-                 -> pure (renderPacket @_ @i newMesh (makeMinMaxMaterial newMinMax) (unsafeCoerce pp))
+            --
+            --
+            -- The Solution might be defining a function that edits the content of dynamic
+            -- bindings (by comparing Typeable instances?) because (and this is the key) if
+            -- the pipeline was already created then it was already compatible, and
+            -- therefore changing the value of the dynamic binding will not affect
+            -- compatibility
+            --
+            -- Also: TODO: With the typeable constraint, we are able to inspect at runtime the material type (as if it were a simple tag) and depending on the value updating the material
+             -> do
+               (x,y,z) <- liftIO randomIO
+               pure (renderPacket @_ @i newMesh (makeMinMaxMaterial (vec3 x y z) newMinMax) (unsafeCoerce pp))
 
   cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 
