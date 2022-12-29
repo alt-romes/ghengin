@@ -179,9 +179,14 @@ render i = do
                   ubo   = UBO viewM projM
 
               -- TODO : Move out of cmapM
-              -- Currently the descriptor set #0 always has just a uniform buffer object
+              -- Currently the descriptor set #0 always has just a uniform buffer and other fixed engine information
               case descriptorSetBinding pipeline 0 0 of
                 buf -> lift $ writeMappedBuffer buf ubo
+
+              -- TODO: Either allow binding set #0 flexibly or describe how the
+              -- implementation always passes this information to the shader
+              case descriptorSetBinding pipeline 0 1 of
+                buf -> lift $ writeMappedBuffer buf (camTr.position)
 
 
             -- Bind descriptor set #0

@@ -59,8 +59,8 @@ type FragmentDefs
       , "in_normal"   ':-> Input '[ Location 1 ] (V 4 Float)
       -- , "light_pos"  ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
       --                               ( Struct '[ "val" ':-> V 3 Float ] )
-      -- , "camera_pos" ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
-      --                               ( Struct '[ "val" ':-> V 3 Float ] )
+      , "camera_pos" ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
+                                    ( Struct '[ "val" ':-> V 3 Float ] )
       -- TODO: MinMax material should be a static material because it only needs to be bound, not written every frame, because we statically know it and only change it when the mesh changes
       , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
                                   ( Struct '[ "min" ':-> Float
@@ -76,25 +76,30 @@ fragment = shader do
 
     ~(Vec4 px py pz _)  <- get @"in_position"
     ~(Vec4 nx ny nz _)  <- get @"in_normal"
-    -- ~(Vec3 cx cy cz)    <- get @"camera_pos"
+    ~(Vec3 cx cy cz)    <- use @(Name "camera_pos" :.: Name "val")
     ~(Vec3 bcx bcy bcz) <- use @(Name "uniform_col" :.: Name "val")
 
     -- Color
     min' <- use @(Name "minmax" :.: Name "min")
     max' <- use @(Name "minmax" :.: Name "max")
 
-    let col_frac = invLerp (norm (Vec3 px py pz)) min' max'
-    let col = Vec4 (lerp (bcx * 0.1) bcx col_frac) (lerp (bcy*0.1) bcy col_frac) (lerp (bcz*0.1) bcz col_frac) 1
+    let col_frac   = invLerp (norm (Vec3 px py pz)) min' max'
+        col        = Vec3 (lerp (bcx * 0.1) bcx col_frac) (lerp (bcy*0.1) bcy col_frac)
+                          (lerp (bcz*0.1) bcz col_frac)
 
-    -- Light
-    let dirToLight         = normalise (Vec4 1 (-3) (-1) 1) :: Code (V 4 Float)
-        ambient            = 0.2 :: Code Float
-        normalInWorldSpace = normalise (Vec4 nx ny nz 0) :: Code (V 4 Float)
+        -- Light
+        viewDir    = normalise (Vec3 cx cy cz ^-^ Vec3 px py pz)
+        dirToLight = normalise (Vec3 1 (-3) (-1))
+        ambient    = 0.05 *^ col
+        normal     = normalise (Vec3 nx ny nz)
         -- light intensity given by cosine of direction to light and the normal in world space
-        lightItensity      = max (dot dirToLight normalInWorldSpace :: Code Float) (0 :: Code Float)
+        diffuse    = (max (dot dirToLight normal) 0) *^ col
+        halfwayDir = normalise (dirToLight ^+^ viewDir)
+        specular   = ((max (dot halfwayDir normal) 0) ** 32) *^ (Vec3 0.3 0.3 0.3 {- bright light -})
 
+        Vec3 colx coly colz = ambient ^+^ diffuse ^+^ specular
 
-    put @"out_col" (lightItensity *^ col)
+    put @"out_col" (Vec4 colx coly colz 1)
 
 --- Pipeline ----
 
