@@ -79,8 +79,10 @@ initG = do
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
   (planetMesh,minmax) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
   (planetMesh2,minmax2) <- newPlanet ps2 -- TODO: Also require shader pipeline to validate it
-  let p1 = renderPacket planetMesh (makeMinMaxMaterial (vec3 1 0 0) minmax) planetPipeline
-      p2 = renderPacket planetMesh2 (makeMinMaxMaterial (vec3 0 0 1) minmax2) planetPipeline
+  m1 <- lift $ material (makeMinMaxMaterial (vec3 1 0 0) minmax) planetPipeline
+  m2 <- lift $ material (makeMinMaxMaterial (vec3 0 0 1) minmax2) planetPipeline
+  let p1 = renderPacket planetMesh m1 planetPipeline
+      p2 = renderPacket planetMesh2 m2 planetPipeline
 
   -- TODO: Currently we can't share meshes, we're freeing them multiple times
   -- causing a segmentation fault, and even worse if we free it to create a new
@@ -140,7 +142,8 @@ updateG ps dt uichanges = do
             -- Also: TODO: With the typeable constraint, we are able to inspect at runtime the material type (as if it were a simple tag) and depending on the value updating the material
              -> do
                (x,y,z) <- liftIO randomIO
-               pure (renderPacket @_ @i newMesh (makeMinMaxMaterial (vec3 x y z) newMinMax) (unsafeCoerce pp))
+               mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax) pp
+               pure (renderPacket @_ @i newMesh mx (unsafeCoerce pp))
 
   cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 

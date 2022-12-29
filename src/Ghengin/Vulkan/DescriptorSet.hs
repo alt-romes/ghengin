@@ -227,7 +227,7 @@ createDescriptorPool dsetmap = do
 
     setsAmount = fromIntegral $ length dsetmap
     poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = V.fromList poolsSizes
-                                           , maxSets = setsAmount
+                                           , maxSets = 100 * setsAmount
                                            , flags = Vk.zero
                                            , next = ()
                                            }
@@ -357,5 +357,6 @@ destroyDescriptorSet (DescriptorSet _ix _dset dbindings) = do
   _ <- traverse (destroyMappedBuffer . fst) dbindings
   pure ()
 
-
+getBindingBuffer :: DescriptorSet -> Int -> MappedBuffer
+getBindingBuffer dset i = fst $ dset._bindings IM.! i
 

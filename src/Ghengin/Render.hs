@@ -88,7 +88,7 @@ each renderable entity.
 --  * Note [Renderer] (TODO)
 --  * Note [Render Queue]
 --  * Note [Scene Graph]
---  * Note [Renderable entities] (TODO)
+--  * Note [Renderable entities]
 render :: RenderConstraints w
        => Int -- frame identifier
        -> Ghengin w ()
@@ -193,15 +193,17 @@ render i = do
 
             logTrace ("Binding material")
 
+            let matDSet = materialDescriptorSet material
+
             -- These materials are necessarily compatible with this pipeline in
             -- the set #1, so the 'descriptorSetBinding' buffer will always be
             -- valid to write with the corresponding material binding
-            lift $ writeMaterial (descriptorSetBinding pipeline 1) material
+            lift $ writeMaterial (getBindingBuffer matDSet) material
             
             -- static bindings will have to choose a different dset
             -- Bind descriptor set #1
             bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
-              1 (descriptorSet pipeline 1)._descriptorSet
+              1 matDSet._descriptorSet
 
           )
         (\(SomePipeline pipeline) (mesh :: Mesh) (ModelMatrix mm _) -> do
@@ -252,7 +254,7 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
 
   go :: ∀ υ. Int -> Material υ -> Ghengin ω ()
   go n = \case
-    Done -> assert (n == (-1)) (pure ()) -- (only triggered with -O0)
+    Done _ -> assert (n == (-1)) (pure ()) -- (only triggered with -O0)
     DynamicBinding (a :: α) as -> do
       case materialBinding n of
         -- TODO: Ensure unsafeCoerce is safe here by only allowing

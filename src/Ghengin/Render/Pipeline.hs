@@ -54,6 +54,8 @@ makeRenderPipeline shaderPipeline = do
   -- 'createDescriptorSets' does (1) (2) and (3)
   --
   -- We need to do 'createDescriptorSets' as many times as there are frames in flight.
+  --
+  -- TODO: The dpool per frame in flight doesn't make any sense at the moment, for now we simply allocate from the first pool.
   dsetsSet@(dsets:|_) <- mapM (const (createDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
 
   pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (V.fromList $ fmap fst (IM.elems $ (snd dsets)._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
@@ -62,6 +64,7 @@ makeRenderPipeline shaderPipeline = do
 
 createDescriptorSets :: GShaderPipeline info -> Renderer ext (Vector DescriptorSet, DescriptorPool)
 createDescriptorSets pp = do
+  -- Currently we allocate unnecessary #1 sets: the used ones are allocated on a per-material basis
   let dsetmap = createDescriptorSetBindingsMap pp
   dpool <- createDescriptorPool dsetmap
   dsets <- allocateDescriptorSets (V.fromList $ IM.keys dsetmap) dpool

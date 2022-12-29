@@ -26,6 +26,7 @@ import qualified Foreign.Storable as S
 import Ghengin hiding (get)
 import Ghengin.Utils
 import Ghengin.Vulkan
+import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Component.Mesh.Sphere
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material
@@ -56,11 +57,13 @@ instance Sized MinMax where
 --   type Alignment α MinMax = 8
 --   poke = S.poke
 
+-- Why can't I imprt material
+-- type Material' α = DescriptorSet -> Material α
 
-makeMinMaxMaterial :: Vec3 -> MinMax -> Material '[Vec3, MinMax]
-makeMinMaxMaterial v x = DynamicBinding v $ DynamicBinding x Done
+makeMinMaxMaterial :: Vec3 -> MinMax -> Material' '[Vec3, MinMax]
+makeMinMaxMaterial v x = DynamicBinding v . DynamicBinding x . Done
 
--- type MinMaxMaterial = Material [ 0 :-> MinMax ]
+type MinMaxMaterial = Material '[ Vec3, MinMax ]
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)

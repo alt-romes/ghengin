@@ -16,8 +16,9 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Material where
 
+import qualified Data.List.NonEmpty as NE
 import Data.Hashable
-import FIR.Pipeline
+import Ghengin.Render.Pipeline
 import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan
 import Ghengin.Utils
@@ -60,10 +61,11 @@ Resources:
 
 -}
 
-data Dum
+type Material' α = DescriptorSet -> Material α
+
 data Material xs where
 
-  Done :: Material '[]
+  Done :: DescriptorSet -> Material '[]
 
   DynamicBinding :: ∀ α β
                  .  (Storable α, Sized α, Hashable α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline, Hashable for the unique key
@@ -76,8 +78,13 @@ data Material xs where
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
--- done :: ∀ (info :: PipelineInfo) ext. Renderer ext (Material '[])
--- done = _
+-- TODO: Add Compatible constraint (first move it to its own module)
+material :: Material' α -> RenderPipeline β -> Renderer χ (Material α)
+material mat' rp = 
+  let (_,dpool) NE.:| _ = rp._descriptorSetsSet
+   in do
+     dset <- allocateDescriptorSet 1 dpool
+     pure $ mat' dset
 
 -- dynamicBinding :: ∀ α β. (Storable α, Sized α, Hashable α) => α -> (Material β -> Material (α:β))
 -- dynamicBinding = _
@@ -86,18 +93,25 @@ data Material xs where
 matSizeBindings :: ∀ α. Material α -> Int
 matSizeBindings = -- fromInteger $ natVal $ Proxy @(ListSize α)
   \case
-    Done -> 0
+    Done _ -> 0
     DynamicBinding _ xs -> 1 + matSizeBindings xs
 
 instance Eq (Material '[]) where
-  (==) (Done ) (Done ) = True
+  (==) (Done _) (Done _) = True
 
 instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
   (==) (DynamicBinding x xs) (DynamicBinding y ys) = x == y && xs == ys
 
 instance Hashable (Material '[]) where
-  hashWithSalt i (Done ) = hashWithSalt i ()
+  hashWithSalt i (Done _) = hashWithSalt i ()
 
 instance (Hashable a, Hashable (Material as)) => Hashable (Material (a ': as)) where
   hashWithSalt i (DynamicBinding x xs) = hashWithSalt i x `hashWithSalt` xs
+
+
+materialDescriptorSet :: Material α -> DescriptorSet
+materialDescriptorSet = \case
+  Done x -> x
+  DynamicBinding _ xs -> materialDescriptorSet xs
+
 
