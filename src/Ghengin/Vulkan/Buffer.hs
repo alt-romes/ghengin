@@ -154,7 +154,7 @@ destroyMappedBuffer (UniformBuffer b dm _hostMemory _size) = do
   destroyBuffer b dm
 
 -- | Note how the storable must be the same as the storable of the uniform buffer so that the sizes match
-writeMappedBuffer :: ∀ α ext. (Show α, SV.Storable α) => MappedBuffer -> α -> Renderer ext ()
+writeMappedBuffer :: ∀ α ext. (SV.Storable α) => MappedBuffer -> α -> Renderer ext ()
 writeMappedBuffer (UniformBuffer _ _ (castPtr -> ptr) s) x = assert (fromIntegral (sizeOf @α undefined) <= s) $ liftIO $ poke @α ptr x -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
 -- writeMappedBuffer (UniformBuffer _ _ (castPtr -> ptr) s) x = if (fromIntegral (sizeOf @α undefined) /= s) then error ("What " <> show (sizeOf @α undefined) <> " x " <> show s <> " writing " <> show x) else liftIO $ poke @α ptr x
 

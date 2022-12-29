@@ -1,3 +1,4 @@
+[ ] Which UI changed? Currently we don't know and are simply updating all meshes the same
 [ ] Array of textures for textures shared across mats?
 [ ] Q: Should I allocate a descriptor set per material? Is that common?
     A: Yes. It'll occupy some memory but it would require many many materials

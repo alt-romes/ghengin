@@ -4,6 +4,8 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Render.Pipeline where
 
+import qualified Data.IntMap as IM
+import qualified Data.Vector as V
 import Control.Monad
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Data.Vector (Vector)
@@ -22,7 +24,7 @@ import Ghengin.Vulkan
 -- required to render certain 'RenderPacket's
 data RenderPipeline info = RenderPipeline { _graphicsPipeline  :: VulkanPipeline
                                           , _renderPass        :: VulkanRenderPass
-                                          , _descriptorSetsSet :: NonEmpty (Vector DescriptorSet, Vk.DescriptorPool) -- We need descriptor sets for each frame in flight
+                                          , _descriptorSetsSet :: NonEmpty (Vector DescriptorSet, DescriptorPool) -- We need descriptor sets for each frame in flight
                                           , _shaderPipeline    :: GShaderPipeline info
                                           }
 
@@ -54,9 +56,18 @@ makeRenderPipeline shaderPipeline = do
   -- We need to do 'createDescriptorSets' as many times as there are frames in flight.
   dsetsSet@(dsets:|_) <- mapM (const (createDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
 
-  pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (fmap (._descriptorSetLayout) (fst dsets)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+  pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (V.fromList $ fmap fst (IM.elems $ (snd dsets)._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   pure $ RenderPipeline pipeline simpleRenderPass dsetsSet shaderPipeline
+
+createDescriptorSets :: GShaderPipeline info -> Renderer ext (Vector DescriptorSet, DescriptorPool)
+createDescriptorSets pp = do
+  let dsetmap = createDescriptorSetBindingsMap pp
+  dpool <- createDescriptorPool dsetmap
+  dsets <- allocateDescriptorSets (V.fromList $ IM.keys dsetmap) dpool
+  pure (dsets, dpool)
+
+
 
 destroyRenderPipeline :: RenderPipeline α -> Renderer ext ()
 destroyRenderPipeline (RenderPipeline gp rp dss _) = do

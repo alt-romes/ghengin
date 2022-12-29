@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -16,7 +17,9 @@
 module Ghengin.Component.Material where
 
 import Data.Hashable
-import GHC.TypeLits
+import FIR.Pipeline
+import Ghengin.Vulkan.DescriptorSet
+import Ghengin.Vulkan
 import Ghengin.Utils
 
 {-
@@ -57,17 +60,27 @@ Resources:
 
 -}
 
+data Dum
 data Material xs where
 
   Done :: Material '[]
 
   DynamicBinding :: ∀ α β
-                 .  (Storable α, Sized α, Hashable α, Show α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
+                 .  (Storable α, Sized α, Hashable α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline, Hashable for the unique key
                  => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                  -> Material β
                  -> Material (α:β)
   -- TODO
   -- StaticBinding :: a -> Material a:b
+
+-- | All materials for a given pipeline share the same Descriptor Set #1
+-- Layout. If we know the pipeline we're creating a material for, we can simply
+-- allocate a descriptor set with the known layout for this material.
+-- done :: ∀ (info :: PipelineInfo) ext. Renderer ext (Material '[])
+-- done = _
+
+-- dynamicBinding :: ∀ α β. (Storable α, Sized α, Hashable α) => α -> (Material β -> Material (α:β))
+-- dynamicBinding = _
 
 -- | Returns the number of bindings
 matSizeBindings :: ∀ α. Material α -> Int
@@ -77,13 +90,13 @@ matSizeBindings = -- fromInteger $ natVal $ Proxy @(ListSize α)
     DynamicBinding _ xs -> 1 + matSizeBindings xs
 
 instance Eq (Material '[]) where
-  (==) Done Done = True
+  (==) (Done ) (Done ) = True
 
 instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
   (==) (DynamicBinding x xs) (DynamicBinding y ys) = x == y && xs == ys
 
 instance Hashable (Material '[]) where
-  hashWithSalt i Done = hashWithSalt i ()
+  hashWithSalt i (Done ) = hashWithSalt i ()
 
 instance (Hashable a, Hashable (Material as)) => Hashable (Material (a ': as)) where
   hashWithSalt i (DynamicBinding x xs) = hashWithSalt i x `hashWithSalt` xs

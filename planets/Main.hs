@@ -87,11 +87,12 @@ initG = do
   -- one when someone else is using it
 
   sceneGraph do
+    -- TODO: creating the settings should also define how to react to changes
     newEntity ( UIWindow "Planet" (makeComponents ps) )
     newEntity ( UIWindow "Planet2" (makeComponents ps2) )
 
 
-    -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )
+    -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )?
     -- which can be later modified. this data is bound once per pipeline.?
     -- The global data in this example is actually the Camera transform
 
@@ -111,6 +112,9 @@ updateG ps dt uichanges = do
 
   -- TODO: perhaps all UI colors could be combined with the uichanges variables and be always provided on request depending on whether they were changed or not
   -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
+  -- TODO: Which UI changed?... Maybe we should embrace dear-imgui and make all
+  -- the decisions the imgui way. that is, when defining the UI defining what
+  -- happens when something is changed
   when (or uichanges) $
     cmapM $ \x ->
       case x of
