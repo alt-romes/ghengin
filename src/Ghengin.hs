@@ -23,6 +23,8 @@ module Ghengin
 
 import GHC.Records
 
+import Data.String
+import Control.Logger.Simple
 import Control.Monad.Reader
 
 import Data.IORef
@@ -81,7 +83,9 @@ ghengin :: WorldConstraints w
         -- -> Ghengin w c -- ^ Run every draw step?
         -> Ghengin w c -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
-ghengin world initialize _simstep loopstep finalize = (runVulkanRenderer ()) . (`runSystem` world) $ do
+ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConfig (Just "log.ghengin.log") True) . (runVulkanRenderer ()) . (`runSystem` world) $ do
+
+  logDebug "Started Ghengin"
 
   a <- initialize
 
@@ -98,6 +102,8 @@ ghengin world initialize _simstep loopstep finalize = (runVulkanRenderer ()) . (
 
   windowLoop $ do
 
+    logTrace "New frame"
+
     newTime <- liftIO getCurrentTime
 
     -- FPS Counter
@@ -105,7 +111,7 @@ ghengin world initialize _simstep loopstep finalize = (runVulkanRenderer ()) . (
     liftIO (modifyIORef' frameCounter (+1))
     when (diffUTCTime newTime lastFPS > 1) (liftIO $ do
       frames <- readIORef frameCounter
-      putStrLn $ "FPS: " <> show frames
+      logInfo $ "FPS: " <> (fromString $ show frames)
       writeIORef frameCounter 0
       writeIORef lastFPSTime newTime
       )
@@ -114,18 +120,26 @@ ghengin world initialize _simstep loopstep finalize = (runVulkanRenderer ()) . (
     frameTime <- diffUTCTime newTime <$> liftIO(readIORef currentTime)
     liftIO(writeIORef currentTime newTime)
 
+    logTrace "Drawing UI"
+
     -- DearImGui frame
     -- TODO: Draw UI (define all UI components in the frame)
     bs <- drawUI
+
+    logTrace "Simulating a step"
 
     -- TODO: We're currently drawing two equal frames in a row... we probably want all of this to be done on each frame
 
     -- Game loop step
     b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime) bs
 
+    logTrace "Rendering"
+
     -- Currently render is called here because it traverses the scene graph and
     -- populates the render queue, and renders!
     render =<< liftIO (readIORef frameCounter)
+
+    logTrace "Done frame"
 
     pure b
 

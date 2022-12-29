@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
@@ -13,6 +14,7 @@ import Apecs (Storage, cfold, cmapM)
 import Data.Maybe
 
 import Control.Monad.State
+import Control.Exception
 
 import qualified Data.IntMap as IM
 import qualified Data.List.NonEmpty as NE
@@ -49,7 +51,7 @@ type RenderConstraints w = ( HasField "transforms" w (Storage Transform)
 
 data UniformBufferObject = UBO { view :: Mat4
                                , proj :: Mat4
-                               }
+                               } deriving Show
 
 -- TODO: Use and export derive-storable?
 instance S.Storable UniformBufferObject where
@@ -157,6 +159,8 @@ render i = do
         (\(SomePipeline pp') -> renderPass pp'._renderPass._renderPass (pp'._renderPass._framebuffers V.! currentImage) extent)
         (\(SomePipeline pipeline) -> do
 
+            logTrace ("Binding pipeline")
+
             -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
             -- Bind the pipeline
             bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
@@ -187,6 +191,8 @@ render i = do
           )
         (\(SomePipeline pipeline) (SomeMaterial material) -> do
 
+            logTrace ("Binding material")
+
             -- These materials are necessarily compatible with this pipeline in
             -- the set #1, so the 'descriptorSetBinding' buffer will always be
             -- valid to write with the corresponding material binding
@@ -199,6 +205,8 @@ render i = do
 
           )
         (\(SomePipeline pipeline) (mesh :: Mesh) (ModelMatrix mm _) -> do
+
+            logTrace ("Drawing mesh")
 
             -- TODO: Bind descriptor set #2
 
@@ -244,8 +252,7 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
 
   go :: ∀ υ. Int -> Material υ -> Ghengin ω ()
   go n = \case
-    Done -> -- assert (n == 0) (pure ()) (only triggered with -O0)
-      if n == (-1) then pure () else error $ "Assertion failed: writeMaterial n /= 0. " <> "n = " <> show n
+    Done -> assert (n == (-1)) (pure ()) -- (only triggered with -O0)
     DynamicBinding (a :: α) as -> do
       case materialBinding n of
         -- TODO: Ensure unsafeCoerce is safe here by only allowing

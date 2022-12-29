@@ -148,6 +148,7 @@ endG = do
 
 main :: IO ()
 main = do
+  -- setLogLevel LogTrace
   w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
   ghengin w initG undefined updateG endG
 

@@ -82,7 +82,7 @@ runVulkanRenderer ext r =
 
   (\(REnv inst device win swapchain commandPool frames _ioref imsCtx _ext) -> do
 
-    liftIO $ putStrLn "[Start] Clean up"
+    logDebug "[Start] Clean up"
 
     mapM_ (destroyVulkanFrameData device._device) frames
 
@@ -96,7 +96,7 @@ runVulkanRenderer ext r =
 
     terminateGLFW
 
-    liftIO $ putStrLn "[Done] Clean up"
+    logDebug "[Done] Clean up"
 
     )
 

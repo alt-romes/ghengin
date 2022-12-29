@@ -115,7 +115,7 @@ library
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.17,
-                      vulkan ^>=3.23,
+                      vulkan >=3.23,
                       GLFW-b ^>=3.3,
                       vector ^>=0.13,
                       vector-sized >=1.4,
@@ -134,12 +134,13 @@ library
                       derive-storable,
                       random,
                       hashable,
+                      ghc-typelits-natnormalise,
+                      simple-logger
                       -- witch,
                       -- constraints,
                       -- reflection
                       -- ghc-typelits-knownnat
                       -- algebraic-graphs
-                      ghc-typelits-natnormalise
 
     -- Directories containing source files.
     hs-source-dirs:   src

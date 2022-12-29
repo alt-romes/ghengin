@@ -62,7 +62,7 @@ data Material xs where
   Done :: Material '[]
 
   DynamicBinding :: ∀ α β
-                 .  (Storable α, Sized α, Hashable α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
+                 .  (Storable α, Sized α, Hashable α, Show α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
                  => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                  -> Material β
                  -> Material (α:β)

@@ -17,10 +17,12 @@ module Ghengin.Utils
   , module Foreign.Storable
   , module Foreign.Storable.Generic
   , module Data.Hashable
+  , module Control.Logger.Simple
   , (.|.)
   , Proxy(..)
   ) where
 
+import Control.Logger.Simple
 import Data.Hashable
 import Data.Kind
 import Geomancy.Vec3

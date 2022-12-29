@@ -1,7 +1,19 @@
-[ ] Compatible must ensure all required input parameters in the shader are defined in the material
+[ ] Array of textures for textures shared across mats?
+[ ] Q: Should I allocate a descriptor set per material? Is that common?
+    A: Yes. It'll occupy some memory but it would require many many materials
+    to ever reach the limit. It also makes things much simpler and fixes the
+    mats not changing bug and the static binding design
+[ ] A 'material' function to create/update? materials which allocates the descriptor set (read below)
+[ ] I think I can't write the same buffer in between draw calls as it seems
+both will end up with the same color. It seems as if each material needs its
+own descriptor set allocated and the dynamic bindings simply write the buffers
+every frame, and the static bindings don't.
+[ ] A function to update materials (read the one below).
+[ ] A solution to update the existential materials: I think we'll have a typeable instance (like a runtime type tag) that allows us to pattern match on the type of the material to understand what kind of material it is. Then we know the type of the material and we can safely update the property value. 
+[x] Compatible must ensure all required input parameters in the shader are defined in the material
 [ ] Render packet data for global descriptors properties and for model descriptors properties rather than just the material properties
 [ ] Compatible constraint with working planets example
-[ ] Materials must have a compile time size to compare with the size of the descriptors defined in the shader.
+[x] Materials must have a compile time size to compare with the size of the descriptors defined in the shader.
 [ ] Swap chain recreation...
 [ ] Static bindings which simply choose the descriptor (set?) rather than write to it
 [ ] Better scene graph implementation

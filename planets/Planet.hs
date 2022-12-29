@@ -35,7 +35,7 @@ import Foreign.Ptr
 import Noise
 
 data MinMax = MinMax Float Float
-  deriving (Eq, Generic)
+  deriving (Eq, Generic, Show)
 
 instance Hashable MinMax
 instance GStorable MinMax
