@@ -142,7 +142,9 @@ updateG ps dt uichanges = do
             -- Also: TODO: With the typeable constraint, we are able to inspect at runtime the material type (as if it were a simple tag) and depending on the value updating the material
              -> do
                (x,y,z) <- liftIO randomIO
+               -- TODO: Free previous material?
                mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax) pp
+               -- TODO: The great modify upgrade...
                pure (renderPacket @_ @i newMesh mx (unsafeCoerce pp))
 
   cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)

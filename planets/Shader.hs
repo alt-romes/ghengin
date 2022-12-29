@@ -26,43 +26,27 @@ import Ghengin (Mat4)
 type VertexDefs
   = '[ "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
      , "in_normal"   ':-> Input '[ Location 1 ] (V 3 Float)
+     , "out_position" ':-> Output '[ Location 0 ] (V 4 Float)
+     , "out_normal"   ':-> Output '[ Location 1 ] (V 4 Float)
      , "ignored_color"    ':-> Input '[ Location 2 ] (V 3 Float)
-     , "out_col"     ':-> Output '[ Location 0 ] (V 3 Float)
      , "push"        ':-> PushConstant '[] (Struct '[ "model" ':-> M 4 4 Float ])
      , "ubo"         ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                                   ( Struct '[ "view" ':-> M 4 4 Float
                                             , "proj" ':-> M 4 4 Float ] )
-      -- TODO: MinMax material should be a static material because it only needs to be bound, not written every frame, because we statically know it and only change it when the mesh changes
-     , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
-                                  ( Struct '[ "min" ':-> Float, "max" ':-> Float ] ) -- Careful with alighnemt
-     , "uniform_col" ':-> Uniform '[ DescriptorSet 1, Binding 1 ]
-                                   ( Struct '[ "val" ':-> V 3 Float ] )
      , "main"        ':-> EntryPoint '[] Vertex
      ]
 
 
 vertex :: ShaderModule "main" VertexShader VertexDefs _
 vertex = shader do
-    let dirToLight = normalise (Vec4 1 (-3) (-1) 1) :: Code (V 4 Float)
-        ambient    = 0.2
     ~(Vec3 x y z)    <- get @"in_position"
     ~(Vec3 nx ny nz) <- get @"in_normal"
     modelM <- use @(Name "push" :.: Name "model")
     viewM  <- use @(Name "ubo" :.: Name "view")
     projM  <- use @(Name "ubo" :.: Name "proj")
 
-    let normalInWorldSpace = normalise (modelM !*^ (Vec4 nx ny nz 0)) -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
-        lightItensity      = ambient + max (dot dirToLight normalInWorldSpace) 0 -- light intensity given by cosine of direction to light and the normal in world space
-
-    min <- use @(Name "minmax" :.: Name "min")
-    max <- use @(Name "minmax" :.: Name "max")
-
-    ~(Vec3 bcx bcy bcz) <- use @(Name "uniform_col" :.: Name "val")
-
-    let col_frac = invLerp (norm (Vec3 x y z)) min max 
-    let col = Vec3 (lerp (bcx * 0.1) bcx col_frac) (lerp (bcy*0.1) bcy col_frac) (lerp (bcz*0.1) bcz col_frac)
-
-    put @"out_col" col
+    put @"out_position" (modelM !*^ (Vec4 x y z 1))
+    put @"out_normal"   (modelM !*^ (Vec4 nx ny nz 0)) -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
     put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ (Vec4 x y z 1))
 
 
@@ -70,8 +54,19 @@ vertex = shader do
 
 
 type FragmentDefs
-  =  '[ "in_col"  ':-> Input  '[ Location 0 ] (V 3 Float)
-      , "out_col" ':-> Output '[ Location 0 ] (V 4 Float)
+  =  '[ "out_col" ':-> Output '[ Location 0 ] (V 4 Float)
+      , "in_position" ':-> Input '[ Location 0 ] (V 4 Float)
+      , "in_normal"   ':-> Input '[ Location 1 ] (V 4 Float)
+      -- , "light_pos"  ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
+      --                               ( Struct '[ "val" ':-> V 3 Float ] )
+      -- , "camera_pos" ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
+      --                               ( Struct '[ "val" ':-> V 3 Float ] )
+      -- TODO: MinMax material should be a static material because it only needs to be bound, not written every frame, because we statically know it and only change it when the mesh changes
+      , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
+                                  ( Struct '[ "min" ':-> Float
+                                            , "max" ':-> Float ] ) -- Careful with alighnemt
+      , "uniform_col" ':-> Uniform '[ DescriptorSet 1, Binding 1 ]
+                                    ( Struct '[ "val" ':-> V 3 Float ] )
       , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment
       ]
 
@@ -79,9 +74,27 @@ type FragmentDefs
 fragment :: ShaderModule "main" FragmentShader FragmentDefs _
 fragment = shader do
 
-    ~(Vec3 x y z) <- get @"in_col"
+    ~(Vec4 px py pz _)  <- get @"in_position"
+    ~(Vec4 nx ny nz _)  <- get @"in_normal"
+    -- ~(Vec3 cx cy cz)    <- get @"camera_pos"
+    ~(Vec3 bcx bcy bcz) <- use @(Name "uniform_col" :.: Name "val")
 
-    put @"out_col" (Vec4 x y z 1)
+    -- Color
+    min' <- use @(Name "minmax" :.: Name "min")
+    max' <- use @(Name "minmax" :.: Name "max")
+
+    let col_frac = invLerp (norm (Vec3 px py pz)) min' max'
+    let col = Vec4 (lerp (bcx * 0.1) bcx col_frac) (lerp (bcy*0.1) bcy col_frac) (lerp (bcz*0.1) bcz col_frac) 1
+
+    -- Light
+    let dirToLight         = normalise (Vec4 1 (-3) (-1) 1) :: Code (V 4 Float)
+        ambient            = 0.2 :: Code Float
+        normalInWorldSpace = normalise (Vec4 nx ny nz 0) :: Code (V 4 Float)
+        -- light intensity given by cosine of direction to light and the normal in world space
+        lightItensity      = max (dot dirToLight normalInWorldSpace :: Code Float) (0 :: Code Float)
+
+
+    put @"out_col" (lightItensity *^ col)
 
 --- Pipeline ----
 

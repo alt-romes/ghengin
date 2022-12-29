@@ -227,7 +227,7 @@ createDescriptorPool dsetmap = do
 
     setsAmount = fromIntegral $ length dsetmap
     poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = V.fromList poolsSizes
-                                           , maxSets = 100 * setsAmount
+                                           , maxSets = 1000 * setsAmount
                                            , flags = Vk.zero
                                            , next = ()
                                            }

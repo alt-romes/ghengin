@@ -52,18 +52,8 @@ instance GStorable MinMax
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
--- instance Poke MinMax α where
---   type SizeOf α MinMax = 8
---   type Alignment α MinMax = 8
---   poke = S.poke
-
--- Why can't I imprt material
--- type Material' α = DescriptorSet -> Material α
-
 makeMinMaxMaterial :: Vec3 -> MinMax -> Material' '[Vec3, MinMax]
 makeMinMaxMaterial v x = DynamicBinding v . DynamicBinding x . Done
-
-type MinMaxMaterial = Material '[ Vec3, MinMax ]
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
