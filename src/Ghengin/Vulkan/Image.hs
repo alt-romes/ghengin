@@ -39,6 +39,11 @@ createImage device format extent properties usage aspect = do
                                            , allocationSize  = memReq.size
                                            , memoryTypeIndex = memTypeIndex
                                            }
+
+  -- TODO: Of course, when we want to bind a memory to an image, we don’t need
+  -- to create a new memory object each time. It is more optimal to create a
+  -- small number of larger memory objects and bind parts of them by providing
+  -- a proper offset value.
   imgMem <- Vk.allocateMemory device._device memAllocInfo Nothing
 
   Vk.bindImageMemory device._device img imgMem 0
@@ -74,4 +79,11 @@ createImageView dev format aspect img = do
 
 destroyImageView :: Vk.Device -> Vk.ImageView -> IO ()
 destroyImageView d i = Vk.destroyImageView d i Nothing
+
+-- TODO: Destroy Image isn't being called for the earlier images we were creating!?!
+destroyImage :: Vk.Device -> VulkanImage -> IO ()
+destroyImage d (VulkanImage im mem view) = do
+  Vk.destroyImage d im Nothing
+  Vk.freeMemory d mem Nothing
+  Vk.destroyImageView d view Nothing
 

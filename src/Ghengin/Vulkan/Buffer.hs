@@ -46,7 +46,7 @@ createBuffer size usage properties = do
                                         }
   devMem <- Vk.allocateMemory device allocInfo Nothing
 
-  -- Bind buffer to the memory we allocated
+  -- Bind buffer to the memory we allocated (or is it the other way around?)
   Vk.bindBufferMemory device buffer devMem 0
   pure (buffer, devMem)
 
@@ -57,39 +57,57 @@ destroyBuffer buffer mem = do
   Vk.destroyBuffer device buffer Nothing
   Vk.freeMemory device mem Nothing
 
+-- | Run a one-shot command that copies the whole data between two buffers
 copyBuffer :: Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Renderer ext ()
 copyBuffer src dst size = immediateSubmit $ Cmd.copyFullBuffer src dst size
 
--- | Fills a device local buffer with the provided flags and the provided data
+-- | Fills a device (GPU) local buffer with the provided flags and the provided data
 -- by first copying the data to a staging buffer and then running a buffer copy
 -- one-shot command.
 createDeviceLocalBuffer :: ∀ α ext. (SV.Storable α) => Vk.BufferUsageFlags -> SV.Vector α -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
 createDeviceLocalBuffer flags bufferData = do
 
-  let l          = SV.length bufferData
-      bufferSize = fromIntegral $ fromIntegral l * sizeOf @α undefined
-  (stagingBuffer, stagingMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_TRANSFER_SRC_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
+  withStagingBuffer bufferData $ \stagingBuffer bufferSize -> do
 
-  device <- getDevice
-  
-  -- Map the buffer memory into CPU accessible memory
-  data' <- Vk.mapMemory device stagingMem 0 bufferSize zero
-  -- Copy buffer data to data' mapped device memory
-  liftIO $ SV.unsafeWith bufferData $ \ptr -> do
-    copyBytes data' (castPtr ptr) (fromIntegral bufferSize)
-  -- Unmap memory
-  Vk.unmapMemory device stagingMem
+    (devBuffer, devMem) <- createBuffer bufferSize (Vk.BUFFER_USAGE_TRANSFER_DST_BIT .|. flags) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT
 
-  (devBuffer, devMem) <- createBuffer bufferSize (Vk.BUFFER_USAGE_TRANSFER_DST_BIT .|. flags) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+    -- Copy data from staging buffer to actual buffer inaccessible by the host
+    copyBuffer stagingBuffer devBuffer bufferSize
 
-  -- Copy data from staging buffer to actual buffer inaccessible by the host
-  copyBuffer stagingBuffer devBuffer bufferSize
+    pure (devBuffer, devMem)
 
-  -- Free staging buffer
-  Vk.destroyBuffer device stagingBuffer Nothing
-  Vk.freeMemory    device stagingMem    Nothing
+-- | Fills a staging buffer with data, uses it with the given function that
+-- typically copies the buffer data from the staging buffer to another one
+-- (e.g. creating device local buffers and copying textures to the device), and
+-- finally frees the staging buffer
+withStagingBuffer :: ∀ α χ ρ. SV.Storable α => SV.Vector α -> (Vk.Buffer -> Vk.DeviceSize -> Renderer χ ρ) -> Renderer χ ρ
+withStagingBuffer bufferData f = rendererBracket
+  (do
+    let l          = SV.length bufferData
+        bufferSize = fromIntegral $ fromIntegral l * sizeOf @α undefined
+    (stagingBuffer, stagingMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_TRANSFER_SRC_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
-  pure (devBuffer, devMem)
+    device <- getDevice
+    
+    -- Map the buffer memory into CPU accessible memory
+    data' <- Vk.mapMemory device stagingMem 0 bufferSize zero
+    -- Copy buffer data to data' mapped device memory
+    liftIO $ SV.unsafeWith bufferData $ \ptr -> do
+      copyBytes data' (castPtr ptr) (fromIntegral bufferSize)
+    -- Unmap memory
+    Vk.unmapMemory device stagingMem
+
+    pure ((stagingBuffer, bufferSize), stagingMem)
+    )
+  (\((stagingBuffer, _), stagingMem) -> do
+    device <- getDevice
+
+    -- Free staging buffer
+    Vk.destroyBuffer device stagingBuffer Nothing
+    Vk.freeMemory    device stagingMem    Nothing
+
+    )
+  (uncurry f . fst)
 
 createVertexBuffer :: ∀ α ext. (SV.Storable α) => SV.Vector α -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
 createVertexBuffer = createDeviceLocalBuffer @α Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT -- use Locations for vertex buffers

@@ -96,6 +96,8 @@ library
                       Ghengin.Component.Mesh.Sphere,
                       Ghengin.Component.Mesh.Obj,
 
+                      Ghengin.Asset.Texture,
+
                       Ghengin.Render,
                       Ghengin.Render.Packet,
                       Ghengin.Render.Queue,
@@ -111,7 +113,8 @@ library
                         GADTs,
                         ViewPatterns,
                         TypeApplications,
-                        TypeFamilies
+                        TypeFamilies,
+                        LambdaCase
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.17,
@@ -135,7 +138,8 @@ library
                       random,
                       hashable,
                       ghc-typelits-natnormalise,
-                      simple-logger
+                      simple-logger,
+                      JuicyPixels
                       -- witch,
                       -- constraints,
                       -- reflection

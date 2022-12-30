@@ -1,5 +1,12 @@
 A work in progress game engine.
 
+Unique features:
+
+* Compile time validation of compatibility between the game defined materials
+    and the game defined shader programs.
+* It's written in Haskell
+
+
 The current demo is `planets`. To run it call:
 ```
 cabal run planets

@@ -40,6 +40,10 @@ module Ghengin.Vulkan.Command
   , destroyCommandBuffers
 
   , embed
+
+  -- * Images
+  , copyFullBufferToImage
+  , transitionImageLayout
   ) where
 
 import Control.Monad.Reader
@@ -48,6 +52,7 @@ import Foreign.Storable
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Data.Vector (Vector)
+import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
@@ -232,3 +237,74 @@ destroyCommandBuffers = Vk.freeCommandBuffers
 embed :: MonadIO m => ((x -> m ()) -> m ()) -> ((x -> RenderPassCmd m) -> RenderPassCmd m)
 embed g h = RenderPassCmd $ ask >>= \buf -> lift $ g (fmap (\case RenderPassCmd act -> runReaderT act buf) h)
 
+
+-- :| Images |: --
+
+-- | Assumes the layout of the image is Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL!
+copyFullBufferToImage :: MonadIO μ
+                      => Vk.Buffer -- ^ From
+                      -> Vk.Image  -- ^ To
+                      -> Vk.Extent3D
+                      -> Command μ
+copyFullBufferToImage buf img extent = Command $ ask >>= \cmd ->
+  let
+      subresourceRange = Vk.ImageSubresourceLayers { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
+                                                   , mipLevel = 0
+                                                   , baseArrayLayer = 0
+                                                   , layerCount = 1
+                                                   }
+                                                  -- Currently ^ this matches createImageView by chance and other uses of subresourceRange
+      region = Vk.BufferImageCopy { bufferOffset = 0
+                                  , bufferRowLength = 0 -- Data is tighly packed according to image size, so 0 is good here
+                                  , bufferImageHeight = 0 -- ^ As above
+                                  , imageSubresource = subresourceRange
+                                  , imageOffset = Vk.Offset3D 0 0 0
+                                  , imageExtent = extent
+                                  }
+   in do
+      Vk.cmdCopyBufferToImage cmd buf img Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
+
+transitionImageLayout :: MonadIO μ
+                      => Vk.Image -> Vk.Format
+                      -> Vk.ImageLayout -- ^ Src layout
+                      -> Vk.ImageLayout -- ^ Dst layout
+                      -> Command μ
+transitionImageLayout img format srcLayout dstLayout = Command $ ask >>= \buf -> do
+
+  let
+
+      -- Barrier stages and access flags
+      (srcAccess, dstAccess, stageFrom, stageTo) =
+        case (srcLayout, dstLayout) of
+          (Vk.IMAGE_LAYOUT_UNDEFINED, Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) -> (Vk.zero, Vk.ACCESS_TRANSFER_WRITE_BIT, Vk.PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vk.PIPELINE_STAGE_TRANSFER_BIT)
+          (Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) -> (Vk.ACCESS_TRANSFER_WRITE_BIT, Vk.ACCESS_SHADER_READ_BIT, Vk.PIPELINE_STAGE_TRANSFER_BIT, Vk.PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+          _ -> error $ "Unknown transition " <> show (srcLayout, dstLayout)
+
+
+      subresourceRange = Vk.ImageSubresourceRange { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
+                                                  , baseMipLevel = 0
+                                                  , levelCount = 1
+                                                  , baseArrayLayer = 0
+                                                  , layerCount = 1
+                                                  }
+                                                  -- Currently ^ this matches createImageView by chance and other uses of subresourceRange
+
+      layoutChangeUndefTransfer = Vk.ImageMemoryBarrier { next = ()
+                                                        , srcAccessMask = srcAccess
+                                                        , dstAccessMask = dstAccess
+                                                        , oldLayout = srcLayout
+                                                        , newLayout = dstLayout
+                                                        , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+                                                        , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+                                                        , image = img
+                                                        , subresourceRange = subresourceRange
+                                                        }
+
+  -- Possible synchronization in pipeline barriers table: ?
+  -- https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap7.html#synchronization-access-types-supported
+  Vk.cmdPipelineBarrier buf
+                        stageFrom stageTo
+                        Vk.zero -- Dependency flags
+                        [] -- Memory barriers
+                        [] -- Buffer barriers
+                        [Vk.SomeStruct layoutChangeUndefTransfer] -- Image memory barriers
