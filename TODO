@@ -1,8 +1,11 @@
+[ ] Somehow (through Typeable and pattern matching on runtime on the kind of
+    packet) allow to update existentials. This function should also free the mesh/or material updated before creating the new one.
 [ ] Material type list doesn't have to be traversed in reverse... the first item in the list could be binding #0 without any issue
 [ ] Custom lights in descriptor set #0
 [ ] Should the descriptor set #0 be fixed for always needed engine data? (hardcoded) always camera position, lights positions, lights types, ...
 [ ] How to specify arbitrary descriptor set #0 (pipeline global data) and descriptor set #2 data (per model data).
-[ ] Free the discarded descriptor sets (or at least the mapped buffers)
+[ ] Free the discarded descriptor sets in the materials (read below) (or at least the mapped buffers)
+[ ] Free the materials during execution: careful they might be shared.
 [ ] Which UI changed? Currently we don't know and are simply updating all meshes the same
 [ ] Array of textures for textures shared across mats?
 [x] Q: Should I allocate a descriptor set per material? Is that common?

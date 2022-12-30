@@ -45,6 +45,7 @@ import Ghengin.Scene.Graph
 import qualified Ghengin.DearImGui as IM
 
 import Ghengin.Component.Mesh
+import Ghengin.Component.Material
 import Ghengin.Component.Camera
 import Ghengin.Component.Transform
 import Ghengin.Component.UI
@@ -155,9 +156,9 @@ ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConf
   RQ.traverseRenderQueue rq
     (const id)
     (\(RQ.SomePipeline p) -> lift $ destroyRenderPipeline p)
-    (\_ _ -> pure ()) -- TODO: Free static bindings in materials. The dynamic descriptors are
-                      -- freed with the pipeline
-    (\_ m _ -> lift $ freeMesh m)
+    (\_ (RQ.SomeMaterial m) -> lift $ freeMaterial m)
+    (\_ m _ -> lift $ freeMesh m
+    )
     (pure ())
 
   _ <- finalize

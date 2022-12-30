@@ -87,6 +87,7 @@ initG = do
   -- TODO: Currently we can't share meshes, we're freeing them multiple times
   -- causing a segmentation fault, and even worse if we free it to create a new
   -- one when someone else is using it
+  -- TODO: Is that ^ still true?
 
   sceneGraph do
     -- TODO: creating the settings should also define how to react to changes

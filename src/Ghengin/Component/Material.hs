@@ -140,4 +140,9 @@ materialDescriptorSet = \case
   DynamicBinding _ xs -> materialDescriptorSet xs
   StaticBinding _ xs -> materialDescriptorSet xs
 
+freeMaterial :: Material α -> Renderer χ ()
+freeMaterial = \case
+  Done dset -> destroyDescriptorSet dset
+  StaticBinding _ xs -> freeMaterial xs
+  DynamicBinding _ xs -> freeMaterial xs
 
