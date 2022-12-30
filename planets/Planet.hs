@@ -53,7 +53,7 @@ instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
 makeMinMaxMaterial :: Vec3 -> MinMax -> Material' '[Vec3, MinMax]
-makeMinMaxMaterial v x = DynamicBinding v . DynamicBinding x . Done
+makeMinMaxMaterial v x = StaticBinding v . StaticBinding x . Done
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)

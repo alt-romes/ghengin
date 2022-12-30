@@ -1,3 +1,4 @@
+[ ] Material type list doesn't have to be traversed in reverse... the first item in the list could be binding #0 without any issue
 [ ] Custom lights in descriptor set #0
 [ ] Should the descriptor set #0 be fixed for always needed engine data? (hardcoded) always camera position, lights positions, lights types, ...
 [ ] How to specify arbitrary descriptor set #0 (pipeline global data) and descriptor set #2 data (per model data).
@@ -20,7 +21,7 @@ every frame, and the static bindings don't.
 [x] Compatible constraint with working planets example
 [x] Materials must have a compile time size to compare with the size of the descriptors defined in the shader.
 [ ] Swap chain recreation...
-[ ] Static bindings which simply choose the descriptor (set?) rather than write to it
+[x] Static bindings which simply choose the descriptor (set?) rather than write to it
 [ ] Better scene graph implementation
 [+] Use parent component, a cached world matrix?, and a wrapper api that threads entities ids
 [ ] Textures to use with MinMax terrain height

@@ -260,6 +260,10 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
   go :: ∀ υ. Int -> Material υ -> Ghengin ω ()
   go n = \case
     Done _ -> assert (n == (-1)) (pure ()) -- (only triggered with -O0)
+    StaticBinding  _ as ->
+      -- Already has been written to, we simply bind it together with the rest
+      -- of the set and do nothing here.
+      go (n-1) as
     DynamicBinding (a :: α) as -> do
       case materialBinding n of
         -- TODO: Ensure unsafeCoerce is safe here by only allowing
@@ -269,5 +273,4 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
         buf -> lift $ writeMappedBuffer @α buf a
 
       go (n-1) as
-    -- StaticMaterial -> undefined -- TODO: Bind the static descriptor ?
-       
+

@@ -19,6 +19,7 @@ module Ghengin.Component.Material where
 import qualified Data.List.NonEmpty as NE
 import Data.Hashable
 import Ghengin.Render.Pipeline
+import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan
 import Ghengin.Utils
@@ -72,8 +73,13 @@ data Material xs where
                  => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                  -> Material β
                  -> Material (α:β)
-  -- TODO
-  -- StaticBinding :: a -> Material a:b
+  StaticBinding :: ∀ α β
+                .  (Storable α, Sized α, Hashable α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline, Hashable for the unique key
+                => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
+                -> Material β
+                -> Material (α:β)
+  -- TODO: Use a unique supply rather than Hashable.
+
 
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
@@ -84,10 +90,24 @@ material mat' rp =
   let (_,dpool) NE.:| _ = rp._descriptorSetsSet
    in do
      dset <- allocateDescriptorSet 1 dpool
-     pure $ mat' dset
+     let mat = mat' dset
+     writeStaticBindings (matSizeBindings mat - 1) dset mat -- TODO: here it's in reverse...
+     pure mat
 
--- dynamicBinding :: ∀ α β. (Storable α, Sized α, Hashable α) => α -> (Material β -> Material (α:β))
--- dynamicBinding = _
+-- TODO: IT DOESNT NEED TO BE IN REVERSE ....!!!!!!!! The Material type list can
+-- simply be in the order left to right (0 to N bindings)...
+
+writeStaticBindings :: Int -- ^ Which binding # we're currently writing (it keeps decrementing as it recurses)
+                    -> DescriptorSet
+                    -> Material α
+                    -> Renderer χ ()
+writeStaticBindings n dset = \case
+  Done _ -> pure ()
+  DynamicBinding _ xs -> writeStaticBindings (n-1) dset xs
+  StaticBinding a as -> do
+    writeMappedBuffer (getBindingBuffer dset n) a
+    writeStaticBindings (n-1) dset as
+
 
 -- | Returns the number of bindings
 matSizeBindings :: ∀ α. Material α -> Int
@@ -95,23 +115,29 @@ matSizeBindings = -- fromInteger $ natVal $ Proxy @(ListSize α)
   \case
     Done _ -> 0
     DynamicBinding _ xs -> 1 + matSizeBindings xs
+    StaticBinding _ xs -> 1 + matSizeBindings xs
 
 instance Eq (Material '[]) where
   (==) (Done _) (Done _) = True
 
 instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
   (==) (DynamicBinding x xs) (DynamicBinding y ys) = x == y && xs == ys
+  (==) (StaticBinding x xs) (StaticBinding y ys) = x == y && xs == ys
+  (==) (StaticBinding _ _) (DynamicBinding _ _) = False
+  (==) (DynamicBinding _ _) (StaticBinding _ _) = False
 
 instance Hashable (Material '[]) where
   hashWithSalt i (Done _) = hashWithSalt i ()
 
 instance (Hashable a, Hashable (Material as)) => Hashable (Material (a ': as)) where
   hashWithSalt i (DynamicBinding x xs) = hashWithSalt i x `hashWithSalt` xs
+  hashWithSalt i (StaticBinding x xs) = hashWithSalt i x `hashWithSalt` xs
 
 
 materialDescriptorSet :: Material α -> DescriptorSet
 materialDescriptorSet = \case
   Done x -> x
   DynamicBinding _ xs -> materialDescriptorSet xs
+  StaticBinding _ xs -> materialDescriptorSet xs
 
 
