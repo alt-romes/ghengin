@@ -156,8 +156,9 @@ sizeOfPrimTy x = case FIR.Layout.primTySizeAndAli FIR.Layout.Extended x of
 descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType
 descriptorType = \case
   SPIRV.PointerTy SPIRV.Storage.Uniform _ -> Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
-  SPIRV.PointerTy SPIRV.Storage.UniformConstant SPIRV.Sampler -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-  _ -> error "Unexpected/unsupported descriptor set #1 descriptor type"
+  -- SPIRV.PointerTy SPIRV.Storage.UniformConstant SPIRV.Sampler -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+  SPIRV.PointerTy SPIRV.Storage.UniformConstant (SPIRV.SampledImage _) -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+  x -> error $ "Unexpected/unsupported descriptor set #1 descriptor type: " <> show x
 
 
 

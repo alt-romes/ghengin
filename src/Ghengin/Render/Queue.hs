@@ -31,7 +31,7 @@ import qualified Data.IntMap as IM
 
 import Ghengin.Render.Packet
 import Ghengin.Component.Mesh
-import Ghengin.Component.Material
+import Ghengin.Component.Material hiding (material)
 
 newtype RenderQueue a = RenderQueue (IntMap (SomePipeline, IntMap (SomeMaterial, [(Mesh, a)])))
   deriving (Functor)

@@ -24,6 +24,7 @@ import Control.Monad
 import qualified Foreign.Storable as S
 
 import Ghengin hiding (get)
+import Ghengin.Asset.Texture
 import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Vulkan.DescriptorSet
@@ -52,8 +53,8 @@ instance GStorable MinMax
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
-makeMinMaxMaterial :: Vec3 -> MinMax -> Material' '[Vec3, MinMax]
-makeMinMaxMaterial v x = StaticBinding v . StaticBinding x . Done
+makeMinMaxMaterial :: Vec3 -> MinMax -> Texture2D -> Material' '[Texture2D, Vec3, MinMax]
+makeMinMaxMaterial v x t = Texture2DBinding t . StaticBinding v . StaticBinding x . Done
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)

@@ -1,3 +1,5 @@
+[ ] A good hashble instance for Textures, or assign material ids with an atomic counter of sorts which would make things much easier than Hashable...
+[.] Compatibility between binding types (can't match dynamic binding with texture2d)
 [ ] Fix second planet. Its color is probably too bright because of its minmax
     being computed from the first one bc of the mesh recreation thing. once again, we need to fix the UI.
 [ ] Free descriptor sets and descriptor set resources
@@ -32,14 +34,14 @@ every frame, and the static bindings don't.
 [x] Static bindings which simply choose the descriptor (set?) rather than write to it
 [ ] Better scene graph implementation
 [+] Use parent component, a cached world matrix?, and a wrapper api that threads entities ids
-[ ] Textures to use with MinMax terrain height
-[ ] Complete the phong model (and try some Specular lighting)
+[x] Textures to use with MinMax terrain height
+[x] Complete the phong model (and try some Specular lighting)
 [-] Scene graph should (polymorphically?) cull the space, and
 in the visible space order meshes by pipeline and material
 type. Good algorithm that sorts geometry in the best possible way for the engine
 [+] Free render pipelines
 [y] Should each static material have its own descriptor set which simply gets bound instead of writing always over the one created with the pipeline?
-[ ] Validate at compile time the meshes and materials registered for a render pipeline
+[.] Validate at compile time the meshes and materials registered for a render pipeline
 [-] Scene graph (BSP, quad/octtree)
 [ ] Automatically derive UISettings
 [?] Disallow non-uniform scaling so that calculating the normal in world space is simpler

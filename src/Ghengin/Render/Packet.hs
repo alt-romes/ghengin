@@ -19,6 +19,7 @@ module Ghengin.Render.Packet
   , module Ghengin.Render.Pipeline
   ) where
 
+import Ghengin.Asset.Texture
 import Data.Hashable
 import GHC.TypeLits
 import GHC.Records
@@ -35,8 +36,15 @@ import Ghengin.Utils
 import Data.Type.Map
   ( Values )
 import FIR.Pipeline (PipelineInfo(..))
+import qualified FIR.Prim.Image as FIR
 import FIR.ProgramState
+import qualified SPIRV.Image as SPIRV
+import qualified SPIRV.ScalarTy
 import SPIRV.Decoration (Decoration(..))
+
+-- TODO: Don't use hashable, we just need a unique source of ids
+instance Hashable Texture2D where
+  hashWithSalt i _ = i
 
 {-|
 
@@ -179,7 +187,7 @@ type family PipelineKey pipeline :: Nat where
 -- compatible with the render pipeline. See Note [Pipeline compatible materials].
 type family Compatible (xs :: [Type]) (ys :: PipelineInfo) :: Constraint where
   -- Reverse because the material bindings are reversed (the last element is the binding #0)
-  Compatible as bs = ( Matches (Length as) (Length (DSetBindings 1 bs)) (Text "There are " :<>: ShowType (Length as) :<>: Text " material properties in material " :<>: ShowType as :<>: Text " but " :<>: ShowType (Length (DSetBindings 1 bs)) :<>: Text " descriptors in descriptor set #1 " :<>: ShowType (DSetBindings 1 bs))
+  Compatible as bs = ( MatchesSize (Length as) (Length (DSetBindings 1 bs)) (Text "There are " :<>: ShowType (Length as) :<>: Text " material properties in material " :<>: ShowType as :<>: Text " but " :<>: ShowType (Length (DSetBindings 1 bs)) :<>: Text " descriptors in descriptor set #1 " :<>: ShowType (DSetBindings 1 bs))
                      , Compatible' (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs)
 
 
@@ -188,17 +196,38 @@ type family Compatible (xs :: [Type]) (ys :: PipelineInfo) :: Constraint where
 
 type family Compatible' (xs :: [(Nat,Type)]) (ys :: PipelineInfo) :: Constraint where
   Compatible' '[] _ = ()
-  Compatible' ('(n,x) ': xs) ys = ( Sized x
-                                  , Sized (DSetBinding' 1 n ys)
-                                  , Matches (SizeOf x) (SizeOf (DSetBinding' 1 n ys))
-                                    (Text "Material binding #" :<>: ShowType n :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf x)
-                                     :<>: Text " isn't compatible with (doesn't have the same size as) the descriptor binding #" :<>: ShowType n :<>: Text " of size " :<>: ShowType (SizeOf (DSetBinding' 1 n ys))
-                                     :<>: Text " with type " :<>: ShowType (DSetBinding' 1 n ys))
+  Compatible' ('(n,x) ': xs) ys = ( TryMatch x (DSetBinding' 1 n ys)
+                                    ( Sized x
+                                    , Sized (DSetBinding' 1 n ys)
+                                    , MatchesSize (SizeOf x) (SizeOf (DSetBinding' 1 n ys))
+                                      (Text "Material binding #" :<>: ShowType n :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf x)
+                                       :<>: Text " isn't compatible with (doesn't have the same size as) the descriptor binding #" :<>: ShowType n :<>: Text " of size " :<>: ShowType (SizeOf (DSetBinding' 1 n ys))
+                                       :<>: Text " with type " :<>: ShowType (DSetBinding' 1 n ys)) )
                                   , (Compatible' xs ys) )
 
-type family Matches (t :: k) (t' :: k) (e :: ErrorMessage) :: Constraint where
-  Matches x x _ = ()
-  Matches x y e = TypeError e
+-- | If matching fails, the other constraint is passed
+type family TryMatch (t :: Type) (t' :: Type) (c :: Constraint) :: Constraint where
+  -- Does a Material Texture2D binding match a Texture2D shader binding?
+  TryMatch
+    Texture2D
+    (FIR.Image
+      ('FIR.Properties
+        'FIR.FloatingPointCoordinates
+        Float
+        'SPIRV.TwoD
+        ('Just 'SPIRV.NotDepthImage)
+        'SPIRV.NonArrayed
+        'SPIRV.SingleSampled
+        'SPIRV.Sampled
+        ('Just
+            ('SPIRV.ImageFormat
+                ('SPIRV.Integer 'SPIRV.Normalised 'SPIRV.ScalarTy.Unsigned)
+                '[8,8,8,8])))) _ = ()
+  TryMatch _ _ c = c
+
+type family MatchesSize (t :: Nat) (t' :: Nat) (e :: ErrorMessage) :: Constraint where
+  MatchesSize x x _ = ()
+  MatchesSize x y e = TypeError e
 
 -- To calculate all the bindings in a descriptor set we simply keep trying the next descriptor until there's no more.
 type family DSetBindings (set :: Nat) (info :: PipelineInfo) :: [Type] where

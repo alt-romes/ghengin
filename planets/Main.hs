@@ -20,6 +20,7 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans
 
 import Ghengin
+import Ghengin.Asset.Texture
 import Ghengin.Component.Material
 import Ghengin.Component.Mesh
 import Ghengin.Component.Camera
@@ -70,17 +71,19 @@ data World = World { renderPackets :: !(Storage RenderPacket)
 --              , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
 -- @
 
-initG :: Ghengin World PlanetSettings
+initG :: Ghengin World (PlanetSettings, Texture2D)
 initG = do
 
   ps <- liftIO $ makeSettings @PlanetSettings
   ps2 <- liftIO $ makeSettings @PlanetSettings
 
+  tex <- lift $ texture "assets/texture.jpg"
+
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
   (planetMesh,minmax) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
   (planetMesh2,minmax2) <- newPlanet ps2 -- TODO: Also require shader pipeline to validate it
-  m1 <- lift $ material (makeMinMaxMaterial (vec3 1 0 0) minmax) planetPipeline
-  m2 <- lift $ material (makeMinMaxMaterial (vec3 0 0 1) minmax2) planetPipeline
+  m1 <- lift $ material (makeMinMaxMaterial (vec3 1 0 0) minmax tex) planetPipeline
+  m2 <- lift $ material (makeMinMaxMaterial (vec3 0 0 1) minmax2 tex) planetPipeline
   let p1 = renderPacket planetMesh m1 planetPipeline
       p2 = renderPacket planetMesh2 m2 planetPipeline
 
@@ -106,10 +109,10 @@ initG = do
               , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
               -- , PipelineData @Transform self planetPipeline)
 
-  pure ps
+  pure (ps, tex)
 
-updateG :: PlanetSettings -> DeltaTime -> [Bool] -> Ghengin World Bool
-updateG ps dt uichanges = do
+updateG :: (PlanetSettings, Texture2D) -> DeltaTime -> [Bool] -> Ghengin World Bool
+updateG (ps, tex) dt uichanges = do
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr
 
@@ -144,7 +147,7 @@ updateG ps dt uichanges = do
              -> do
                (x,y,z) <- liftIO randomIO
                -- TODO: Free previous material?
-               mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax) pp
+               mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax tex) pp
                -- TODO: The great modify upgrade...
                pure (renderPacket @_ @i newMesh mx (unsafeCoerce pp))
 

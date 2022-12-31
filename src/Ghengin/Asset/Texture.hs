@@ -16,11 +16,16 @@ import Ghengin.Vulkan.Buffer
 
 data Texture2D = Texture2D VulkanImage Vk.Sampler
 
+-- TODO: This isntance sholuldn't exist. just temporary... if you find this here later try to remove it
+instance Eq Texture2D where
+  (==) _ _ = False
+
 texture :: FilePath -> Renderer χ Texture2D
 texture fp = do
   liftIO (readImage fp) >>= \case
     Left e -> liftIO (fail e)
-    Right dimage ->
+    -- (For now) we convert the image to RGBA8 at all costs
+    Right (ImageRGBA8 . convertRGBA8 -> dimage) -> -- A bit of a hack now just to see this work
       let
         wsb = case dimage of
               ImageY8     img -> withStagingBuffer (img.imageData)
@@ -99,6 +104,7 @@ dynamicSize = \case
   ImageCMYK16 img -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelCMYK16) undefined
 
 
+-- Vs. UNORM vs SRGB, which one do I want why?
 dynamicFormat :: DynamicImage -> Vk.Format
 dynamicFormat = \case
   ImageY8     _ -> undefined 

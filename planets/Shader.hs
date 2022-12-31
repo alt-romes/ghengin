@@ -67,6 +67,7 @@ type FragmentDefs
                                             , "max" ':-> Float ] ) -- Careful with alighnemt
       , "uniform_col" ':-> Uniform '[ DescriptorSet 1, Binding 1 ]
                                     ( Struct '[ "val" ':-> V 3 Float ] )
+      , "gradient" ':-> Texture2D '[ DescriptorSet 1, Binding 2 ] (RGBA8 UNorm)
       , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment
       ]
 
@@ -83,10 +84,15 @@ fragment = shader do
     min' <- use @(Name "minmax" :.: Name "min")
     max' <- use @(Name "minmax" :.: Name "max")
 
+
     let col_frac   = invLerp (norm (Vec3 px py pz)) min' max'
-        col        = Vec3 (lerp (bcx * 0.1) bcx col_frac) (lerp (bcy*0.1) bcy col_frac)
+        _col       = Vec3 (lerp (bcx * 0.1) bcx col_frac) (lerp (bcy*0.1) bcy col_frac)
                           (lerp (bcz*0.1) bcz col_frac)
 
+    ~(Vec4 cx' cy' cz' _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
+
+    let
+        col = Vec3 cx' cy' cz'
         -- Light
         viewDir    = normalise (Vec3 cx cy cz ^-^ Vec3 px py pz)
         dirToLight = normalise (Vec3 1 (-3) (-1))
