@@ -10,7 +10,7 @@
 {-# LANGUAGE UndecidableInstances #-} -- HasField Has Transform
 module Ghengin.Component.UI where
 
-import Debug.Trace
+import Data.Kind
 import GHC.Records
 import Control.Monad
 import Control.Monad.IO.Class
@@ -20,18 +20,21 @@ import Data.IORef
 import Data.StateVar
 import Data.Text (Text, pack)
 import Geomancy.Vec3
-import Apecs (Component(..), Map, Storage(..), Has(..), SystemT(..))
+import Apecs (Component(..), Map, Storage(..), Has(..), SystemT(..), Entity)
 import Unsafe.Coerce
+import Ghengin.Scene.Graph
+import {-# SOURCE #-} Ghengin (Ghengin)
 
 import qualified DearImGui as IM
 
-data UIWindow = UIWindow Text UI
+data UIWindow w = forall a. UIWindow Text (Ghengin w a)
 
--- TODO: Sooner rather than later this should be moved to a IO () drawfunction
--- instead of components. If we ever need fine grained control of what was
--- clicked when.
+-- TODO: UI in the Scene Graph?
+newEntityUI :: EntityConstraints w (UIWindow w)
+            => Text -> Ghengin w a -> SceneGraph w Entity
+newEntityUI text act = newEntity (UIWindow text act)
 
-type UI = IO Bool
+type UI w = Ghengin w Bool
 
 data IOSelectRef a = IOSelectRef (IORef a) (IORef Int)
 newIOSelectRef :: MonadIO m => a -> m (IOSelectRef a)
@@ -43,19 +46,19 @@ readIOSelectRef (IOSelectRef r _) = liftIO $ readIORef r
 instance HasGetter (IOSelectRef a) a where
   get = liftIO . readIOSelectRef
 
--- Returns a boolean indicating whether the component was changed in the previous frame
+-- The component should also define how to update the scene
 
 
-colorPicker :: Text -> IORef Vec3 -> UI
+colorPicker :: Text -> IORef Vec3 -> UI w
 colorPicker t ref = IM.colorPicker3 t (unsafeCoerce ref :: IORef IM.ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
 
-sliderFloat :: Text -> IORef Float -> Float -> Float -> UI
+sliderFloat :: Text -> IORef Float -> Float -> Float -> UI w
 sliderFloat = IM.sliderFloat
 
-sliderInt :: Text -> IORef Int -> Int -> Int -> UI
+sliderInt :: Text -> IORef Int -> Int -> Int -> UI w
 sliderInt = IM.sliderInt
 
-sliderVec3 :: Text -> IORef Vec3 -> Float -> Float -> UI
+sliderVec3 :: Text -> IORef Vec3 -> Float -> Float -> UI w
 sliderVec3 t ref f1 f2 = do
   v <- get ref
   withVec3 v $ \x y z -> do
@@ -65,10 +68,10 @@ sliderVec3 t ref f1 f2 = do
     ref $= vec3 x' y' z'
     pure b
 
-dragFloat :: Text -> IORef Float -> Float -> Float -> UI
-dragFloat t ref f1 f2 = trace "DragFloat is behaving weird..." $ IM.dragFloat t ref 0.05 f1 f2
+dragFloat :: Text -> IORef Float -> Float -> Float -> UI w
+dragFloat t ref f1 f2 = IM.dragFloat t ref 0.05 f1 f2
 
-checkBox :: Text -> IORef Bool -> UI
+checkBox :: Text -> IORef Bool -> UI w
 checkBox = IM.checkbox
 
     -- get ref >>= \case
@@ -79,22 +82,24 @@ checkBox = IM.checkbox
     --     ref $= vec3 x' y' z'
     --     pure b
 
-withTree :: Text -> UI -> UI
+withTree :: Text -> Ghengin w a -> Ghengin w ()
 withTree t act = do
   b <- IM.treeNode t
   if b then do
-    b' <- act
+    _ <- act
     IM.treePop
-    pure b'
+    pure ()
   else
-    pure False
+    pure ()
 
+button :: Text -> UI w
+button = IM.button
 
 withCombo :: Show a
           => Text      -- ^ Combo label
           -> IOSelectRef a   -- ^ Reference to current item
           -> NonEmpty a -- ^ List of possible items
-          -> UI
+          -> UI w
 withCombo t (IOSelectRef ref currIx) (opt:|opts) = do
 
   currSelected <- get currIx
@@ -118,17 +123,38 @@ withCombo t (IOSelectRef ref currIx) (opt:|opts) = do
     pure False
 
 
-instance Component UIWindow where
-  type Storage UIWindow = Map UIWindow
+instance Component (UIWindow w) where
+  type Storage (UIWindow w) = Map (UIWindow w)
 
 -- TODO: Instructions on having a World record with "transforms"
-instance (Monad m, HasField "uiwindows" w (Storage UIWindow)) => Has w m UIWindow where
+instance (Monad m, HasField "uiwindows" w (Storage (UIWindow w))) => Has w m (UIWindow w) where
   getStore = SystemT (asks (.uiwindows))
 
+-- Careful! The components cannot have the same Id otherwise they will behave
+-- the same.
 
 class UISettings a where
+
+  -- | Every 'UISettings' instance has a draw function that draws the UI and
+  -- reacts to the changes in it the imgui way. Some UISettings instances might
+  -- simply define the UI layout, however, some might react to a button and e.g.
+  -- update an existing instance. For that, they need the said instance in the
+  -- body of the function. 'ReactivityInput' defines the additional data required
+  -- by these UISettings to define how the game reacts to the UI.
+  type ReactivityInput a
+
+  -- | 'ReactivityOutput' is like 'ReactivityInput' but defines the data that
+  -- the UI returns based on the UI events.
+  type ReactivityOutput a
+
+  -- | The world constraints to react to the changes
+  type ReactivityConstraints a w :: Constraint
+  type ReactivityConstraints _ _ = ()
+
   makeSettings   :: IO a
+
   -- | Makes the UI components for these UI settings. Returns true if the settings were modified.
-  makeComponents :: a -> UI
+  makeComponents :: ReactivityConstraints a w
+                 => a -> ReactivityInput a -> Ghengin w (ReactivityOutput a)
 
 

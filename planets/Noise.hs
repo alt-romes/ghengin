@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -32,6 +33,9 @@ data NoiseSettings = NoiseSettings { numLayers :: !(IORef Int)
                                    }
 
 instance UISettings NoiseSettings where
+  type ReactivityInput NoiseSettings = ()
+  type ReactivityOutput NoiseSettings = ()
+
   makeSettings = do
     numLayersR  <- newIORef 1
     strengthR  <- newIORef 1
@@ -44,9 +48,8 @@ instance UISettings NoiseSettings where
     ntR <- newIOSelectRef SimpleNoise
     pure $ NoiseSettings numLayersR strengthR roughnessR baseRoughnessR persistenceR centerR minValR enabledR ntR
 
-  makeComponents (NoiseSettings nl st ro br ps ce mv cb nt) = do
-    -- TODO: What an amazing bug. If I increase one more letter from some of
-    -- the following UI components the game will crash.
+  makeComponents (NoiseSettings nl st ro br ps ce mv cb nt) () = do
+
     b1 <- checkBox "Enabled" cb
     b2 <- withCombo "Type" nt [SimpleNoise, RigidNoise]
     b3 <- sliderInt "Num Layers" nl 1 8
@@ -56,8 +59,9 @@ instance UISettings NoiseSettings where
     b7 <- sliderFloat "Persistence" ps 0 2
     b8 <- sliderVec3  "Center" ce 0 5
     b9 <- sliderFloat "Minval" mv 0 5
-    -- 
-    pure $ or ([b1,b2,b3,b4,b5,b6,b7,b8,b9] :: [Bool])
+
+    -- pure $ or ([b1,b2,b3,b4,b5,b6,b7,b8,b9] :: [Bool])
+    pure ()
 
 evalNoise :: MonadIO m => NoiseSettings -> Vec3 -> m Float
 evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p =

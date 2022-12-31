@@ -22,6 +22,7 @@ module Ghengin
   ) where
 
 import GHC.Records
+import Type.Reflection
 
 import Data.String
 import Control.Logger.Simple
@@ -71,16 +72,17 @@ type WorldConstraints w = ( HasField "transforms" w (Storage Transform)
                           , HasField "modelMatrices" w (Storage ModelMatrix)
                           , HasField "entityParents" w (Storage Parent)
                           , HasField "cameras" w (Storage Camera)
-                          , HasField "uiwindows" w (Storage UIWindow)
+                          , HasField "uiwindows" w (Storage (UIWindow w))
+                          , Typeable w
                           )
 
 ghengin :: WorldConstraints w
         => w           -- ^ World
         -> Ghengin w a -- ^ Init
         -> Ghengin w b -- ^ Run every simulation step (currently ignored)
-        -> (a -> DeltaTime -> [Bool] -> Ghengin w Bool) -- ^ Run every game
-                                                          -- loop? iteration. The list of list of bools indicates whether the components in
-                                                          -- a UI window were changed. The returned Bool indicates whether we should exit the gameloop
+        -> (a -> DeltaTime -> Ghengin w Bool) -- ^ Run every game
+                                                          -- loop? iteration.
+                                                          -- The returned Bool indicates whether we should exit the gameloop
         -- -> Ghengin w c -- ^ Run every draw step?
         -> Ghengin w c -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
@@ -125,14 +127,16 @@ ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConf
 
     -- DearImGui frame
     -- TODO: Draw UI (define all UI components in the frame)
-    bs <- drawUI
+    -- DrawUI will run the associated onchange functions the imgui way right
+    -- away instead of returning any boolean whatsoever.
+    drawUI
 
     logTrace "Simulating a step"
 
     -- TODO: We're currently drawing two equal frames in a row... we probably want all of this to be done on each frame
 
     -- Game loop step
-    b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime) bs
+    b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime)
 
     logTrace "Rendering"
 
@@ -165,19 +169,15 @@ ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConf
 
   pure ()
 
-drawUI :: WorldConstraints w => Ghengin w [Bool]
+drawUI :: WorldConstraints w => Ghengin w ()
 drawUI = do
     IM.vulkanNewFrame
     IM.glfwNewFrame
     IM.newFrame
 
-    bs <- cfoldM (\acc (uiw :: UIWindow) -> do
-      bs <- lift $ IM.pushWindow uiw
-      pure (bs:acc)) []
+    cmapM $ \(uiw :: UIWindow w) -> IM.pushWindow uiw
 
     IM.render
-
-    pure bs
 
 pattern MAX_FRAME_TIME :: Float
 pattern MAX_FRAME_TIME = 0.5

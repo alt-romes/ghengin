@@ -42,7 +42,7 @@ data World = World { renderPackets :: !(Storage RenderPacket)
                    , transforms    :: !(Storage Transform)
                    , modelMatrices :: !(Storage ModelMatrix)
                    , cameras       :: !(Storage Camera)
-                   , uiwindows     :: !(Storage UIWindow)
+                   , uiwindows     :: !(Storage (UIWindow World))
                    , entityParents :: !(Storage Parent)
                    , entityCounter :: !(Storage EntityCounter)
                    }
@@ -71,7 +71,7 @@ data World = World { renderPackets :: !(Storage RenderPacket)
 --              , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
 -- @
 
-initG :: Ghengin World (PlanetSettings, Texture2D)
+initG :: Ghengin World ()
 initG = do
 
   ps <- liftIO $ makeSettings @PlanetSettings
@@ -80,76 +80,50 @@ initG = do
   tex <- lift $ texture "assets/planet_gradient.png"
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
-  (planetMesh,minmax) <- newPlanet ps -- TODO: Also require shader pipeline to validate it
-  (planetMesh2,minmax2) <- newPlanet ps2 -- TODO: Also require shader pipeline to validate it
+
+  (planetMesh,minmax)   <- newPlanet ps
+  (planetMesh2,minmax2) <- newPlanet ps2
   m1 <- lift $ material (makeMinMaxMaterial (vec3 1 0 0) minmax tex) planetPipeline
   m2 <- lift $ material (makeMinMaxMaterial (vec3 0 0 1) minmax2 tex) planetPipeline
+
   let p1 = renderPacket planetMesh m1 planetPipeline
       p2 = renderPacket planetMesh2 m2 planetPipeline
 
   -- TODO: Currently we can't share meshes, we're freeing them multiple times
   -- causing a segmentation fault, and even worse if we free it to create a new
   -- one when someone else is using it
-  -- TODO: Is that ^ still true?
+  -- TODO: Is that ^ still true? I don't think it is because we construct a
+  -- render queue to free the in game materials, and descend it only visiting
+  -- each material once.
 
   sceneGraph do
-    -- TODO: creating the settings should also define how to react to changes
-    newEntity ( UIWindow "Planet" (makeComponents ps) )
-    newEntity ( UIWindow "Planet2" (makeComponents ps2) )
-
 
     -- TODO: register global pipeline data newEntity ( PipelineData a planetPipeline )?
     -- which can be later modified. this data is bound once per pipeline.?
-    -- The global data in this example is actually the Camera transform
 
-    newEntity' ( p1, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 (pi/2) 0) ) do
-      newEntity ( p2, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
+    (e1,e2) <- newEntity' ( p1, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 (pi/2) 0) ) do
+                 newEntity ( p2, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
 
+    -- The global data in this game in specific is actually the Camera transform?
     newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
               , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
               -- , PipelineData @Transform self planetPipeline)
 
-  pure (ps, tex)
+    -- : UI
+    newEntityUI "Planet"  $ makeComponents ps (e1,tex)
+    newEntityUI "Planet2" $ makeComponents ps2 (e2,tex)
 
-updateG :: (PlanetSettings, Texture2D) -> DeltaTime -> [Bool] -> Ghengin World Bool
-updateG (ps, tex) dt uichanges = do
+  pure ()
+
+updateG :: () -> DeltaTime -> Ghengin World Bool
+updateG () dt = do
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr
 
-  -- TODO: perhaps all UI colors could be combined with the uichanges variables and be always provided on request depending on whether they were changed or not
-  -- something like: getChanged :: Ghengin w (PlanetSettings Maybe) or (Maybe Color, Maybe Resolution) or ...
   -- TODO: Which UI changed?... Maybe we should embrace dear-imgui and make all
   -- the decisions the imgui way. that is, when defining the UI defining what
   -- happens when something is changed
-  when (or uichanges) $
-    cmapM $ \x ->
-      case x of
-        (RenderPacket oldMesh mat pp _) -> do
-          (newMesh,newMinMax) <- newPlanet ps
-          lift $ do
-            freeMesh (oldMesh) -- Can we hide/enforce this somehow? Meshes aren't automatically freed when switched! We should make "switching" explicit?
-          case Shader.shaderPipeline of
-            (spp :: GShaderPipeline i)
-                 -- GIGANTIC:TODO: For some reason I have yet to better
-                 -- understand, the pipeline associated to the render packet
-                 -- can't be used to validate Compatibility with a new material again.
-                 -- It's somehow related to being an existential type and therefore the type not carrying enough information?
-                 -- How can I make the existential type carry enough information to pass Compatible again?
-            --
-            --
-            -- The Solution might be defining a function that edits the content of dynamic
-            -- bindings (by comparing Typeable instances?) because (and this is the key) if
-            -- the pipeline was already created then it was already compatible, and
-            -- therefore changing the value of the dynamic binding will not affect
-            -- compatibility
-            --
-            -- Also: TODO: With the typeable constraint, we are able to inspect at runtime the material type (as if it were a simple tag) and depending on the value updating the material
-             -> do
-               (x,y,z) <- liftIO randomIO
-               -- TODO: Free previous material?
-               mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax tex) pp
-               -- TODO: The great modify upgrade...
-               pure (renderPacket @_ @i newMesh mx (unsafeCoerce pp))
+  --when (or uichanges) $
 
   cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 

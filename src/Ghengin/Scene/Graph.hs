@@ -103,6 +103,8 @@ module Ghengin.Scene.Graph
   , Parent(..)
   , ModelMatrix(..)
   , traverseSceneGraph
+  , SceneGraph -- ^ Export type but not the definition...
+  , EntityConstraints
   ) where
 
 import Data.Maybe

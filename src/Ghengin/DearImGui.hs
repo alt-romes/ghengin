@@ -29,6 +29,7 @@ import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.SwapChain
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan
+import {-# SOURCE #-} Ghengin (Ghengin)
 
 import Ghengin.Component.UI
 
@@ -105,19 +106,16 @@ renderDrawData dd = makeRenderPassCmd $ \b -> do
 
 -- | Returns a list of booleans indicating whether each component was changed
 -- in the previous frame
-pushWindow :: UIWindow -> Renderer ext Bool
+pushWindow :: UIWindow w -> Ghengin w ()
 pushWindow (UIWindow wname act) = do
   beginnt <- IM.begin wname
   if beginnt then do
-    b <- liftIO $ act
-
+    _ <- act
     IM.end
-    pure b
   else do
     -- Optimization, if window is closed we end the the window and avoid
     -- drawing the ui inside it.
     IM.end
-    pure False
 
 
 -- | Returns a boolean indicating whether the component was changed in the previous frame

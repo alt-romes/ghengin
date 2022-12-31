@@ -1,5 +1,5 @@
 Next steps:
-[ ] Update UI in the imgui way instead of that terrible boolean
+[x] Update UI in the imgui way instead of that terrible boolean
 [ ] Function to update material properties which fixes the existential issues
 [ ] Free all textures at the end, and material resources when the material is "removed".
 
@@ -19,7 +19,7 @@ Next steps:
 [ ] How to specify arbitrary descriptor set #0 (pipeline global data) and descriptor set #2 data (per model data).
 [ ] Free the discarded descriptor sets in the materials (read below) (or at least the mapped buffers)
 [ ] Free the materials during execution: careful they might be shared.
-[ ] Which UI changed? Currently we don't know and are simply updating all meshes the same
+[x] Which UI changed? Currently we don't know and are simply updating all meshes the same
 [ ] Array of textures for textures shared across mats?
 [x] Q: Should I allocate a descriptor set per material? Is that common?
     A: Yes. It'll occupy some memory but it would require many many materials
@@ -49,7 +49,7 @@ type. Good algorithm that sorts geometry in the best possible way for the engine
 [y] Should each static material have its own descriptor set which simply gets bound instead of writing always over the one created with the pipeline?
 [.] Validate at compile time the meshes and materials registered for a render pipeline
 [-] Scene graph (BSP, quad/octtree)
-[ ] Automatically derive UISettings
+[ ] Automatically derive UISettings?
 [?] Disallow non-uniform scaling so that calculating the normal in world space is simpler
 [+] Who's pulling in lens? Maybe I can benefit from them if I already have to have them. (Answer: fir)
 [.] Bundle descriptor sets, render passes, and pipelines into a single abstraction
