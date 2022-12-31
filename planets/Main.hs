@@ -79,7 +79,7 @@ initG = do
   ps2 <- liftIO $ makeSettings @PlanetSettings
 
   sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-  tex <- lift $ texture "assets/planet_gradient.png" sampler
+  tex <- lift $ texture "assets/orangbpurple.png" sampler
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
 

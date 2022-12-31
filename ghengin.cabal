@@ -49,14 +49,17 @@ build-type:         Simple
 extra-doc-files:    CHANGELOG.md
 
 -- Extra source files to be distributed with the package, such as examples, or a tutorial module.
--- extra-source-files:
+extra-source-files:
+    cbits/imgui_extensions/*.cpp
+    cbits/imgui_extensions/*.hpp
 
-common warnings
-    ghc-options: -Wall
+common common-flags
+  ghc-options: -Wall -O0
+  cc-options: -O0
 
 library
     -- Import common warning flags.
-    import:           warnings
+    import:           common-flags
 
     -- Modules exported by the library.
     exposed-modules:  Ghengin,
@@ -86,6 +89,7 @@ library
                       Ghengin.Vulkan.Sampler,
 
                       Ghengin.DearImGui,
+                      Ghengin.DearImGui.Gradient,
 
                       Ghengin.Component,
                       Ghengin.Component.UI,
@@ -106,6 +110,16 @@ library
 
     -- Modules included in this library but not exported.
     -- other-modules:
+
+    -- cbits
+    include-dirs:       cbits/imgui_extensions
+    cxx-options:        -std=c++11
+    cxx-sources:        cbits/imgui_extensions/imgui_color_gradient.cpp
+    -- extra-libraries:    stdc++
+    include-dirs:       cbits/imgui_extensions/
+    if os(darwin)
+      ghc-options:      -optcxx-std=c++11
+    
 
     -- LANGUAGE extensions used by modules in this package.
     default-extensions: UnicodeSyntax,
@@ -140,7 +154,8 @@ library
                       hashable,
                       ghc-typelits-natnormalise,
                       simple-logger,
-                      JuicyPixels
+                      JuicyPixels,
+                      inline-c-cpp
                       -- witch,
                       -- constraints,
                       -- reflection
@@ -155,7 +170,7 @@ library
 
 test-suite ghengin-test
     -- Import common warning flags.
-    import:           warnings
+    import:           common-flags
 
     -- Base language which the package is written in.
     default-language: GHC2021
