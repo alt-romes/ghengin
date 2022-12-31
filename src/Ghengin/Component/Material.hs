@@ -137,7 +137,7 @@ material matf rp =
 -- * Static buffer: It will create and write a buffer that can be manually updated
 -- * Texture2D: It will simply add the already existing texture that was created (and engine prepared) on texture creation
 makeResources :: Material α -> Renderer χ ResourceMap
-makeResources m = go (matSizeBindings m) m -- TODO: Fix the order instead of going in reverse...
+makeResources m = go (matSizeBindings m - 1) m -- TODO: Fix the order instead of going in reverse...
   where
     go :: Int -> Material α -> Renderer χ ResourceMap
     go i = \case
