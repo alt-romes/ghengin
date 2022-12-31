@@ -29,6 +29,7 @@ import Ghengin.Component.UI
 import Ghengin.Render.Packet
 import Ghengin.Utils
 import Ghengin.Vulkan
+import Ghengin.Vulkan.Sampler
 import Ghengin.Scene.Graph
 import Ghengin.Shaders
 import Ghengin.Component (Storage, EntityCounter, explInit, cmap, cmapM)
@@ -77,7 +78,8 @@ initG = do
   ps <- liftIO $ makeSettings @PlanetSettings
   ps2 <- liftIO $ makeSettings @PlanetSettings
 
-  tex <- lift $ texture "assets/planet_gradient.png"
+  sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  tex <- lift $ texture "assets/planet_gradient.png" sampler
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
 

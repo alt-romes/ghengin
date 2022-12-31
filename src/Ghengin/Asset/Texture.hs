@@ -16,12 +16,12 @@ import Ghengin.Vulkan.Buffer
 
 data Texture2D = Texture2D VulkanImage Vk.Sampler
 
--- TODO: This isntance sholuldn't exist. just temporary... if you find this here later try to remove it
+-- TODO: This isntance sholuldn't exist. just temporary... if you find this here later try to remove it. it's currenty being used to instance hashable to create the render key...
 instance Eq Texture2D where
   (==) _ _ = False
 
-texture :: FilePath -> Renderer χ Texture2D
-texture fp = do
+texture :: FilePath -> Vk.Sampler -> Renderer χ Texture2D
+texture fp sampler = do
   liftIO (readImage fp) >>= \case
     Left e -> liftIO (fail e)
     -- (For now) we convert the image to RGBA8 at all costs
@@ -72,9 +72,6 @@ texture fp = do
 
             -- (3)
             transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-
-
-          sampler <- createSampler
 
           pure (Texture2D image sampler)
 
