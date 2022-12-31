@@ -15,6 +15,7 @@ import Geomancy.Mat4
 import qualified Vulkan as Vk
 
 import Ghengin.Shaders
+import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.DescriptorSet
@@ -56,19 +57,29 @@ makeRenderPipeline shaderPipeline = do
   -- We need to do 'createDescriptorSets' as many times as there are frames in flight.
   --
   -- TODO: The dpool per frame in flight doesn't make any sense at the moment, for now we simply allocate from the first pool.
-  dsetsSet@(dsets:|_) <- mapM (const (createDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
+  dsetsSet@(dsets:|_) <- mapM (const (createPipelineDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
 
   pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (V.fromList $ fmap fst (IM.elems $ (snd dsets)._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   pure $ RenderPipeline pipeline simpleRenderPass dsetsSet shaderPipeline
 
-createDescriptorSets :: GShaderPipeline info -> Renderer ext (Vector DescriptorSet, DescriptorPool)
-createDescriptorSets pp = do
+createPipelineDescriptorSets :: GShaderPipeline info -> Renderer ext (Vector DescriptorSet, DescriptorPool)
+createPipelineDescriptorSets pp = do
+
+  -- The pipeline should only allocate a descriptor set #0, it needs no else
+
   -- Currently we allocate unnecessary #1 sets: the used ones are allocated on a per-material basis
   let dsetmap = createDescriptorSetBindingsMap pp
   dpool <- createDescriptorPool dsetmap
-  dsets <- allocateDescriptorSets (V.fromList $ IM.keys dsetmap) dpool
-  pure (dsets, dpool)
+  dsetf <- allocateDescriptorSet 0 dpool -- allocate descriptor set #0
+
+  let makeResource :: BindingsMap -> Renderer ext ResourceMap
+      makeResource = traverse (\case (Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER,size,_ssf) -> UniformResource <$> createMappedBuffer size Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+
+  -- Write with resources for descriptor set #0
+  dset <- dsetf =<< makeResource (dsetmap IM.! 0)
+
+  pure ([dset], dpool)
 
 
 
@@ -76,7 +87,8 @@ destroyRenderPipeline :: RenderPipeline α -> Renderer ext ()
 destroyRenderPipeline (RenderPipeline gp rp dss _) = do
   forM_ dss $ \(dsets, dpool) -> do
     destroyDescriptorPool dpool
-    mapM_ destroyDescriptorSet dsets
+    -- BIG:TODO: Destroy descriptor set resources if they are not shared
+    -- mapM_ destroyDescriptorSet dsets
   destroyRenderPass rp
   destroyPipeline gp
 

@@ -1,3 +1,5 @@
+[ ] Free descriptor sets and descriptor set resources
+[ ] Function to update static binding value that simply writes the buffer
 [ ] Use an atomic counter for the material ids? https://github.com/sergv/atomic-counter
 [ ] Somehow (through Typeable and pattern matching on runtime on the kind of
     packet) allow to update existentials. This function should also free the mesh/or material updated before creating the new one.

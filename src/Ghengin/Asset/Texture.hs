@@ -9,19 +9,20 @@ import Codec.Picture
 import qualified Vulkan as Vk
 import Ghengin.Utils
 import Ghengin.Vulkan
+import Ghengin.Vulkan.Sampler
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Image
 import Ghengin.Vulkan.Buffer
 
-newtype Texture = Texture VulkanImage
+data Texture2D = Texture2D VulkanImage Vk.Sampler
 
-texture :: FilePath -> Renderer χ Texture
+texture :: FilePath -> Renderer χ Texture2D
 texture fp = do
   liftIO (readImage fp) >>= \case
     Left e -> liftIO (fail e)
     Right dimage ->
       let
-        f = case dimage of
+        wsb = case dimage of
               ImageY8     img -> withStagingBuffer (img.imageData)
               ImageY16    img -> withStagingBuffer (img.imageData)
               ImageY32    img -> withStagingBuffer (img.imageData)
@@ -38,7 +39,7 @@ texture fp = do
               ImageCMYK16 img -> withStagingBuffer (img.imageData)
        in
 
-        f $ \stagingBuffer _bufferSize -> do
+        wsb $ \stagingBuffer _bufferSize -> do
 
           device <- asks (._vulkanDevice)
           image <- liftIO $ createImage device
@@ -67,8 +68,16 @@ texture fp = do
             -- (3)
             transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
-          pure (Texture image)
 
+          sampler <- createSampler
+
+          pure (Texture2D image sampler)
+
+freeTexture :: Texture2D -> Renderer χ ()
+freeTexture (Texture2D img sampler) = do
+  dev <- getDevice
+  liftIO $ destroyImage dev img
+  destroySampler sampler
 
 
 -- Not needed :(

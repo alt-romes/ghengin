@@ -37,7 +37,7 @@ import Ghengin.Scene.Graph
 import Ghengin.Render.Packet
 import Ghengin.Render.Queue
 import Ghengin.Component.Mesh
-import Ghengin.Component.Material
+import Ghengin.Component.Material hiding (material)
 import Ghengin.Utils
 import {-# SOURCE #-} Ghengin (Ghengin)
 
@@ -145,8 +145,8 @@ render i = do
         descriptorSet :: RenderPipeline α -> Int -> DescriptorSet
         descriptorSet pipeline setIx = fst (pipeline._descriptorSetsSet NE.!! currentFrame) V.! setIx -- must guarantee that there exist this amount of sets in this pipeline
 
-        descriptorSetBinding :: RenderPipeline α -> Int -> Int -> MappedBuffer
-        descriptorSetBinding pipeline setIx bindingIx = fst $ (descriptorSet pipeline setIx)._bindings IM.! bindingIx
+        descriptorSetBinding :: RenderPipeline α -> Int -> Int -> DescriptorResource
+        descriptorSetBinding pipeline setIx bindingIx = (descriptorSet pipeline setIx)._bindings IM.! bindingIx
 
     recordCommand cmdBuffer $ do
 
@@ -181,12 +181,12 @@ render i = do
               -- TODO : Move out of cmapM
               -- Currently the descriptor set #0 always has just a uniform buffer and other fixed engine information
               case descriptorSetBinding pipeline 0 0 of
-                buf -> lift $ writeMappedBuffer buf ubo
+                UniformResource buf -> lift $ writeMappedBuffer buf ubo
 
               -- TODO: Either allow binding set #0 flexibly or describe how the
               -- implementation always passes this information to the shader
               case descriptorSetBinding pipeline 0 1 of
-                buf -> lift $ writeMappedBuffer buf (camTr.position)
+                UniformResource buf -> lift $ writeMappedBuffer buf (camTr.position)
 
 
             -- Bind descriptor set #0
@@ -203,7 +203,7 @@ render i = do
             -- These materials are necessarily compatible with this pipeline in
             -- the set #1, so the 'descriptorSetBinding' buffer will always be
             -- valid to write with the corresponding material binding
-            lift $ writeMaterial (getBindingBuffer matDSet) material
+            lift $ writeMaterial (getUniformBuffer matDSet) material
             
             -- static bindings will have to choose a different dset
             -- Bind descriptor set #1
@@ -246,12 +246,11 @@ render i = do
 -- | Bind a material.
 --
 -- (1) For each binding
---    (1.1) If it's dynamic, write the default (default-bound) buffer
---    (1.2) If it's static, bind the static buffer?
--- (2) Bind the descriptor set #1 with the chosen descriptors
---
--- For now we ignore (1.2) (TODO!) and simply write material data into
--- the default buffers
+--    (1.1) If it's dynamic, write the buffer
+--    (1.2) If it's static, do nothing because the buffer is already written
+--    (1.3) If it's 
+-- (2) Bind the descriptor set #1 with this material's descriptor set ( This is
+-- not being done here ??? )
 --
 -- The material bindings function should be created from a compatible pipeline
 writeMaterial :: ∀ σ ω. (Int -> MappedBuffer) -> Material σ -> Ghengin ω ()
@@ -264,12 +263,15 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
       -- Already has been written to, we simply bind it together with the rest
       -- of the set and do nothing here.
       go (n-1) as
+    Texture2DBinding  _ as ->
+      -- As above. Static bindings don't get written every frame.
+      go (n-1) as
     DynamicBinding (a :: α) as -> do
       case materialBinding n of
         -- TODO: Ensure unsafeCoerce is safe here by only allowing
         -- the construction of dynamic materials if validated at
         -- compile time against the shader pipeline in each
-        -- matching position
+        -- matching position?
         buf -> lift $ writeMappedBuffer @α buf a
 
       go (n-1) as

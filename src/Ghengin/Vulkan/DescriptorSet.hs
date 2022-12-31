@@ -14,6 +14,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.DescriptorSet where
 
+import Control.Monad
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List as L
@@ -35,8 +36,10 @@ import qualified SPIRV.PrimTy as SPIRV
 import qualified SPIRV.Storage
 import Ghengin.Utils
 import Ghengin.Vulkan.Buffer
+import Ghengin.Vulkan.Image
 import Ghengin.Vulkan
 import Ghengin.Shaders
+import qualified Ghengin.Asset.Texture as T
 
 import qualified FIR.Layout
 
@@ -144,26 +147,6 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go mempty ppstag
 
 -- What I couldn't do: Prove that the type family application results in a type that always instances a certain class.
 
--- getDescriptorBindingSize :: ∀ defs. FIR.KnownDefinitions defs
---                          => Int -- ^ descriptor set #
---                          -> Int -- ^ binding #
---                          -> Size
--- getDescriptorBindingSize dsix bix = case
---   foldr
---     (\x acc ->
---       case x of
---         ( SPIRV.PointerTy _ primTy
---           , [SPIRV.Binding (fromIntegral -> bindingIx), SPIRV.DescriptorSet (fromIntegral -> descriptorSetIx)]
---           )
---           | bindingIx == bix && descriptorSetIx == dsix
---           -> fromIntegral (sizeOfPrimTy primTy):acc
---         _ -> acc
---     )
---     mempty
---     (M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) of
---       [size] -> size
---       _ -> error "Err calculating PrimTy size"
-
 sizeOfPrimTy :: SPIRV.PrimTy -> Size
 sizeOfPrimTy x = case FIR.Layout.primTySizeAndAli FIR.Layout.Extended x of
                    Left e -> error (show e)
@@ -172,9 +155,9 @@ sizeOfPrimTy x = case FIR.Layout.primTySizeAndAli FIR.Layout.Extended x of
 
 descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType
 descriptorType = \case
-  SPIRV.PointerTy sc _ -> case sc of
-    SPIRV.Storage.Uniform -> Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
-    _ -> error "Unexpected/unsupported storage class for descriptor"
+  SPIRV.PointerTy SPIRV.Storage.Uniform _ -> Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
+  SPIRV.PointerTy SPIRV.Storage.UniformConstant SPIRV.Sampler -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
+  _ -> error "Unexpected/unsupported descriptor set #1 descriptor type"
 
 
 
@@ -221,7 +204,7 @@ createDescriptorPool dsetmap = do
   layouts <- traverse (\bm -> (,bm) <$> createDescriptorSetLayout bm) dsetmap
 
   let 
-    descriptorsAmounts :: [(Vk.DescriptorType, Int)]
+    descriptorsAmounts :: [(Vk.DescriptorType, Int)] -- ^ For each type, its amount
     descriptorsAmounts = map (\(t :| ls) -> (t, 1000 * (length ls + 1))) . NonEmpty.group . L.sort $ foldMap (foldr (\(ty,_,_) -> (ty:)) mempty) dsetmap
     poolsSizes = map (\(t,fromIntegral -> a) -> Vk.DescriptorPoolSize {descriptorCount = a, type' = t}) descriptorsAmounts
 
@@ -277,10 +260,20 @@ createDescriptorSetLayout bindingsMap = getDevice >>= \device -> do
 -------------------------------
 
 
-data DescriptorSet = DescriptorSet { _ix :: Int
-                                   , _descriptorSet :: Vk.DescriptorSet
-                                   , _bindings :: IntMap (MappedBuffer, Vk.DescriptorType) -- ^ Bindings map
-                                   }
+data DescriptorSet =
+  DescriptorSet { _ix :: Int
+                , _descriptorSet :: Vk.DescriptorSet
+                , _bindings      ::  ResourceMap -- TODO: Rename to _resources instead of _bindings?
+                }
+
+type ResourceMap = IntMap DescriptorResource
+
+data DescriptorResource = UniformResource   MappedBuffer
+                        | Texture2DResource T.Texture2D
+
+-- TODO: Don't export the constructors of the descriptor set and this?
+data Status = Written
+            | Blank
 
 -- | Allocate a descriptor set from a descriptor pool. This descriptor pool has
 -- the information required to allocate a descriptor set based on its index in
@@ -291,15 +284,25 @@ data DescriptorSet = DescriptorSet { _ix :: Int
 -- bindings types (and buffers for each of them).
 --
 -- Each descriptor set must eventually be freed (because of the associated buffers): todo: linear types
+--
+-- This function allocates the descriptor sets but does not write to them. A
+-- descriptor set must be written with the information of each binding (uniform
+-- bindings require the underlying buffer, textures require the underlying
+-- texture). This allows for the caller to allocate the required underlying
+-- buffers and images as required.
+--
+-- To write and obtain the descriptor set, apply the returned function to a
+-- resource map. If the function is applied to an empty resource map, it'll
+-- simply create a descriptor set and write nothing to it.
 allocateDescriptorSet :: Int -- ^ The set to allocate by index
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
-                      -> Renderer χ DescriptorSet
+                      -> Renderer χ (ResourceMap -> Renderer χ DescriptorSet)
 allocateDescriptorSet ix = fmap (\case [ds] -> ds; _ -> error "impossible") . allocateDescriptorSets [ix]
 
 -- | Like 'allocateDescriptorSet' but allocate multiple sets at once
 allocateDescriptorSets :: Vector Int -- ^ The sets to allocate by Ix
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
-                      -> Renderer χ (Vector DescriptorSet)
+                      -> Renderer χ (Vector (ResourceMap -> Renderer χ DescriptorSet))
 allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
   let
       sets :: Vector (Vk.DescriptorSetLayout, BindingsMap)
@@ -313,50 +316,73 @@ allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
   -- Allocate the descriptor sets
   descriptorSets <- Vk.allocateDescriptorSets device allocInfo
 
-  -- Allocate the associated buffers
-  -- TODO; Currently this only creates uniform buffers but later it should also create storage buffers, etc
-  buffers <- traverse (traverse (\case (dt,size,_ssf) -> (,dt) <$> createMappedBuffer size dt) . snd) sets
-
-  -- Write the descriptor set with the allocated buffers
-  V.zipWithM_ updateBufferDescriptorSet descriptorSets buffers
-
-  pure (V.zipWith3 DescriptorSet ixs descriptorSets buffers)
+  -- Return a closure that when applied to a resource map will write the
+  -- descriptor set with the resources information and then return it
+  pure $ V.zipWith (\ix dset resources -> do
+                        -- Write the descriptor set with the allocated resources
+                        updateDescriptorSet dset resources
+                        pure $ DescriptorSet ix dset resources) ixs descriptorSets
   
--- | Update the configuration of a descriptor set with multiple buffers
-updateBufferDescriptorSet :: Vk.DescriptorSet   -- ^ The descriptor set we're writing with these buffers
-                          -> IntMap (MappedBuffer, Vk.DescriptorType) -- ^ The buffers, their bindings, and the type of buffer as a DescriptorType
-                          -> Renderer ext ()
-updateBufferDescriptorSet dset bufs = do
+-- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
+updateDescriptorSet :: Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
+                    -> ResourceMap
+                    -> Renderer ext ()
+updateDescriptorSet dset resources = do
 
-  let makeBufferWrite i (buf, dty) =
-        -- Each descriptor only has one buffer. If we had an array of buffers in a descriptor we would need multiple descriptor buffer infos
-        let bufferInfo = Vk.DescriptorBufferInfo
-                                             { buffer = buf.buffer
-                                             , offset = 0
-                                             , range  = Vk.WHOLE_SIZE -- the whole buffer
-                                             }
+  let makeDescriptorWrite i = \case
+        UniformResource buf -> do
+          -- Each descriptor only has one buffer. If we had an array of buffers in a descriptor we would need multiple descriptor buffer infos
+          let bufferInfo = Vk.DescriptorBufferInfo
+                                               { buffer = buf.buffer
+                                               , offset = 0
+                                               , range  = Vk.WHOLE_SIZE -- the whole buffer
+                                               }
 
-         in Vk.SomeStruct Vk.WriteDescriptorSet
-                                  { next = ()
-                                  , dstSet = dset -- the descriptor set to update with this write
-                                  , dstBinding = fromIntegral i
-                                  , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
-                                  , descriptorType = dty -- The type of buffer
-                                  , descriptorCount = 1 -- Only one buffer in the array of buffers to update
-                                  , bufferInfo = [bufferInfo] -- The one buffer info
-                                  , imageInfo = []
-                                  , texelBufferView = []
-                                  }
+           in Vk.SomeStruct Vk.WriteDescriptorSet
+                                    { next = ()
+                                    , dstSet = dset -- the descriptor set to update with this write
+                                    , dstBinding = fromIntegral i
+                                    , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+                                    , descriptorType = Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -- The type of buffer
+                                    , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+                                    , bufferInfo = [bufferInfo] -- The one buffer info
+                                    , imageInfo = []
+                                    , texelBufferView = []
+                                    }
+        Texture2DResource (T.Texture2D vkimage sampler) -> do
+          let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                 , imageView = vkimage._imageView
+                                                 , sampler   = sampler
+                                                 }
+
+           in Vk.SomeStruct Vk.WriteDescriptorSet
+                                    { next = ()
+                                    , dstSet = dset -- the descriptor set to update with this write
+                                    , dstBinding = fromIntegral i
+                                    , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+                                    , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
+                                    , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+                                    , bufferInfo = [] -- The one buffer info
+                                    , imageInfo = [imageInfo]
+                                    , texelBufferView = []
+                                    }
 
   dev <- getDevice
-  Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeBufferWrite bufs) []
+
+  -- Only issue the call if we're actually updating something.
+  -- This allows us to use the dummy resources trick in 'material'
+  -- TODO: Note Dummy Resource or a good inline comment...
+  when (IM.size resources > 0) $
+    Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeDescriptorWrite resources) []
 
 
-destroyDescriptorSet :: DescriptorSet -> Renderer ext ()
-destroyDescriptorSet (DescriptorSet _ix _dset dbindings) = do
-  _ <- traverse (destroyMappedBuffer . fst) dbindings
-  pure ()
+-- destroyDescriptorSet :: DescriptorSet -> Renderer ext ()
+-- destroyDescriptorSet (DescriptorSet _ix _dset dbindings) = do
+--   _ <- traverse (destroyMappedBuffer) dbindings
+--   pure ()
 
-getBindingBuffer :: DescriptorSet -> Int -> MappedBuffer
-getBindingBuffer dset i = fst $ dset._bindings IM.! i
+getUniformBuffer :: DescriptorSet -> Int -> MappedBuffer
+getUniformBuffer dset i = case dset._bindings IM.! i of
+                            UniformResource b -> b
+                            _ -> error $ "Expecting the descriptor resource at binding " <> show i <> " to be a uniform!"
 

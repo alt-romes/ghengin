@@ -22,13 +22,12 @@ module Ghengin.Render.Packet
 import Data.Hashable
 import GHC.TypeLits
 import GHC.Records
-import Data.Proxy
 import Data.Kind
 import Data.Word
 import Data.Bits
 import Apecs (Component, Storage, Map, Has, getStore, SystemT(..), asks)
 import Ghengin.Render.Pipeline
-import Ghengin.Component.Material
+import Ghengin.Component.Material hiding (material)
 import Ghengin.Component.Mesh
 import Ghengin.Utils
 
@@ -183,8 +182,10 @@ type family Compatible (xs :: [Type]) (ys :: PipelineInfo) :: Constraint where
   Compatible as bs = ( Matches (Length as) (Length (DSetBindings 1 bs)) (Text "There are " :<>: ShowType (Length as) :<>: Text " material properties in material " :<>: ShowType as :<>: Text " but " :<>: ShowType (Length (DSetBindings 1 bs)) :<>: Text " descriptors in descriptor set #1 " :<>: ShowType (DSetBindings 1 bs))
                      , Compatible' (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs)
 
--- TODO: If I "return" a type equality constraint can I still have nice type
--- error messages? perhaps through my own type equality constraint?
+
+-- TODO: Note Compatible
+-- TODO: Validate Types wrt Uniform and Texture with Texture2D
+
 type family Compatible' (xs :: [(Nat,Type)]) (ys :: PipelineInfo) :: Constraint where
   Compatible' '[] _ = ()
   Compatible' ('(n,x) ': xs) ys = ( Sized x

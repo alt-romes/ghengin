@@ -83,6 +83,7 @@ library
                       Ghengin.Vulkan.GLFW.Window,
                       Ghengin.Vulkan.DescriptorSet,
                       Ghengin.Vulkan.ImmediateSubmit,
+                      Ghengin.Vulkan.Sampler,
 
                       Ghengin.DearImGui,
 

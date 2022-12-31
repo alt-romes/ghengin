@@ -16,8 +16,12 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Material where
 
+import qualified Vulkan as Vk
+import qualified Data.IntMap as IM
+import qualified Data.Vector as V
 import qualified Data.List.NonEmpty as NE
 import Data.Hashable
+import Ghengin.Asset.Texture
 import Ghengin.Render.Pipeline
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.DescriptorSet
@@ -73,41 +77,99 @@ data Material xs where
                  => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                  -> Material β
                  -> Material (α:β)
+
   StaticBinding :: ∀ α β
                 .  (Storable α, Sized α, Hashable α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline, Hashable for the unique key
                 => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                 -> Material β
                 -> Material (α:β)
-  -- TODO: Use a unique supply rather than Hashable.
 
+  Texture2DBinding :: Texture2D -> Material β -> Material (Texture2D:β)
+
+  -- TODO: Use a unique supply rather than Hashable?
+
+  -- TODO: Rename a few things (DynamicBinding -> DynamicProperty/Dynamic;
+  -- StaticBinding -> StaticProperty/Static; TextureProperty/Texture)
 
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
 -- TODO: Add Compatible constraint (first move it to its own module)
 material :: Material' α -> RenderPipeline β -> Renderer χ (Material α)
-material mat' rp = 
+material matf rp = 
   let (_,dpool) NE.:| _ = rp._descriptorSetsSet
    in do
-     dset <- allocateDescriptorSet 1 dpool
-     let mat = mat' dset
-     writeStaticBindings (matSizeBindings mat - 1) dset mat -- TODO: here it's in reverse...
-     pure mat
+     -- We allocate a descriptor set and create a closure that will give us the
+     -- descriptor set when provided with a resource map.
+     dsetf <- allocateDescriptorSet 1 dpool
+
+     -- We create a dummy material based on a dummy dset constructed from an
+     -- empty set of resources. The descriptor set function constructs a
+     -- descriptor set and writes all the resources to their bindings. If we
+     -- pass an empty map of resources, nothing is written. So we create an
+     -- empty resource map to create a dummy descriptor set to create a material
+     -- with a dummy dset so we can inspect its structure and allocate the
+     -- required resources that haven't yet been allocated. When we finish doing
+     -- so, we'll have constructed the actual resource map, and can then create
+     -- a final material.
+     dummySet <- dsetf mempty
+     let dummyMat = matf dummySet
+
+     -- Make the resource map for this material
+     resources <- makeResources dummyMat
+
+     -- Create the descriptor set with the written descriptors based on the
+     -- created resource map
+     actualDSet <- dsetf resources
+
+     -- Create the material which stores the final descriptor set with the
+     -- updated information.
+     let actualMat = matf actualDSet
+
+     pure actualMat
+
+-- TODO: function to update a specific binding
+
+-- | Recursively make the descriptor set resource map from the material. This
+-- will create some resources and simply use some provided in the material
+-- properties.
+-- * Dynamic buffers: It will create a mapped buffer but write nothing to it - these buffers are written every frame.
+-- * Static buffer: It will create and write a buffer that can be manually updated
+-- * Texture2D: It will simply add the already existing texture that was created (and engine prepared) on texture creation
+makeResources :: Material α -> Renderer χ ResourceMap
+makeResources m = go (matSizeBindings m) m -- TODO: Fix the order instead of going in reverse...
+  where
+    go :: Int -> Material α -> Renderer χ ResourceMap
+    go i = \case
+      Done _ -> pure mempty
+
+      DynamicBinding x xs -> do
+
+        -- Allocate the associated buffers
+        mb <- createMappedBuffer (fromIntegral $ sizeOf x) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
+        IM.insert i (UniformResource mb) <$> go (i-1) xs
+
+      StaticBinding x xs -> do
+
+        -- Allocate the associated buffers
+        mb <- createMappedBuffer (fromIntegral $ sizeOf x) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -- TODO: Should this be a deviceLocalBuffer?
+
+        -- Write the static information to this buffer right away
+        writeMappedBuffer mb x
+
+        -- TODO: instead -> createDeviceLocalBuffer Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT x
+
+        IM.insert i (UniformResource mb) <$> go (i-1) xs
+        
+      Texture2DBinding t xs -> do
+
+        -- Image has already been allocated when the texture was created, we
+        -- simply pass add it to the resource map
+        IM.insert i (Texture2DResource t) <$> go (i-1) xs
+
 
 -- TODO: IT DOESNT NEED TO BE IN REVERSE ....!!!!!!!! The Material type list can
 -- simply be in the order left to right (0 to N bindings)...
-
-writeStaticBindings :: Int -- ^ Which binding # we're currently writing (it keeps decrementing as it recurses)
-                    -> DescriptorSet
-                    -> Material α
-                    -> Renderer χ ()
-writeStaticBindings n dset = \case
-  Done _ -> pure ()
-  DynamicBinding _ xs -> writeStaticBindings (n-1) dset xs
-  StaticBinding a as -> do
-    writeMappedBuffer (getBindingBuffer dset n) a
-    writeStaticBindings (n-1) dset as
-
 
 -- | Returns the number of bindings
 matSizeBindings :: ∀ α. Material α -> Int
@@ -116,6 +178,7 @@ matSizeBindings = -- fromInteger $ natVal $ Proxy @(ListSize α)
     Done _ -> 0
     DynamicBinding _ xs -> 1 + matSizeBindings xs
     StaticBinding _ xs -> 1 + matSizeBindings xs
+    Texture2DBinding _ xs -> 1 + matSizeBindings xs
 
 instance Eq (Material '[]) where
   (==) (Done _) (Done _) = True
@@ -123,8 +186,8 @@ instance Eq (Material '[]) where
 instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
   (==) (DynamicBinding x xs) (DynamicBinding y ys) = x == y && xs == ys
   (==) (StaticBinding x xs) (StaticBinding y ys) = x == y && xs == ys
-  (==) (StaticBinding _ _) (DynamicBinding _ _) = False
-  (==) (DynamicBinding _ _) (StaticBinding _ _) = False
+  (==) (Texture2DBinding x xs) (Texture2DBinding y ys) = x == y && xs == ys
+  (==) _ _ = False
 
 instance Hashable (Material '[]) where
   hashWithSalt i (Done _) = hashWithSalt i ()
@@ -132,6 +195,7 @@ instance Hashable (Material '[]) where
 instance (Hashable a, Hashable (Material as)) => Hashable (Material (a ': as)) where
   hashWithSalt i (DynamicBinding x xs) = hashWithSalt i x `hashWithSalt` xs
   hashWithSalt i (StaticBinding x xs) = hashWithSalt i x `hashWithSalt` xs
+  hashWithSalt i (Texture2DBinding x xs) = hashWithSalt i x `hashWithSalt` xs
 
 
 materialDescriptorSet :: Material α -> DescriptorSet
@@ -139,10 +203,14 @@ materialDescriptorSet = \case
   Done x -> x
   DynamicBinding _ xs -> materialDescriptorSet xs
   StaticBinding _ xs -> materialDescriptorSet xs
+  Texture2DBinding _ xs -> materialDescriptorSet xs
 
 freeMaterial :: Material α -> Renderer χ ()
 freeMaterial = \case
-  Done dset -> destroyDescriptorSet dset
+  Done dset -> pure () -- destroyDescriptorSet dset -- TODO: BIG TODO: Free descriptor set. Should free each binding that should be destroyed (careful with e.g. shared textures)
   StaticBinding _ xs -> freeMaterial xs
   DynamicBinding _ xs -> freeMaterial xs
+  Texture2DBinding tex xs -> do
+    -- freeTexture tex -- TODO: BIG:TODO: Can't free textures here because they might be shared and we would double free
+    freeMaterial xs
 
