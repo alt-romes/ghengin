@@ -77,7 +77,7 @@ initG = do
   ps <- liftIO $ makeSettings @PlanetSettings
   ps2 <- liftIO $ makeSettings @PlanetSettings
 
-  tex <- lift $ texture "assets/texture.jpg"
+  tex <- lift $ texture "assets/planet_gradient.png"
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
   (planetMesh,minmax) <- newPlanet ps -- TODO: Also require shader pipeline to validate it

@@ -1,3 +1,9 @@
+Next steps:
+[ ] Update UI in the imgui way instead of that terrible boolean
+[ ] Function to update material properties which fixes the existential issues
+[ ] Free all textures at the end, and material resources when the material is "removed".
+
+----
 [ ] A good hashble instance for Textures, or assign material ids with an atomic counter of sorts which would make things much easier than Hashable...
 [.] Compatibility between binding types (can't match dynamic binding with texture2d)
 [ ] Fix second planet. Its color is probably too bright because of its minmax
