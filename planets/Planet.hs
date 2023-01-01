@@ -11,6 +11,7 @@
 {-# LANGUAGE BlockArguments #-}
 module Planet where
 
+import Ghengin.DearImGui.Gradient
 import GHC.TypeLits
 import GHC.Generics
 import GHC.Records
@@ -70,6 +71,7 @@ data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , useFirstLayerAsMask :: !(IORef Bool)
                                      , noiseSettings :: !(NE.NonEmpty NoiseSettings)
                                      , displayFace   :: !(IOSelectRef DisplayFace)
+                                     , gradient :: (ImGradient, IORef ImGradientMark, IORef ImGradientMark)
                                      }
 
 data DisplayFace = All | FaceUp | FaceRight deriving Show
@@ -89,9 +91,16 @@ instance UISettings PlanetSettings where
     ns2    <- makeSettings @NoiseSettings
     _ns3    <- makeSettings @NoiseSettings
     df     <- newIOSelectRef All
-    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2] df
+    grad <- woodGradient
+    m1   <- newIORef (ImGradientMark 0 0 0 1 0)
+    m2   <- newIORef (ImGradientMark 0 0 0 1 0)
+    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2] df (grad,m1,m2)
 
-  makeComponents ps@(PlanetSettings re ra co bo nss df) (planetEntity, tex) = do
+  makeComponents ps@(PlanetSettings re ra co bo nss df (grad,m1,m2)) (planetEntity, tex) = do
+
+    gradientButton grad
+
+    -- gradientEditor grad m1 m2
 
     withTree "Planet" do
       _b1 <- sliderInt "Resolution" re 2 200
@@ -141,7 +150,8 @@ instance UISettings PlanetSettings where
     pure ()
 
 newPlanet :: PlanetSettings -> Ghengin w (Mesh, MinMax)
-newPlanet (PlanetSettings re ra co bo nss df) = lift $ do
+newPlanet (PlanetSettings re ra co bo nss df (grad, _m1, _m2)) = lift $ do
+  liftIO $ print $ colorAt grad 0.5
   re' <- get re
   ra' <- get ra
   co' <- get co

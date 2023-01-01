@@ -12,6 +12,9 @@ The current demo is `planets`. To run it call:
 cabal run planets
 ```
 
+Write ups:
+* https://discourse.haskell.org/t/monthly-update-on-a-haskell-game-engine/5515
+
 More resources:
 * https://developer.nvidia.com/blog/vulkan-dos-donts/
 * https://zeux.io/2020/02/27/writing-an-efficient-vulkan-renderer/

@@ -79,7 +79,7 @@ initG = do
   ps2 <- liftIO $ makeSettings @PlanetSettings
 
   sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-  tex <- lift $ texture "assets/orangbpurple.png" sampler
+  tex <- lift $ texture "assets/planet_gradient.png" sampler
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
 
@@ -121,12 +121,6 @@ updateG :: () -> DeltaTime -> Ghengin World Bool
 updateG () dt = do
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr
-
-  -- TODO: Which UI changed?... Maybe we should embrace dear-imgui and make all
-  -- the decisions the imgui way. that is, when defining the UI defining what
-  -- happens when something is changed
-  --when (or uichanges) $
-
   cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)
 
   pure False
