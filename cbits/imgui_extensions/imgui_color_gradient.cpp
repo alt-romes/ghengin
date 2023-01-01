@@ -380,7 +380,7 @@ namespace ImGui
         
         if(selectedMark)
         {
-            bool colorModified = ImGui::ColorPicker3(NULL, selectedMark->color);
+            bool colorModified = ImGui::ColorPicker3("", selectedMark->color);
             
             if(selectedMark && colorModified)
             {

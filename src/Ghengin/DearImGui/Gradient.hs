@@ -4,17 +4,18 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.DearImGui.Gradient where
 
-import Control.Monad
+import Geomancy.Vec3
 import System.IO.Unsafe
-import Data.StateVar
+-- import Data.StateVar
 import DearImGui.Context
   ( imguiContext )
 
 import Foreign.Storable
 import Foreign.Marshal.Array
-import Foreign.Marshal.Utils
+-- import Foreign.Marshal.Utils
 import Control.Monad.IO.Class
 import Foreign.C.Types
 import Foreign.Ptr
@@ -55,9 +56,14 @@ Cpp.include "imgui_color_gradient.hpp"
 Cpp.using "namespace ImGui"
 
 -- TODO: When will it be freed?
-newGradient :: (MonadIO m) =>  m ImGradient
-newGradient = liftIO do
-  pt <- [Cpp.block| ImGradient* { return new ImGradient();} |]
+newGradient :: (MonadIO m) => Vec3 -> Vec3 -> m ImGradient
+newGradient (WithVec3 (CFloat -> x1) (CFloat -> y1) (CFloat -> z1))
+            (WithVec3 (CFloat -> x2) (CFloat -> y2) (CFloat -> z2)) = liftIO do
+  pt <- [Cpp.block| ImGradient* {
+                      ImGradient* gradient = new ImGradient();
+                      gradient->addMark(0.0f, ImColor($(float x1), $(float y1), $(float z1)));
+                      gradient->addMark(1.0f, ImColor($(float x2), $(float y2), $(float z2)));
+                      return gradient; } |]
   pure (ImGradient pt)
 
 woodGradient :: (MonadIO m) => m ImGradient
@@ -96,24 +102,38 @@ gradientButton (ImGradient ptr) = liftIO do
 
 
 -- | ImGui gradient editor: Must be defined in a UI window (or otherwise the imgui context won't be set)
-gradientEditor :: (MonadIO m, HasGetter ref ImGradientMark, HasSetter ref ImGradientMark)
+gradientEditor :: (MonadIO m) -- , HasGetter ref ImGradientMark, HasSetter ref ImGradientMark)
                => ImGradient
-               -> ref
-               -> ref
+               -- -> ref
+               -- -> ref
                -> m Bool
-gradientEditor (ImGradient grad) ref1 ref2 = liftIO do
-  m1 <- get ref1
-  m2 <- get ref2
-  with m1 $ \m1ptr ->
-    with m2 $ \m2ptr -> do
+gradientEditor (ImGradient grad) = liftIO do
+  -- m1 <- get ref1
+  -- m2 <- get ref2
+  -- TODO: Don't use static, we should pass some ptr that can be changed to
+  -- another pointer but this should still all work. Meaning we'd need to
+  -- store instead the ptr to the mark inside the imgradient?
+  -- For now, OK..
+  -- with m1 $ \m1ptr ->
+  --   with m2 $ \m2ptr -> do
       changed <- (0 /=) <$>
-                    [Cpp.exp| bool { GradientEditor($(ImGradient* grad), $(ImGradientMark* m1ptr), $(ImGradientMark* m2ptr)) } |]
+        [Cpp.block|
+          bool {
+          static ImGradientMark* draggingMark = nullptr;
+          static ImGradientMark* selectedMark = nullptr;
+          return
+            GradientEditor( $(ImGradient* grad)
+                          , draggingMark
+                          , selectedMark
+                          );
+          }
+          |]
 
-      when changed $ do
-        m1new <- peek m1ptr
-        m2new <- peek m2ptr
-        ref1 $=! m1new
-        ref2 $=! m2new
+      -- when changed $ do
+      --   m1new <- peek m1ptr
+      --   m2new <- peek m2ptr
+      --   ref1 $=! m1new
+      --   ref2 $=! m2new
 
       pure changed
 
