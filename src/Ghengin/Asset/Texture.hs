@@ -1,8 +1,16 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
-module Ghengin.Asset.Texture where
+module Ghengin.Asset.Texture
+  (
+    module Ghengin.Asset.Texture
 
+  -- * Generating textures
+  , generateImage
+  , DynamicImage(..)
+  ) where
+
+import Geomancy.Vec3
 import Control.Monad.Reader
 import Codec.Picture
 
@@ -24,10 +32,20 @@ texture :: FilePath -> Vk.Sampler -> Renderer χ Texture2D
 texture fp sampler = do
   liftIO (readImage fp) >>= \case
     Left e -> liftIO (fail e)
-    -- (For now) we convert the image to RGBA8 at all costs
-    Right (ImageRGBA8 . convertRGBA8 -> dimage) -> -- A bit of a hack now just to see this work
-      let
-        wsb = case dimage of
+    Right dimage -> textureFromImage dimage sampler
+
+freeTexture :: Texture2D -> Renderer χ ()
+freeTexture (Texture2D img sampler) = do
+  dev <- getDevice
+  liftIO $ destroyImage dev img
+  destroySampler sampler
+
+textureFromImage :: DynamicImage
+                 -> Vk.Sampler
+                 -> Renderer χ Texture2D
+-- (For now) we convert the image to RGBA8 at all costs, which is a bit of a hack
+textureFromImage (ImageRGBA8 . convertRGBA8 -> dimage) sampler =
+  let wsb = case dimage of
               ImageY8     img -> withStagingBuffer (img.imageData)
               ImageY16    img -> withStagingBuffer (img.imageData)
               ImageY32    img -> withStagingBuffer (img.imageData)
@@ -42,45 +60,42 @@ texture fp sampler = do
               ImageYCbCr8 img -> withStagingBuffer (img.imageData)
               ImageCMYK8  img -> withStagingBuffer (img.imageData)
               ImageCMYK16 img -> withStagingBuffer (img.imageData)
-       in
 
-        wsb $ \stagingBuffer _bufferSize -> do
+   in wsb $ \stagingBuffer _bufferSize -> do
 
-          device <- asks (._vulkanDevice)
-          image <- liftIO $ createImage device
-                               (dynamicFormat dimage)
-                               (dynamicExtent dimage)
-                               Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- Where to allocate the memory
-                               (Vk.IMAGE_USAGE_TRANSFER_DST_BIT .|. Vk.IMAGE_USAGE_SAMPLED_BIT) -- For the texture to be used in the shader, and to transfer data to it
-                               Vk.IMAGE_ASPECT_COLOR_BIT
+    device <- asks (._vulkanDevice)
+    image <- liftIO $ createImage device
+                         (dynamicFormat dimage)
+                         (dynamicExtent dimage)
+                         Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- Where to allocate the memory
+                         (Vk.IMAGE_USAGE_TRANSFER_DST_BIT .|. Vk.IMAGE_USAGE_SAMPLED_BIT) -- For the texture to be used in the shader, and to transfer data to it
+                         Vk.IMAGE_ASPECT_COLOR_BIT
+
+    -- The image starts with an undefined layout:
+    --
+    -- (1) we change to layout to transfer optimal,
+    -- (2) we transfer from the staging buffer to the image
+    -- (3) we change the layout to shader read-only optimal
+    immediateSubmit $ do
+
+      -- TODO: Make this the default setting in those functions, and move it there.
+
+      -- (1) 
+      transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+
+      -- (2)
+      copyFullBufferToImage stagingBuffer image._image (dynamicExtent dimage)
+
+      -- (3)
+      transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+
+    pure (Texture2D image sampler)
 
 
-          -- The image starts with an undefined layout:
-          --
-          -- (1) we change to layout to transfer optimal,
-          -- (2) we transfer from the staging buffer to the image
-          -- (3) we change the layout to shader read-only optimal
-          immediateSubmit $ do
-
-            -- TODO: Make this the default setting in those functions, and move it there.
-
-            -- (1) 
-            transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-
-            -- (2)
-            copyFullBufferToImage stagingBuffer image._image (dynamicExtent dimage)
-
-            -- (3)
-            transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-
-          pure (Texture2D image sampler)
-
-freeTexture :: Texture2D -> Renderer χ ()
-freeTexture (Texture2D img sampler) = do
-  dev <- getDevice
-  liftIO $ destroyImage dev img
-  destroySampler sampler
-
+-- | Convert a vec3 with values between 0-1 and convert it into a pixelrgb8
+-- with values between 0-255 
+normVec3ToRGB8 :: Vec3 -> PixelRGB8
+normVec3ToRGB8 (WithVec3 x y z) = PixelRGB8 (round $ x * 255) (round $ y * 255) (round $ z * 255)
 
 -- Not needed :(
 dynamicSize :: DynamicImage -> Int

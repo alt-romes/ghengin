@@ -101,7 +101,7 @@ fragment = shader do
         -- light intensity given by cosine of direction to light and the normal in world space
         diffuse    = (max (dot dirToLight normal) 0) *^ col
         halfwayDir = normalise (dirToLight ^+^ viewDir)
-        specular   = ((max (dot halfwayDir normal) 0) ** 32) *^ (Vec3 0.3 0.3 0.3 {- bright light -})
+        specular   = ((max (dot halfwayDir normal) 0) ** 16) *^ (Vec3 0.3 0.3 0.3 {- bright light -})
 
         Vec3 colx coly colz = ambient ^+^ diffuse ^+^ specular
 

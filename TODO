@@ -1,3 +1,5 @@
+[.] Gradient GUI editor. (TODO: left align it...)
+
 Next steps:
 [x] Update UI in the imgui way instead of that terrible boolean
 [ ] Function to update material properties which fixes the existential issues

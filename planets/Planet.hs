@@ -24,6 +24,7 @@ import GHC.Float
 import Data.IORef
 import Control.Monad
 import Unsafe.Coerce
+import Ghengin.Vulkan.Sampler
 
 import qualified Foreign.Storable as S
 
@@ -71,7 +72,8 @@ data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , useFirstLayerAsMask :: !(IORef Bool)
                                      , noiseSettings :: !(NE.NonEmpty NoiseSettings)
                                      , displayFace   :: !(IOSelectRef DisplayFace)
-                                     , gradient :: (ImGradient, IORef ImGradientMark, IORef ImGradientMark)
+                                     -- , gradient :: (ImGradient, IORef ImGradientMark, IORef ImGradientMark)
+                                     , gradient :: ImGradient
                                      }
 
 data DisplayFace = All | FaceUp | FaceRight deriving Show
@@ -91,22 +93,20 @@ instance UISettings PlanetSettings where
     ns2    <- makeSettings @NoiseSettings
     _ns3    <- makeSettings @NoiseSettings
     df     <- newIOSelectRef All
-    grad <- woodGradient
-    m1   <- newIORef (ImGradientMark 0 0 0 1 0)
-    m2   <- newIORef (ImGradientMark 0 0 0 1 0)
-    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2] df (grad,m1,m2)
+    grad <- newGradient (vec3 0 0 0) (vec3 1 1 1)
+    -- m1   <- newIORef (ImGradientMark 0 0 0 1 0)
+    -- m2   <- newIORef (ImGradientMark 0 0 0 1 0)
+    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2] df grad
 
-  makeComponents ps@(PlanetSettings re ra co bo nss df (grad,m1,m2)) (planetEntity, tex) = do
+  makeComponents ps@(PlanetSettings re ra co bo nss df grad) (planetEntity, tex) = do
 
-    gradientButton grad
-
-    -- gradientEditor grad m1 m2
 
     withTree "Planet" do
       _b1 <- sliderInt "Resolution" re 2 200
       _b2 <- sliderFloat "Radius" ra 0 3
 
-      whenM (colorPicker "Color" co) $ do
+      whenM (gradientEditor grad) $ do
+      -- whenM (colorPicker "Color" co) $ do
         -- TODO: When the color changes we update the mesh right away
         pure ()
 
@@ -141,16 +141,23 @@ instance UISettings PlanetSettings where
          -- Also: TODO: With the typeable constraint, we are able to inspect at runtime the material type (as if it were a simple tag) and depending on the value updating the material
           -> do
             (x,y,z) <- liftIO randomIO
-            -- TODO: Free previous material?
-            mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax tex) pp
+            -- TODO: Free previous material?!!
+            newTex <- textureFromGradient grad
+            mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax newTex) pp
             -- TODO: The great modify upgrade...
             C.set planetEntity (renderPacket @_ @i newMesh mx (unsafeCoerce pp))
 
-
     pure ()
 
+textureFromGradient :: ImGradient -> Ghengin w Texture2D
+textureFromGradient grad = do
+  let img = generateImage (\x _y -> normVec3ToRGB8 $ colorAt grad (fromIntegral x/(50-1))) 50 1
+  sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  lift $ textureFromImage (ImageRGB8 img) sampler
+
+
 newPlanet :: PlanetSettings -> Ghengin w (Mesh, MinMax)
-newPlanet (PlanetSettings re ra co bo nss df (grad, _m1, _m2)) = lift $ do
+newPlanet (PlanetSettings re ra co bo nss df grad) = lift $ do
   liftIO $ print $ colorAt grad 0.5
   re' <- get re
   ra' <- get ra
