@@ -16,7 +16,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Material where
 
-import Data.Ord
+import Debug.Trace
 import Data.Typeable
 import GHC.TypeLits
 import Data.Kind
@@ -132,96 +132,135 @@ material matf rp =
 
      pure actualMat
 
--- | Edit a material.
---
--- Most materials are (existentially) stored within a render packet, and thus
--- cannot be edited without checking what material is what, even if we, at the
--- apecs level, only query for entities that we are sure to have that material.
---
--- To introduce a local equality constraint proving that the material we looked
--- up is in fact the one we want to edit, we must use @Data.Typeable@'s @eqT@ function.
---
--- Example
--- @
--- RenderPacket oldMesh (someMaterial :: Material mt) pp _ <- C.get planetEntity
---
--- -- Pattern match on Refl to introduce the mt ~ PlanetMaterial local equality
--- Just Refl <- pure $ eqT @mt @PlanetMaterial
---
--- -- We can now edit the material's second binding because we know it to be a PlanetMaterial material
--- newMat    <- medit @2 @PlanetMaterial someMaterial $ \(WithVec3 x y z) -> vec3 x (y+1) z
--- C.set planetEntity (renderPacket oldMesh newMat pp)
--- @
---
--- The nice thing about introducing equality constraints is that we can edit
--- the material and then re-create the render packet with the same pipeline as
--- it was originally created despite us not knowing anything about its type:
--- The local equality simply allowed us to edit the Material with at specific
--- type, but the information regarding compatibility between *that same type
--- (that we previously didn't know enough about to edit)* is preserved!
---
--- Additionally, when the material is edited through this function
--- resources can be automatically freed and allocated if needed
---
--- Previously we would have to recreate and reallocate all the descriptors and
--- buffers for a material, now we can simply rewrite the exact buffer without
--- doing a single allocation
-medit :: ∀ α n χ. KnownNat n
-      => Material α -> (BindingAt n α -> BindingAt n α) -> Renderer χ (Material α)
-medit mat update = medit' @α @'[n] mat (\(x :# HNil) -> update x :# HNil)
-
-type BindingAt :: Nat -> [Type] -> Type
-type family BindingAt n α where
-  BindingAt n α = Index (Reverse α '[]) n 0 (Text "Failed to get binding #" :<>: ShowType n :<>: Text " of Material " :<>: ShowType α)
-
--- | Like 'medit' but edit multiple material properties/bindings at the same time
---
--- @
--- Update bindings #0 and #2
--- newMaterial <- medit' @PlanetMaterial @[0,2] mat $ \(_oldMinMax :# _oldTex :# HNil) -> newMinMax :# newTex :# HNil
--- @
-medit' :: ∀ α ns χ. KnownNats ns
-       => Material α -> (HList (BindingsAt ns α) -> HList (BindingsAt ns α)) -> Renderer χ (Material α)
-medit' mat update =
-  let -- If this ever shows up in the profile because of iterating (worst-case) the whole material once for each property to edit, make it performant ...
-      ixs = natList @ns
-      currentValues = getBindingValues ixs
-   in
-    undefined
-  where
-    getBindingValues :: ∀ nl. NatList nl -> HList (BindingsAt nl α)
-    getBindingValues ØNL = HNil
-    getBindingValues (Proxy @n :<# ns) = getBindingValueAt @α @n mat :# getBindingValues ns
-
-
 -- TODO: meditM, meditM'
 
-type BindingsAt :: [Nat] -> [Type] -> [Type]
-type family BindingsAt ns α where
-  BindingsAt '[] α = '[]
-  BindingsAt (n ': ns) α = BindingAt n α ': BindingsAt ns α
 
-getBindingValueAt :: ∀ α n. Material α -> BindingAt n α
-getBindingValueAt mat' = undefined
+class HasBindingsAt ns α βs where
+  getBindingValues :: Material α -> HList βs
 
-  -- TODO: I don't know yet how to write this function (or whether its possible to do so) in a type safe way
-  -- I think I'd need something like unsafe drop head at the type level, or maybe a type class?
+  -- | Like 'medit' but edit multiple material properties/bindings at the same time
   --
-  -- go (matSizeBindings mat' - 1) (fromInteger $ natVal $ Proxy @n) mat'
-  -- where
-  --   go :: ∀ a. Material a -> BindingAt n a
-  --   go _ _ (Done _) = error "Impossible for this to typecheck, there could be no binding at α if α ~ '[]"
-  --   go it needle mat
-  --     | it == needle
-  --     , StaticBinding x _ 
-  --     | otherwise = undefined
+  -- @
+  -- Update bindings #0 and #2
+  -- newMaterial <- medits @PlanetMaterial @[0,2] mat $ (\_oldMinMax -> newMinMax) :# (\_oldTex -> newTex) :# HNil
+  -- @
+  --
+  -- Updates are done from left to right in the list of updates, if that matters
+  medits :: Material α -> HFList βs -> Renderer χ (Material α)
 
+instance HasBindingsAt '[] α '[] where
+  getBindingValues _ = HNil
+  medits mat _ = pure mat
+
+instance (HasBindingAt n α β, HasBindingsAt ns α βs) => HasBindingsAt (n ': ns) α (β ': βs) where
+  getBindingValues mat = getBindingValue @n @α @β mat :# getBindingValues @ns @α @βs mat
+
+  medits mat (update :-# updates) = do
+    newMat <- medit @n @α @β mat update
+    medits @ns @α @βs newMat updates
+
+class HasBindingAt n α β where
+  getBindingValue :: Material α -> β
+
+  -- | Edit a material.
+  --
+  -- Most materials are (existentially) stored within a render packet, and thus
+  -- cannot be edited without checking what material is what, even if we, at the
+  -- apecs level, only query for entities that we are sure to have that material.
+  --
+  -- To introduce a local equality constraint proving that the material we looked
+  -- up is in fact the one we want to edit, we must use @Data.Typeable@'s @eqT@ function.
+  --
+  -- Example
+  -- @
+  -- RenderPacket oldMesh (someMaterial :: Material mt) pp _ <- C.get planetEntity
+  --
+  -- -- Pattern match on Refl to introduce the mt ~ PlanetMaterial local equality
+  -- Just Refl <- pure $ eqT @mt @PlanetMaterial
+  --
+  -- -- We can now edit the material's second binding because we know it to be a PlanetMaterial material
+  -- newMat    <- medit @2 @PlanetMaterial someMaterial $ \(WithVec3 x y z) -> vec3 x (y+1) z
+  -- C.set planetEntity (renderPacket oldMesh newMat pp)
+  -- @
+  --
+  -- The nice thing about introducing equality constraints is that we can edit
+  -- the material and then re-create the render packet with the same pipeline as
+  -- it was originally created despite us not knowing anything about its type:
+  -- The local equality simply allowed us to edit the Material with at specific
+  -- type, but the information regarding compatibility between *that same type
+  -- (that we previously didn't know enough about to edit)* is preserved!
+  --
+  -- Additionally, when the material is edited through this function
+  -- resources can be automatically managed if needed
+  --
+  -- Previously we would have to recreate and reallocate all the descriptors and
+  -- buffers for a material, now we can simply rewrite the exact buffer without
+  -- doing a single allocation, or update the dset with the new texture
+  medit :: Material α -> (β -> β) -> Renderer χ (Material α)
+
+instance HasBindingAt' (n+1) (Length α) α β => HasBindingAt n α β where
+  getBindingValue = getBindingValue' @(n+1) @(Length α) @α @β
+  medit mat update = medit' @(n+1) @(Length α) @α @β mat update
+
+class HasBindingAt' n m a b where
+  getBindingValue' :: Material a -> b
+  medit' :: Material a -> (b -> b) -> Renderer χ (Material a)
+
+instance TypeError (Text "Failed to get binding #" :<>: ShowType (n-1) :<>: Text " of Material " :<>: ShowType α)
+  => HasBindingAt' n 0 α b where
+  getBindingValue' = undefined
+  medit' = undefined
+
+-- This instance should always overlap the recursive instance below because we
+-- want to stop when we find the binding
+instance {-# OVERLAPPING #-} KnownNat n => HasBindingAt' n n (b ': as) b where
+  getBindingValue' = headMat
+
+  medit' mat update = case mat of
+    DynamicBinding x xs -> do
+      let ux = update x
+      writeDynamicBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
+      pure $ DynamicBinding ux xs
+    StaticBinding x xs -> do
+      let ux = update x
+      writeStaticBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
+      pure $ StaticBinding ux xs
+    Texture2DBinding x xs -> do
+      let ux = update x
+      -- NEXT:TODO: We need to update the descriptor set to point to this texture,
+      -- For now, let's see if the other two bindings work
+      pure $ Texture2DBinding ux xs
+    
+
+instance {-# OVERLAPPABLE #-} HasBindingAt' n (m-1) as b => HasBindingAt' n m (a ': as) b where
+  getBindingValue' = \case
+    DynamicBinding _ xs -> getBindingValue' @n @(m-1) @as @b xs
+    StaticBinding  _ xs -> getBindingValue' @n @(m-1) @as @b xs
+    Texture2DBinding  _ xs -> getBindingValue' @n @(m-1) @as @b xs
+  medit' mat update = case mat of
+    DynamicBinding x xs    -> DynamicBinding x   <$> medit' @n @(m-1) @as @b xs update
+    StaticBinding  x xs    -> StaticBinding x    <$> medit' @n @(m-1) @as @b xs update
+    Texture2DBinding  x xs -> Texture2DBinding x <$> medit' @n @(m-1) @as @b xs update
 
 headMat :: ∀ α β. Material (α ': β) -> α
 headMat = \case
   DynamicBinding x _ -> x
   StaticBinding  x _ -> x
   Texture2DBinding  x _ -> x
+
+tailMat :: ∀ α β. Material (α ': β) -> Material β
+tailMat = \case
+  DynamicBinding _ xs -> xs
+  StaticBinding  _ xs -> xs
+  Texture2DBinding  _ xs -> xs
+
+writeDynamicBinding :: ∀ α χ. Storable α => α -> Int -> DescriptorSet -> Renderer χ ()
+writeDynamicBinding a i dset = trace "writing dynamic binding" $ writeMappedBuffer @α (getUniformBuffer dset i) a
+
+-- For now, static bindings use a mapped buffer as well
+writeStaticBinding :: ∀ α χ. Storable α => α -> Int -> DescriptorSet -> Renderer χ ()
+writeStaticBinding a i dset = trace "writing static binding" $ writeMappedBuffer @α (getUniformBuffer dset i) a
+
 
 -- | Recursively make the descriptor set resource map from the material. This
 -- will create some resources and simply use some provided in the material

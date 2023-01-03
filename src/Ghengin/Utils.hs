@@ -63,8 +63,24 @@ instance Hashable Vec3 where
 data HList xs where
     HNil :: HList '[]
     (:#) :: a -> HList as -> HList (a ': as)
-
 infixr 6 :#
+
+-- Heterogenous list of functions
+-- We use this instaed of the below function in Material to get better type
+-- inference
+data HFList xs where
+    HFNil :: HFList '[]
+    (:-#) :: (a -> a) -> HFList as -> HFList (a ': as)
+infixr 6 :-#
+-- type family FunctionsOn xs where
+--   FunctionsOn '[] = '[]
+--   FunctionsOn (x ': xs) = (x -> x) ': FunctionsOn xs
+
+headHList :: HList (a ': as) -> a
+headHList (a :# _) = a
+
+tailHList :: HList (a ': as) -> HList as
+tailHList (_ :# as) = as
 
 type Size = Word
 
@@ -82,21 +98,6 @@ findM p = foldr go (pure Nothing)
     go x acc = do
       b <- p x
       if b then pure (Just x) else acc
-
-data EnginePart
-  = EInstance
-  | EPhysicalDevice
-  | EDevice
-  | EGraphicsQueue 
-
-type family HasPart (p :: EnginePart) (ps :: [EnginePart]) :: Bool where
-  HasPart _ '[] = False
-  HasPart p (p ': xs) = True
-  HasPart p (_ ': xs) = HasPart p xs
-
-type family (:=>) (b :: Bool) (t :: Type) :: Type where
-  (:=>) False t = ()
-  (:=>) True  t = t
 
 type family FromMaybe (a :: k) (m :: Maybe k) :: k where
   FromMaybe a 'Nothing = a

@@ -131,7 +131,7 @@ instance UISettings PlanetSettings where
             -- we simply introduced an equality to edit the material, and
             -- didn't remove the original compatibility between the existential
             -- material and pipeline
-            newMat <- lift $ medit @PlanetMaterial @1 mat $ \case _ -> vec3 0 0 0
+            newMat <- lift $ medit @1 @PlanetMaterial mat $ \case _ -> vec3 0 0 0
             C.set planetEntity (renderPacket oldMesh newMat pp)
 
             pure ()
@@ -143,7 +143,6 @@ instance UISettings PlanetSettings where
         mapM (\(ns, i) ->
           withTree ("Layer " <> fromString (show i)) $ makeComponents ns ()) (NE.zip nss [1..])
 
-        -- TODO: Button to generate that updates the mesh
         whenM (button "Generate") $ do
 
            (newMesh,newMinMax) <- newPlanet ps
@@ -157,7 +156,7 @@ instance UISettings PlanetSettings where
            newTex <- textureFromGradient grad
 
            -- Edit multiple material properties at the same time
-           newMaterial <- lift $ medit' @PlanetMaterial @[0,2] mat $ \(_oldMinMax :# _oldTex :# HNil) -> newMinMax :# newTex :# HNil
+           newMaterial <- lift $ medits @[0,2] @PlanetMaterial mat $ (\_oldMinMax -> newMinMax) :-# (\_oldTex -> newTex) :-# HFNil
 
            C.set planetEntity (renderPacket newMesh newMaterial pp)
 
