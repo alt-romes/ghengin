@@ -1,5 +1,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GADTs #-}
@@ -11,6 +12,7 @@
 {-# LANGUAGE BlockArguments #-}
 module Planet where
 
+import Data.Typeable
 import Ghengin.DearImGui.Gradient
 import GHC.TypeLits
 import GHC.Generics
@@ -63,8 +65,10 @@ instance GStorable MinMax
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
-makeMinMaxMaterial :: Vec3 -> MinMax -> Texture2D -> Material' '[Texture2D, Vec3, MinMax]
+makeMinMaxMaterial :: Vec3 -> MinMax -> Texture2D -> Material' PlanetMaterial
 makeMinMaxMaterial v x t = Texture2DBinding t . StaticBinding v . StaticBinding x . Done
+
+type PlanetMaterial = '[Texture2D, Vec3, MinMax]
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
@@ -100,52 +104,88 @@ instance UISettings PlanetSettings where
 
   makeComponents ps@(PlanetSettings re ra co bo nss df grad) (planetEntity, tex) = do
 
+    (RenderPacket oldMesh (mat :: Material mt) pp _) <- C.get planetEntity
 
-    withTree "Planet" do
-      _b1 <- sliderInt "Resolution" re 2 200
-      _b2 <- sliderFloat "Radius" ra 0 3
+    -- Local equality for this render packets being a PlanetMaterial by
+    -- comparing the runtime tag of this render packet.
+    --
+    -- > Therefore, GADT matches simply act as a rigid “type information diode”:
+    --   the stuff inside can never be used to determine types on the outside,
+    --   like that the case block as a whole should be IO ().
+    --
+    -- TODO: Some nice workaround to avoid this?
+    () <- case eqT @mt @PlanetMaterial of
+      Nothing -> error "Not a planet material BOOM"
+      Just Refl -> do
 
-      whenM (gradientEditor grad) $ do
-      -- whenM (colorPicker "Color" co) $ do
-        -- TODO: When the color changes we update the mesh right away
-        pure ()
+        withTree "Planet" do
+          _b1 <- sliderInt "Resolution" re 2 200
+          _b2 <- sliderFloat "Radius" ra 0 3
 
-      _b4 <- checkBox "Mask" bo
-      _b5 <- withCombo "Faces" df [All, FaceUp, FaceRight]
-      pure ()
+          whenM (gradientEditor grad) $ do
+            -- whenM (colorPicker "Color" co) $ do
+            -- TODO: When the color changes we update the mesh right away
 
-    mapM (\(ns, i) ->
-      withTree ("Layer " <> fromString (show i)) $ makeComponents ns ()) (NE.zip nss [1..])
+            -- Because we introduced the equality constraint we can now edit
+            -- the material AND we still keep the 'Compatible' instance because
+            -- we simply introduced an equality to edit the material, and
+            -- didn't remove the original compatibility between the existential
+            -- material and pipeline
+            newMat <- lift $ medit @PlanetMaterial @1 mat $ \case _ -> vec3 0 0 0
+            C.set planetEntity (renderPacket oldMesh newMat pp)
 
-    -- TODO: Button to generate that updates the mesh
-    whenM (button "Generate") $ do
-       (RenderPacket oldMesh mat pp _) <- C.get planetEntity
-       (newMesh,newMinMax) <- newPlanet ps
-       lift $ do
-         freeMesh (oldMesh) -- Can we hide/enforce this somehow? Meshes aren't automatically freed when switched! We should make "switching" explicit?
-       case Shader.shaderPipeline of
-         (spp :: GShaderPipeline i)
-              -- GIGANTIC:TODO: For some reason I have yet to better
-              -- understand, the pipeline associated to the render packet
-              -- can't be used to validate Compatibility with a new material again.
-              -- It's somehow related to being an existential type and therefore the type not carrying enough information?
-              -- How can I make the existential type carry enough information to pass Compatible again?
-         --
-         --
-         -- The Solution might be defining a function that edits the content of dynamic
-         -- bindings (by comparing Typeable instances?) because (and this is the key) if
-         -- the pipeline was already created then it was already compatible, and
-         -- therefore changing the value of the dynamic binding will not affect
-         -- compatibility
-         --
-         -- Also: TODO: With the typeable constraint, we are able to inspect at runtime the material type (as if it were a simple tag) and depending on the value updating the material
-          -> do
-            (x,y,z) <- liftIO randomIO
-            -- TODO: Free previous material?!!
-            newTex <- textureFromGradient grad
-            mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax newTex) pp
-            -- TODO: The great modify upgrade...
-            C.set planetEntity (renderPacket @_ @i newMesh mx (unsafeCoerce pp))
+            pure ()
+
+          _b4 <- checkBox "Mask" bo
+          _b5 <- withCombo "Faces" df [All, FaceUp, FaceRight]
+          pure ()
+
+        mapM (\(ns, i) ->
+          withTree ("Layer " <> fromString (show i)) $ makeComponents ns ()) (NE.zip nss [1..])
+
+        -- TODO: Button to generate that updates the mesh
+        whenM (button "Generate") $ do
+
+           (newMesh,newMinMax) <- newPlanet ps
+
+           lift $ freeMesh oldMesh -- Can we hide/enforce this somehow? Meshes aren't automatically freed when switched! We should make "switching" explicit?
+
+           -- TODO: Free previous texture?!!
+           -- ^ Be careful because textures are shared...
+           newTex <- textureFromGradient grad
+
+           -- newMaterial <- lift $ medit @PlanetMaterial @0 mat $ \_vec -> vec3 x y z -- This successfully crashes because the binding at @0 is not a vec3! Great!
+
+           -- Edit multiple material properties at the same time
+           newMaterial <- lift $ medit' @PlanetMaterial @[0,2] mat $ \(_oldMinMax :# _oldTex :# HNil) -> newMinMax :# newTex :# HNil
+
+           C.set planetEntity (renderPacket newMesh newMaterial pp) -- We got rid of the unsafe coerce here ;) It works so so so wonderfully this way.
+
+           -- case Shader.shaderPipeline of
+           --   (spp :: GShaderPipeline i)
+                  -- GIGANTIC:TODO: For some reason I have yet to better
+                  -- understand, the pipeline associated to the render packet
+                  -- can't be used to validate Compatibility with a new material again.
+                  -- It's somehow related to being an existential type and therefore the type not carrying enough information?
+                  -- How can I make the existential type carry enough information to pass Compatible again?
+                  --
+                  -- Solution: We carry the information at runtime to discern render packets :)
+                  -- This is effectively solved and this comment should be removed in the next pass here
+
+             -- The Solution might be defining a function that edits the content of dynamic
+             -- bindings (by comparing Typeable instances?) because (and this is the key) if
+             -- the pipeline was already created then it was already compatible, and
+             -- therefore changing the value of the dynamic binding will not affect
+             -- compatibility
+             --
+             -- Also: TODO: With the typeable constraint, we are able to inspect at runtime the material type (as if it were a simple tag) and depending on the value updating the material
+              -- -> do
+              --   (x,y,z) <- liftIO randomIO
+              --   -- TODO: Free previous material?!!
+              --   newTex <- textureFromGradient grad
+              --   mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax newTex) pp
+              --   -- TODO: The great modify upgrade...
+              --   C.set planetEntity (renderPacket @_ @i newMesh mx (unsafeCoerce pp))
 
     pure ()
 

@@ -22,6 +22,7 @@ module Ghengin.Utils
   , Proxy(..)
   ) where
 
+import GHC.TypeLits
 import Control.Logger.Simple
 import Data.Hashable
 import Data.Kind
@@ -32,8 +33,6 @@ import Foreign.Storable.Generic
 import Data.Proxy
 
 import Data.Bits
-
-import GHC.TypeLits
 
 import Math.Linear (V(..))
 import Data.Type.Map
@@ -110,6 +109,42 @@ type family Concat (as :: [[k]]) :: [k] where
 type family (++) as bs where
   (++) '[] bs = bs
   (++) (x ': xs) ys = x : xs ++ ys
+
+type (!!) :: [Type] -> Nat -> Type
+type family (!!) as n where
+  (!!) as n = Index as n 0 (Text "Getting out of bounds index " :<>: ShowType n :<>: Text " of list " :<>: ShowType as)
+
+type Index :: [Type] -> Nat -> Nat -> ErrorMessage -> Type
+type family Index xs n m e where
+  Index (x ': xs) n n _ = x
+  Index (x ': xs) n m e = Index xs n (m+1) e
+  Index '[] n m e       = TypeError e
+
+type family Length α :: Nat where
+  Length '[] = 0
+  Length (_ ': as) = Length as + 1
+
+type (:<|>:) :: Maybe a -> Maybe a -> Maybe a
+type family (:<|>:) mx my where
+  (:<|>:) ('Just x) _ = 'Just x
+  (:<|>:) 'Nothing ('Just y) = 'Just y
+  (:<|>:) 'Nothing 'Nothing  = 'Nothing
+
+type family Reverse xs acc where
+  Reverse '[] acc = acc
+  Reverse (x ': xs) acc = Reverse xs (x ': acc)
+
+type Zip :: [a] -> [b] -> [(a,b)]
+type family Zip xs ys where
+  Zip '[] _ = '[]
+  Zip _ '[] = '[]
+  Zip (a ': as) (b ': bs) = '(a, b) ': Zip as bs
+
+type NumbersFromTo :: Nat -> Nat -> [Nat]
+type family NumbersFromTo from to where
+  NumbersFromTo to to = '[]
+  NumbersFromTo from to = from ': NumbersFromTo (from+1) to
+
 
 -- | Provides a fairly subjective test to see if a quantity is near zero.
 --

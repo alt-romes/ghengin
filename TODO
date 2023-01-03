@@ -1,3 +1,4 @@
+[ ] The UISettings doesn't need the type family... wouldn't it be better to add the entity as a parameter to the PlanetSettings?
 [.] Gradient GUI editor. (TODO: left align it...)
 
 Next steps:

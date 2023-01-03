@@ -19,6 +19,7 @@ module Ghengin.Render.Packet
   , module Ghengin.Render.Pipeline
   ) where
 
+import Data.Typeable
 import Ghengin.Asset.Texture
 import Data.Hashable
 import GHC.TypeLits
@@ -78,6 +79,12 @@ PushConstant. Also, after binding a pipeline (can it be at the start of the
 draw phase?), the camera projection and view matrix are bound to the descriptor
 set #0.
 
+We require a Typeable constraint on every Material used to create a
+RenderPacket so that we can later pattern match on the render packet and figure
+out which render packet it actually is. Remember that we'll have many render
+packets constructed with existential materials, and we'll want to distinguish
+them during runtime to be able to do things, such as updates, to the material
+
 The missing bits:
 
   We should be able to (at least) bind arbitrary data at pipeline binding time to
@@ -91,7 +98,7 @@ data RenderPacket where
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ α β. Compatible α β => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ α β. (Compatible α β, Typeable α) => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
@@ -128,7 +135,7 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ α β. (Hashable (Material α), Compatible α β) => Mesh -> Material α -> RenderPipeline β -> RenderPacket
+renderPacket :: ∀ α β. (Hashable (Material α), Compatible α β, Typeable α) => Mesh -> Material α -> RenderPipeline β -> RenderPacket
 renderPacket mesh material pipeline = RenderPacket mesh material pipeline (makeKey material pipeline)
 
 {-
@@ -258,29 +265,4 @@ type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [TLInterfaceV
 type family Assert (b :: Bool) (e :: ErrorMessage) (t :: k) :: k where
   Assert 'False e _ = TypeError e
   Assert 'True _ t = t
-
-type family Reverse xs acc where
-  Reverse '[] acc = acc
-  Reverse (x ': xs) acc = Reverse xs (x ': acc)
-
-type Zip :: [a] -> [b] -> [(a,b)]
-type family Zip xs ys where
-  Zip '[] _ = '[]
-  Zip _ '[] = '[]
-  Zip (a ': as) (b ': bs) = '(a, b) ': Zip as bs
-
-type NumbersFromTo :: Nat -> Nat -> [Nat]
-type family NumbersFromTo from to where
-  NumbersFromTo to to = '[]
-  NumbersFromTo from to = from ': NumbersFromTo (from+1) to
-
-type family Length α :: Nat where
-  Length '[] = 0
-  Length (_ ': as) = Length as + 1
-
-type (:<|>:) :: Maybe a -> Maybe a -> Maybe a
-type family (:<|>:) mx my where
-  (:<|>:) ('Just x) _ = 'Just x
-  (:<|>:) 'Nothing ('Just y) = 'Just y
-  (:<|>:) 'Nothing 'Nothing  = 'Nothing
 
