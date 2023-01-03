@@ -1,9 +1,10 @@
+[ ] Move GUI Gradient to separate package
 [ ] The UISettings doesn't need the type family... wouldn't it be better to add the entity as a parameter to the PlanetSettings?
 [.] Gradient GUI editor. (TODO: left align it...)
 
 Next steps:
 [x] Update UI in the imgui way instead of that terrible boolean
-[ ] Function to update material properties which fixes the existential issues
+[x] Function to update material properties which fixes the existential issues
 [ ] Free all textures at the end, and material resources when the material is "removed".
 [x] More flexibility picking the sampler. (Next step: would it be good to have the sampler separate from the texture and simply appear in the texture material binding?)
 
@@ -13,9 +14,9 @@ Next steps:
 [ ] Fix second planet. Its color is probably too bright because of its minmax
     being computed from the first one bc of the mesh recreation thing. once again, we need to fix the UI.
 [ ] Free descriptor sets and descriptor set resources
-[ ] Function to update static binding value that simply writes the buffer
+[-] Function to update static binding value that simply writes the buffer. The static binding should have a device local buffer which is not that easily written to
 [ ] Use an atomic counter for the material ids? https://github.com/sergv/atomic-counter
-[ ] Somehow (through Typeable and pattern matching on runtime on the kind of
+[x] Somehow (through Typeable and pattern matching on runtime on the kind of
     packet) allow to update existentials. This function should also free the mesh/or material updated before creating the new one.
 [ ] Material type list doesn't have to be traversed in reverse... the first item in the list could be binding #0 without any issue
 [ ] Custom lights in descriptor set #0
@@ -29,13 +30,13 @@ Next steps:
     A: Yes. It'll occupy some memory but it would require many many materials
     to ever reach the limit. It also makes things much simpler and fixes the
     mats not changing bug and the static binding design
-[ ] A 'material' function to create/update? materials which allocates the descriptor set (read below)
+[x] A 'material' function to create/update? materials which allocates the descriptor set (read below)
 [x] I think I can't write the same buffer in between draw calls as it seems
 both will end up with the same color. It seems as if each material needs its
 own descriptor set allocated and the dynamic bindings simply write the buffers
 every frame, and the static bindings don't.
-[ ] A function to update materials (read the one below).
-[ ] A solution to update the existential materials: I think we'll have a typeable instance (like a runtime type tag) that allows us to pattern match on the type of the material to understand what kind of material it is. Then we know the type of the material and we can safely update the property value. 
+[x] A function to update materials (read the one below).
+[x] Nailed it: A solution to update the existential materials: I think we'll have a typeable instance (like a runtime type tag) that allows us to pattern match on the type of the material to understand what kind of material it is. Then we know the type of the material and we can safely update the property value. 
 [x] Compatible must ensure all required input parameters in the shader are defined in the material
 [ ] Render packet data for global descriptors properties and for model descriptors properties rather than just the material properties
 [x] Compatible constraint with working planets example
@@ -49,17 +50,17 @@ every frame, and the static bindings don't.
 [-] Scene graph should (polymorphically?) cull the space, and
 in the visible space order meshes by pipeline and material
 type. Good algorithm that sorts geometry in the best possible way for the engine
-[+] Free render pipelines
+[x] Free render pipelines
 [y] Should each static material have its own descriptor set which simply gets bound instead of writing always over the one created with the pipeline?
 [.] Validate at compile time the meshes and materials registered for a render pipeline
 [-] Scene graph (BSP, quad/octtree)
 [ ] Automatically derive UISettings?
 [?] Disallow non-uniform scaling so that calculating the normal in world space is simpler
-[+] Who's pulling in lens? Maybe I can benefit from them if I already have to have them. (Answer: fir)
+[x] Who's pulling in lens? Maybe I can benefit from them if I already have to have them. (Answer: fir)
 [.] Bundle descriptor sets, render passes, and pipelines into a single abstraction
 [ ] Toon Shader
 [?] MonadRenderer to be able to call mesh creation and such from SystemT
 [ ] Linear types for resource management
-[+] Index buffer
+[x] Index buffer
 [-] Since for now we decide a game can ever only use one window, we could have
     the Ghengin monad propagate the window thorought the program

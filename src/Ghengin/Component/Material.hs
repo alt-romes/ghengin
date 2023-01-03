@@ -16,13 +16,10 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Material where
 
-import Debug.Trace
 import Data.Typeable
 import GHC.TypeLits
-import Data.Kind
 import qualified Vulkan as Vk
 import qualified Data.IntMap as IM
-import qualified Data.Vector as V
 import qualified Data.List.NonEmpty as NE
 import Data.Hashable
 import Ghengin.Asset.Texture
@@ -196,6 +193,13 @@ class HasBindingAt n α β where
   -- Previously we would have to recreate and reallocate all the descriptors and
   -- buffers for a material, now we can simply rewrite the exact buffer without
   -- doing a single allocation, or update the dset with the new texture
+  --
+  -- Another great thing, previously we would need to allocate a new descriptor
+  -- set every time we wanted to edit a material, but we didn't discard it
+  -- because freeing descriptor sets is actually freeing the pool (or using a
+  -- specific slower flag for freeing individual sets if i'm not mistaken).
+  -- This way, we always re-use the same set by simply writing over the e.g.
+  -- texture bindings if need be
   medit :: Material α -> (β -> β) -> Renderer χ (Material α)
 
 instance HasBindingAt' (n+1) (Length α) α β => HasBindingAt n α β where
@@ -227,8 +231,7 @@ instance {-# OVERLAPPING #-} KnownNat n => HasBindingAt' n n (b ': as) b where
       pure $ StaticBinding ux xs
     Texture2DBinding x xs -> do
       let ux = update x
-      -- NEXT:TODO: We need to update the descriptor set to point to this texture,
-      -- For now, let's see if the other two bindings work
+      updateTextureBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
       pure $ Texture2DBinding ux xs
     
 
@@ -255,11 +258,17 @@ tailMat = \case
   Texture2DBinding  _ xs -> xs
 
 writeDynamicBinding :: ∀ α χ. Storable α => α -> Int -> DescriptorSet -> Renderer χ ()
-writeDynamicBinding a i dset = trace "writing dynamic binding" $ writeMappedBuffer @α (getUniformBuffer dset i) a
+writeDynamicBinding a i dset = writeMappedBuffer @α (getUniformBuffer dset i) a
 
 -- For now, static bindings use a mapped buffer as well
 writeStaticBinding :: ∀ α χ. Storable α => α -> Int -> DescriptorSet -> Renderer χ ()
-writeStaticBinding a i dset = trace "writing static binding" $ writeMappedBuffer @α (getUniformBuffer dset i) a
+writeStaticBinding a i dset = writeMappedBuffer @α (getUniformBuffer dset i) a
+
+-- | Overwrite the texture bound on a descriptor set at binding #n
+--
+-- TODO: Is it OK to overwrite previously written descriptor sets at specific points?
+updateTextureBinding :: Texture2D -> Int -> DescriptorSet -> Renderer χ ()
+updateTextureBinding tex i dset = updateDescriptorSet (dset._descriptorSet) (IM.singleton i (Texture2DResource tex))
 
 
 -- | Recursively make the descriptor set resource map from the material. This
