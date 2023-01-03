@@ -16,6 +16,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Material where
 
+import Data.Ord
 import Data.Typeable
 import GHC.TypeLits
 import Data.Kind
@@ -165,8 +166,9 @@ material matf rp =
 -- Previously we would have to recreate and reallocate all the descriptors and
 -- buffers for a material, now we can simply rewrite the exact buffer without
 -- doing a single allocation
-medit :: ∀ α n χ.  Material α -> (BindingAt n α -> BindingAt n α) -> Renderer χ (Material α)
-medit mat update = undefined
+medit :: ∀ α n χ. KnownNat n
+      => Material α -> (BindingAt n α -> BindingAt n α) -> Renderer χ (Material α)
+medit mat update = medit' @α @'[n] mat (\(x :# HNil) -> update x :# HNil)
 
 type BindingAt :: Nat -> [Type] -> Type
 type family BindingAt n α where
@@ -175,14 +177,51 @@ type family BindingAt n α where
 -- | Like 'medit' but edit multiple material properties/bindings at the same time
 --
 -- @
+-- Update bindings #0 and #2
+-- newMaterial <- medit' @PlanetMaterial @[0,2] mat $ \(_oldMinMax :# _oldTex :# HNil) -> newMinMax :# newTex :# HNil
 -- @
-medit' :: ∀ α ns χ.  Material α -> (HList (BindingsAt ns α) -> HList (BindingsAt ns α)) -> Renderer χ (Material α)
-medit' mat update = undefined
+medit' :: ∀ α ns χ. KnownNats ns
+       => Material α -> (HList (BindingsAt ns α) -> HList (BindingsAt ns α)) -> Renderer χ (Material α)
+medit' mat update =
+  let -- If this ever shows up in the profile because of iterating (worst-case) the whole material once for each property to edit, make it performant ...
+      ixs = natList @ns
+      currentValues = getBindingValues ixs
+   in
+    undefined
+  where
+    getBindingValues :: ∀ nl. NatList nl -> HList (BindingsAt nl α)
+    getBindingValues ØNL = HNil
+    getBindingValues (Proxy @n :<# ns) = getBindingValueAt @α @n mat :# getBindingValues ns
+
+
+-- TODO: meditM, meditM'
 
 type BindingsAt :: [Nat] -> [Type] -> [Type]
 type family BindingsAt ns α where
   BindingsAt '[] α = '[]
   BindingsAt (n ': ns) α = BindingAt n α ': BindingsAt ns α
+
+getBindingValueAt :: ∀ α n. Material α -> BindingAt n α
+getBindingValueAt mat' = undefined
+
+  -- TODO: I don't know yet how to write this function (or whether its possible to do so) in a type safe way
+  -- I think I'd need something like unsafe drop head at the type level, or maybe a type class?
+  --
+  -- go (matSizeBindings mat' - 1) (fromInteger $ natVal $ Proxy @n) mat'
+  -- where
+  --   go :: ∀ a. Material a -> BindingAt n a
+  --   go _ _ (Done _) = error "Impossible for this to typecheck, there could be no binding at α if α ~ '[]"
+  --   go it needle mat
+  --     | it == needle
+  --     , StaticBinding x _ 
+  --     | otherwise = undefined
+
+
+headMat :: ∀ α β. Material (α ': β) -> α
+headMat = \case
+  DynamicBinding x _ -> x
+  StaticBinding  x _ -> x
+  Texture2DBinding  x _ -> x
 
 -- | Recursively make the descriptor set resource map from the material. This
 -- will create some resources and simply use some provided in the material

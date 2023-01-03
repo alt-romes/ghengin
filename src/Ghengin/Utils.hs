@@ -146,6 +146,26 @@ type family NumbersFromTo from to where
   NumbersFromTo from to = from ': NumbersFromTo (from+1) to
 
 
+
+-- * Known nats
+
+class KnownNats (ns :: [Nat]) where
+  natVals :: [Int]
+  natList :: NatList ns
+
+instance KnownNats '[] where
+  natVals = []
+  natList = ØNL
+
+instance (KnownNat n, KnownNats ns) => KnownNats (n ': ns) where
+  natVals = fromIntegral (natVal (Proxy @n)) : natVals @ns
+  natList = Proxy @n :<# natList @ns
+
+data NatList :: [Nat] -> Type where
+    ØNL   :: NatList '[]
+    (:<#) :: (KnownNat n, KnownNats ns)
+          => !(Proxy n) -> !(NatList ns) -> NatList (n ': ns)
+
 -- | Provides a fairly subjective test to see if a quantity is near zero.
 --
 -- >>> nearZero (1e-11 :: Double)

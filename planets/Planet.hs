@@ -148,44 +148,18 @@ instance UISettings PlanetSettings where
 
            (newMesh,newMinMax) <- newPlanet ps
 
-           lift $ freeMesh oldMesh -- Can we hide/enforce this somehow? Meshes aren't automatically freed when switched! We should make "switching" explicit?
+           lift $ freeMesh oldMesh -- Can we hide/enforce this somehow?
+                                   -- Meshes aren't automatically freed when switched! We should make "switching" explicit?
+                                   -- ^ Perhaps pattern matching on a mesh pattern synonym of the mesh would free it
 
            -- TODO: Free previous texture?!!
            -- ^ Be careful because textures are shared...
            newTex <- textureFromGradient grad
 
-           -- newMaterial <- lift $ medit @PlanetMaterial @0 mat $ \_vec -> vec3 x y z -- This successfully crashes because the binding at @0 is not a vec3! Great!
-
            -- Edit multiple material properties at the same time
            newMaterial <- lift $ medit' @PlanetMaterial @[0,2] mat $ \(_oldMinMax :# _oldTex :# HNil) -> newMinMax :# newTex :# HNil
 
-           C.set planetEntity (renderPacket newMesh newMaterial pp) -- We got rid of the unsafe coerce here ;) It works so so so wonderfully this way.
-
-           -- case Shader.shaderPipeline of
-           --   (spp :: GShaderPipeline i)
-                  -- GIGANTIC:TODO: For some reason I have yet to better
-                  -- understand, the pipeline associated to the render packet
-                  -- can't be used to validate Compatibility with a new material again.
-                  -- It's somehow related to being an existential type and therefore the type not carrying enough information?
-                  -- How can I make the existential type carry enough information to pass Compatible again?
-                  --
-                  -- Solution: We carry the information at runtime to discern render packets :)
-                  -- This is effectively solved and this comment should be removed in the next pass here
-
-             -- The Solution might be defining a function that edits the content of dynamic
-             -- bindings (by comparing Typeable instances?) because (and this is the key) if
-             -- the pipeline was already created then it was already compatible, and
-             -- therefore changing the value of the dynamic binding will not affect
-             -- compatibility
-             --
-             -- Also: TODO: With the typeable constraint, we are able to inspect at runtime the material type (as if it were a simple tag) and depending on the value updating the material
-              -- -> do
-              --   (x,y,z) <- liftIO randomIO
-              --   -- TODO: Free previous material?!!
-              --   newTex <- textureFromGradient grad
-              --   mx <- lift $ material (makeMinMaxMaterial (vec3 x y z) newMinMax newTex) pp
-              --   -- TODO: The great modify upgrade...
-              --   C.set planetEntity (renderPacket @_ @i newMesh mx (unsafeCoerce pp))
+           C.set planetEntity (renderPacket newMesh newMaterial pp)
 
     pure ()
 
