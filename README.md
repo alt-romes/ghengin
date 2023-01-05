@@ -2,6 +2,8 @@ A work in progress game engine.
 
 Unique features:
 
+* Shader focused -- the engine is design with custom shaders in the center, and
+    a lot of compile time validation and runtime data is based on the shader
 * Compile time validation of compatibility between the game defined materials
     and the game defined shader programs.
 * It's written in Haskell

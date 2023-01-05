@@ -350,7 +350,7 @@ updateDescriptorSet dset resources = do
                                     , imageInfo = []
                                     , texelBufferView = []
                                     }
-        Texture2DResource (T.Texture2D vkimage sampler) -> do
+        Texture2DResource (T.Texture2D vkimage sampler _tracker) -> do
           let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                                  , imageView = vkimage._imageView
                                                  , sampler   = sampler

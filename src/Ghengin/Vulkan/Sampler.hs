@@ -18,6 +18,7 @@ module Ghengin.Vulkan.Sampler
     )
   ) where
 
+import Control.Monad.IO.Class
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
 import Ghengin.Vulkan
@@ -65,7 +66,5 @@ createSampler filter addrMode = do
 
   Vk.createSampler device info Nothing
 
-destroySampler :: Vk.Sampler -> Renderer χ ()
-destroySampler s = do
-  dev <- getDevice
-  Vk.destroySampler dev s Nothing
+destroySampler :: MonadIO m => Vk.Device -> Vk.Sampler -> m ()
+destroySampler dev s = Vk.destroySampler dev s Nothing

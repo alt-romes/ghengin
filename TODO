@@ -1,3 +1,7 @@
+[ ] Build macos app bundles
+[0] If I ever have a big enough game, processing all assets at init will be slow, and we should otherwise store the processed data in a resource manager database
+[ ] Unity tutorial project
+
 [ ] Move GUI Gradient to separate package
 [ ] The UISettings doesn't need the type family... wouldn't it be better to add the entity as a parameter to the PlanetSettings?
 [.] Gradient GUI editor. (TODO: left align it...)

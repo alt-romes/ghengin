@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Asset.Texture
@@ -10,7 +11,10 @@ module Ghengin.Asset.Texture
   , DynamicImage(..)
   ) where
 
+import Data.IORef
+import System.Mem.Weak
 import Geomancy.Vec3
+import Control.Logger.Simple
 import Control.Monad.Reader
 import Codec.Picture
 
@@ -22,7 +26,7 @@ import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Image
 import Ghengin.Vulkan.Buffer
 
-data Texture2D = Texture2D VulkanImage Vk.Sampler
+data Texture2D = Texture2D VulkanImage Vk.Sampler (IORef ()) -- ^ Dummy IO Ref for garbage collection
 
 -- TODO: This isntance sholuldn't exist. just temporary... if you find this here later try to remove it. it's currenty being used to instance hashable to create the render key...
 instance Eq Texture2D where
@@ -32,13 +36,14 @@ texture :: FilePath -> Vk.Sampler -> Renderer χ Texture2D
 texture fp sampler = do
   liftIO (readImage fp) >>= \case
     Left e -> liftIO (fail e)
-    Right dimage -> textureFromImage dimage sampler
+    Right dimage ->
+      textureFromImage dimage sampler
 
-freeTexture :: Texture2D -> Renderer χ ()
-freeTexture (Texture2D img sampler) = do
-  dev <- getDevice
-  liftIO $ destroyImage dev img
-  destroySampler sampler
+freeTexture :: Vk.Device -> Texture2D -> IO ()
+freeTexture dev (Texture2D img sampler _) = do
+  logInfo "Freeing texture..."
+  destroyImage dev img
+  destroySampler dev sampler
 
 textureFromImage :: DynamicImage
                  -> Vk.Sampler
@@ -89,7 +94,20 @@ textureFromImage (ImageRGBA8 . convertRGBA8 -> dimage) sampler =
       -- (3)
       transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
-    pure (Texture2D image sampler)
+    dev <- getDevice
+
+    -- Use haskell's garbage collector to free the texture
+    tracker <- liftIO $ newIORef ()
+    _ <- liftIO $ mkWeakIORef tracker (putStrLn "Fired!" >> destroyImage dev image >> destroySampler dev sampler)
+
+    let tex2d = Texture2D image sampler tracker
+
+    -- liftIO $ addFinalizer tex2d (freeTexture device tex2d)
+
+    -- destroyImage dev img
+    -- destroySampler dev sampler
+
+    pure tex2d
 
 
 -- | Convert a vec3 with values between 0-1 and convert it into a pixelrgb8

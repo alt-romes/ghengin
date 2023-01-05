@@ -11,8 +11,8 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
+import System.Mem
 import System.Random
-import Unsafe.Coerce
 import GHC.TypeLits
 import Data.IORef
 import Control.Monad
