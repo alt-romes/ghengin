@@ -53,15 +53,6 @@ data MinMax = MinMax Float Float
 
 instance Hashable MinMax
 instance GStorable MinMax
--- instance S.Storable MinMax where
---   sizeOf _ = 2*S.sizeOf @Float undefined
---   alignment _ = 2*S.sizeOf @Float undefined
---   peek (castPtr -> p) = do
---     mi <- S.peekElemOff p 0
---     ma <- S.peekElemOff p 1
---     pure $ MinMax mi ma
---   poke (castPtr -> p) (MinMax mi ma) = S.pokeElemOff p 0 mi >> S.pokeElemOff p 1 ma
-
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
@@ -84,7 +75,7 @@ data DisplayFace = All | FaceUp | FaceRight deriving Show
 
 instance UISettings PlanetSettings where
 
-  type ReactivityInput PlanetSettings = (Entity, Texture2D)
+  type ReactivityInput PlanetSettings = Entity
   type ReactivityOutput PlanetSettings = ()
   type ReactivityConstraints PlanetSettings w = (HasField "renderPackets" w (C.Storage RenderPacket))
 
@@ -102,7 +93,7 @@ instance UISettings PlanetSettings where
     -- m2   <- newIORef (ImGradientMark 0 0 0 1 0)
     pure $ PlanetSettings resR radR colorR boolR [ns1, ns2] df grad
 
-  makeComponents ps@(PlanetSettings re ra co bo nss df grad) (planetEntity, tex) = do
+  makeComponents ps@(PlanetSettings re ra co bo nss df grad) planetEntity = do
 
     (RenderPacket oldMesh (mat :: Material mt) pp _) <- C.get planetEntity
 
@@ -154,9 +145,10 @@ instance UISettings PlanetSettings where
            -- TODO: Free previous texture?!!
            -- ^ Be careful because textures are shared...
            newTex <- textureFromGradient grad
+           device <- lift $ getDevice
 
            -- Edit multiple material properties at the same time
-           newMaterial <- lift $ medits @[0,2] @PlanetMaterial mat $ (\_oldMinMax -> newMinMax) :-# (\_oldTex -> newTex) :-# HFNil
+           newMaterial <- lift $ medits @[0,2] @PlanetMaterial mat $ (\_oldMinMax -> newMinMax) :-# (\oldTex -> liftIO(freeTexture device oldTex) >> pure newTex) :+# HFNil
 
            C.set planetEntity (renderPacket newMesh newMaterial pp)
 
@@ -203,6 +195,4 @@ newPlanet (PlanetSettings re ra co bo nss df grad) = lift $ do
    in (,minmax) <$> createMeshWithIxs vs'' is
 
 
-whenM :: Monad m => m Bool -> m () -> m ()
-whenM c t = (`when` t) =<< c
 

@@ -112,8 +112,8 @@ initG = do
               -- , PipelineData @Transform self planetPipeline)
 
     -- : UI
-    newEntityUI "Planet"  $ makeComponents ps (e1,tex)
-    newEntityUI "Planet2" $ makeComponents ps2 (e2,tex)
+    newEntityUI "Planet"  $ makeComponents ps e1
+    newEntityUI "Planet2" $ makeComponents ps2 e2
 
   pure ()
 

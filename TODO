@@ -1,3 +1,4 @@
+[ ] Better solution for memory management (linear types, gc, bla bla)
 [ ] Build macos app bundles
 [0] If I ever have a big enough game, processing all assets at init will be slow, and we should otherwise store the processed data in a resource manager database
 [ ] Unity tutorial project

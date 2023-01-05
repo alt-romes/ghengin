@@ -129,8 +129,6 @@ material matf rp =
 
      pure actualMat
 
--- TODO: meditM, meditM'
-
 
 class HasBindingsAt ns α βs where
   getBindingValues :: Material α -> HList βs
@@ -154,6 +152,10 @@ instance (HasBindingAt n α β, HasBindingsAt ns α βs) => HasBindingsAt (n ': 
 
   medits mat (update :-# updates) = do
     newMat <- medit @n @α @β mat update
+    medits @ns @α @βs newMat updates
+
+  medits mat (update :+# updates) = do
+    newMat <- meditM @n @α @β mat update
     medits @ns @α @βs newMat updates
 
 class HasBindingAt n α β where
@@ -202,13 +204,18 @@ class HasBindingAt n α β where
   -- texture bindings if need be
   medit :: Material α -> (β -> β) -> Renderer χ (Material α)
 
+  -- | Like 'medit' but with monadic computation
+  meditM :: Material α -> (β -> Renderer χ β) -> Renderer χ (Material α)
+
+
 instance HasBindingAt' (n+1) (Length α) α β => HasBindingAt n α β where
   getBindingValue = getBindingValue' @(n+1) @(Length α) @α @β
-  medit mat update = medit' @(n+1) @(Length α) @α @β mat update
+  medit mat update = medit' @(n+1) @(Length α) @α @β mat (pure . update)
+  meditM mat update = medit' @(n+1) @(Length α) @α @β mat update
 
 class HasBindingAt' n m a b where
   getBindingValue' :: Material a -> b
-  medit' :: Material a -> (b -> b) -> Renderer χ (Material a)
+  medit' :: Material a -> (b -> Renderer χ b) -> Renderer χ (Material a)
 
 instance TypeError (Text "Failed to get binding #" :<>: ShowType (n-1) :<>: Text " of Material " :<>: ShowType α)
   => HasBindingAt' n 0 α b where
@@ -222,15 +229,15 @@ instance {-# OVERLAPPING #-} KnownNat n => HasBindingAt' n n (b ': as) b where
 
   medit' mat update = case mat of
     DynamicBinding x xs -> do
-      let ux = update x
+      ux <- update x
       writeDynamicBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
       pure $ DynamicBinding ux xs
     StaticBinding x xs -> do
-      let ux = update x
+      ux <- update x
       writeStaticBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
       pure $ StaticBinding ux xs
     Texture2DBinding x xs -> do
-      let ux = update x
+      ux <- update x
       updateTextureBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
       pure $ Texture2DBinding ux xs
     
@@ -355,4 +362,18 @@ freeMaterial = \case
   Texture2DBinding tex xs -> do
     -- freeTexture tex -- TODO: BIG:TODO: Can't free textures here because they might be shared and we would double free
     freeMaterial xs
+
+
+-- Heterogenous list of functions
+-- We use this instaed of the below function in Material to get better type
+-- inference
+data HFList xs where
+    HFNil :: HFList '[]
+    (:-#) :: (a -> a) -> HFList as -> HFList (a ': as)
+    (:+#) :: (forall χ. a -> Renderer χ a) -> HFList as -> HFList (a ': as)
+infixr 6 :-#
+infixr 6 :+#
+-- type family FunctionsOn xs where
+--   FunctionsOn '[] = '[]
+--   FunctionsOn (x ': xs) = (x -> x) ': FunctionsOn xs
 

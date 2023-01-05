@@ -23,6 +23,7 @@ module Ghengin.Utils
   ) where
 
 import GHC.TypeLits
+import Control.Monad
 import Control.Logger.Simple
 import Data.Hashable
 import Data.Kind
@@ -65,17 +66,6 @@ data HList xs where
     (:#) :: a -> HList as -> HList (a ': as)
 infixr 6 :#
 
--- Heterogenous list of functions
--- We use this instaed of the below function in Material to get better type
--- inference
-data HFList xs where
-    HFNil :: HFList '[]
-    (:-#) :: (a -> a) -> HFList as -> HFList (a ': as)
-infixr 6 :-#
--- type family FunctionsOn xs where
---   FunctionsOn '[] = '[]
---   FunctionsOn (x ': xs) = (x -> x) ': FunctionsOn xs
-
 headHList :: HList (a ': as) -> a
 headHList (a :# _) = a
 
@@ -86,6 +76,9 @@ type Size = Word
 
 (.&&.) :: Bits a => a -> a -> Bool
 x .&&. y = (/= zeroBits) (x .&. y)
+
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM c t = (`when` t) =<< c
 
 -- | Returns the first element in a foldable structure for that the
 -- monadic predicate holds true, and @Nothing@ if no such element
