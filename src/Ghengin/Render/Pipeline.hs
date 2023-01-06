@@ -87,8 +87,10 @@ destroyRenderPipeline :: RenderPipeline α -> Renderer ext ()
 destroyRenderPipeline (RenderPipeline gp rp dss _) = do
   forM_ dss $ \(dsets, dpool) -> do
     destroyDescriptorPool dpool
-    -- BIG:TODO: Destroy descriptor set resources if they are not shared
-    -- mapM_ destroyDescriptorSet dsets
+    -- TODO: Destroy descriptor set resources if they are not shared (for now,
+    -- this is only set #0, so this is always fine since there is nothing
+    -- shared here)
+    mapM_ destroyDescriptorSet dsets
   destroyRenderPass rp
   destroyPipeline gp
 
