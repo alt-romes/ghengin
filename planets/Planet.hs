@@ -48,6 +48,9 @@ import Ghengin.Render.Packet
 
 import Noise
 
+type Planet = RenderPacket
+type PlanetProps = '[Texture2D,MinMax]
+
 data MinMax = MinMax Float Float
   deriving (Eq, Generic, Show)
 
@@ -56,10 +59,8 @@ instance GStorable MinMax
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
-makeMinMaxMaterial :: Vec3 -> MinMax -> Texture2D -> Material' PlanetMaterial
-makeMinMaxMaterial v x t = Texture2DBinding t . StaticBinding v . StaticBinding x . Done
-
-type PlanetMaterial = '[Texture2D, Vec3, MinMax]
+planetMaterial :: MinMax -> Texture2D -> Material' PlanetProps
+planetMaterial mm t = Texture2DBinding t . StaticBinding mm . Done
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
@@ -105,7 +106,7 @@ instance UISettings PlanetSettings where
     --   like that the case block as a whole should be IO ().
     --
     -- TODO: Some nice workaround to avoid this?
-    () <- case eqT @mt @PlanetMaterial of
+    () <- case eqT @mt @PlanetProps of
       Nothing -> error "Not a planet material BOOM"
       Just Refl -> do
 
@@ -114,16 +115,24 @@ instance UISettings PlanetSettings where
           _b2 <- sliderFloat "Radius" ra 0 3
 
           whenM (gradientEditor grad) $ do
-            -- whenM (colorPicker "Color" co) $ do
-            -- TODO: When the color changes we update the mesh right away
+            let oldTex = case mat of Texture2DBinding oldTex' _ -> oldTex'
 
             -- Because we introduced the equality constraint we can now edit
             -- the material AND we still keep the 'Compatible' instance because
             -- we simply introduced an equality to edit the material, and
             -- didn't remove the original compatibility between the existential
             -- material and pipeline
-            newMat <- lift $ medit @1 @PlanetMaterial mat $ \case _ -> vec3 0 0 0
+            newTex <- textureFromGradient grad
+            newMat <- lift $ medit @1 @PlanetProps mat $ \_ -> newTex
             C.set planetEntity (renderPacket oldMesh newMat pp)
+
+            -- We can free the previous texture here because we only ever
+            -- allocate one per planet, and because after we call medit the
+            -- material has been written with the new texture and the previous
+            -- one is no longer being used
+            -- Be careful because textures are shared...
+            device <- lift $ getDevice
+            liftIO $ freeTexture device oldTex
 
             pure ()
 
@@ -136,19 +145,15 @@ instance UISettings PlanetSettings where
 
         whenM (button "Generate") $ do
 
-           (newMesh,newMinMax) <- newPlanet ps
+           (newMesh,newMinMax) <- newPlanetMesh ps
 
            lift $ freeMesh oldMesh -- Can we hide/enforce this somehow?
                                    -- Meshes aren't automatically freed when switched! We should make "switching" explicit?
                                    -- ^ Perhaps pattern matching on a mesh pattern synonym of the mesh would free it
 
-           -- TODO: Free previous texture?!!
-           -- ^ Be careful because textures are shared...
-           newTex <- textureFromGradient grad
-           device <- lift $ getDevice
-
            -- Edit multiple material properties at the same time
-           newMaterial <- lift $ medits @[0,2] @PlanetMaterial mat $ (\_oldMinMax -> newMinMax) :-# (\oldTex -> liftIO(freeTexture device oldTex) >> pure newTex) :+# HFNil
+           -- newMaterial <- lift $ medits @[0,1] @PlanetProps mat $ (\_oldMinMax -> newMinMax) :-# pure :+# HFNil
+           newMaterial <- lift $ medit @0 @PlanetProps mat (\_oldMinMax -> newMinMax)
 
            C.set planetEntity (renderPacket newMesh newMaterial pp)
 
@@ -161,9 +166,15 @@ textureFromGradient grad = do
   lift $ textureFromImage (ImageRGB8 img) sampler
 
 
-newPlanet :: PlanetSettings -> Ghengin w (Mesh, MinMax)
-newPlanet (PlanetSettings re ra co bo nss df grad) = lift $ do
-  liftIO $ print $ colorAt grad 0.5
+newPlanet :: ∀ a w. Compatible PlanetProps a => PlanetSettings -> RenderPipeline a -> Ghengin w Planet
+newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
+  (mesh,minmax) <- newPlanetMesh ps
+  tex <- textureFromGradient grad
+  mat <- lift $ material (planetMaterial minmax tex) pipeline
+  pure $ renderPacket @PlanetProps @a mesh mat pipeline
+
+newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh, MinMax)
+newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
   re' <- get re
   ra' <- get ra
   co' <- get co
@@ -193,6 +204,4 @@ newPlanet (PlanetSettings re ra co bo nss df grad) = lift $ do
 
       minmax = MinMax (minimum elevations) (maximum elevations)
    in (,minmax) <$> createMeshWithIxs vs'' is
-
-
 

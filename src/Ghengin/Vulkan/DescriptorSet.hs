@@ -272,10 +272,6 @@ type ResourceMap = IntMap DescriptorResource
 data DescriptorResource = UniformResource   MappedBuffer
                         | Texture2DResource T.Texture2D
 
--- TODO: Don't export the constructors of the descriptor set and this?
-data Status = Written
-            | Blank
-
 -- | Allocate a descriptor set from a descriptor pool. This descriptor pool has
 -- the information required to allocate a descriptor set based on its index in
 -- the shader.
@@ -376,11 +372,30 @@ updateDescriptorSet dset resources = do
   when (IM.size resources > 0) $
     Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeDescriptorWrite resources) []
 
+-- | Destroy a descriptor set 
+--
+-- We must be careful here not to free resources shared across materials
+--
+-- (1) Uniform buffers are allocated per-material, so we always free them
+--
+-- (2) Texture resources are allocated outside of the material and might be
+-- shared, so we never free them for now. Eventually they might be
+-- automatically managed through medit and reference counting.
+--
+-- The texture resource is used to update the descriptor set to point to that
+-- texture
+--
+--
+-- TODO: Write this to the note
+destroyDescriptorSet :: DescriptorSet -> Renderer ext ()
+destroyDescriptorSet (DescriptorSet _ix _dset dresources) = do
+  _ <- traverse freeDescriptorResource dresources
+  pure ()
 
--- destroyDescriptorSet :: DescriptorSet -> Renderer ext ()
--- destroyDescriptorSet (DescriptorSet _ix _dset dbindings) = do
---   _ <- traverse (destroyMappedBuffer) dbindings
---   pure ()
+freeDescriptorResource :: DescriptorResource -> Renderer ext ()
+freeDescriptorResource = \case
+  UniformResource u -> destroyMappedBuffer u
+  u@(Texture2DResource _) -> pure ()
 
 getUniformBuffer :: DescriptorSet -> Int -> MappedBuffer
 getUniformBuffer dset i = case dset._bindings IM.! i of

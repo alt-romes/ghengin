@@ -10,12 +10,8 @@
 {-# LANGUAGE TypeOperators         #-}
 module Shader where
 
-import qualified Data.IntMap as IM
-import qualified Prelude
 import Ghengin.Shaders.FIR
 import Ghengin.Shaders
-import Ghengin.Component.Mesh (VertexN)
-import Ghengin (Mat4)
 
 -- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
 -- Descriptor Set #1 for things bound once per material
@@ -65,9 +61,7 @@ type FragmentDefs
       , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
                                   ( Struct '[ "min" ':-> Float
                                             , "max" ':-> Float ] ) -- Careful with alighnemt
-      , "uniform_col" ':-> Uniform '[ DescriptorSet 1, Binding 1 ]
-                                    ( Struct '[ "val" ':-> V 3 Float ] )
-      , "gradient" ':-> Texture2D '[ DescriptorSet 1, Binding 2 ] (RGBA8 UNorm)
+      , "gradient" ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
       , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment
       ]
 
@@ -78,7 +72,6 @@ fragment = shader do
     ~(Vec4 px py pz _)  <- get @"in_position"
     ~(Vec4 nx ny nz _)  <- get @"in_normal"
     ~(Vec3 cx cy cz)    <- use @(Name "camera_pos" :.: Name "val")
-    ~(Vec3 bcx bcy bcz) <- use @(Name "uniform_col" :.: Name "val")
 
     -- Color
     min' <- use @(Name "minmax" :.: Name "min")
@@ -86,8 +79,6 @@ fragment = shader do
 
 
     let col_frac   = invLerp (norm (Vec3 px py pz)) min' max'
-        _col       = Vec3 (lerp (bcx * 0.1) bcx col_frac) (lerp (bcy*0.1) bcy col_frac)
-                          (lerp (bcz*0.1) bcz col_frac)
 
     ~(Vec4 cx' cy' cz' _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
 
@@ -122,10 +113,4 @@ shaderPipeline
   = StructInput @VertexData @(Triangle List)
     :>-> (vertex, ())
     :>-> (fragment, ())
-
-invLerp :: DivisionRing a => a -> a -> a -> a
-invLerp value from to = (value - from) / (to - from)
-
-lerp :: Ring a => a -> a -> a -> a
-lerp from to value = from + (to - from) * value
 

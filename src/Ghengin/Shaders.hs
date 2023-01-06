@@ -21,6 +21,13 @@ import qualified Vulkan as Vk
 type GShaderPipeline info = FIR.PipelineStages info ()
 
 
+invLerp :: FIR.DivisionRing a => a -> a -> a -> a
+invLerp value from to = (value FIR.- from) FIR./ (to FIR.- from)
+
+lerp :: FIR.Ring a => a -> a -> a -> a
+lerp from to value = from FIR.+ (to FIR.- from) FIR.* value
+
+
 newtype ShaderByteCode = SBC BS.ByteString
 
 -- | Compile a shader program into SPIR-V bytecode.
@@ -52,4 +59,5 @@ stageFlag FIR.TessellationEvaluationShader = Vk.SHADER_STAGE_TESSELLATION_EVALUA
 stageFlag FIR.GeometryShader               = Vk.SHADER_STAGE_GEOMETRY_BIT
 stageFlag FIR.FragmentShader               = Vk.SHADER_STAGE_FRAGMENT_BIT
 stageFlag FIR.ComputeShader                = Vk.SHADER_STAGE_COMPUTE_BIT
+
 

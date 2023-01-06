@@ -11,6 +11,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
+import Data.Typeable
 import System.Mem
 import System.Random
 import GHC.TypeLits
@@ -49,54 +50,18 @@ data World = World { renderPackets :: !(Storage RenderPacket)
                    }
 
 -- | A better program:
--- @
--- init :: Ghengin World PlanetSettings
--- init = do
---  -- Planet's pipeline
---  planetPipeline <- makeRenderPipeline Shader.shaderPipeline
---  ps             <- makeSettings @PlanetSettings
---
---  (planetMesh,minmax)   <- newPlanet ps
---  (planetMesh2,minmax2) <- newPlanet ps
---
---  let rp1 = RenderPacket planetMesh (makeMinMaxMaterial minmax) planetPipeline
---      rp2 = RenderPacket planetMesh2 (makeMinMaxMaterial minmax2) planetPipeline
---
---  sceneGraph do
---    newEntity ( UIWindow "Planet" (makeComponents ps) )
---  
---    newEntity' ( rp1, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 (pi/2) 0) ) do
---      newEntity ( rp2, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
---  
---    newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
---              , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
--- @
-
 initG :: Ghengin World ()
 initG = do
 
   ps <- liftIO $ makeSettings @PlanetSettings
-  ps2 <- liftIO $ makeSettings @PlanetSettings
 
-  sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-  tex <- lift $ texture "assets/planet_gradient.png" sampler
+  -- sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  -- tex <- lift $ texture "/Users/romes/projects/ghengin/assets/planet_gradient.png" sampler
 
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
 
-  (planetMesh,minmax)   <- newPlanet ps
-  (planetMesh2,minmax2) <- newPlanet ps2
-  m1 <- lift $ material (makeMinMaxMaterial (vec3 1 0 0) minmax tex) planetPipeline
-  m2 <- lift $ material (makeMinMaxMaterial (vec3 0 0 1) minmax2 tex) planetPipeline
-
-  let p1 = renderPacket planetMesh m1 planetPipeline
-      p2 = renderPacket planetMesh2 m2 planetPipeline
-
-  -- TODO: Currently we can't share meshes, we're freeing them multiple times
-  -- causing a segmentation fault, and even worse if we free it to create a new
-  -- one when someone else is using it
-  -- TODO: Is that ^ still true? I don't think it is because we construct a
-  -- render queue to free the in game materials, and descend it only visiting
-  -- each material once.
+  p1 <- newPlanet ps planetPipeline
+  -- p2 <- newPlanet ps2 planetPipeline
 
   sceneGraph do
 
@@ -104,16 +69,16 @@ initG = do
     -- which can be later modified. this data is bound once per pipeline.?
 
     (e1,e2) <- newEntity' ( p1, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 (pi/2) 0) ) do
-                 newEntity ( p2, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
+                pure ()
+                 -- newEntity ( p2, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
 
     -- The global data in this game in specific is actually the Camera transform?
     newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
               , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
-              -- , PipelineData @Transform self planetPipeline)
 
     -- : UI
     newEntityUI "Planet"  $ makeComponents ps e1
-    newEntityUI "Planet2" $ makeComponents ps2 e2
+    -- newEntityUI "Planet2" $ makeComponents ps2 e2
 
   pure ()
 
@@ -127,6 +92,17 @@ updateG () dt = do
 
 endG :: Ghengin World ()
 endG = do
+  cmapM $ \(RenderPacket _ (mat :: Material mt) _ _) -> do
+    () <- case eqT @mt @PlanetProps of
+      Nothing -> error "?"
+      Just Refl -> do
+        case mat of
+          Texture2DBinding lastTex _ -> do
+            dev <- lift $ getDevice
+            liftIO $ freeTexture dev lastTex
+    pure ()
+
+
   liftIO $ putStrLn "Goodbye"
 
 main :: IO ()

@@ -3,13 +3,15 @@ import Distribution.Simple
 
 main :: IO ()
 main = defaultMainWithHooks $ simpleUserHooks
-  { postBuild = (\a b c d -> putStrLn "The print works..." >> appBundleBuildHook guiApps a b c d) -- no op on other oses
+  { postBuild = appBundleBuildHook guiApps -- no op on other oses
   }
+
 
 guiApps :: [MacApp]
 guiApps =
   [ MacApp
-    { appName = "Planets"
+    -- very important: the name of the mac app must match the name of the executable
+    { appName = "planets"
     , appIcon = Just "planets.icns"
     , appPlist = Nothing -- Build a default Info.plist for the icon.
     , resources = [] -- No other resources.

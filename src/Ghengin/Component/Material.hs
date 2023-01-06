@@ -356,11 +356,11 @@ materialDescriptorSet = \case
 
 freeMaterial :: Material α -> Renderer χ ()
 freeMaterial = \case
-  Done dset -> pure () -- destroyDescriptorSet dset -- TODO: BIG TODO: Free descriptor set. Should free each binding that should be destroyed (careful with e.g. shared textures)
+  Done dset -> destroyDescriptorSet dset -- TODO: BIG TODO: Free descriptor set. Should free each binding that should be destroyed (but we must be very careful with e.g. shared textures)
   StaticBinding _ xs -> freeMaterial xs
   DynamicBinding _ xs -> freeMaterial xs
   Texture2DBinding tex xs -> do
-    -- freeTexture tex -- TODO: BIG:TODO: Can't free textures here because they might be shared and we would double free
+    -- freeTexture tex -- TODO: BIG:TODO: Can't free textures here because they might be shared and we would double free, for now they must be manually freed
     freeMaterial xs
 
 
