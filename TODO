@@ -1,25 +1,30 @@
+[ ] Linear types for resource management
+[?] MonadRenderer to be able to call mesh creation and such from SystemT
+[ ] Toon Shader
+[ ] Automatically derive UISettings?
+[ ] Swap chain recreation...
 [ ] Would it be bad for performance having two layers of ECS (rendering + user)?
-[ ] Better solution for memory management (linear types, gc, bla bla)
+[ ] Better solution for memory management (linear types, gc, bla bla). Right now we require shared resources (like textures) to be manually freed, while material local resources are freed by the engine.
 [ ] Build macos app bundles
 [0] If I ever have a big enough game, processing all assets at init will be slow, and we should otherwise store the processed data in a resource manager database
 [ ] Unity tutorial project
 
+[ ] Fix GUI Gradient by removing (static) global markers
 [ ] Move GUI Gradient to separate package
-[ ] The UISettings doesn't need the type family... wouldn't it be better to add the entity as a parameter to the PlanetSettings?
+[c] The UISettings doesn't need the type family... wouldn't it be better to add the entity as a parameter to the PlanetSettings?
 [.] Gradient GUI editor. (TODO: left align it...)
 
 Next steps:
 [x] Update UI in the imgui way instead of that terrible boolean
 [x] Function to update material properties which fixes the existential issues
-[ ] Free all textures at the end, and material resources when the material is "removed".
+[x] Free all textures at the end, and material resources when the material is "removed".
 [x] More flexibility picking the sampler. (Next step: would it be good to have the sampler separate from the texture and simply appear in the texture material binding?)
 
-----
 [ ] A good hashble instance for Textures, or assign material ids with an atomic counter of sorts which would make things much easier than Hashable...
 [.] Compatibility between binding types (can't match dynamic binding with texture2d)
 [ ] Fix second planet. Its color is probably too bright because of its minmax
     being computed from the first one bc of the mesh recreation thing. once again, we need to fix the UI.
-[ ] Free descriptor sets and descriptor set resources
+[x] Free descriptor sets and descriptor set resources
 [-] Function to update static binding value that simply writes the buffer. The static binding should have a device local buffer which is not that easily written to
 [ ] Use an atomic counter for the material ids? https://github.com/sergv/atomic-counter
 [x] Somehow (through Typeable and pattern matching on runtime on the kind of
@@ -28,8 +33,8 @@ Next steps:
 [ ] Custom lights in descriptor set #0
 [ ] Should the descriptor set #0 be fixed for always needed engine data? (hardcoded) always camera position, lights positions, lights types, ...
 [ ] How to specify arbitrary descriptor set #0 (pipeline global data) and descriptor set #2 data (per model data).
-[ ] Free the discarded descriptor sets in the materials (read below) (or at least the mapped buffers)
-[ ] Free the materials during execution: careful they might be shared.
+[x] Free the discarded descriptor sets in the materials (read below) (or at least the mapped buffers)
+[x] Free the materials during execution: careful they might be shared.
 [x] Which UI changed? Currently we don't know and are simply updating all meshes the same
 [ ] Array of textures for textures shared across mats?
 [x] Q: Should I allocate a descriptor set per material? Is that common?
@@ -47,7 +52,6 @@ every frame, and the static bindings don't.
 [ ] Render packet data for global descriptors properties and for model descriptors properties rather than just the material properties
 [x] Compatible constraint with working planets example
 [x] Materials must have a compile time size to compare with the size of the descriptors defined in the shader.
-[ ] Swap chain recreation...
 [x] Static bindings which simply choose the descriptor (set?) rather than write to it
 [ ] Better scene graph implementation
 [+] Use parent component, a cached world matrix?, and a wrapper api that threads entities ids
@@ -58,15 +62,11 @@ in the visible space order meshes by pipeline and material
 type. Good algorithm that sorts geometry in the best possible way for the engine
 [x] Free render pipelines
 [y] Should each static material have its own descriptor set which simply gets bound instead of writing always over the one created with the pipeline?
-[.] Validate at compile time the meshes and materials registered for a render pipeline
+[.] Validate at compile time the meshes and materials registered for a render pipeline. (Missing: mesh validation)
 [-] Scene graph (BSP, quad/octtree)
-[ ] Automatically derive UISettings?
 [?] Disallow non-uniform scaling so that calculating the normal in world space is simpler
 [x] Who's pulling in lens? Maybe I can benefit from them if I already have to have them. (Answer: fir)
-[.] Bundle descriptor sets, render passes, and pipelines into a single abstraction
-[ ] Toon Shader
-[?] MonadRenderer to be able to call mesh creation and such from SystemT
-[ ] Linear types for resource management
+[.] Bundle descriptor sets, render passes, and pipelines into a single abstraction. (Missing: render passes)
 [x] Index buffer
 [-] Since for now we decide a game can ever only use one window, we could have
     the Ghengin monad propagate the window thorought the program
