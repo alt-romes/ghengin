@@ -18,12 +18,14 @@ module Ghengin.Utils
   , module Foreign.Storable.Generic
   , module Data.Hashable
   , module Control.Logger.Simple
+  , module Control.Monad.Trans
   , (.|.)
   , Proxy(..)
   ) where
 
 import GHC.TypeLits
 import Control.Monad
+import Control.Monad.Trans
 import Control.Logger.Simple
 import Data.Hashable
 import Data.Kind

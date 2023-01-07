@@ -261,11 +261,12 @@ createDescriptorSetLayout bindingsMap = getDevice >>= \device -> do
 -------------------------------
 
 
-data DescriptorSet =
-  DescriptorSet { _ix :: Int
-                , _descriptorSet :: Vk.DescriptorSet
-                , _bindings      ::  ResourceMap -- TODO: Rename to _resources instead of _bindings?
-                }
+data DescriptorSet
+  = DescriptorSet { _ix :: Int
+                  , _descriptorSet :: Vk.DescriptorSet
+                  , _bindings      ::  ResourceMap -- ^ TODO: Rename to _resources instead of _bindings?
+                  }
+  | EmptyDescriptorSet -- ^ TODO: We don't export this constructor?
 
 type ResourceMap = IntMap DescriptorResource
 
@@ -294,7 +295,8 @@ data DescriptorResource = UniformResource   MappedBuffer
 allocateDescriptorSet :: Int -- ^ The set to allocate by index
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
                       -> Renderer χ (ResourceMap -> Renderer χ DescriptorSet)
-allocateDescriptorSet ix = fmap (\case [ds] -> ds; _ -> error "impossible") . allocateDescriptorSets [ix]
+allocateDescriptorSet ix = fmap (\case [ds] -> ds; _ -> error $ "Internal error: Failed to allocate a single descriptor set #" <> show ix
+                                ) . allocateDescriptorSets [ix]
 
 -- | Like 'allocateDescriptorSet' but allocate multiple sets at once
 allocateDescriptorSets :: Vector Int -- ^ The sets to allocate by Ix
@@ -303,7 +305,14 @@ allocateDescriptorSets :: Vector Int -- ^ The sets to allocate by Ix
 allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
   let
       sets :: Vector (Vk.DescriptorSetLayout, BindingsMap)
-      sets = fmap (dpool._set_bindings IM.!) ixs
+      sets = fmap (\i -> case IM.lookup i dpool._set_bindings of
+                           Just x -> x
+                           Nothing -> error $ "Internal error: We're trying to allocate a descriptor set #" <> show i <> " with no bindings."
+                  ) ixs
+                  -- The lookup will be nothing if we are trying to allocate a
+                  -- descriptor set type #i, but there exist no bindings on set #1.
+                  -- In that case, we don't allocate that descriptor set (which
+                  -- might result in an empty returned vector)
 
       allocInfo = Vk.DescriptorSetAllocateInfo { descriptorPool = dpool._pool
                                                , setLayouts = fmap fst sets
@@ -388,6 +397,7 @@ updateDescriptorSet dset resources = do
 --
 -- TODO: Write this to the note
 destroyDescriptorSet :: DescriptorSet -> Renderer ext ()
+destroyDescriptorSet EmptyDescriptorSet = pure ()
 destroyDescriptorSet (DescriptorSet _ix _dset dresources) = do
   _ <- traverse freeDescriptorResource dresources
   pure ()
@@ -398,7 +408,8 @@ freeDescriptorResource = \case
   u@(Texture2DResource _) -> pure ()
 
 getUniformBuffer :: DescriptorSet -> Int -> MappedBuffer
-getUniformBuffer dset i = case dset._bindings IM.! i of
-                            UniformResource b -> b
+getUniformBuffer dset i = case IM.lookup i dset._bindings of
+                            Just (UniformResource b) -> b
+                            Nothing -> error $ "Expecting a uniform descriptor resource at binding " <> show i <> " but found nothing!"
                             _ -> error $ "Expecting the descriptor resource at binding " <> show i <> " to be a uniform!"
 

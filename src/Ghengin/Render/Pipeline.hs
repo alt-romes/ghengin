@@ -57,6 +57,7 @@ makeRenderPipeline shaderPipeline = do
   -- We need to do 'createDescriptorSets' as many times as there are frames in flight.
   --
   -- TODO: The dpool per frame in flight doesn't make any sense at the moment, for now we simply allocate from the first pool.
+  -- TODO: it doesn't need to be per frame in flight, we just need two to switch between, despite the number of frames in flight
   dsetsSet@(dsets:|_) <- mapM (const (createPipelineDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
 
   pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (V.fromList $ fmap fst (IM.elems $ (snd dsets)._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant

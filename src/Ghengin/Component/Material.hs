@@ -99,35 +99,41 @@ data Material xs where
 material :: Material' α -> RenderPipeline β -> Renderer χ (Material α)
 material matf rp = 
   let (_,dpool) NE.:| _ = rp._descriptorSetsSet
-   in do
-     -- We allocate a descriptor set and create a closure that will give us the
-     -- descriptor set when provided with a resource map.
-     dsetf <- allocateDescriptorSet 1 dpool
+   in
+     -- We bail out early if this descriptor pool has no descriptor sets of
+     -- type #1 (which would mean there are no bindings in descriptor set #1
+     case IM.lookup 1 dpool._set_bindings of
+       Nothing -> pure (matf EmptyDescriptorSet)
+       Just _  -> do
 
-     -- We create a dummy material based on a dummy dset constructed from an
-     -- empty set of resources. The descriptor set function constructs a
-     -- descriptor set and writes all the resources to their bindings. If we
-     -- pass an empty map of resources, nothing is written. So we create an
-     -- empty resource map to create a dummy descriptor set to create a material
-     -- with a dummy dset so we can inspect its structure and allocate the
-     -- required resources that haven't yet been allocated. When we finish doing
-     -- so, we'll have constructed the actual resource map, and can then create
-     -- a final material.
-     dummySet <- dsetf mempty
-     let dummyMat = matf dummySet
+         -- We allocate a descriptor set of type #1 and create a closure that will
+         -- give us the descriptor set when provided with a resource map.
+         dsetf <- allocateDescriptorSet 1 dpool
 
-     -- Make the resource map for this material
-     resources <- makeResources dummyMat
+         -- We create a dummy material based on a dummy dset constructed from an
+         -- empty set of resources. The descriptor set function constructs a
+         -- descriptor set and writes all the resources to their bindings. If we
+         -- pass an empty map of resources, nothing is written. So we create an
+         -- empty resource map to create a dummy descriptor set to create a dummy
+         -- material so we can inspect its structure and allocate the required
+         -- resources that haven't yet been allocated. When we finish doing so,
+         -- we'll have constructed the actual resource map, and can then create a
+         -- final material.
+         dummySet <- dsetf mempty
+         let dummyMat = matf dummySet
 
-     -- Create the descriptor set with the written descriptors based on the
-     -- created resource map
-     actualDSet <- dsetf resources
+         -- Make the resource map for this material
+         resources <- makeResources dummyMat
 
-     -- Create the material which stores the final descriptor set with the
-     -- updated information.
-     let actualMat = matf actualDSet
+         -- Create the descriptor set with the written descriptors based on the
+         -- created resource map
+         actualDSet <- dsetf resources
 
-     pure actualMat
+         -- Create the material which stores the final descriptor set with the
+         -- updated information.
+         let actualMat = matf actualDSet
+
+         pure actualMat
 
 
 class HasBindingsAt ns α βs where

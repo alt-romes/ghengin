@@ -198,17 +198,19 @@ render i = do
 
             logTrace ("Binding material")
 
-            let matDSet = materialDescriptorSet material
+            case materialDescriptorSet material of
+              EmptyDescriptorSet -> pure () -- Bail out, we don't have to do anything on an empty descriptor set. This happens if there isn't a single binding in set #1
+              matDSet@DescriptorSet{} -> do
 
-            -- These materials are necessarily compatible with this pipeline in
-            -- the set #1, so the 'descriptorSetBinding' buffer will always be
-            -- valid to write with the corresponding material binding
-            lift $ writeMaterial (getUniformBuffer matDSet) material
-            
-            -- static bindings will have to choose a different dset
-            -- Bind descriptor set #1
-            bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
-              1 matDSet._descriptorSet
+                -- These materials are necessarily compatible with this pipeline in
+                -- the set #1, so the 'descriptorSetBinding' buffer will always be
+                -- valid to write with the corresponding material binding
+                lift $ writeMaterial (getUniformBuffer matDSet) material
+                
+                -- static bindings will have to choose a different dset
+                -- Bind descriptor set #1
+                bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
+                  1 matDSet._descriptorSet
 
           )
         (\(SomePipeline pipeline) (mesh :: Mesh) (ModelMatrix mm _) -> do
@@ -248,7 +250,7 @@ render i = do
 -- (1) For each binding
 --    (1.1) If it's dynamic, write the buffer
 --    (1.2) If it's static, do nothing because the buffer is already written
---    (1.3) If it's 
+--    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
 -- (2) Bind the descriptor set #1 with this material's descriptor set ( This is
 -- not being done here ??? )
 --
