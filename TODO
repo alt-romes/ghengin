@@ -1,3 +1,4 @@
+[ ] Instances for safe coercion between ImGui types and Geomancy (using unsafeCoerce :P)
 [ ] Linear types for resource management
 [?] MonadRenderer to be able to call mesh creation and such from SystemT
 [ ] Toon Shader
