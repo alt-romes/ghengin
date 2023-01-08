@@ -22,6 +22,7 @@ import Ghengin (Ghengin)
 -- movement ending at 'dest'
 data TransformAnimation w = TransformAnimation' { movement  :: Vec3
                                                 , dest      :: Vec3
+                                                , speed     :: Float -- ^ Speed determines how fast the animation plays
                                                 , finalizer :: Ghengin w ()
                                                 } -- This is a linear animation across a vector. There could be more complex transform animations later on
 
@@ -29,7 +30,7 @@ data TransformAnimation w = TransformAnimation' { movement  :: Vec3
 --
 -- The 'movement' vector dictates both the length and the direction starting at
 -- the given starting point
-transformAnimation :: Vec3 -> Vec3 -> Ghengin w () -> TransformAnimation w
+transformAnimation :: Vec3 -> Vec3 -> Float -> Ghengin w () -> TransformAnimation w
 transformAnimation mov ((+mov) -> dest) = TransformAnimation' mov dest
 
 instance Component (TransformAnimation w) where
@@ -39,11 +40,10 @@ instance (Monad m, HasField "transformAnimations" w (Storage (TransformAnimation
   getStore = SystemT (asks (.transformAnimations))
 
 transformAnimationUpdate :: (HasField "transformAnimations" w (Storage (TransformAnimation w)), HasField "transforms" w (Storage Transform), Typeable w)
-                         => Float -- ^ Speed
-                         -> Float -- ^ Delta time
+                         => Float -- ^ Delta time
                          -> Ghengin w ()
-transformAnimationUpdate speed dt = do
-  cmapM $ \(tr :: Transform, TransformAnimation' @w dir dest fin) ->
+transformAnimationUpdate dt = do
+  cmapM $ \(tr :: Transform, TransformAnimation' @w dir dest speed fin) ->
     let -- dest = dir + start we take the dest instead of the start to avoid computing the destination every update
         distLeft = tr.position - dest
      in if 1e-4 > dot distLeft distLeft -- If we're almost at the destination modulo "large" aproximations
@@ -59,5 +59,5 @@ transformAnimationUpdate speed dt = do
            --   (1) We update the transform by the direction
            --   (2) We keep the animation component
            let newTr = tr{position = tr.position + dir ^* (dt * speed)}
-            in pure (newTr, Just (TransformAnimation' dir dest fin))
+            in pure (newTr, Just (TransformAnimation' dir dest speed fin))
 
