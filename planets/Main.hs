@@ -90,8 +90,8 @@ updateG () dt = do
 
   pure False
 
-endG :: Ghengin World ()
-endG = do
+endG :: () -> Ghengin World ()
+endG () = do
   cmapM $ \(RenderPacket _ (mat :: Material mt) _ _) -> do
     () <- case eqT @mt @PlanetProps of
       Nothing -> error "?"

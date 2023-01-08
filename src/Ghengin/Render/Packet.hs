@@ -33,6 +33,8 @@ import Ghengin.Component.Material hiding (material)
 import Ghengin.Component.Mesh
 import Ghengin.Utils
 
+import Data.IORef
+
 -- import FIR.Layout(Layout(..))
 import Data.Type.Map
   ( Values )
@@ -135,8 +137,10 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ α β. (Hashable (Material α), Compatible α β, Typeable α) => Mesh -> Material α -> RenderPipeline β -> RenderPacket
-renderPacket mesh material pipeline = RenderPacket mesh material pipeline (makeKey material pipeline)
+renderPacket :: ∀ α β μ. (Hashable (Material α), Compatible α β, Typeable α, MonadIO μ) => Mesh -> Material α -> RenderPipeline β -> μ RenderPacket
+renderPacket mesh material pipeline = do
+  () <- liftIO $ atomicModifyIORef' mesh.referenceCount (\x -> (x+1,()))
+  pure $ RenderPacket mesh material pipeline (makeKey material pipeline)
 
 {-
 Note [Render Packet Key]

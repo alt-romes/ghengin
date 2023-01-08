@@ -124,7 +124,7 @@ instance UISettings PlanetSettings where
             -- material and pipeline
             newTex <- textureFromGradient grad
             newMat <- lift $ medit @1 @PlanetProps mat $ \_ -> newTex
-            C.set planetEntity (renderPacket oldMesh newMat pp)
+            C.set planetEntity =<< renderPacket oldMesh newMat pp
 
             -- We can free the previous texture here because we only ever
             -- allocate one per planet, and because after we call medit the
@@ -155,7 +155,7 @@ instance UISettings PlanetSettings where
            -- newMaterial <- lift $ medits @[0,1] @PlanetProps mat $ (\_oldMinMax -> newMinMax) :-# pure :+# HFNil
            newMaterial <- lift $ medit @0 @PlanetProps mat (\_oldMinMax -> newMinMax)
 
-           C.set planetEntity (renderPacket newMesh newMaterial pp)
+           C.set planetEntity =<< renderPacket newMesh newMaterial pp
 
     pure ()
 

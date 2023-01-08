@@ -15,7 +15,7 @@ import Ghengin.Utils
 import Ghengin.Component.UI
 
 import Numeric.Noise hiding (Noise)
-import Numeric.Noise.Perlin hiding (Noise)
+import Numeric.Noise hiding (Noise)
 
 
 data NoiseType = SimpleNoise | RigidNoise
@@ -94,5 +94,5 @@ evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p =
                                     ) (0,baseRoughness,1,1) ([1..nlayers] :: [Int])
        in if enabled then max (double2Float finalVal - minVal) 0 * stren else 0
 
-    noiseValue' (WithVec3 x y z) = noiseValue (perlin 2 5 1 0.5) (float2Double x, float2Double y, float2Double z)
+    noiseValue' (WithVec3 x y z) = coherentNoise 2 (float2Double x, float2Double y, float2Double z)
 

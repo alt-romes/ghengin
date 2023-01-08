@@ -15,7 +15,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE UndecidableInstances #-} -- instance Has w m Mesh
 module Ghengin.Component.Mesh
-  ( Mesh
+  ( Mesh(..) -- Export these from an Internals module, not from here
   , Vertex(..)
   , VertexN
   , createMesh
@@ -27,6 +27,8 @@ module Ghengin.Component.Mesh
   , chunksOf
   ) where
 
+import Control.Monad
+import Data.IORef
 import GHC.TypeLits
 import GHC.Records
 import Data.List.Split (chunksOf)
@@ -44,7 +46,7 @@ import qualified Data.Vector.Storable as SV
 
 import Geomancy.Vec3
 
-import Apecs
+import qualified Apecs as A
 
 import qualified Vulkan as Vk
 
@@ -62,12 +64,12 @@ mesh during the game you must free it explicitly. TODO: Enforce it somehow
 
  -}
 
-instance (Monad m, HasField "meshes" w (Storage Mesh)) => Has w m Mesh where
-  getStore = SystemT (asks (.meshes))
+instance (Monad m, HasField "meshes" w (A.Storage Mesh)) => A.Has w m Mesh where
+  getStore = A.SystemT (A.asks (.meshes))
 
 -- TODO: Renderable components should be Cache instead of Map
-instance Component Mesh where
-  type Storage Mesh = Map Mesh
+instance A.Component Mesh where
+  type Storage Mesh = A.Map Mesh
 
 data Vertex = Vertex { position :: {-# UNPACK #-} !Vec3
                      , normal   :: {-# UNPACK #-} !Vec3
@@ -110,20 +112,23 @@ instance S.Storable Vertex where
 --   poke = S.poke
 
 data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
-                       , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- we later need to free this as well
-                       , nVertices :: Word32 -- ^ We save the number of vertices to pass to the draw function
+                       , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory
+                       , nVertices          :: {-# UNPACK #-} !Word32 -- ^ We save the number of vertices to pass to the draw function
+
                        -- We don't need to keep the Vector Vertex that was originally (unless we wanted to regenerate it every time?)
                        -- used to create this Mesh, bc having the vertex buffer and
                        -- the device memory is morally equivalent
                        -- , vertices :: Vector Vertex
+
+                       , referenceCount     :: !(IORef Word) -- ^ Count the number of references to this mesh so freeMesh can take it into account
                        }
           | IndexedMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
-                        , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- vertices device memoy -- we later need to free this as well
+                        , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- vertices device memoy
                         , indexBuffer        :: {-# UNPACK #-} !Vk.Buffer -- vertices indexes in buffer
-                        , indexBufferMemory  :: {-# UNPACK #-} !Vk.DeviceMemory -- indexes device memory -- TODO TO BE FREED AND BUFFER TOO
-                        , nIndexes           :: Word32 -- ^ We save the number of indexes to pass to the draw function
+                        , indexBufferMemory  :: {-# UNPACK #-} !Vk.DeviceMemory -- indexes device memory
+                        , nIndexes           :: {-# UNPACK #-} !Word32 -- ^ We save the number of indexes to pass to the draw function
+                        , referenceCount     :: !(IORef Word) -- ^ Count the number of references to this mesh so freeMesh can take it into account
                         }
-          deriving Show
 
       -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
 
@@ -131,12 +136,12 @@ data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a v
 -- Render a mesh command
 renderMesh :: MonadIO m => Mesh -> RenderPassCmd m
 renderMesh = \case
-  SimpleMesh buf _ nverts -> do
+  SimpleMesh buf _ nverts _ -> do
       let buffers = [buf] :: Vector Vk.Buffer
           offsets = [0]
       bindVertexBuffers 0 buffers offsets
       draw nverts
-  IndexedMesh vbuf _ ibuf _ nixs -> do
+  IndexedMesh vbuf _ ibuf _ nixs _ -> do
       let buffers = [vbuf] :: Vector Vk.Buffer
           offsets = [0]
       bindVertexBuffers 0 buffers offsets
@@ -145,12 +150,23 @@ renderMesh = \case
 
 
 -- | Create a Mesh given a vector of vertices
--- TODO: Clean all Mesh vertex buffers
+--
+-- Initially there exist no references to this mesh, and if we never assign it
+-- to a render entity it will never be freed. However, when a mesh is added to
+-- a render packet using 'renderPacket', a reference count is added.
+--
+-- A mesh will only be freed when its reference count reaches zero.
+--
+-- If you delete/change meshes at runtime you must ensure they are freed
+-- because we simply free them at the end. One must free the same meshes as
+-- many times as they are shared for they will only be freed with the last
+-- reference
 createMesh :: SV.Vector Vertex -> Renderer ext Mesh
 createMesh vs = do
   let nverts = SV.length vs
   (buffer, devMem) <- createVertexBuffer vs
-  pure (SimpleMesh buffer devMem (fromIntegral nverts))
+  ref <- liftIO $ newIORef 0
+  pure (SimpleMesh buffer devMem (fromIntegral nverts) ref)
 
 createMeshWithIxs :: [Vertex] -> [Int] -> Renderer ext Mesh
 createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
@@ -158,13 +174,18 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
   (vbuffer, vbMem) <- createVertexBuffer vertices
   (ibuffer, ibMem) <- createIndex32Buffer (SV.map fromIntegral ixs)
 
-  pure (IndexedMesh vbuffer vbMem ibuffer ibMem (fromIntegral nixs))
+  ref <- liftIO $ newIORef 0
+  pure (IndexedMesh vbuffer vbMem ibuffer ibMem (fromIntegral nixs) ref)
 
 
 freeMesh :: Mesh -> Renderer ext ()
-freeMesh = \case
-  SimpleMesh a b _ -> destroyBuffer a b
-  IndexedMesh a b c d _ -> destroyBuffer a b >> destroyBuffer c d
+freeMesh mesh = do
+  () <- liftIO $ atomicModifyIORef' mesh.referenceCount (\x -> (x-1,()))
+  count <- get mesh.referenceCount
+  when (count == 0) $
+    case mesh of
+      SimpleMesh a b _ _ -> destroyBuffer a b
+      IndexedMesh a b c d _ _ -> destroyBuffer a b >> destroyBuffer c d
 
 
 -- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)
