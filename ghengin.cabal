@@ -103,6 +103,7 @@ library
                       Ghengin.Component.UI,
                       Ghengin.Component.Camera,
                       Ghengin.Component.Transform,
+                      Ghengin.Component.Transform.Animation,
                       Ghengin.Component.Material,
                       Ghengin.Component.Mesh,
                       Ghengin.Component.Mesh.Hex,

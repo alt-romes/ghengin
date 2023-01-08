@@ -171,7 +171,7 @@ newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
   (mesh,minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad
   mat <- lift $ material (planetMaterial minmax tex) pipeline
-  pure $ renderPacket @PlanetProps @a mesh mat pipeline
+  renderPacket @PlanetProps @a mesh mat pipeline
 
 newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh, MinMax)
 newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do

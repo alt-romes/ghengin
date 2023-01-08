@@ -1,10 +1,11 @@
+[ ] Reference count Textures and Samplers
 [ ] Instances for safe coercion between ImGui types and Geomancy (using unsafeCoerce :P)
 [ ] Linear types for resource management
 [?] MonadRenderer to be able to call mesh creation and such from SystemT
 [ ] Toon Shader
 [ ] Automatically derive UISettings?
 [ ] Swap chain recreation...
-[ ] Would it be bad for performance having two layers of ECS (rendering + user)?
+[x] Would it be bad having two layers of ECS (rendering + user)? <-- This wouldn't work because the user-world must also know of render packets and such, since it wants to add and manipulate them
 [ ] Better solution for memory management (linear types, gc, bla bla). Right now we require shared resources (like textures) to be manually freed, while material local resources are freed by the engine.
 [ ] Build macos app bundles
 [0] If I ever have a big enough game, processing all assets at init will be slow, and we should otherwise store the processed data in a resource manager database

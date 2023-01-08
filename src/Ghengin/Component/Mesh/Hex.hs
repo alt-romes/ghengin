@@ -18,12 +18,12 @@ makeHexFace size percent (q, r) =
     WithVec3 cx _ cz = liftHexCoord size (q,r)
     (innerCorners, outerCorners)
       = unzip $
-          map ( (\((cnx,cnz), (cnix,cniz)) -> ( vec3 (cnx + cx)  (-0.1) (cnz + cz)
-                                              , vec3 (cnix + cx) (-0.1) (cniz + cz) ) )
+          map ( (\((cnx,cnz), (cnix,cniz)) -> ( vec3 (cnx + cx)  (0.9) (cnz + cz)
+                                              , vec3 (cnix + cx) (0.9) (cniz + cz) ) )
                 . hexCornerOffset ) [0..5]
     
   in
-    HexFace q r (vec3 cx 0 cz:(innerCorners <> innerCorners <> outerCorners))
+    HexFace q r (vec3 cx 1 cz:(innerCorners <> innerCorners <> outerCorners))
             ([1, 2, 0, -- Inner hex triangle faces
              2, 3, 0,
              3, 4, 0,
@@ -71,4 +71,6 @@ liftHexCoord :: Float -- ^ Hexagon size
              -> Vec3 -- ^ Position in 3D World with y=0 centered in (0,0)
 liftHexCoord size (fromIntegral -> q, fromIntegral -> r) = vec3 (size * (sqrt 3 * q + (sqrt 3/2) * r)) 0 (size * (3/2) * r)
 
+
+-- TODO: Recursive "add resolution to hex" to make hex with multiple vertices
 
