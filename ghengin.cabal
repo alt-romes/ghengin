@@ -72,6 +72,8 @@ library
                       -- Ghengin.Window,
 
                       Ghengin.Shaders,
+                      Ghengin.Shaders.Lighting,
+                      Ghengin.Shaders.Fixed,
                       Ghengin.Shaders.SimpleShader,
                       Ghengin.Shaders.FIR,
                       Ghengin.Utils,

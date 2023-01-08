@@ -46,7 +46,7 @@ transformAnimationUpdate dt = do
   cmapM $ \(tr :: Transform, TransformAnimation' @w dir dest speed fin) ->
     let -- dest = dir + start we take the dest instead of the start to avoid computing the destination every update
         distLeft = tr.position - dest
-     in if 1e-4 > dot distLeft distLeft -- If we're almost at the destination modulo "large" aproximations
+     in if 1e-3 > dot distLeft distLeft -- If we're almost at the destination modulo "large" aproximations
          then do
            -- Has reached destination
            --   (1) We set the transform to the actual destination to avoid aproximation errors down the line

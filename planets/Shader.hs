@@ -12,6 +12,7 @@ module Shader where
 
 import Ghengin.Shaders.FIR
 import Ghengin.Shaders
+import Ghengin.Shaders.Lighting
 
 -- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
 -- Descriptor Set #1 for things bound once per material
@@ -77,24 +78,11 @@ fragment = shader do
     min' <- use @(Name "minmax" :.: Name "min")
     max' <- use @(Name "minmax" :.: Name "max")
 
-
     let col_frac   = invLerp (norm (Vec3 px py pz)) min' max'
 
     ~(Vec4 cx' cy' cz' _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
 
-    let
-        col = Vec3 cx' cy' cz'
-        -- Light
-        viewDir    = normalise (Vec3 cx cy cz ^-^ Vec3 px py pz)
-        dirToLight = normalise (Vec3 1 (-3) (-1))
-        ambient    = 0.05 *^ col
-        normal     = normalise (Vec3 nx ny nz)
-        -- light intensity given by cosine of direction to light and the normal in world space
-        diffuse    = (max (dot dirToLight normal) 0) *^ col
-        halfwayDir = normalise (dirToLight ^+^ viewDir)
-        specular   = ((max (dot halfwayDir normal) 0) ** 16) *^ (Vec3 0.3 0.3 0.3 {- bright light -})
-
-        Vec3 colx coly colz = ambient ^+^ diffuse ^+^ specular
+    ~(Vec3 colx coly colz) <- blinnPhong $ Vec3 cx' cy' cz'
 
     put @"out_col" (Vec4 colx coly colz 1)
 

@@ -27,7 +27,7 @@ loadObjMesh filepath = do
           faces   = fmap (.elValue) wavefrontObj.objFaces
 
           getLoc :: FaceIndex -> Vec3
-          getLoc faceIx = case locs V.! (faceIx.faceLocIndex - 1) of Location x y z w -> vec3 x y z
+          getLoc faceIx = case locs V.! (faceIx.faceLocIndex - 1) of Location x y z w -> vec3 x (-y) z
 
           getNormal :: FaceIndex -> Vec3
           getNormal faceIx = maybe 0 (\norIx -> case normals V.! (norIx - 1) of Normal x y z -> vec3 x y z) faceIx.faceNorIndex
@@ -43,4 +43,29 @@ loadObjMesh filepath = do
 
       -- TODO: createMeshWithIxs
       createMesh (V.convert meshFaces)
+
+-- loadObjMesh :: FilePath -> Renderer ext Mesh
+-- loadObjMesh filepath = do
+--   fromFile filepath >>= \case
+--     Left err -> liftIO $ fail err
+--     Right wavefrontObj -> do
+--       let
+--           locs    = V.map getLoc $ wavefrontObj.objLocations
+--           normals = V.map getNormal $ wavefrontObj.objNormals
+--           faces   = fmap (.elValue) wavefrontObj.objFaces
+
+--           getLoc :: Location -> Vec3
+--           getLoc (Location x y z _) = vec3 x (-y) z
+
+--           getNormal :: Normal -> Vec3
+--           getNormal (Normal x y z) = vec3 x y z
+
+--           vertices = V.zipWith3 Vertex locs normals normals
+--           ixs = join $ fmap (\(Face a b c _) -> [ a.faceLocIndex , b.faceLocIndex , c.faceLocIndex ]) faces
+
+--           -- meshVertices = fmap (\(Location x y z w) -> Vertex (vec3 x y z) ()) (V.zip locs normals)
+
+--       liftIO $ print $ (length vertices, length normals, length ixs)
+--       createMeshWithIxs (V.toList vertices) (V.toList ixs)
+--       -- createMesh (V.convert meshFaces)
 
