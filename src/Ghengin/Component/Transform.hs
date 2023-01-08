@@ -63,9 +63,9 @@ makeTransform tr =
       s1 = sin ry
 
    in let w = colMajor (sx * (c1*c3 + s1*s2*s3)) (sy * (c3*s1*s2 - c1*s3)) (sz * (c2*s1)) x
-               (sx * (c2*s3))            (sy * (c2*c3))            (sz * (-s2))   y
-               (sx * (c1*s2*s3 - c3*s1)) (sy * (c1*c3*s2 + s1*s3)) (sz * (c1*c2)) z
-               0                         0                         0 1
+                       (sx * (c2*s3))            (sy * (c2*c3))            (sz * (-s2))   y
+                       (sx * (c1*s2*s3 - c3*s1)) (sy * (c1*c3*s2 + s1*s3)) (sz * (c1*c2)) z
+                       0                         0                         0 1
        in w
    -- With a fresh head this morning I followed the clipping planes line of
    -- thought and eventually found that the translation was being affected by

@@ -118,6 +118,7 @@ import {-# SOURCE #-} Ghengin (Ghengin)
 import Ghengin.Render.Packet
 import Ghengin.Vulkan
 import Ghengin.Component.Transform
+import Ghengin.Component.Camera
 
 -- TODO: Move to somewhere within the engine better and put together requirements on record fields
 instance (Monad m, HasField "entityCounter" w (Storage EntityCounter)) => Has w m EntityCounter where
@@ -142,7 +143,7 @@ newtype Parent = Parent Entity
 
 -- | The integer identifies the instance in which this model matrix was computed
 --
--- It's important that the matrix field is lazy...
+-- It's important that the matrix field is lazy... (not yet i think)
 data ModelMatrix = ModelMatrix Mat4 {-# UNPACK #-} !Int
 
 sceneGraph :: SceneGraph w a -> Ghengin w a
@@ -173,7 +174,8 @@ newEntity' c sub = ask >>= \mparentId -> do
 
 type TraverseConstraints w =
   ( 
-    HasField "transforms" w (Storage Transform)
+    HasField "transforms"    w (Storage Transform)
+  , HasField "cameras"       w (Storage Camera)
   , HasField "renderPackets" w (Storage RenderPacket)
   , HasField "entityParents" w (Storage Parent)
   , HasField "modelMatrices" w (Storage ModelMatrix)
@@ -224,10 +226,13 @@ traverseSceneGraph :: TraverseConstraints w
                    -> Ghengin w ()
 traverseSceneGraph inst f = do
 
-  -- TODO: RenderableEntity as a type
   cmapM \(p :: RenderPacket, e :: Entity) -> do
     mmm <- computeModelMatrix inst e
     f p (fromMaybe (ModelMatrix identity 0) mmm)
+
+  -- We also want to compute the model matrix of the camera
+  cmapM \(p :: Camera, e :: Entity) -> do
+    computeModelMatrix inst e
 
 
 -- | Recursively compute the model matrix of an entity and of all transitive parents

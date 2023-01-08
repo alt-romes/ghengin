@@ -171,7 +171,7 @@ render i = do
             -- TODO: Bind pipeline-global data to descriptor set #0
             -- Get main camera, for the time being it's the only possible pipeline data for the shader
             -- The last camera will override the write buffer
-            lift $ cmapM $ \(Camera proj view, fromMaybe noTransform -> camTr) -> do
+            lift $ cmapM $ \(Camera proj view, fromMaybe (ModelMatrix identity 0) -> ModelMatrix camTr _) -> do
 
               projM <- lift $ makeProjection proj
               let viewM = makeView camTr view
@@ -186,7 +186,7 @@ render i = do
               -- TODO: Either allow binding set #0 flexibly or describe how the
               -- implementation always passes this information to the shader
               case descriptorSetBinding pipeline 0 1 of
-                UniformResource buf -> lift $ writeMappedBuffer buf (camTr.position)
+                UniformResource buf -> lift $ writeMappedBuffer buf (posFromMat4 camTr)
 
 
             -- Bind descriptor set #0

@@ -30,6 +30,7 @@ import Control.Logger.Simple
 import Data.Hashable
 import Data.Kind
 import Geomancy.Vec3
+import Geomancy.Mat4
 import Data.StateVar
 import Foreign.Storable
 import Foreign.Storable.Generic
@@ -141,6 +142,9 @@ type family NumbersFromTo from to where
   NumbersFromTo to to = '[]
   NumbersFromTo from to = from ': NumbersFromTo (from+1) to
 
+
+posFromMat4 :: Mat4 -> Vec3
+posFromMat4 = flip withColMajor (\_ _ _ x _ _ _ y _ _ _ z _ _ _ _ -> vec3 x y z)
 
 
 -- * Known nats

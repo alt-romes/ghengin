@@ -16,6 +16,8 @@ module Ghengin.Vulkan.Sampler
     , Vk.SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE
     , Vk.SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
     )
+
+  , Vk.Sampler
   ) where
 
 import Control.Monad.IO.Class
