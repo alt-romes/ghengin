@@ -39,6 +39,7 @@ newUnitFace res up =
 
    in UF positions' ixs
 
+-- | Crashes on resolution = 1
 newUnitSphere :: Int -- ^ Resolution
           -> Maybe Vec3 -- ^ Color, use the normals if Nothing
           -> UnitSphere

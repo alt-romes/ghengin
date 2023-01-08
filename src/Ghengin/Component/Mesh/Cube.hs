@@ -7,7 +7,7 @@ import Geomancy
 import Ghengin.Component.Mesh
 import Ghengin.Vulkan (Renderer)
 
-
+-- TODO: Seems that creating a mesh without vertices is broken...
 
 cubeMeshVertices :: V.Vector Vertex
 cubeMeshVertices =

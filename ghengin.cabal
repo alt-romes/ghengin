@@ -75,6 +75,8 @@ library
                       Ghengin.Shaders.SimpleShader,
                       Ghengin.Shaders.FIR,
                       Ghengin.Utils,
+
+                      Ghengin.Input,
                       
                       Ghengin.Scene,
                       Ghengin.Scene.Graph,
@@ -103,6 +105,7 @@ library
                       Ghengin.Component.Transform,
                       Ghengin.Component.Material,
                       Ghengin.Component.Mesh,
+                      Ghengin.Component.Mesh.Hex,
                       Ghengin.Component.Mesh.Cube,
                       Ghengin.Component.Mesh.Sphere,
                       Ghengin.Component.Mesh.Obj,

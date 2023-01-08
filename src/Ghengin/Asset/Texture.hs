@@ -43,7 +43,7 @@ freeTexture :: Vk.Device -> Texture2D -> IO ()
 freeTexture dev (Texture2D img sampler) = do
   logInfo "Freeing texture..."
   destroyImage dev img
-  destroySampler dev sampler
+  -- destroySampler dev sampler TODO: Should be reference counted or something. For now we do it manually
 
 textureFromImage :: DynamicImage
                  -> Vk.Sampler
