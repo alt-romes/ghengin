@@ -77,7 +77,7 @@ initG = do
               , Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0))
 
     -- : UI
-    newEntityUI "Planet"  $ makeComponents ps e1
+    newEntityUI "Planet" $ makeComponents ps e1
     -- newEntityUI "Planet2" $ makeComponents ps2 e2
 
   pure ()

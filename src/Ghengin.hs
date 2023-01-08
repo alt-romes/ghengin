@@ -85,7 +85,7 @@ ghengin :: WorldConstraints w
                                                           -- loop? iteration.
                                                           -- The returned Bool indicates whether we should exit the gameloop
         -- -> Ghengin w c -- ^ Run every draw step?
-        -> Ghengin w c -- ^ Run once the game is quit (for now that is when the window closed)
+        -> (a -> Ghengin w c) -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
 ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConfig (Just "log.ghengin.log") True) . (runVulkanRenderer ()) . (`runSystem` world) $ do
 
@@ -166,7 +166,7 @@ ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConf
     )
     (pure ())
 
-  _ <- finalize
+  _ <- finalize a
 
   pure ()
 
