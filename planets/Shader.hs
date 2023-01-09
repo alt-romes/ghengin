@@ -80,7 +80,7 @@ fragment = shader do
 
     ~(Vec4 cx' cy' cz' _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
 
-    ~(Vec3 colx coly colz) <- blinnPhong $ Vec3 cx' cy' cz'
+    ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 cx' cy' cz'
 
     put @"out_col" (Vec4 colx coly colz 1)
 

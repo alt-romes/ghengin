@@ -21,12 +21,12 @@ blinnPhong :: ∀ π
 
               , _ -- extra constraints (wildcard at the end)
               )
-           => Code (V 3 Float) -> Program π π (Code (V 3 Float))
-blinnPhong col = do
+           => Code Float -> Code (V 3 Float) -> Program π π (Code (V 3 Float))
+blinnPhong specularity col = do
 
-    ~(Vec4 px py pz _)  <- get @"in_position" @(V 4 Float) @π
-    ~(Vec4 nx ny nz _)  <- get @"in_normal"   @(V 4 Float) @π
-    ~(Vec3 cx cy cz)    <- use @(Name "camera_pos" :.: Name "val")
+    ~(Vec4 px py pz _) <- get @"in_position" @(V 4 Float) @π
+    ~(Vec4 nx ny nz _) <- get @"in_normal"   @(V 4 Float) @π
+    ~(Vec3 cx cy cz)   <- use @(Name "camera_pos" :.: Name "val")
 
     let
 
@@ -38,7 +38,7 @@ blinnPhong col = do
         -- light intensity given by cosine of direction to light and the normal in world space
         diffuse    = (max (dot dirToLight normal) 0) *^ col
         halfwayDir = normalise (dirToLight ^+^ viewDir)
-        specular   = ((max (dot halfwayDir normal) 0) ** 16) *^ (Vec3 0.3 0.3 0.3 {- bright light -})
+        specular   = ((max (dot halfwayDir normal) 0) ** specularity) *^ (Vec3 0.3 0.3 0.3 {- bright light -})
 
         Vec3 colx coly colz = ambient ^+^ diffuse ^+^ specular
 
