@@ -45,16 +45,20 @@ texture fp sampler = do
 
 freeTexture :: Texture2D -> Renderer χ ()
 freeTexture t@(Texture2D img sampler refs) = do
-  logTrace "Freeing texture..."
 
   () <- decRefCount t
 
   count <- get refs
 
   when (count == 0) $ do
+    logDebug "Freeing texture..."
     dev <- getDevice
     liftIO $ destroyImage dev img
     destroySampler sampler
+
+  -- TODO: Don't include this when built for production somehow
+  when (count < 0) $ do
+    logError "Destroying texture more times than the number of assignments..."
 
 textureFromImage :: DynamicImage
                  -> Sampler

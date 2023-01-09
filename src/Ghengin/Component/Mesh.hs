@@ -181,13 +181,18 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
 
 freeMesh :: Mesh -> Renderer ext ()
 freeMesh mesh = do
-  logTrace "Freeing mesh..."
   () <- decRefCount mesh
   count <- get mesh.referenceCount
-  when (count == 0) $
+
+  when (count == 0) $ do
+    logDebug "Freeing mesh..."
     case mesh of
       SimpleMesh a b _ _ -> destroyBuffer a b
       IndexedMesh a b c d _ _ -> destroyBuffer a b >> destroyBuffer c d
+
+  -- TODO: Don't include this when built for production somehow
+  when (count < 0) $ do
+    logError "Destroying texture more times than the number of assignments..."
 
 
 -- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)

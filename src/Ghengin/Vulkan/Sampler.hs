@@ -86,17 +86,19 @@ createSampler filter addrMode = do
 
 destroySampler :: Sampler -> Renderer χ ()
 destroySampler vs@(Sampler s refs) = do
-  logTrace "Freeing sampler..."
   dev <- getDevice
 
   () <- decRefCount vs
 
-  refCount <- liftIO $ get refs
-  when (refCount == 0) $
+  count <- liftIO $ get refs
+  when (count == 0) $ do
+    logDebug "Freeing sampler..."
     -- If ref count were -1 then we could have already freed it too many times.
     -- It shouldn't happen in reality because it would mean the sampler wasn't
     -- assigned to a material and the free was called directly
     Vk.destroySampler dev s Nothing
-  -- when (refCount < 0) $ do
-  --   logError "Destroying sampler more times than the number of assignments..."
+
+  -- TODO: Don't include this when built for production somehow
+  when (count < 0) $ do
+    logError "Destroying sampler more times than the number of assignments..."
 

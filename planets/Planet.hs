@@ -5,6 +5,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeApplications #-}
@@ -115,7 +117,6 @@ instance UISettings PlanetSettings where
           _b2 <- sliderFloat "Radius" ra 0 3
 
           whenM (gradientEditor grad) $ do
-            let oldTex = case mat of Texture2DBinding oldTex' _ -> oldTex'
 
             -- Because we introduced the equality constraint we can now edit
             -- the material AND we still keep the 'Compatible' instance because
@@ -124,6 +125,10 @@ instance UISettings PlanetSettings where
             -- material and pipeline
             newTex <- textureFromGradient grad
             newMat <- lift $ medit @1 @PlanetProps mat $ \_ -> newTex
+-- TODO: For now we have to do this manually since re-using the same mesh but
+-- building a new render packet will make the reference count of the same mesh
+-- be incorrectly increased. Perhaps we could have a similar function which takes some parameters.
+            decRefCount oldMesh 
             C.set planetEntity =<< renderPacket oldMesh newMat pp
 
             -- The textures are now reference counted and the discarded one is
