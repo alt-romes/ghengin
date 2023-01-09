@@ -1,4 +1,4 @@
--- {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedLabels #-}
 {-# LANGUAGE BlockArguments   #-} -- cleaner syntax for 'do' blocks (optional)

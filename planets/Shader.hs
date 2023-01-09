@@ -13,6 +13,7 @@ module Shader where
 import Ghengin.Shaders.FIR
 import Ghengin.Shaders
 import Ghengin.Shaders.Lighting
+import Ghengin.Shaders.Fixed
 
 -- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
 -- Descriptor Set #1 for things bound once per material
@@ -21,58 +22,55 @@ import Ghengin.Shaders.Lighting
 ---- Vertex -----
 
 type VertexDefs
-  = '[ "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
-     , "in_normal"   ':-> Input '[ Location 1 ] (V 3 Float)
-     , "out_position" ':-> Output '[ Location 0 ] (V 4 Float)
-     , "out_normal"   ':-> Output '[ Location 1 ] (V 4 Float)
-     , "ignored_color"    ':-> Input '[ Location 2 ] (V 3 Float)
-     , "push"        ':-> PushConstant '[] (Struct '[ "model" ':-> M 4 4 Float ])
-     , "ubo"         ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
-                                  ( Struct '[ "view" ':-> M 4 4 Float
-                                            , "proj" ':-> M 4 4 Float ] )
-     , "main"        ':-> EntryPoint '[] Vertex
+  = '[ "out_position"  ':-> Output '[ Location 0 ] (V 4 Float)
+     , "out_normal"    ':-> Output '[ Location 1 ] (V 4 Float)
+
+     , "main"          ':-> EntryPoint '[] Vertex
      ]
+     :++: FixedDescriptorSetZero
+     :++: FixedPushConstant
+     :++: FixedVertices
 
 
 vertex :: ShaderModule "main" VertexShader VertexDefs _
 vertex = shader do
+
     ~(Vec3 x y z)    <- get @"in_position"
     ~(Vec3 nx ny nz) <- get @"in_normal"
-    modelM <- use @(Name "push" :.: Name "model")
-    viewM  <- use @(Name "ubo" :.: Name "view")
-    projM  <- use @(Name "ubo" :.: Name "proj")
 
+    modelM <- use @(Name "push" :.: Name "model")
+
+    -- Output position and normal in world coordinates
     put @"out_position" (modelM !*^ (Vec4 x y z 1))
     put @"out_normal"   (modelM !*^ (Vec4 nx ny nz 0)) -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
-    put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ (Vec4 x y z 1))
+
+    put @"gl_Position" =<< applyMVP (Vec4 x y z 1)
 
 
 ---- Fragment -----
 
 
 type FragmentDefs
-  =  '[ "out_col" ':-> Output '[ Location 0 ] (V 4 Float)
-      , "in_position" ':-> Input '[ Location 0 ] (V 4 Float)
+  =  '[ "in_position" ':-> Input '[ Location 0 ] (V 4 Float)
       , "in_normal"   ':-> Input '[ Location 1 ] (V 4 Float)
       -- , "light_pos"  ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
       --                               ( Struct '[ "val" ':-> V 3 Float ] )
-      , "camera_pos" ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
-                                    ( Struct '[ "val" ':-> V 3 Float ] )
-      -- TODO: MinMax material should be a static material because it only needs to be bound, not written every frame, because we statically know it and only change it when the mesh changes
       , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
                                   ( Struct '[ "min" ':-> Float
-                                            , "max" ':-> Float ] ) -- Careful with alighnemt
+                                            , "max" ':-> Float ] ) -- Careful with alignment...
       , "gradient" ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
+
+      , "out_col" ':-> Output '[ Location 0 ] (V 4 Float)
       , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment
       ]
+      :++: FixedDescriptorSetZero
+      :++: FixedPushConstant
 
 
 fragment :: ShaderModule "main" FragmentShader FragmentDefs _
 fragment = shader do
 
     ~(Vec4 px py pz _)  <- get @"in_position"
-    ~(Vec4 nx ny nz _)  <- get @"in_normal"
-    ~(Vec3 cx cy cz)    <- use @(Name "camera_pos" :.: Name "val")
 
     -- Color
     min' <- use @(Name "minmax" :.: Name "min")
