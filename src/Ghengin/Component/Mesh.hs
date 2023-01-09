@@ -1,4 +1,5 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
@@ -120,14 +121,14 @@ data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a v
                        -- the device memory is morally equivalent
                        -- , vertices :: Vector Vertex
 
-                       , referenceCount     :: !(IORef Word) -- ^ Count the number of references to this mesh so freeMesh can take it into account
+                       , referenceCount     :: !(IORef Int) -- ^ Count the number of references to this mesh so freeMesh can take it into account
                        }
           | IndexedMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
                         , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- vertices device memoy
                         , indexBuffer        :: {-# UNPACK #-} !Vk.Buffer -- vertices indexes in buffer
                         , indexBufferMemory  :: {-# UNPACK #-} !Vk.DeviceMemory -- indexes device memory
                         , nIndexes           :: {-# UNPACK #-} !Word32 -- ^ We save the number of indexes to pass to the draw function
-                        , referenceCount     :: !(IORef Word) -- ^ Count the number of references to this mesh so freeMesh can take it into account
+                        , referenceCount     :: !(IORef Int) -- ^ Count the number of references to this mesh so freeMesh can take it into account
                         }
 
       -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
@@ -180,7 +181,8 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
 
 freeMesh :: Mesh -> Renderer ext ()
 freeMesh mesh = do
-  () <- liftIO $ atomicModifyIORef' mesh.referenceCount (\x -> (x-1,()))
+  logTrace "Freeing mesh..."
+  () <- decRefCount mesh
   count <- get mesh.referenceCount
   when (count == 0) $
     case mesh of

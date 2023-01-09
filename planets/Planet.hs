@@ -126,13 +126,9 @@ instance UISettings PlanetSettings where
             newMat <- lift $ medit @1 @PlanetProps mat $ \_ -> newTex
             C.set planetEntity =<< renderPacket oldMesh newMat pp
 
-            -- We can free the previous texture here because we only ever
-            -- allocate one per planet, and because after we call medit the
-            -- material has been written with the new texture and the previous
-            -- one is no longer being used
-            -- Be careful because textures are shared...
-            device <- lift $ getDevice
-            liftIO $ freeTexture device oldTex
+            -- The textures are now reference counted and the discarded one is
+            -- freed and the new one's reference count is increased when
+            -- updated through medit
 
             pure ()
 

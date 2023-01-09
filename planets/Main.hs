@@ -92,17 +92,6 @@ updateG () dt = do
 
 endG :: () -> Ghengin World ()
 endG () = do
-  cmapM $ \(RenderPacket _ (mat :: Material mt) _ _) -> do
-    () <- case eqT @mt @PlanetProps of
-      Nothing -> error "?"
-      Just Refl -> do
-        case mat of
-          Texture2DBinding lastTex _ -> do
-            dev <- lift $ getDevice
-            liftIO $ freeTexture dev lastTex
-    pure ()
-
-
   liftIO $ putStrLn "Goodbye"
 
 main :: IO ()

@@ -11,8 +11,9 @@ module Ghengin.Asset.Texture
   , DynamicImage(..)
   ) where
 
+import Data.StateVar
 import Data.IORef
-import System.Mem.Weak
+-- import System.Mem.Weak
 import Geomancy.Vec3
 import Control.Logger.Simple
 import Control.Monad.Reader
@@ -26,27 +27,37 @@ import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Image
 import Ghengin.Vulkan.Buffer
 
-data Texture2D = Texture2D VulkanImage Vk.Sampler
+data Texture2D = Texture2D { image          :: VulkanImage
+                           , sampler        :: Sampler
+                           , referenceCount :: IORef Int
+                           }
 
 -- TODO: This isntance sholuldn't exist. just temporary... if you find this here later try to remove it. it's currenty being used to instance hashable to create the render key...
 instance Eq Texture2D where
   (==) _ _ = False
 
-texture :: FilePath -> Vk.Sampler -> Renderer χ Texture2D
+texture :: FilePath -> Sampler -> Renderer χ Texture2D
 texture fp sampler = do
   liftIO (readImage fp) >>= \case
     Left e -> liftIO (fail e)
-    Right dimage ->
+    Right dimage -> do
       textureFromImage dimage sampler
 
-freeTexture :: Vk.Device -> Texture2D -> IO ()
-freeTexture dev (Texture2D img sampler) = do
-  logInfo "Freeing texture..."
-  destroyImage dev img
-  -- destroySampler dev sampler TODO: Should be reference counted or something. For now we do it manually
+freeTexture :: Texture2D -> Renderer χ ()
+freeTexture t@(Texture2D img sampler refs) = do
+  logTrace "Freeing texture..."
+
+  () <- decRefCount t
+
+  count <- get refs
+
+  when (count == 0) $ do
+    dev <- getDevice
+    liftIO $ destroyImage dev img
+    destroySampler sampler
 
 textureFromImage :: DynamicImage
-                 -> Vk.Sampler
+                 -> Sampler
                  -> Renderer χ Texture2D
 -- (For now) we convert the image to RGBA8 at all costs, which is a bit of a hack
 textureFromImage (ImageRGBA8 . convertRGBA8 -> dimage) sampler =
@@ -95,7 +106,9 @@ textureFromImage (ImageRGBA8 . convertRGBA8 -> dimage) sampler =
       transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
 
-    pure $ Texture2D image sampler
+    liftIO $ incRefCount sampler
+    ref <- liftIO $ newIORef 0
+    pure $ Texture2D image sampler ref
 
 
 -- | Convert a vec3 with values between 0-1 and convert it into a pixelrgb8

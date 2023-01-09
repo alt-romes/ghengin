@@ -123,6 +123,7 @@ material matf rp =
          let dummyMat = matf dummySet
 
          -- Make the resource map for this material
+         -- Will also count texture references
          resources <- makeResources dummyMat
 
          -- Create the descriptor set with the written descriptors based on the
@@ -245,6 +246,12 @@ instance {-# OVERLAPPING #-} KnownNat n => HasBindingAt' n n (b ': as) b where
     Texture2DBinding x xs -> do
       ux <- update x
       updateTextureBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
+
+      -- We free the texture that was previously bound
+      freeTexture x
+      -- We increase the texture reference count that was just now bound
+      incRefCount ux
+
       pure $ Texture2DBinding ux xs
     
 
@@ -290,6 +297,10 @@ updateTextureBinding tex i dset = updateDescriptorSet (dset._descriptorSet) (IM.
 -- * Dynamic buffers: It will create a mapped buffer but write nothing to it - these buffers are written every frame.
 -- * Static buffer: It will create and write a buffer that can be manually updated
 -- * Texture2D: It will simply add the already existing texture that was created (and engine prepared) on texture creation
+--
+-- Additionally, update the reference counts of resources that are reference
+-- counted:
+--  * Texture2D
 makeResources :: Material α -> Renderer χ ResourceMap
 makeResources m = go (matSizeBindings m - 1) m -- TODO: Fix the order instead of going in reverse... <-- actually, this way it's better? this way when a property is added, its index is fixed and doesn't depend on other properties being added or not
                                                                                                      -- ^ no, it's not that better since the amount of properties is kind of fixed in the type?
@@ -317,6 +328,8 @@ makeResources m = go (matSizeBindings m - 1) m -- TODO: Fix the order instead of
         IM.insert i (UniformResource mb) <$> go (i-1) xs
         
       Texture2DBinding t xs -> do
+
+        incRefCount t
 
         -- Image has already been allocated when the texture was created, we
         -- simply pass add it to the resource map
@@ -362,11 +375,11 @@ materialDescriptorSet = \case
 
 freeMaterial :: Material α -> Renderer χ ()
 freeMaterial = \case
-  Done dset -> destroyDescriptorSet dset -- TODO: BIG TODO: Free descriptor set. Should free each binding that should be destroyed (but we must be very careful with e.g. shared textures)
+  Done dset -> destroyDescriptorSet dset
   StaticBinding _ xs -> freeMaterial xs
   DynamicBinding _ xs -> freeMaterial xs
   Texture2DBinding tex xs -> do
-    -- freeTexture tex -- TODO: BIG:TODO: Can't free textures here because they might be shared and we would double free, for now they must be manually freed
+    freeTexture tex
     freeMaterial xs
 
 

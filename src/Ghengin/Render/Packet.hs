@@ -139,7 +139,7 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 -- | Render packet wrapper that creates the key identifier.
 renderPacket :: ∀ α β μ. (Hashable (Material α), Compatible α β, Typeable α, MonadIO μ) => Mesh -> Material α -> RenderPipeline β -> μ RenderPacket
 renderPacket mesh material pipeline = do
-  () <- liftIO $ atomicModifyIORef' mesh.referenceCount (\x -> (x+1,()))
+  incRefCount mesh
   pure $ RenderPacket mesh material pipeline (makeKey material pipeline)
 
 {-

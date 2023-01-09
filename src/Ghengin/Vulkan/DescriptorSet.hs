@@ -37,6 +37,7 @@ import qualified SPIRV.Storage
 import Ghengin.Utils
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.Image
+import Ghengin.Vulkan.Sampler
 import Ghengin.Vulkan
 import Ghengin.Shaders
 import qualified Ghengin.Asset.Texture as T
@@ -355,10 +356,10 @@ updateDescriptorSet dset resources = do
                                     , imageInfo = []
                                     , texelBufferView = []
                                     }
-        Texture2DResource (T.Texture2D vkimage sampler) -> do
+        Texture2DResource (T.Texture2D vkimage sampler _) -> do
           let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                                  , imageView = vkimage._imageView
-                                                 , sampler   = sampler
+                                                 , sampler   = sampler.sampler
                                                  }
 
            in Vk.SomeStruct Vk.WriteDescriptorSet
@@ -405,7 +406,7 @@ destroyDescriptorSet (DescriptorSet _ix _dset dresources) = do
 freeDescriptorResource :: DescriptorResource -> Renderer ext ()
 freeDescriptorResource = \case
   UniformResource u -> destroyMappedBuffer u
-  u@(Texture2DResource _) -> pure ()
+  u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought
 
 getUniformBuffer :: DescriptorSet -> Int -> MappedBuffer
 getUniformBuffer dset i = case IM.lookup i dset._bindings of

@@ -1,6 +1,11 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Ghengin.Vulkan.Sampler
-  ( module Ghengin.Vulkan.Sampler
+  (
+  -- * Sampler
+    Sampler(..)
+  , createSampler
+  , destroySampler
 
   -- * Filters
   , Vk.Filter
@@ -17,14 +22,22 @@ module Ghengin.Vulkan.Sampler
     , Vk.SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
     )
 
-  , Vk.Sampler
   ) where
 
+import Control.Monad
+import Data.StateVar
+import Control.Logger.Simple
+import Prelude hiding (filter)
 import Control.Monad.IO.Class
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
 import Ghengin.Vulkan
+import Data.IORef
+import Ghengin.Utils (decRefCount)
 
+data Sampler = Sampler { sampler        :: Vk.Sampler
+                       , referenceCount :: IORef Int
+                       }
 
 -- | Create a sampler with the given filter and sampler address mode
 --
@@ -36,7 +49,7 @@ import Ghengin.Vulkan
 -- * VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: Take the color of the edge closest to the coordinate beyond the image dimensions.
 -- * VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to edge, but instead uses the edge opposite to the closest edge.
 -- * VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when sampling beyond the dimensions of the image.
-createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer χ Vk.Sampler
+createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer χ Sampler
 createSampler filter addrMode = do
   device <- getDevice
 
@@ -66,7 +79,24 @@ createSampler filter addrMode = do
                                   , next = ()
                                   }
 
-  Vk.createSampler device info Nothing
+  vkSampler <- Vk.createSampler device info Nothing
+  refCount <- liftIO $ newIORef 0
+  pure $ Sampler vkSampler refCount
 
-destroySampler :: MonadIO m => Vk.Device -> Vk.Sampler -> m ()
-destroySampler dev s = Vk.destroySampler dev s Nothing
+
+destroySampler :: Sampler -> Renderer χ ()
+destroySampler vs@(Sampler s refs) = do
+  logTrace "Freeing sampler..."
+  dev <- getDevice
+
+  () <- decRefCount vs
+
+  refCount <- liftIO $ get refs
+  when (refCount == 0) $
+    -- If ref count were -1 then we could have already freed it too many times.
+    -- It shouldn't happen in reality because it would mean the sampler wasn't
+    -- assigned to a material and the free was called directly
+    Vk.destroySampler dev s Nothing
+  -- when (refCount < 0) $ do
+  --   logError "Destroying sampler more times than the number of assignments..."
+

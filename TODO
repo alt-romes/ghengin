@@ -1,3 +1,4 @@
+[ ] Currently, if a texture or sampler is not used in a material then they aren't freed (textures and sampler are freed and reference counted through materials)
 [ ] Reference count Textures and Samplers
 [ ] Instances for safe coercion between ImGui types and Geomancy (using unsafeCoerce :P)
 [ ] Linear types for resource management

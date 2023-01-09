@@ -1,6 +1,7 @@
-{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
+-- {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE NoStarIsType #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE UnicodeSyntax #-}
@@ -23,6 +24,8 @@ module Ghengin.Utils
   , Proxy(..)
   ) where
 
+import GHC.Records
+import Data.IORef
 import GHC.TypeLits
 import Control.Monad
 import Control.Monad.Trans
@@ -193,3 +196,12 @@ instance Epsilon Double where
 
 instance Epsilon Vec3 where
   nearZero a = nearZero (dot a a)
+
+
+incRefCount :: HasField "referenceCount" a (IORef Int) => MonadIO m => a -> m ()
+incRefCount x = do
+  liftIO $ atomicModifyIORef' x.referenceCount (\c -> (c+1,()))
+
+decRefCount :: HasField "referenceCount" a (IORef Int) => MonadIO m => a -> m ()
+decRefCount x = do
+  liftIO $ atomicModifyIORef' x.referenceCount (\c -> (c-1,()))
