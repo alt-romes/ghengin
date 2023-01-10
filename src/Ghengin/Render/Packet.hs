@@ -19,21 +19,17 @@ module Ghengin.Render.Packet
   , module Ghengin.Render.Pipeline
   ) where
 
+import Data.Unique
 import Data.Typeable
 import Ghengin.Asset.Texture
-import Data.Hashable
 import GHC.TypeLits
 import GHC.Records
 import Data.Kind
-import Data.Word
-import Data.Bits
 import Apecs (Component, Storage, Map, Has, getStore, SystemT(..), asks)
 import Ghengin.Render.Pipeline
 import Ghengin.Component.Material hiding (material)
 import Ghengin.Component.Mesh
 import Ghengin.Utils
-
-import Data.IORef
 
 -- import FIR.Layout(Layout(..))
 import Data.Type.Map
@@ -44,10 +40,6 @@ import FIR.ProgramState
 import qualified SPIRV.Image as SPIRV
 import qualified SPIRV.ScalarTy
 import SPIRV.Decoration (Decoration(..))
-
--- TODO: Don't use hashable, we just need a unique source of ids
-instance Hashable Texture2D where
-  hashWithSalt i _ = i
 
 {-|
 
@@ -94,13 +86,18 @@ The missing bits:
   to descriptor set #2. However, the design here is not clear enough, and without
   a driving example it's harder for now.
 
+The render packet pipeline key is actually its typeable instance because a pipeline is uniquely identified by its type.
+Unfortunately, a material is not uniquely identified by its type - the same material type constructed with different values is a different material.
+The material unique key is created from a global counter. Whenever a material is
+created through 'material', a unique identifier is created for that material.
+
  -}
 data RenderPacket where
   -- TODO:
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ α β. (Compatible α β, Typeable α) => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ α β. (Compatible α β, Typeable α, Typeable β) => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
@@ -137,10 +134,10 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ α β μ. (Hashable (Material α), Compatible α β, Typeable α, MonadIO μ) => Mesh -> Material α -> RenderPipeline β -> μ RenderPacket
+renderPacket :: ∀ α β μ. (Compatible α β, Typeable α, Typeable β, MonadIO μ) => Mesh -> Material α -> RenderPipeline β -> μ RenderPacket
 renderPacket mesh material pipeline = do
   incRefCount mesh
-  pure $ RenderPacket mesh material pipeline (makeKey material pipeline)
+  pure $ RenderPacket mesh material pipeline (typeOf pipeline, getMaterialUID material)
 
 {-
 Note [Render Packet Key]
@@ -176,19 +173,9 @@ The 32bit key is composed of:
 -}
 
 -- | See Note [Render Packet Key]
-type RenderKey = Word64
+-- TODO: Update note render packet key and material key
+type RenderKey = (TypeRep, Unique)
 
--- | Split a render key into the pipeline and material identifier.
--- See Note [Render Packet Key] and [Material Key]
-splitKey :: RenderKey -> (Word64, Word64)
-splitKey k = (k .&. 0xf00000000, k .&. 0xffffffff)
-
-makeKey :: ∀ α β. Hashable (Material α) => Material α -> RenderPipeline β -> RenderKey
-makeKey material _pipeline = fromIntegral $ hash material .&. 0xffffffff
-
--- | Compute the pipeline render key at the type level based on the type level information of the mesh, materials and pipeline.
-type family PipelineKey pipeline :: Nat where
-  PipelineKey _ = 0
 
 -- class Compatible (as :: [Type]) (bs :: PipelineInfo)
 -- instance Compatible' (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs

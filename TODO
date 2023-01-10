@@ -1,8 +1,8 @@
 [ ] Currently, if a texture or sampler is not used in a material then they aren't freed (textures and sampler are freed and reference counted through materials)
-[ ] Reference count Textures and Samplers
+[x] Reference count Textures and Samplers
 [ ] Instances for safe coercion between ImGui types and Geomancy (using unsafeCoerce :P)
 [ ] Linear types for resource management
-[?] MonadRenderer to be able to call mesh creation and such from SystemT
+[ ] MonadRenderer to be able to call mesh creation and such from SystemT
 [ ] Toon Shader
 [ ] Automatically derive UISettings?
 [ ] Swap chain recreation...
@@ -23,13 +23,15 @@ Next steps:
 [x] Free all textures at the end, and material resources when the material is "removed".
 [x] More flexibility picking the sampler. (Next step: would it be good to have the sampler separate from the texture and simply appear in the texture material binding?)
 
-[ ] A good hashble instance for Textures, or assign material ids with an atomic counter of sorts which would make things much easier than Hashable...
+[x] A good hashble instance for Textures, or assign material ids with an atomic counter of sorts which would make things much easier than Hashable...
+    Solution#1 Use TypeRep as a pipeline's unique identifier, and create Uniques to uniquely identify materials
 [.] Compatibility between binding types (can't match dynamic binding with texture2d)
 [ ] Fix second planet. Its color is probably too bright because of its minmax
     being computed from the first one bc of the mesh recreation thing. once again, we need to fix the UI.
 [x] Free descriptor sets and descriptor set resources
 [-] Function to update static binding value that simply writes the buffer. The static binding should have a device local buffer which is not that easily written to
-[ ] Use an atomic counter for the material ids? https://github.com/sergv/atomic-counter
+[x] Use an atomic counter for the material ids? https://github.com/sergv/atomic-counter
+    Solution#1
 [x] Somehow (through Typeable and pattern matching on runtime on the kind of
     packet) allow to update existentials. This function should also free the mesh/or material updated before creating the new one.
 [ ] Material type list doesn't have to be traversed in reverse... the first item in the list could be binding #0 without any issue
@@ -57,7 +59,8 @@ every frame, and the static bindings don't.
 [x] Materials must have a compile time size to compare with the size of the descriptors defined in the shader.
 [x] Static bindings which simply choose the descriptor (set?) rather than write to it
 [ ] Better scene graph implementation
-[+] Use parent component, a cached world matrix?, and a wrapper api that threads entities ids
+[+] Use parent component, a cached world matrix?, and a wrapper api that threads entities ids.
+[ ] Cache world matrix through lazy field in Transform instead of explicit calculation ?
 [x] Textures to use with MinMax terrain height
 [x] Complete the phong model (and try some Specular lighting)
 [-] Scene graph should (polymorphically?) cull the space, and

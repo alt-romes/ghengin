@@ -16,12 +16,12 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Material where
 
+import Data.Unique
 import Data.Typeable
 import GHC.TypeLits
 import qualified Vulkan as Vk
 import qualified Data.IntMap as IM
 import qualified Data.List.NonEmpty as NE
-import Data.Hashable
 import Ghengin.Asset.Texture
 import Ghengin.Render.Pipeline
 import Ghengin.Vulkan.Buffer
@@ -67,27 +67,27 @@ Resources:
 
 -}
 
-type Material' α = DescriptorSet -> Material α
+type Material' α = (DescriptorSet, Unique) -> Material α
 
 data Material xs where
 
-  Done :: DescriptorSet -> Material '[]
+  Done :: (DescriptorSet, Unique) -> Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
 
   DynamicBinding :: ∀ α β
-                 .  (Storable α, Sized α, Hashable α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline, Hashable for the unique key
+                 .  (Storable α, Sized α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
                  => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                  -> Material β
                  -> Material (α:β)
 
   StaticBinding :: ∀ α β
-                .  (Storable α, Sized α, Hashable α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline, Hashable for the unique key
+                .  (Storable α, Sized α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
                 => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                 -> Material β
                 -> Material (α:β)
 
   Texture2DBinding :: Texture2D -> Material β -> Material (Texture2D:β)
 
-  -- TODO: Use a unique supply rather than Hashable?
+-- Use a unique supply rather than Hashable
 
   -- TODO: Rename a few things (DynamicBinding -> DynamicProperty/Dynamic;
   -- StaticBinding -> StaticProperty/Static; TextureProperty/Texture)
@@ -99,11 +99,15 @@ data Material xs where
 material :: Material' α -> RenderPipeline β -> Renderer χ (Material α)
 material matf rp = 
   let (_,dpool) NE.:| _ = rp._descriptorSetsSet
-   in
+   in do
+
+     -- Make the unique identifier for this material
+     uniq <- liftIO $ newUnique
+
      -- We bail out early if this descriptor pool has no descriptor sets of
      -- type #1 (which would mean there are no bindings in descriptor set #1
      case IM.lookup 1 dpool._set_bindings of
-       Nothing -> pure (matf EmptyDescriptorSet)
+       Nothing -> pure (matf (EmptyDescriptorSet, uniq))
        Just _  -> do
 
          -- We allocate a descriptor set of type #1 and create a closure that will
@@ -120,7 +124,7 @@ material matf rp =
          -- we'll have constructed the actual resource map, and can then create a
          -- final material.
          dummySet <- dsetf mempty
-         let dummyMat = matf dummySet
+         let dummyMat = matf (dummySet, uniq)
 
          -- Make the resource map for this material
          -- Will also count texture references
@@ -132,7 +136,7 @@ material matf rp =
 
          -- Create the material which stores the final descriptor set with the
          -- updated information.
-         let actualMat = matf actualDSet
+         let actualMat = matf (actualDSet, uniq)
 
          pure actualMat
 
@@ -357,25 +361,24 @@ instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
   (==) (Texture2DBinding x xs) (Texture2DBinding y ys) = x == y && xs == ys
   (==) _ _ = False
 
-instance Hashable (Material '[]) where
-  hashWithSalt i (Done _) = hashWithSalt i ()
-
-instance (Hashable a, Hashable (Material as)) => Hashable (Material (a ': as)) where
-  hashWithSalt i (DynamicBinding x xs) = hashWithSalt i x `hashWithSalt` xs
-  hashWithSalt i (StaticBinding x xs) = hashWithSalt i x `hashWithSalt` xs
-  hashWithSalt i (Texture2DBinding x xs) = hashWithSalt i x `hashWithSalt` xs
-
 
 materialDescriptorSet :: Material α -> DescriptorSet
 materialDescriptorSet = \case
-  Done x -> x
+  Done x -> fst x
   DynamicBinding _ xs -> materialDescriptorSet xs
   StaticBinding _ xs -> materialDescriptorSet xs
   Texture2DBinding _ xs -> materialDescriptorSet xs
 
+getMaterialUID :: Material α -> Unique
+getMaterialUID = \case
+  Done x -> snd x
+  DynamicBinding _ xs -> getMaterialUID xs
+  StaticBinding _ xs -> getMaterialUID xs
+  Texture2DBinding _ xs -> getMaterialUID xs
+
 freeMaterial :: Material α -> Renderer χ ()
 freeMaterial = \case
-  Done dset -> destroyDescriptorSet dset
+  Done x -> destroyDescriptorSet (fst x)
   StaticBinding _ xs -> freeMaterial xs
   DynamicBinding _ xs -> freeMaterial xs
   Texture2DBinding tex xs -> do

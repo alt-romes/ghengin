@@ -26,23 +26,25 @@ See Note [Render Packet Key] and [Material Key]
 -}
 module Ghengin.Render.Queue where
 
-import Data.IntMap (IntMap)
-import qualified Data.IntMap as IM
+import Data.Unique
+import Data.Typeable
+import Data.Map (Map)
+import qualified Data.Map as M
 
 import Ghengin.Render.Packet
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material hiding (material)
 
-newtype RenderQueue a = RenderQueue (IntMap (SomePipeline, IntMap (SomeMaterial, [(Mesh, a)])))
+newtype RenderQueue a = RenderQueue (Map TypeRep (SomePipeline, Map Unique (SomeMaterial, [(Mesh, a)])))
   deriving (Functor)
 
 instance Semigroup (RenderQueue α) where
   (<>) (RenderQueue q) (RenderQueue q') =
     RenderQueue $
-      IM.mergeWithKey
+      M.mergeWithKey
         (\_ (p1, im1) (_p2, im2) -> -- (p1 should be the same as p2)
           pure
-            (p1, IM.mergeWithKey
+            (p1, M.mergeWithKey
                 (\_ (m1,meshes1) (_m2, meshes2) -> -- (m1 should be the same as m2)
                   pure (m1, meshes1 <> meshes2)
                 ) id id im1 im2)
@@ -61,17 +63,16 @@ fromList = foldr (uncurry insert) mempty
 
 
 insert :: RenderPacket -> α -> RenderQueue α -> RenderQueue α
-insert (RenderPacket mesh material pipeline key) x (RenderQueue q) =
-  let (fromIntegral -> pkey, fromIntegral -> mkey) = splitKey key
-   in RenderQueue $
-    IM.insertWith
+insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue q) =
+  RenderQueue $
+    M.insertWith
         (\(p1, im1) (_p2, im2) -> -- (p1 should be the same as p2)
-            (p1, IM.mergeWithKey
+            (p1, M.mergeWithKey
                 (\_ (m1,meshes1) (_m2, meshes2) -> -- (m1 should be the same as m2)
                   pure (m1, meshes1 <> meshes2)
                 ) id id im1 im2))
         pkey
-        (SomePipeline pipeline, IM.insert mkey (SomeMaterial material, [(mesh, x)]) mempty)
+        (SomePipeline pipeline, M.insert mkey (SomeMaterial material, [(mesh, x)]) mempty)
         q
 
 -- | Traverse the render queue with a function for each different occasion:

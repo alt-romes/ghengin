@@ -56,7 +56,6 @@ type PlanetProps = '[Texture2D,MinMax]
 data MinMax = MinMax Float Float
   deriving (Eq, Generic, Show)
 
-instance Hashable MinMax
 instance GStorable MinMax
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
@@ -167,7 +166,7 @@ textureFromGradient grad = do
   lift $ textureFromImage (ImageRGB8 img) sampler
 
 
-newPlanet :: ∀ a w. Compatible PlanetProps a => PlanetSettings -> RenderPipeline a -> Ghengin w Planet
+newPlanet :: ∀ a w. (Typeable a, Compatible PlanetProps a) => PlanetSettings -> RenderPipeline a -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
   (mesh,minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad

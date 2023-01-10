@@ -163,7 +163,6 @@ library
                       StateVar,
                       derive-storable,
                       random,
-                      hashable,
                       ghc-typelits-natnormalise,
                       simple-logger,
                       JuicyPixels,

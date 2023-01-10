@@ -17,7 +17,6 @@ module Ghengin.Utils
   , module Data.StateVar
   , module Foreign.Storable
   , module Foreign.Storable.Generic
-  , module Data.Hashable
   , module Control.Logger.Simple
   , module Control.Monad.Trans
   , (.|.)
@@ -30,7 +29,6 @@ import GHC.TypeLits
 import Control.Monad
 import Control.Monad.Trans
 import Control.Logger.Simple
-import Data.Hashable
 import Data.Kind
 import Geomancy.Vec3
 import Geomancy.Mat4
@@ -63,9 +61,6 @@ instance Sized a => Sized (Struct ((k ':-> a) ': xs)) where
 
 instance Sized Vec3 where
   type SizeOf Vec3 = 3 * SizeOf Float
-
-instance Hashable Vec3 where
-  hashWithSalt i (WithVec3 x y z) = hashWithSalt i (x,y,z)
 
 data HList xs where
     HNil :: HList '[]

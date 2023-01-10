@@ -54,6 +54,7 @@ initG :: Ghengin World ()
 initG = do
 
   ps <- liftIO $ makeSettings @PlanetSettings
+  ps2 <- liftIO $ makeSettings @PlanetSettings
 
   -- sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   -- tex <- lift $ texture "/Users/romes/projects/ghengin/assets/planet_gradient.png" sampler
@@ -61,7 +62,7 @@ initG = do
   planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline
 
   p1 <- newPlanet ps planetPipeline
-  -- p2 <- newPlanet ps2 planetPipeline
+  p2 <- newPlanet ps2 planetPipeline
 
   sceneGraph do
 
@@ -69,8 +70,7 @@ initG = do
     -- which can be later modified. this data is bound once per pipeline.?
 
     (e1,e2) <- newEntity' ( p1, Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 (pi/2) 0) ) do
-                pure ()
-                 -- newEntity ( p2, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
+                 newEntity ( p2, Transform (vec3 0 0 10) (vec3 1 1 1) (vec3 0 0 0) ) 
 
     -- The global data in this game in specific is actually the Camera transform?
     newEntity ( Camera (Perspective (radians 65) 0.1 100) ViewTransform
@@ -78,7 +78,7 @@ initG = do
 
     -- : UI
     newEntityUI "Planet" $ makeComponents ps e1
-    -- newEntityUI "Planet2" $ makeComponents ps2 e2
+    newEntityUI "Planet2" $ makeComponents ps2 e2
 
   pure ()
 
