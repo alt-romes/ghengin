@@ -192,7 +192,7 @@ freeMesh mesh = do
 
   -- TODO: Don't include this when built for production somehow
   when (count < 0) $ do
-    logError "Destroying texture more times than the number of assignments..."
+    logError "Destroying mesh more times than the number of assignments..."
 
 
 -- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)
