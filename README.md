@@ -23,3 +23,18 @@ More resources:
 * https://www.intel.com/content/www/us/en/developer/articles/training/api-without-secrets-introduction-to-vulkan-part-6.html
 * https://arm-software.github.io/vulkan_best_practice_for_mobile_developers/samples/performance/descriptor_management/descriptor_management_tutorial.html
 * [Creating the Art of ABZU](https://www.youtube.com/watch?v=l9NX06mvp2E)
+
+WIP: Packaging
+---
+
+On MacOS:
+
+App bundle structure:
+https://www.lunarg.com/wp-content/uploads/2022/05/The-State-of-Vulkan-on-Apple-15APR2022.pdf
+
+Vulkan dynamically linked libraries should be included in the bundle, use
+`install_name_tool` to set location?
+
+Have spent quite some time but haven't got the .app to open yet, despite the
+executable working otherwise...
+
