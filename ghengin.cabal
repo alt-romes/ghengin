@@ -238,3 +238,4 @@ executable planets
 
     -- Base language which the package is written in.
     default-language: GHC2021
+

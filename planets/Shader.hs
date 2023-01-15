@@ -61,7 +61,7 @@ type FragmentDefs
       , "gradient" ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
 
       , "out_col" ':-> Output '[ Location 0 ] (V 4 Float)
-      , "main"    ':-> EntryPoint '[ OriginLowerLeft ] Fragment
+      , "main"    ':-> EntryPoint '[ OriginUpperLeft ] Fragment
       ]
       :++: FixedDescriptorSetZero
       :++: FixedPushConstant

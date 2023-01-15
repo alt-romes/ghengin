@@ -21,8 +21,9 @@ import qualified Vulkan as Vk
 
 instanceExtensions :: V.Vector BS.ByteString
 instanceExtensions = [
-                      -- required at least from 1.3 with MoltenVk
-                      Vk.KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+                       -- required at least from 1.3 with MoltenVk
+                       Vk.KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+                     -- , Vk.EXT_METAL_SURFACE_EXTENSION_NAME
                      ]
 
 createInstance :: V.Vector BS.ByteString -- ^ Validation layers
