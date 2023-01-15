@@ -1,5 +1,4 @@
 packages: .
-          ./tmp/dear-imgui.hs/dear-imgui.cabal
 
 package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3

@@ -10,7 +10,7 @@ module Ghengin.DearImGui.Gradient where
 import Geomancy.Vec3
 import System.IO.Unsafe
 -- import Data.StateVar
-import DearImGui.Context
+import DearImGui.Raw.Context
   ( imguiContext )
 
 import Foreign.Storable
