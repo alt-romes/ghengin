@@ -8,6 +8,8 @@ module Ghengin.Vulkan.Device.Instance where
 
 import GHC.IsList (fromList)
 
+import Data.Bits ((.|.))
+
 import Control.Monad
 import Foreign.C.String
 
@@ -16,6 +18,12 @@ import qualified Data.Vector as V
 
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Vulkan as Vk
+
+instanceExtensions :: V.Vector BS.ByteString
+instanceExtensions = [
+                      -- required at least from 1.3 with MoltenVk
+                      Vk.KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
+                     ]
 
 createInstance :: V.Vector BS.ByteString -- ^ Validation layers
                -- -> BS.ByteString          -- ^ Application name
@@ -49,10 +57,10 @@ createInstance validationLayers = do
     instanceInfo glfwe
       = Vk.InstanceCreateInfo {..} where
           next  = ()
-          flags = Vk.InstanceCreateFlagBits 0
+          flags = Vk.InstanceCreateFlagBits 0 .|. Vk.INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR -- required at least on 1.3 w MoltenVk
           applicationInfo = Just appInfo
           enabledLayerNames = validationLayers
-          enabledExtensionNames = glfwe
+          enabledExtensionNames = instanceExtensions <> glfwe
 
     checkValidationLayerSupport :: V.Vector (BS.ByteString) -> IO Bool
     checkValidationLayerSupport vallys = do

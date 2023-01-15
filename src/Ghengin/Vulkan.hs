@@ -22,6 +22,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.List as L
 
+import qualified Vulkan.Extensions
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan as Vk
 import Vulkan.Zero (zero)
@@ -216,6 +217,9 @@ validationLayers = [ "VK_LAYER_KHRONOS_validation"
 
 deviceExtensions :: Vector ByteString
 deviceExtensions = [ Vk.KHR_SWAPCHAIN_EXTENSION_NAME
+
+                     -- required at least from 1.3 with MoltenVk
+                   , Vk.KHR_PORTABILITY_SUBSET_EXTENSION_NAME
                    ]
 
 rateFn :: Vk.SurfaceKHR -> DeviceRateFunction
