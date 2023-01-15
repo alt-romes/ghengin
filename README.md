@@ -38,3 +38,16 @@ Vulkan dynamically linked libraries should be included in the bundle, use
 Have spent quite some time but haven't got the .app to open yet, despite the
 executable working otherwise...
 
+Clues:
+* Ghengin game doesn't work
+* Simple gloss app manually bundled works
+* SDL Vulkan Triangle manually bundled also works, despite the otool -L showing @rpath/libvulkan.1.dylib
+* GLFW-b OpenGL demo manually bundled works trivially
+* FIR SDL Vulkan demo trivially works too
+* GLFW + vulkan example in glfw source github repository also works trivially
+* SDL + vulkan + dear-imgui.hs example fails to open!!
+* GLFW + OpenGL + dear-imgui.hs example works trivially 
+
+Current conclusion: Vulkan + Dear-ImGui.hs combination has something that makes
+it fail to open when bundled in a .app
+
