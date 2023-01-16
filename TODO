@@ -1,3 +1,5 @@
+[ ] Basic Packaging/Distributing (requires item below)
+[ ] Resource wrapper that gets resource through special hoops depending on the system (e.g. using CoreFoundation in MacOS and iOS)
 [ ] Flexible Mesh types checked against pipeline
 [ ] Sharing RenderPackets makes mesh because multiple ones will be freed multiple times (since we don't de-duplicate meshes, but rather render all meshes in render entities agregatted by material) (reference count drop below 0)
 [ ] If using MonadRender, -fspecialize-agressively might be useful, but it will probably already specialize...

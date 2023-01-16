@@ -87,7 +87,8 @@ ghengin :: WorldConstraints w
         -- -> Ghengin w c -- ^ Run every draw step?
         -> (a -> Ghengin w c) -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
-ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConfig (Just "log.ghengin.log") True) . (runVulkanRenderer ()) . (`runSystem` world) $ do
+                                                                                   -- (Just "log.ghengin.log")
+ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConfig Nothing True) . (runVulkanRenderer ()) . (`runSystem` world) $ do
 
   logDebug "Started Ghengin"
 

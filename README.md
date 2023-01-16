@@ -27,6 +27,15 @@ More resources:
 WIP: Packaging
 ---
 
+Need to work out a packaging library.
+Notes:
+* Vulkan dynamic library could be included in the bundle if the executable
+    link path is changed (see `otool -L` and `install_name_tool`)
+* File system resources must be accessed through some hoops or it all goes to
+    shit. It would be good to wrap this in a library which uses CPP to determine
+    whether to use MacOS's CoreFoundation things, or Android's bundles, or just
+    directly gets the resource
+
 On MacOS:
 
 App bundle structure:
@@ -60,3 +69,6 @@ on, but if I hardcode the path then it works.
 So, my engine's apps are the only ones not working with
 RBSStateCapture remove item called for untracked item
 
+Fixed: after narrowing down the commit in which my app became unrunnable, I
+realized the output logging file was causing the silent crash-on-start.  What a
+truly awful, painful experience.
