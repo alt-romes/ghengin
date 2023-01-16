@@ -1,3 +1,5 @@
+[ ] Patch cabal-osx with more up-to-date directory structure (e.g. PkgInfo should be in Contents)
+[ ] Basic packagin using cabal-osx
 [ ] Basic Packaging/Distributing (requires item below)
 [ ] Resource wrapper that gets resource through special hoops depending on the system (e.g. using CoreFoundation in MacOS and iOS)
 [ ] Flexible Mesh types checked against pipeline
