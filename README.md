@@ -51,3 +51,12 @@ Clues:
 Current conclusion: Vulkan + Dear-ImGui.hs combination has something that makes
 it fail to open when bundled in a .app
 
+However, building the vulkan + glfw + dear-imgui example from the original C++ source succeeds.
+So, is the error in the haskell dear-imgui + vulkan ?
+
+Turns out the vulkan + dear-imgui doesn't work because of an asset it depends
+on, but if I hardcode the path then it works.
+
+So, my engine's apps are the only ones not working with
+RBSStateCapture remove item called for untracked item
+
