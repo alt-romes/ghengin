@@ -20,9 +20,9 @@ allow-newer:
 --   location: https://gitlab.com/sheaf/fir.git
 --   tag:      head
 
-source-repository-package
-  type:     git
-  location: https://gitlab.com/dpwiz/geomancy.git
+-- source-repository-package
+--   type:     git
+--   location: https://gitlab.com/dpwiz/geomancy.git
 
 source-repository-package
   type:     git

@@ -155,7 +155,7 @@ library
                       text >= 2.0.1,
                       containers,
                       apecs,
-                      geomancy,
+                      geomancy >= 0.2.4.2,
                       wavefront,
                       time,
                       split,
