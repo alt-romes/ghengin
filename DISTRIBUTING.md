@@ -13,4 +13,10 @@ library like Shake?
 I was also wondering whether it's possible to only run that at a "release"
 stage, while normal builds don't require that packaging step
 
+We need to be quite careful about resource files. In the final packaged MacOS
+applications, we can't simply use filepaths as normally do because resources are
+in locations different from the executable.
+Ideally, there should be an abstraction on resources that, through some CPP or
+other compile time magic, decides whether to jump through hoops like
+CoreFoundation to access the files
 

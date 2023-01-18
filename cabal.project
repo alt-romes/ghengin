@@ -1,4 +1,5 @@
 packages: .
+          ./ghengin-dist-macos/
 
 package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3
