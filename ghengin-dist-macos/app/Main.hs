@@ -1,14 +1,15 @@
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE QuasiQuotes #-}
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
 import Control.Monad
 import Data.List (isInfixOf)
+import Data.String.Interpolate ( i )
 import Development.Shake
-import Development.Shake.Command
 import Development.Shake.FilePath
-import Development.Shake.Util
 import System.Console.GetOpt
+
 
 {-
 Note [Packaging MacOS app]
@@ -25,6 +26,50 @@ app is or isn't built
 flags :: [OptDescr (Either String a)]
 flags = [ 
         ]
+
+infoPlist :: String -> String
+infoPlist appName = [i|
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple Computer//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>English</string>
+	<key>CFBundleExecutable</key>
+	<string>#{appName}</string>
+	<key>CFBundleName</key>
+	<string>#{appName}</string>
+	<key>CFBundleGetInfoString</key>
+	<string>#{appName}</string>
+	<key>CFBundleIconFile</key>
+	<string>#{appName}.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>org.haskell.#{appName}</string>
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+	<key>CFBundleLongVersionString</key>
+	<string>1.0</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleSignature</key>
+	<string>????</string>
+	<key>CFBundleVersion</key>
+	<string>1.0</string>
+</dict>
+</plist>
+  |]
+{-
+	<key>NSHumanReadableCopyright</key>
+	<string>Copyright (c) 2018 The Khronos Group Inc. LunarG Inc. All rights reserved.</string>
+	<key>NSMainStoryboardFile</key>
+	<string>Main</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+	<key>CSResourcesFileMapped</key>
+	<true/>
+-}
 
 main :: IO ()
 main = shakeArgsWith shakeOptions{shakeFiles="_build"} flags $ \fvalues targets -> pure $ Just $ do 
@@ -54,13 +99,13 @@ main = shakeArgsWith shakeOptions{shakeFiles="_build"} flags $ \fvalues targets 
         need [ frameworks </> "libvulkan.1.dylib"
              , frameworks </> "libMoltenVK.dylib"
              , resources  </> "vulkan" </> "icd.d" </> "MoltenVK_icd.json"
+             , resources  </> appName <.> ".icns"
              , macos      </> appName
              ]
 
         -- (2)
 
-        -- TODO
-        cmd_ "touch" out
+        writeFile' out (infoPlist appName)
 
     "_build/*.app/Contents/MacOS/*" %> \out -> do
 
@@ -109,6 +154,10 @@ main = shakeArgsWith shakeOptions{shakeFiles="_build"} flags $ \fvalues targets 
                             ) contents
 
         writeFileLines out contents'
+
+    "_build/*.app/Contents/Resources/*.icns" %> \out -> do
+
+        copyFile' (takeFileName out) out
 
 
 getVulkanLibPath :: Action FilePath
