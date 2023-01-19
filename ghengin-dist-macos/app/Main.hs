@@ -111,7 +111,7 @@ main = shakeArgsWith shakeOptions{shakeFiles="_build"} flags $ \fvalues targets 
 
         -- To create the executable, run cabal build and list-bin to build it
         -- and get the resulting executable path
-        cmd_ "cabal build" (takeFileName out)
+        cmd_ "cabal build -f-dev" (takeFileName out)
         StdoutTrim executable <- cmd "cabal list-bin" (takeFileName out)
 
         -- Copy from cabal's dist folder to the app bundle

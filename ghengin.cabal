@@ -53,9 +53,21 @@ extra-source-files:
     cbits/imgui_extensions/*.cpp
     cbits/imgui_extensions/*.hpp
 
+flag dev
+  default: True
+  manual: True
+  description: This flag controls development settings and should be manually disabled when the game is being built for release. The ghengin packaging tools will take care to set this flag to false when packaging.
+               When enabled, vulkan validation layers are enabled.
+               Run `cabal build -f-dev` to build with the flag disabled.
+               -- Enable with -f+dev
+
 common common-flags
-  ghc-options: -Wall -O0
-  cc-options: -O0
+  if flag(dev)
+    ghc-options: -Wall -O0
+    cc-options: -O0
+  else
+    ghc-options: -Wall -O2
+    cc-options: -O2
 
 library
     -- Import common warning flags.
@@ -126,6 +138,8 @@ library
     if os(darwin)
       ghc-options:      -optcxx-std=c++11
     
+    if flag(dev)
+      cpp-options: -DDEVELOPMENT
 
     -- LANGUAGE extensions used by modules in this package.
     default-extensions: UnicodeSyntax,

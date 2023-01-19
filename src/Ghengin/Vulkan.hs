@@ -1,4 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -212,7 +213,13 @@ presentPresentQueue sem imageIndex = do
   pure ()
 
 validationLayers :: Vector ByteString
-validationLayers = [ "VK_LAYER_KHRONOS_validation"
+validationLayers = [
+-- We must be careful: if we're releasing our game bundled with the dynamic
+-- libraries (e.g. using ghengin-dist-macos), we cannot use a validation layer
+-- because those aren't bundled.
+#ifdef DEVELOPMENT
+                    "VK_LAYER_KHRONOS_validation"
+#endif
                    ]
 
 deviceExtensions :: Vector ByteString
