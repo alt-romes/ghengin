@@ -43,8 +43,7 @@ maintainer:         rodrigo.m.mesquita@gmail.com
 -- A copyright notice.
 -- copyright:
 category:           Graphics
-build-type:         Custom
--- Simple
+build-type:         Simple
 
 -- Extra doc files to be distributed with the package, such as a CHANGELOG or a README.
 extra-doc-files:    CHANGELOG.md
@@ -57,11 +56,6 @@ extra-source-files:
 common common-flags
   ghc-options: -Wall -O0
   cc-options: -O0
-
-custom-setup
-  setup-depends: base >= 4 && < 5
-               , Cabal >= 2 && < 4
-               , cabal-macosx >= 0.2 && < 0.3
 
 library
     -- Import common warning flags.

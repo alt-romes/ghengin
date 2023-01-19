@@ -23,7 +23,7 @@ import qualified Vulkan as Vk
 instanceExtensions :: V.Vector BS.ByteString
 instanceExtensions = [
 -- Apple silicon requires this extension at least from 1.3 with MoltenVk
-#if darwin_HOST_OS && (defined(arm_HOST_ARCH) || defined(arm_HOST_ARCH_PRE_ARMv7))
+#if defined(darwin_HOST_OS) && defined(aarch64_HOST_ARCH)
                        Vk.KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME
 #endif
                      -- , Vk.EXT_METAL_SURFACE_EXTENSION_NAME
