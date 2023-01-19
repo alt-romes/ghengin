@@ -1,6 +1,7 @@
 {-# LANGUAGE BlockArguments #-}
 module Main where
 
+import Data.List (isInfixOf)
 import Development.Shake
 import Development.Shake.Command
 import Development.Shake.FilePath
@@ -73,7 +74,17 @@ main = shakeArgs shakeOptions{shakeFiles="_build"} $ do
         -- MoltenVK_icd.json must be copied from the vulkan share directory,
         -- and then edited such that "library_path" points to the correct place
         vulkanShare <- getVulkanSharePath
-        copyFile' (vulkanShare </> "vulkan" </> "icd.d" </> takeFileName out) out
+
+        let moltenVK_icd = vulkanShare </> "vulkan" </> "icd.d" </> takeFileName out
+
+        contents <- readFileLines moltenVK_icd
+
+        let contents' = map (\l -> if "\"library_path\"" `isInfixOf` l
+                                      then "        \"library_path\": \"../../../Frameworks/libMoltenVK.dylib\","
+                                      else l
+                            ) contents
+
+        writeFileLines out contents'
 
 
 getVulkanLibPath :: Action FilePath
