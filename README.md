@@ -72,3 +72,8 @@ RBSStateCapture remove item called for untracked item
 Fixed: after narrowing down the commit in which my app became unrunnable, I
 realized the output logging file was causing the silent crash-on-start.  What a
 truly awful, painful experience.
+
+### Note on resources
+
+The assets folder is copied to the bundle, so all resources should be in assets
+

@@ -92,16 +92,21 @@ main = shakeArgsWith shakeOptions{shakeFiles="_build"} flags $ \fvalues targets 
 
         -- (1)
 
-        let frameworks = takeDirectory out </> "Frameworks"
+            frameworks = takeDirectory out </> "Frameworks"
             resources  = takeDirectory out </> "Resources"
+            assets     = resources </> "assets"
             macos      = takeDirectory out </> "MacOS"
 
-        need [ frameworks </> "libvulkan.1.dylib"
-             , frameworks </> "libMoltenVK.dylib"
-             , resources  </> "vulkan" </> "icd.d" </> "MoltenVK_icd.json"
-             , resources  </> appName <.> ".icns"
-             , macos      </> appName
-             ]
+        assetFiles <- map (assets </>) <$> getDirectoryFiles "assets" ["//*"]
+
+        need $
+          [ frameworks </> "libvulkan.1.dylib"
+          , frameworks </> "libMoltenVK.dylib"
+          , resources  </> "vulkan" </> "icd.d" </> "MoltenVK_icd.json"
+          , resources  </> appName <.> ".icns"
+          , macos      </> appName
+          ]
+          <> assetFiles
 
         -- (2)
 
@@ -158,6 +163,10 @@ main = shakeArgsWith shakeOptions{shakeFiles="_build"} flags $ \fvalues targets 
     "_build/*.app/Contents/Resources/*.icns" %> \out -> do
 
         copyFile' (takeFileName out) out
+
+    "_build/*.app/Contents/Resources/assets/*" %> \out -> do
+
+        copyFile' ("assets" </> takeFileName out) out
 
 
 getVulkanLibPath :: Action FilePath
