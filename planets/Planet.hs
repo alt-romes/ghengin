@@ -185,11 +185,11 @@ newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
   let (vs, is) = case df' of
                    All -> let UnitSphere v i = newUnitSphere re' (Just co') in (v, i)
                    FaceUp -> let UF v i = newUnitFace re' (vec3 0 (-1) 0)
-                              in (zipWith3 (\a b c -> a :# b :# c :# HNil) v (calculateSmoothNormals i v) (repeat co'),i)
+                              in (zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (repeat co'),i)
                    FaceRight -> let UF v i = newUnitFace re' (vec3 1 0 0)
-                              in (zipWith3 (\a b c -> a :# b :# c :# HNil) v (calculateSmoothNormals i v) (repeat co'),i)
+                              in (zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (repeat co'),i)
 
-  (ps', elevations) <- unzip <$> forM vs \(p :# _) -> do
+  (ps', elevations) <- unzip <$> forM vs \(p :& _) -> do
     case nss of
       ns NE.:| nss' -> do
         initialElevation <- evalNoise ns p
@@ -200,8 +200,8 @@ newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
 
   let
       ns' = calculateSmoothNormals is ps'
-      cs  = map (\(_ :# _ :# c :# _) -> c) vs
-      vs'' = zipWith3 (\a b c -> a :# b :# c :# HNil) ps' ns' cs
+      cs  = map (\(_ :& _ :&: c) -> c) vs
+      vs'' = zipWith3 (\a b c -> a :& b :&: c) ps' ns' cs
 
       minmax = MinMax (minimum elevations) (maximum elevations)
    in (,minmax) <$> createMeshWithIxs vs'' is

@@ -35,9 +35,9 @@ loadObjMesh filepath = do
 
           -- Map each face to 3 vertex
           meshFaces = join $ fmap (\(Face a b c _) ->
-                                      [ getLoc a :# getNormal a :# getNormal a :# HNil -- (vec3 0.5 0.5 0.5)
-                                      , getLoc b :# getNormal b :# getNormal b :# HNil -- (vec3 0.5 0.5 0.5)
-                                      , getLoc c :# getNormal c :# getNormal c :# HNil -- (vec3 0.5 0.5 0.5)
+                                      [ getLoc a :& getNormal a :&: getNormal a -- (vec3 0.5 0.5 0.5)
+                                      , getLoc b :& getNormal b :&: getNormal b -- (vec3 0.5 0.5 0.5)
+                                      , getLoc c :& getNormal c :&: getNormal c -- (vec3 0.5 0.5 0.5)
                                       ]) faces
 
           -- meshVertices = fmap (\(Location x y z w) -> Vertex (vec3 x y z) ()) (V.zip locs normals)

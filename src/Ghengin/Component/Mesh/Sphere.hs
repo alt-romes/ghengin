@@ -14,7 +14,7 @@ data UnitFace = UF { positions :: [Vec3]
                    , indices   :: [Int]
                    }
 
-data UnitSphere = UnitSphere { positions :: [ HList '[Vec3, Vec3, Vec3] ]
+data UnitSphere = UnitSphere { positions :: [ Vertex '[Vec3, Vec3, Vec3] ]
                              , indices   :: [Int]
                              }
 
@@ -57,7 +57,7 @@ newUnitSphere res color =
       ns = calculateSmoothNormals is ps
       cls = maybe (map ((^/2) . (+ vec3 1 1 1)) ns) (\x -> map (const x) ns) color
    in
-      UnitSphere (zipWith3 (\a b c -> a :# b :# c :# HNil) ps ns cls) is
+      UnitSphere (zipWith3 (\a b c -> a :& b :&: c) ps ns cls) is
 
 newSphereMesh :: Int -- ^ Resolution
           -> Maybe Vec3 -- ^ Color, use the normals if Nothing

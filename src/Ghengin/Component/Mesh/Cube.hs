@@ -64,7 +64,7 @@ cubeMeshVertices = VertexArray $
   ,   vertex' ( 0.5) ( 0.5) (-0.5) (0.1) (0.8) (0.1)
   ]
  where
-   vertex' a b c d e f = vec3 a b c :# vec3 0 0 0 :# vec3 d e f :# HNil
+   vertex' a b c d e f = vec3 a b c :& vec3 0 0 0 :&: vec3 d e f
 
 cubeMesh :: Renderer ext (Mesh '[Vec3, Vec3, Vec3])
 cubeMesh = createMesh cubeMeshVertices

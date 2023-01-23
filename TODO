@@ -1,3 +1,4 @@
+[ ] Get rid of VertexArray altogether (use Storable Vector directly)?
 [x] Successful packaging for macos that bundles vulkan dylibs and assets
 [ ] Fix gradient and move it to another package
 [x] Conditionally enable extensions required by apple silicon only on apple silicon
