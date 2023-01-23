@@ -3,6 +3,8 @@
 {-# LANGUAGE LambdaCase #-}
 module Main where
 
+-- TODO: Modularize by making the vulkan dylib bits depend on a vulkan flag
+
 import Control.Monad
 import Data.List (isInfixOf)
 import Data.String.Interpolate ( i )

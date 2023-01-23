@@ -1,9 +1,10 @@
+[x] Successful packaging for macos that bundles vulkan dylibs and assets
 [ ] Fix gradient and move it to another package
-[ ] Conditionally enable extensions required by apple silicon only on apple silicon
-[ ] Patch cabal-osx with more up-to-date directory structure (e.g. PkgInfo should be in Contents)
+[x] Conditionally enable extensions required by apple silicon only on apple silicon
+[-] Patch cabal-osx with more up-to-date directory structure (e.g. PkgInfo should be in Contents)
 [x] Basic packaging using cabal-osx
-[ ] Basic Packaging/Distributing (requires item below and requires things like bundling vulkan)
-[ ] Resource wrapper that gets resource through special hoops depending on the system (e.g. using CoreFoundation in MacOS and iOS)
+[x] Basic Packaging/Distributing (requires item below and requires things like bundling vulkan)
+[-] Resource wrapper that gets resource through special hoops depending on the system (e.g. using CoreFoundation in MacOS and iOS)
 [ ] Flexible Mesh types checked against pipeline
 [ ] Sharing RenderPackets makes mesh because multiple ones will be freed multiple times (since we don't de-duplicate meshes, but rather render all meshes in render entities agregatted by material) (reference count drop below 0)
 [ ] If using MonadRender, -fspecialize-agressively might be useful, but it will probably already specialize...
