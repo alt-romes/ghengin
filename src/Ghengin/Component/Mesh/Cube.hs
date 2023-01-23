@@ -1,16 +1,19 @@
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE UnboxedTuples #-}
 module Ghengin.Component.Mesh.Cube where
 
 import Data.Vector.Storable as V
 import Geomancy
 
+import Ghengin.Utils
+import Ghengin.Component.Mesh.Vertex
 import Ghengin.Component.Mesh
 import Ghengin.Vulkan (Renderer)
 
 -- TODO: Seems that creating a mesh without vertices is broken...
 
-cubeMeshVertices :: V.Vector Vertex
-cubeMeshVertices =
+cubeMeshVertices :: VertexArray '[Vec3, Vec3, Vec3]
+cubeMeshVertices = VertexArray $
   [
       -- left face (white)
       vertex' (-0.5) (-0.5) (-0.5) (0.9) (0.9) (0.9)
@@ -61,8 +64,8 @@ cubeMeshVertices =
   ,   vertex' ( 0.5) ( 0.5) (-0.5) (0.1) (0.8) (0.1)
   ]
  where
-   vertex' a b c d e f = Vertex (vec3 a b c) (vec3 0 0 0) (vec3 d e f)
+   vertex' a b c d e f = vec3 a b c :# vec3 0 0 0 :# vec3 d e f :# HNil
 
-cubeMesh :: Renderer ext Mesh
+cubeMesh :: Renderer ext (Mesh '[Vec3, Vec3, Vec3])
 cubeMesh = createMesh cubeMeshVertices
 

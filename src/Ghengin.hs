@@ -163,7 +163,7 @@ ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConf
     (const id)
     (\(RQ.SomePipeline p) -> lift $ destroyRenderPipeline p)
     (\_ (RQ.SomeMaterial m) -> lift $ freeMaterial m)
-    (\_ m _ -> do
+    (\_ (SomeMesh m) _ -> do
       -- liftIO $ print =<< readIORef (m.referenceCount)
       lift $ freeMesh m
     )

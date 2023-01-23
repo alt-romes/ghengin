@@ -29,6 +29,7 @@ import GHC.TypeLits
 import Control.Monad
 import Control.Monad.Trans
 import Control.Logger.Simple
+import Foreign.Ptr
 import Data.Kind
 import Geomancy.Vec3
 import Geomancy.Mat4
@@ -200,3 +201,27 @@ incRefCount x = do
 decRefCount :: HasField "referenceCount" a (IORef Int) => MonadIO m => a -> m ()
 decRefCount x = do
   liftIO $ atomicModifyIORef' x.referenceCount (\c -> (c-1,()))
+
+instance Storable (HList '[]) where
+  sizeOf _ = 0
+  alignment _ = 0
+  peek _ = pure HNil
+  poke _ _ = pure ()
+
+instance (Storable (HList xs), Storable x) => Storable (HList (x ': xs)) where
+  sizeOf _ = sizeOf @x undefined + sizeOf @(HList xs) undefined
+  alignment _ = 0
+  peek p = do
+    a  <- peekByteOff (castPtr @(HList (x ': xs)) @x p) 0
+    as <- peekByteOff (castPtr @(HList (x ': xs)) @(HList xs) p) (sizeOf a)
+    pure $ a :# as
+  poke p (a :# as) = do
+    pokeByteOff (castPtr @(HList (x ': xs)) @x p)          0 a
+    pokeByteOff (castPtr @(HList (x ': xs)) @(HList xs) p) (sizeOf a) as
+
+instance Show (HList '[]) where
+  show _ = "HNil"
+
+instance (Show (HList xs), Show x) => Show (HList (x ': xs)) where
+  show (x :# xs) = show x <> " :# " <> show xs
+

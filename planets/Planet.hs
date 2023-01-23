@@ -41,6 +41,7 @@ import Ghengin.Component (Entity, cmapM)
 import qualified Ghengin.Component as C
 import Ghengin.Component.Mesh.Sphere
 import Ghengin.Component.Mesh
+import Ghengin.Component.Mesh.Vertex
 import Ghengin.Component.Material
 import Ghengin.Component.UI
 import Foreign.Ptr
@@ -173,7 +174,7 @@ newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
   mat <- lift $ material (planetMaterial minmax tex) pipeline
   renderPacket @PlanetProps @a mesh mat pipeline
 
-newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh, MinMax)
+newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], MinMax)
 newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
   re' <- get re
   ra' <- get ra
@@ -184,11 +185,11 @@ newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
   let (vs, is) = case df' of
                    All -> let UnitSphere v i = newUnitSphere re' (Just co') in (v, i)
                    FaceUp -> let UF v i = newUnitFace re' (vec3 0 (-1) 0)
-                              in (zipWith3 Vertex v (calculateSmoothNormals i v) (repeat co'),i)
+                              in (zipWith3 (\a b c -> a :# b :# c :# HNil) v (calculateSmoothNormals i v) (repeat co'),i)
                    FaceRight -> let UF v i = newUnitFace re' (vec3 1 0 0)
-                              in (zipWith3 Vertex v (calculateSmoothNormals i v) (repeat co'),i)
+                              in (zipWith3 (\a b c -> a :# b :# c :# HNil) v (calculateSmoothNormals i v) (repeat co'),i)
 
-  (ps', elevations) <- unzip <$> forM vs \(Vertex p _ _) -> do
+  (ps', elevations) <- unzip <$> forM vs \(p :# _) -> do
     case nss of
       ns NE.:| nss' -> do
         initialElevation <- evalNoise ns p
@@ -199,8 +200,8 @@ newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
 
   let
       ns' = calculateSmoothNormals is ps'
-      cs  = map (\(Vertex _ _ c) -> c) vs
-      vs'' = zipWith3 Vertex ps' ns' cs
+      cs  = map (\(_ :# _ :# c :# _) -> c) vs
+      vs'' = zipWith3 (\a b c -> a :# b :# c :# HNil) ps' ns' cs
 
       minmax = MinMax (minimum elevations) (maximum elevations)
    in (,minmax) <$> createMeshWithIxs vs'' is

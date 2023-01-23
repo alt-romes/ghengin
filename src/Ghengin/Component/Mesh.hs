@@ -17,8 +17,7 @@
 {-# LANGUAGE UndecidableInstances #-} -- instance Has w m Mesh
 module Ghengin.Component.Mesh
   ( Mesh(..) -- Export these from an Internals module, not from here
-  , Vertex(..)
-  , VertexN
+  , SomeMesh(..)
   , createMesh
   , createMeshWithIxs
   , calculateFlatNormals
@@ -28,6 +27,7 @@ module Ghengin.Component.Mesh
   , chunksOf
   ) where
 
+import Data.Kind
 import Control.Monad
 import Data.IORef
 import GHC.TypeLits
@@ -54,6 +54,7 @@ import qualified Vulkan as Vk
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan
+import Ghengin.Component.Mesh.Vertex
 import Ghengin.Utils
 
 {-
@@ -65,77 +66,39 @@ mesh during the game you must free it explicitly. TODO: Enforce it somehow
 
  -}
 
-instance (Monad m, HasField "meshes" w (A.Storage Mesh)) => A.Has w m Mesh where
+instance (Monad m, HasField "meshes" w (A.Storage (Mesh ts))) => A.Has w m (Mesh ts) where
   getStore = A.SystemT (A.asks (.meshes))
 
 -- TODO: Renderable components should be Cache instead of Map
-instance A.Component Mesh where
-  type Storage Mesh = A.Map Mesh
+instance A.Component (Mesh ts) where
+  type Storage (Mesh ts) = A.Map (Mesh ts)
 
-data Vertex = Vertex { position :: {-# UNPACK #-} !Vec3
-                     , normal   :: {-# UNPACK #-} !Vec3
-                     , color    :: {-# UNPACK #-} !Vec3
-                     } deriving Show
+type Mesh :: [Type] -> Type
+data Mesh ts = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
+                          , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory
+                          , nVertices          :: {-# UNPACK #-} !Word32 -- ^ TODO: With the type level information this is no longer needed. We save the number of vertices to pass to the draw function
 
--- | A Vertex with 'n' times 'a's
--- TODO: Move to Ghengin.Component.Mesh.Vertex
-newtype VertexN a (n :: Nat) = VertexN (SV.Vector a)
--- TODO: Possibly make 'n' be the amount of floats.
+                          -- We don't need to keep the Vector Vertex that was originally (unless we wanted to regenerate it every time?)
+                          -- used to create this Mesh, bc having the vertex buffer and
+                          -- the device memory is morally equivalent
+                          -- , vertices :: Vector Vertex
 
--- instance IsList (VertexN a n) where
-
-instance (S.Storable a, KnownNat n) => S.Storable (VertexN a n) where
-  sizeOf _ = fromIntegral (natVal (Proxy @n)) * S.sizeOf @a undefined
-  alignment _ = 4
-  peek (castPtr -> p) = do
-    let amount = fromIntegral (natVal (Proxy @n))
-    v3s <- SV.forM [0..amount-1] $ \i -> do
-      S.peekElemOff @a p i
-    pure $ VertexN v3s
-  poke (castPtr -> p) (VertexN vs) = SV.imapM_ (S.pokeElemOff @a p) vs
-
-instance S.Storable Vertex where
-  sizeOf _ = 3 * S.sizeOf @Vec3 undefined
-  alignment _ = 4
-  peek (castPtr -> p) = do
-    pos    <- S.peek p
-    normal <- S.peekElemOff p 1
-    color  <- S.peekElemOff p 2
-    pure $ Vertex pos normal color
-  poke (castPtr -> p) (Vertex pos normal color) = do
-    S.poke p pos
-    S.pokeElemOff p 1 normal
-    S.pokeElemOff p 2 color
-
--- instance Poke Vertex l where
---   type SizeOf l Vertex = 36 -- 3*3*4
---   type Alignment l Vertex = 36 -- 3 * 3 * 4
---   poke = S.poke
-
-data Mesh = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
-                       , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory
-                       , nVertices          :: {-# UNPACK #-} !Word32 -- ^ We save the number of vertices to pass to the draw function
-
-                       -- We don't need to keep the Vector Vertex that was originally (unless we wanted to regenerate it every time?)
-                       -- used to create this Mesh, bc having the vertex buffer and
-                       -- the device memory is morally equivalent
-                       -- , vertices :: Vector Vertex
-
-                       , referenceCount     :: !(IORef Int) -- ^ Count the number of references to this mesh so freeMesh can take it into account
-                       }
-          | IndexedMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
-                        , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- vertices device memoy
-                        , indexBuffer        :: {-# UNPACK #-} !Vk.Buffer -- vertices indexes in buffer
-                        , indexBufferMemory  :: {-# UNPACK #-} !Vk.DeviceMemory -- indexes device memory
-                        , nIndexes           :: {-# UNPACK #-} !Word32 -- ^ We save the number of indexes to pass to the draw function
-                        , referenceCount     :: !(IORef Int) -- ^ Count the number of references to this mesh so freeMesh can take it into account
-                        }
+                          , referenceCount     :: !(IORef Int) -- ^ Count the number of references to this mesh so freeMesh can take it into account
+                          }
+             | IndexedMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- a vector of vertices in buffer format
+                           , vertexBufferMemory :: {-# UNPACK #-} !Vk.DeviceMemory -- vertices device memoy
+                           , indexBuffer        :: {-# UNPACK #-} !Vk.Buffer -- vertices indexes in buffer
+                           , indexBufferMemory  :: {-# UNPACK #-} !Vk.DeviceMemory -- indexes device memory
+                           , nIndexes           :: {-# UNPACK #-} !Word32 -- ^ We save the number of indexes to pass to the draw function
+                           , referenceCount     :: !(IORef Int) -- ^ Count the number of references to this mesh so freeMesh can take it into account
+                           }
 
       -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
 
+data SomeMesh = forall ts. SomeMesh (Mesh ts)
 
 -- Render a mesh command
-renderMesh :: MonadIO m => Mesh -> RenderPassCmd m
+renderMesh :: MonadIO m => Mesh a -> RenderPassCmd m
 renderMesh = \case
   SimpleMesh buf _ nverts _ -> do
       let buffers = [buf] :: Vector Vk.Buffer
@@ -162,14 +125,14 @@ renderMesh = \case
 -- because we simply free them at the end. One must free the same meshes as
 -- many times as they are shared for they will only be freed with the last
 -- reference
-createMesh :: SV.Vector Vertex -> Renderer ext Mesh
-createMesh vs = do
+createMesh :: Storable (HList ts) => VertexArray ts -> Renderer ext (Mesh ts)
+createMesh (VertexArray vs) = do
   let nverts = SV.length vs
   (buffer, devMem) <- createVertexBuffer vs
   ref <- liftIO $ newIORef 0
   pure (SimpleMesh buffer devMem (fromIntegral nverts) ref)
 
-createMeshWithIxs :: [Vertex] -> [Int] -> Renderer ext Mesh
+createMeshWithIxs :: Storable a => [a] -> [Int] -> Renderer ext (Mesh ts)
 createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
   let nixs = SV.length ixs
   (vbuffer, vbMem) <- createVertexBuffer vertices
@@ -179,7 +142,7 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
   pure (IndexedMesh vbuffer vbMem ibuffer ibMem (fromIntegral nixs) ref)
 
 
-freeMesh :: Mesh -> Renderer ext ()
+freeMesh :: Mesh ts -> Renderer ext ()
 freeMesh mesh = do
   () <- decRefCount mesh
   count <- get mesh.referenceCount
@@ -206,7 +169,7 @@ calculateFlatNormals ixs (SV.fromList -> pos) =
             let vab = (pos SV.! b) - (pos SV.! a)
                 vbc = (pos SV.! c) - (pos SV.! b)
                 n = normalize $ cross vbc vab -- vbc X vab gives the normal facing up for clockwise faces
-             in IM.insertWith (\x _ -> x) a n $ IM.insertWith (\x _ -> x) b n $ IM.insertWith (\x _ -> x) c n acc) mempty (chunksOf 3 ixs)
+             in IM.insertWith const a n $ IM.insertWith const b n $ IM.insertWith const c n acc) mempty (chunksOf 3 ixs)
 
    in map snd $ sort (IM.toList m)
 

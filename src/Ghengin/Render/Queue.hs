@@ -35,7 +35,7 @@ import Ghengin.Render.Packet
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material hiding (material)
 
-newtype RenderQueue a = RenderQueue (Map TypeRep (SomePipeline, Map Unique (SomeMaterial, [(Mesh, a)])))
+newtype RenderQueue a = RenderQueue (Map TypeRep (SomePipeline, Map Unique (SomeMaterial, [(SomeMesh, a)])))
   deriving (Functor)
 
 instance Semigroup (RenderQueue α) where
@@ -72,7 +72,7 @@ insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue
                   pure (m1, meshes1 <> meshes2)
                 ) id id im1 im2))
         pkey
-        (SomePipeline pipeline, M.insert mkey (SomeMaterial material, [(mesh, x)]) mempty)
+        (SomePipeline pipeline, M.insert mkey (SomeMaterial material, [(SomeMesh mesh, x)]) mempty)
         q
 
 -- | Traverse the render queue with a function for each different occasion:
@@ -88,7 +88,7 @@ traverseRenderQueue :: (Monad μ, Monad μ')
                     -> (SomePipeline -> μ' () -> μ ()) -- ^ The initial context lifting from m to m' for the inner functions
                     -> (SomePipeline -> μ' β) -- ^ The pipeline changed (nothing should be rendered)
                     -> (SomePipeline -> SomeMaterial -> μ' ξ) -- ^ The material changed (nothing should be rendered)
-                    -> (SomePipeline -> Mesh -> α -> μ' δ) -- ^ The mesh to render
+                    -> (SomePipeline -> SomeMesh -> α -> μ' δ) -- ^ The mesh to render
                     -> μ' () -- ^ A command at the end of each render pass
                     -> μ ()
 traverseRenderQueue (RenderQueue q) ini f g h finally =

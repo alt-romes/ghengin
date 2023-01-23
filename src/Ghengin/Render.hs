@@ -213,7 +213,7 @@ render i = do
                   1 matDSet._descriptorSet
 
           )
-        (\(SomePipeline pipeline) (mesh :: Mesh) (ModelMatrix mm _) -> do
+        (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> do
 
             logTrace ("Drawing mesh")
 

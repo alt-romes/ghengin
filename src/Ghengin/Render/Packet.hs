@@ -97,7 +97,7 @@ data RenderPacket where
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ α β. (Compatible α β, Typeable α, Typeable β) => Mesh -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ α β ξ. (Compatible α β, Typeable α, Typeable β) => Mesh ξ -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
@@ -133,8 +133,10 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 -- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
+-- TODO: Compatible between all α β and ξ (new)
+
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ α β μ. (Compatible α β, Typeable α, Typeable β, MonadIO μ) => Mesh -> Material α -> RenderPipeline β -> μ RenderPacket
+renderPacket :: ∀ α β ξ μ. (Compatible α β, Typeable α, Typeable β, MonadIO μ) => Mesh ξ -> Material α -> RenderPipeline β -> μ RenderPacket
 renderPacket mesh material pipeline = do
   incRefCount mesh
   pure $ RenderPacket mesh material pipeline (typeOf pipeline, getMaterialUID material)

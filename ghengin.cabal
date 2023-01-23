@@ -150,7 +150,8 @@ library
                         ViewPatterns,
                         TypeApplications,
                         TypeFamilies,
-                        LambdaCase
+                        LambdaCase,
+                        UnboxedTuples
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.17,
@@ -176,7 +177,7 @@ library
                       simple-logger,
                       JuicyPixels,
                       inline-c-cpp,
-                      -- primitive
+                      primitive
                       -- witch,
                       -- constraints,
                       -- reflection
