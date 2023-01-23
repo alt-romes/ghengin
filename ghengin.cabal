@@ -114,6 +114,7 @@ library
                       Ghengin.Component.Transform.Animation,
                       Ghengin.Component.Material,
                       Ghengin.Component.Mesh,
+                      Ghengin.Component.Mesh.Vertex,
                       Ghengin.Component.Mesh.Hex,
                       Ghengin.Component.Mesh.Cube,
                       Ghengin.Component.Mesh.Sphere,
@@ -174,7 +175,8 @@ library
                       ghc-typelits-natnormalise,
                       simple-logger,
                       JuicyPixels,
-                      inline-c-cpp
+                      inline-c-cpp,
+                      -- primitive
                       -- witch,
                       -- constraints,
                       -- reflection
