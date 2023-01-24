@@ -24,7 +24,7 @@ import qualified Language.C.Inline.Cpp as Cpp
 
 -- TODO: Possibly a native gradient format that would create and pass an ImGradient instance to the functions? Probably not better...
 -- TODO: Delete instances...
-data ImGradient = ImGradient (Ptr ImGradient)
+data ImGradient = ImGradient (Ptr ImGradient) (Ptr (Ptr ImGradientMark)) (Ptr (Ptr ImGradientMark))
 data ImGradientMark = ImGradientMark { r,g,b,a,pos :: {-# UNPACK #-} !Float }
 
 instance Storable ImGradientMark where
@@ -61,10 +61,20 @@ newGradient (WithVec3 (CFloat -> x1) (CFloat -> y1) (CFloat -> z1))
             (WithVec3 (CFloat -> x2) (CFloat -> y2) (CFloat -> z2)) = liftIO do
   pt <- [Cpp.block| ImGradient* {
                       ImGradient* gradient = new ImGradient();
+                      // Removed from the constructor and done here
                       gradient->addMark(0.0f, ImColor($(float x1), $(float y1), $(float z1)));
                       gradient->addMark(1.0f, ImColor($(float x2), $(float y2), $(float z2)));
                       return gradient; } |]
-  pure (ImGradient pt)
+  m1 <- emptyMark
+  m2 <- emptyMark
+  pure (ImGradient pt m1 m2)
+
+emptyMark :: MonadIO m => m (Ptr (Ptr ImGradientMark))
+emptyMark = liftIO
+  [Cpp.block| ImGradientMark** {
+                ImGradientMark** newMarkPtr = (ImGradientMark**)malloc(sizeof *newMarkPtr);
+                *newMarkPtr = nullptr;
+                return newMarkPtr; } |]
 
 woodGradient :: (MonadIO m) => m ImGradient
 woodGradient = liftIO do
@@ -80,13 +90,15 @@ woodGradient = liftIO do
                                    gradient->addMark(1.0f, ImColor(0xE6, 0xBF, 0x83));
                                   return gradient;
                                 } |]
-  pure (ImGradient pt)
+  m1 <- emptyMark
+  m2 <- emptyMark
+  pure (ImGradient pt m1 m2)
 
 
 colorAt :: ImGradient
         -> Float -- ^ Position from 0 to 1
         -> Vec3  -- ^ Normalised vec3
-colorAt (ImGradient ptr) (CFloat -> pos) = unsafePerformIO do
+colorAt (ImGradient ptr _ _) (CFloat -> pos) = unsafePerformIO do
   withArray [0,0,0] \(colorPtr :: Ptr CFloat) -> do
 
     [Cpp.exp| void { $(ImGradient* ptr)->getColorAt($(float pos), $(float colorPtr[3])); } |]
@@ -97,44 +109,34 @@ colorAt (ImGradient ptr) (CFloat -> pos) = unsafePerformIO do
 
 -- | ImGui gradient button: Must be defined in a UI window (or otherwise the imgui context won't be set)
 gradientButton :: MonadIO m => ImGradient -> m Bool
-gradientButton (ImGradient ptr) = liftIO do
+gradientButton (ImGradient ptr _ _) = liftIO do
   (0 /=) <$> [Cpp.exp| bool { GradientButton($(ImGradient* ptr)) } |]
 
 
 -- | ImGui gradient editor: Must be defined in a UI window (or otherwise the imgui context won't be set)
-gradientEditor :: (MonadIO m) -- , HasGetter ref ImGradientMark, HasSetter ref ImGradientMark)
+gradientEditor :: (MonadIO m) --, HasGetter ref ImGradientMark, HasSetter ref ImGradientMark)
                => ImGradient
                -- -> ref
                -- -> ref
                -> m Bool
-gradientEditor (ImGradient grad) = liftIO do
-  -- m1 <- get ref1
-  -- m2 <- get ref2
-  -- TODO: Don't use static, we should pass some ptr that can be changed to
-  -- another pointer but this should still all work. Meaning we'd need to
-  -- store instead the ptr to the mark inside the imgradient?
-  -- For now, OK..
-  -- with m1 $ \m1ptr ->
-  --   with m2 $ \m2ptr -> do
-      changed <- (0 /=) <$>
-        [Cpp.block|
-          bool {
-          static ImGradientMark* draggingMark = nullptr;
-          static ImGradientMark* selectedMark = nullptr;
-          return
-            GradientEditor( $(ImGradient* grad)
-                          , draggingMark
-                          , selectedMark
-                          );
-          }
-          |]
+gradientEditor (ImGradient grad draggingMark selectedMark) = liftIO do
 
-      -- when changed $ do
-      --   m1new <- peek m1ptr
-      --   m2new <- peek m2ptr
-      --   ref1 $=! m1new
-      --   ref2 $=! m2new
 
-      pure changed
+    changed <- (0 /=) <$>
+      [Cpp.block|
+        bool {
+        return
+          GradientEditor( $(ImGradient* grad)
+                        , *$(ImGradientMark** draggingMark)
+                        , *$(ImGradientMark** selectedMark)
+                        );
+        }
+        |]
+
+    pure changed
+
+
+-- TODO: Eventually free the resources but it's never that many so for now we
+-- leave it be to avoid whatever else bookkeeping would be needed
 
 

@@ -177,7 +177,10 @@ library
                       simple-logger,
                       JuicyPixels,
                       inline-c-cpp,
-                      primitive
+                      primitive,
+                      -- fir already depends on lens, so we might as well
+                      lens >= 5.2
+
                       -- witch,
                       -- constraints,
                       -- reflection

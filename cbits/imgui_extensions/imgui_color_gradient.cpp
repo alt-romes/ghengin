@@ -8,6 +8,7 @@
 //  Updated by Rodrigo Mesquita on 31/12/2022
 
 
+#include <iostream>
 #include "imgui_color_gradient.hpp"
 #include "tmp/imgui/imgui_internal.h"
 
@@ -17,8 +18,8 @@ static const float GRADIENT_MARK_DELETE_DIFFY = 40;
 
 ImGradient::ImGradient()
 {
-    addMark(0.0f, ImColor(0.0f,0.0f,0.0f));
-    addMark(1.0f, ImColor(1.0f,1.0f,1.0f));
+    /* addMark(0.0f, ImColor(0.0f,0.0f,0.0f)); */
+    /* addMark(1.0f, ImColor(1.0f,1.0f,1.0f)); */
 }
 
 ImGradient::~ImGradient()
@@ -329,9 +330,10 @@ namespace ImGui
         
         ImGui::InvisibleButton("gradient_editor_bar", ImVec2(maxWidth, GRADIENT_BAR_EDITOR_HEIGHT));
         
-        if(ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
+        if(ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
         {
             float pos = (ImGui::GetIO().MousePos.x - bar_pos.x) / maxWidth;
+            std::cout << "Clicked: " << ImGui::GetIO().MousePos.x << std::endl;
             
             float newMarkCol[4];
             gradient->getColorAt(pos, newMarkCol);
@@ -343,16 +345,18 @@ namespace ImGui
         DrawGradientBar(gradient, bar_pos, maxWidth, GRADIENT_BAR_EDITOR_HEIGHT);
         DrawGradientMarks(gradient, draggingMark, selectedMark, bar_pos, maxWidth, GRADIENT_BAR_EDITOR_HEIGHT);
         
-        if(!ImGui::IsMouseDown(0) && draggingMark)
+        if(!ImGui::IsMouseDown(ImGuiMouseButton_Left) && draggingMark)
         {
             draggingMark = nullptr;
         }
         
-        if(ImGui::IsMouseDragging(0) && draggingMark)
+        if(ImGui::IsMouseDragging(ImGuiMouseButton_Left) && draggingMark)
         {
             float increment = ImGui::GetIO().MouseDelta.x / maxWidth;
+            std::cout << "MouseDelta.x: " << ImGui::GetIO().MouseDelta.x << std::endl;
             bool insideZone = (ImGui::GetIO().MousePos.x > bar_pos.x) &&
                               (ImGui::GetIO().MousePos.x < bar_pos.x + maxWidth);
+            std::cout << "Increment: " << increment << "; Inside zone: " << insideZone << std::endl;
             
             if(increment != 0.0f && insideZone)
             {

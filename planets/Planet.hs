@@ -70,7 +70,6 @@ data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , useFirstLayerAsMask :: !(IORef Bool)
                                      , noiseSettings :: !(NE.NonEmpty NoiseSettings)
                                      , displayFace   :: !(IOSelectRef DisplayFace)
-                                     -- , gradient :: (ImGradient, IORef ImGradientMark, IORef ImGradientMark)
                                      , gradient :: ImGradient
                                      }
 
@@ -92,8 +91,6 @@ instance UISettings PlanetSettings where
     _ns3    <- makeSettings @NoiseSettings
     df     <- newIOSelectRef All
     grad <- newGradient (vec3 0 0 0) (vec3 1 1 1)
-    -- m1   <- newIORef (ImGradientMark 0 0 0 1 0)
-    -- m2   <- newIORef (ImGradientMark 0 0 0 1 0)
     pure $ PlanetSettings resR radR colorR boolR [ns1, ns2] df grad
 
   makeComponents ps@(PlanetSettings re ra co bo nss df grad) planetEntity = do
