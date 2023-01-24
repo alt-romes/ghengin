@@ -98,7 +98,7 @@ instance UISettings PlanetSettings where
 
   makeComponents ps@(PlanetSettings re ra co bo nss df grad) planetEntity = do
 
-    (RenderPacket oldMesh (mat :: Material mt) pp _) <- C.get planetEntity
+    (RenderPacket (oldMesh :: Mesh ms) (mat :: Material mt) pp _) <- C.get planetEntity
 
     -- Local equality for this render packets being a PlanetMaterial by
     -- comparing the runtime tag of this render packet.
@@ -108,9 +108,8 @@ instance UISettings PlanetSettings where
     --   like that the case block as a whole should be IO ().
     --
     -- TODO: Some nice workaround to avoid this?
-    () <- case eqT @mt @PlanetProps of
-      Nothing -> error "Not a planet material BOOM"
-      Just Refl -> do
+    () <- case (eqT @mt @PlanetProps, eqT @ms @[Vec3, Vec3, Vec3]) of
+      (Just Refl, Just Refl) -> do
 
         withTree "Planet" do
           _b1 <- sliderInt "Resolution" re 2 200
@@ -157,6 +156,7 @@ instance UISettings PlanetSettings where
            newMaterial <- lift $ medit @0 @PlanetProps mat (\_oldMinMax -> newMinMax)
 
            C.set planetEntity =<< renderPacket newMesh newMaterial pp
+      _ -> error "Not a planet material nor mesh BOOM"
 
     pure ()
 
@@ -167,7 +167,7 @@ textureFromGradient grad = do
   lift $ textureFromImage (ImageRGB8 img) sampler
 
 
-newPlanet :: ∀ a w. (Typeable a, Compatible PlanetProps a) => PlanetSettings -> RenderPipeline a -> Ghengin w Planet
+newPlanet :: ∀ a w. (Typeable a, Compatible PlanetProps a '[Vec3,Vec3,Vec3]) => PlanetSettings -> RenderPipeline a -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
   (mesh,minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad

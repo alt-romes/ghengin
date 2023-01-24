@@ -32,9 +32,8 @@ import Ghengin.Component.Mesh
 import Ghengin.Utils
 
 -- import FIR.Layout(Layout(..))
-import Data.Type.Map
-  ( Values )
-import FIR.Pipeline (PipelineInfo(..))
+import Data.Type.Map (Values, (:->)(..), Lookup)
+import FIR.Pipeline
 import qualified FIR.Prim.Image as FIR
 import FIR.ProgramState
 import qualified SPIRV.Image as SPIRV
@@ -97,7 +96,7 @@ data RenderPacket where
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ α β ξ. (Compatible α β, Typeable α, Typeable β) => Mesh ξ -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ α β ξ. (Compatible α β ξ, Typeable α, Typeable β, Typeable ξ) => Mesh ξ -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
@@ -136,7 +135,7 @@ instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m
 -- TODO: Compatible between all α β and ξ (new)
 
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ α β ξ μ. (Compatible α β, Typeable α, Typeable β, MonadIO μ) => Mesh ξ -> Material α -> RenderPipeline β -> μ RenderPacket
+renderPacket :: ∀ α β ξ μ. (Compatible α β ξ, Typeable α, Typeable β, Typeable ξ, MonadIO μ) => Mesh ξ -> Material α -> RenderPipeline β -> μ RenderPacket
 renderPacket mesh material pipeline = do
   incRefCount mesh
   pure $ RenderPacket mesh material pipeline (typeOf pipeline, getMaterialUID material)
@@ -179,31 +178,55 @@ The 32bit key is composed of:
 type RenderKey = (TypeRep, Unique)
 
 
--- class Compatible (as :: [Type]) (bs :: PipelineInfo)
--- instance Compatible' (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs
+-- TODO?: class Compatible (as :: [Type]) (bs :: PipelineInfo)
+-- instance CompatibleMaterial (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs
 --   => Compatible as bs
 
 -- | 'Compatible' validates at the type level that the mesh and material are
 -- compatible with the render pipeline. See Note [Pipeline compatible materials].
-type family Compatible (xs :: [Type]) (ys :: PipelineInfo) :: Constraint where
+type family Compatible (xs :: [Type]) (ys :: PipelineInfo) (zs :: [Type]) :: Constraint where
   -- Reverse because the material bindings are reversed (the last element is the binding #0)
-  Compatible as bs = ( MatchesSize (Length as) (Length (DSetBindings 1 bs)) (Text "There are " :<>: ShowType (Length as) :<>: Text " material properties in material " :<>: ShowType as :<>: Text " but " :<>: ShowType (Length (DSetBindings 1 bs)) :<>: Text " descriptors in descriptor set #1 " :<>: ShowType (DSetBindings 1 bs))
-                     , Compatible' (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs)
+  Compatible as bs cs = ( MatchesSize (Length cs) (Length (InputLocations bs))
+                            (Text "There are " :<>: ShowType (Length cs)
+                              :<>: Text " mesh vertex properties in vertex "
+                              :<>: ShowType cs :<>: Text " but "
+                              :<>: ShowType (Length (InputLocations bs))
+                              :<>: Text " inputs in the vertex shader.")
+                              -- :<>: ShowType (InputLocations bs))
+                        , MatchesSize (Length as) (Length (DSetBindings 1 bs))
+                            (Text "There are " :<>: ShowType (Length as)
+                              :<>: Text " material properties in material "
+                              :<>: ShowType as :<>: Text " but "
+                              :<>: ShowType (Length (DSetBindings 1 bs))
+                              :<>: Text " descriptors in descriptor set #1.")
+                              -- :<>: ShowType (DSetBindings 1 bs))
+                        , CompatibleMaterial (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs
+                        , CompatibleMesh (Zip (NumbersFromTo 0 (Length as)) cs) bs )
 
+type family CompatibleMesh (xs :: [(Nat,Type)]) (ys :: PipelineInfo) :: Constraint where
+  CompatibleMesh '[] _ = ()
+  CompatibleMesh ('(n,x) ': xs) ys = ( Sized x
+                                     , Sized (InputByLocation' n ys)
+                                     , MatchesSize (SizeOf x) (SizeOf (InputByLocation' n ys))
+                                         (Text "Vertex property #" :<>: ShowType n :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf x)
+                                          :<>: Text " isn't compatible with (doesn't have the same size as) the shader vertex property #" :<>: ShowType n :<>: Text " of size " :<>: ShowType (SizeOf (InputByLocation' n ys))
+                                          :<>: Text " with type " :<>: ShowType (InputByLocation' n ys))
+                                     , CompatibleMesh xs ys )
 
 -- TODO: Note Compatible
 -- TODO: Validate Types wrt Uniform and Texture with Texture2D
 
-type family Compatible' (xs :: [(Nat,Type)]) (ys :: PipelineInfo) :: Constraint where
-  Compatible' '[] _ = ()
-  Compatible' ('(n,x) ': xs) ys = ( TryMatch x (DSetBinding' 1 n ys)
-                                    ( Sized x
-                                    , Sized (DSetBinding' 1 n ys)
-                                    , MatchesSize (SizeOf x) (SizeOf (DSetBinding' 1 n ys))
-                                      (Text "Material binding #" :<>: ShowType n :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf x)
-                                       :<>: Text " isn't compatible with (doesn't have the same size as) the descriptor binding #" :<>: ShowType n :<>: Text " of size " :<>: ShowType (SizeOf (DSetBinding' 1 n ys))
-                                       :<>: Text " with type " :<>: ShowType (DSetBinding' 1 n ys)) )
-                                  , (Compatible' xs ys) )
+type CompatibleMaterial :: [(Nat, Type)] -> PipelineInfo -> Constraint
+type family CompatibleMaterial xs ys where
+  CompatibleMaterial '[] _ = ()
+  CompatibleMaterial ('(n,x) ': xs) ys = ( TryMatch x (DSetBinding' 1 n ys)
+                                           ( Sized x
+                                           , Sized (DSetBinding' 1 n ys)
+                                           , MatchesSize (SizeOf x) (SizeOf (DSetBinding' 1 n ys))
+                                             (Text "Material binding #" :<>: ShowType n :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf x)
+                                              :<>: Text " isn't compatible with (doesn't have the same size as) the descriptor binding #" :<>: ShowType n :<>: Text " of size " :<>: ShowType (SizeOf (DSetBinding' 1 n ys))
+                                              :<>: Text " with type " :<>: ShowType (DSetBinding' 1 n ys)) )
+                                         , CompatibleMaterial xs ys )
 
 -- | If matching fails, the other constraint is passed
 type family TryMatch (t :: Type) (t' :: Type) (c :: Constraint) :: Constraint where
@@ -245,17 +268,35 @@ type family DSetBindings'' set info i x where
 -- TODO: This assumes this order as the only valid one. At least say it so in the error message.
 type family DSetBinding (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Maybe Type where
   DSetBinding set binding (VertexInputInfo _ _ _) = 'Nothing
-  DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) = (FindDSetInput set binding (Values (Concat (Values defs)))) :<|>: (DSetBinding set binding infos)
+  DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) =
+    FindDSetInput set binding (Values (Concat (Values defs))) :<|>: DSetBinding set binding infos
 
 type family DSetBinding' (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Type where
-  DSetBinding' set binding info = FromMaybe (TypeError (Text "Uniform [Descriptor Set #" :<>: ShowType set :<>: Text ", Binding #" :<>: ShowType binding :<>: Text "] not found in " :<>: ShowType info)) (DSetBinding set binding info)
+  DSetBinding' set binding info =
+    FromMaybe (TypeError (Text "Uniform [Descriptor Set #" :<>: ShowType set :<>: Text ", Binding #" :<>: ShowType binding :<>: Text "] not found in " :<>: ShowType info))
+              (DSetBinding set binding info)
 
 type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [TLInterfaceVariable]) :: Maybe Type where
   FindDSetInput set binding '[] = 'Nothing
   FindDSetInput set binding ('( '[DescriptorSet set, Binding binding], ty) ': inputs) = 'Just ty
   FindDSetInput set binding (_ ': inputs) = FindDSetInput set binding inputs
 
-type family Assert (b :: Bool) (e :: ErrorMessage) (t :: k) :: k where
-  Assert 'False e _ = TypeError e
-  Assert 'True _ t = t
+
+type InputLocations :: PipelineInfo -> [Nat :-> SPIRV.ImageFormat Nat]
+type family InputLocations info where
+  InputLocations info = InputLocations' (GetVertexInputInfo info)
+
+type InputLocations' :: (PrimitiveTopology Nat, VertexLocationDescriptions, BindingStrides) -> [Nat :-> SPIRV.ImageFormat Nat]
+type family InputLocations' a where
+  InputLocations' '(_, vertexLocations, _) = TakeImageFormat vertexLocations
+
+type TakeImageFormat :: VertexLocationDescriptions -> [Nat :-> SPIRV.ImageFormat Nat]
+type family TakeImageFormat os where
+  TakeImageFormat '[] = '[]
+  TakeImageFormat ((n ':-> '(_,_,img)) ': rs) = (n ':-> img) ': TakeImageFormat rs
+
+type InputByLocation' :: Nat -> PipelineInfo -> SPIRV.ImageFormat Nat
+type family InputByLocation' loc info where
+  InputByLocation' loc info = FromMaybe (TypeError (Text "Input [Location #" :<>: ShowType loc :<>: Text "] not found in " :<>: ShowType info))
+                                        (Lookup loc (InputLocations info))
 

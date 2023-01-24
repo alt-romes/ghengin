@@ -29,7 +29,6 @@ import GHC.TypeLits
 import Control.Monad
 import Control.Monad.Trans
 import Control.Logger.Simple
-import Foreign.Ptr
 import Data.Kind
 import Geomancy.Vec3
 import Geomancy.Mat4
@@ -41,6 +40,7 @@ import Data.Proxy
 import Data.Bits
 
 import Math.Linear (V(..))
+import qualified SPIRV.Image as SPIRV
 import Data.Type.Map
 import FIR.Prim.Struct
 
@@ -62,6 +62,13 @@ instance Sized a => Sized (Struct ((k ':-> a) ': xs)) where
 
 instance Sized Vec3 where
   type SizeOf Vec3 = 3 * SizeOf Float
+
+instance Sized ('SPIRV.ImageFormat c '[]) where
+  type SizeOf ('SPIRV.ImageFormat _ '[]) = 0
+
+instance Sized ('SPIRV.ImageFormat c ((x ': xs) :: [Nat])) where
+  type SizeOf ('SPIRV.ImageFormat c (x ': xs)) = (x `Div` 8) + SizeOf ('SPIRV.ImageFormat c xs)
+  -- Division by 8 because image format size is in bits
 
 data HList xs where
     HNil :: HList '[]
