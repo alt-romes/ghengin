@@ -1,11 +1,18 @@
 A work in progress game engine.
 
-Unique features:
+## Demos
+
+### Ocean waves
+
+Based on https://dl.acm.org/doi/abs/10.1145/15922.15894
+
+
+## Unique features:
 
 * Shader focused -- the engine is design with custom shaders in the center, and
     a lot of compile time validation and runtime data is based on the shader
-* Compile time validation of compatibility between the game defined materials
-    and the game defined shader programs.
+* Compile time validation of compatibility between the game defined materials,
+    meshes and the game defined shader programs.
 * It's written in Haskell
 
 

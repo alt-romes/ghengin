@@ -2,3 +2,8 @@ assets/
 imgui.ini
 fourmolu.yaml
 _build/
+*.aux
+*.log
+*.pdf
+*.ptb
+ocean/main.tex
