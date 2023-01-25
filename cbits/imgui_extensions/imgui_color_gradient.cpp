@@ -320,20 +320,31 @@ namespace ImGui
                         ImGradientMark* & selectedMark)
     {
         if(!gradient) return false;
-        
+
+        ImGuiIO& io = ImGui::GetIO();
+
+        ImGui::Text("io.WantCaptureMouse: %d", io.WantCaptureMouse);
+
+        if (ImGui::IsMousePosValid())
+            ImGui::Text("Mouse pos: (%g, %g)", io.MousePos.x, io.MousePos.y);
+        else
+            ImGui::Text("Mouse pos: <INVALID>");
+
         bool modified = false;
         
         ImVec2 bar_pos = ImGui::GetCursorScreenPos();
-        bar_pos.x += 10;
-        float maxWidth = ImGui::GetContentRegionAvail().x - 20;
+        bar_pos.x += 5;
+        bar_pos.y += 20;
+        /* float maxWidth = ImGui::GetContentRegionAvail().x - 20; */
+        float maxWidth = ImMax(250.0f, ImGui::GetContentRegionAvail().x - 100.0f);
         float barBottom = bar_pos.y + GRADIENT_BAR_EDITOR_HEIGHT;
         
         ImGui::InvisibleButton("gradient_editor_bar", ImVec2(maxWidth, GRADIENT_BAR_EDITOR_HEIGHT));
         
         if(ImGui::IsItemHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
         {
-            float pos = (ImGui::GetIO().MousePos.x - bar_pos.x) / maxWidth;
-            std::cout << "Clicked: " << ImGui::GetIO().MousePos.x << std::endl;
+            float pos = (io.MousePos.x - bar_pos.x) / maxWidth;
+            /* std::cout << "Clicked: " << io.MousePos.x << std::endl; */
             
             float newMarkCol[4];
             gradient->getColorAt(pos, newMarkCol);
@@ -352,11 +363,11 @@ namespace ImGui
         
         if(ImGui::IsMouseDragging(ImGuiMouseButton_Left) && draggingMark)
         {
-            float increment = ImGui::GetIO().MouseDelta.x / maxWidth;
-            std::cout << "MouseDelta.x: " << ImGui::GetIO().MouseDelta.x << std::endl;
-            bool insideZone = (ImGui::GetIO().MousePos.x > bar_pos.x) &&
-                              (ImGui::GetIO().MousePos.x < bar_pos.x + maxWidth);
-            std::cout << "Increment: " << increment << "; Inside zone: " << insideZone << std::endl;
+            float increment = io.MouseDelta.x / maxWidth;
+            /* std::cout << "MouseDelta.x: " << io.MouseDelta.x << std::endl; */
+            bool insideZone = (io.MousePos.x > bar_pos.x) &&
+                              (io.MousePos.x < bar_pos.x + maxWidth);
+            /* std::cout << "Increment: " << increment << "; Inside zone: " << insideZone << std::endl; */
             
             if(increment != 0.0f && insideZone)
             {
@@ -366,7 +377,7 @@ namespace ImGui
                 modified = true;
             }
             
-            float diffY = ImGui::GetIO().MousePos.y - barBottom;
+            float diffY = io.MousePos.y - barBottom;
             
             if(diffY >= GRADIENT_MARK_DELETE_DIFFY)
             {

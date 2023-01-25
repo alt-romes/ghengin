@@ -125,11 +125,15 @@ gradientEditor (ImGradient grad draggingMark selectedMark) = liftIO do
     changed <- (0 /=) <$>
       [Cpp.block|
         bool {
-        return
-          GradientEditor( $(ImGradient* grad)
-                        , *$(ImGradientMark** draggingMark)
-                        , *$(ImGradientMark** selectedMark)
-                        );
+          ImGradientMark* dm = *$(ImGradientMark** draggingMark);
+          ImGradientMark* sm = *$(ImGradientMark** selectedMark);
+          bool changed = GradientEditor( $(ImGradient* grad)
+                                       , dm
+                                       , sm
+                                       );
+          *$(ImGradientMark** draggingMark) = dm;
+          *$(ImGradientMark** selectedMark) = sm;
+          return changed;
         }
         |]
 

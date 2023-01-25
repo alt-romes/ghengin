@@ -180,6 +180,7 @@ drawUI = do
     IM.newFrame
 
     cmapM $ \(uiw :: UIWindow w) -> IM.pushWindow uiw
+    IM.showDemoWindow
 
     IM.render
 

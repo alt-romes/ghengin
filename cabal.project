@@ -4,6 +4,9 @@ packages: .
 package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3
 
+package fir
+  flags: +internals
+
 allow-newer:
     dear-imgui:base
 

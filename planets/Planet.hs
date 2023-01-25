@@ -112,6 +112,7 @@ instance UISettings PlanetSettings where
           _b1 <- sliderInt "Resolution" re 2 200
           _b2 <- sliderFloat "Radius" ra 0 3
 
+          gradientButton grad
           whenM (gradientEditor grad) $ do
 
             -- Because we introduced the equality constraint we can now edit
