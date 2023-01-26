@@ -16,4 +16,4 @@ ocean/Main.lhs:
 
 clean:
 	rm -f *.aux *.log *.ptb book.pdf prelude/lhs2TeX.sty
-	# rm -f ocean/*.aux ocean/*.log ocean/*.ptb ocean/Main.tex ocean/main.pdf
+	rm -f ocean/Main.tex ocean/*.aux

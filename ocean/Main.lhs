@@ -1,6 +1,4 @@
 %include polycode.fmt
-\renewcommand{\Varid}[1]{\textcolor{Sepia}{\id{#1}}}
-\renewcommand{\Conid}[1]{\textcolor{OliveGreen}{\id{#1}}}
 
 \chapter{Ocean Simulation Tutorial}
 
