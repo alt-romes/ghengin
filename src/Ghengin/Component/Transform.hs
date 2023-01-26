@@ -5,7 +5,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE UndecidableInstances #-} -- HasField Has Transform
 module Ghengin.Component.Transform
   ( Transform(..)
   , noTransform
@@ -13,7 +12,6 @@ module Ghengin.Component.Transform
   , makeTransform
   ) where
 
-import GHC.Records
 import Control.Monad.IO.Class
 
 import Geomancy hiding (Transform)
@@ -38,10 +36,6 @@ noTransform = Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0)
 
 instance Component Transform where
   type Storage Transform = Map Transform
-
--- TODO: Instructions on having a World record with "transforms"
-instance (Monad m, HasField "transforms" w (Storage Transform)) => Has w m Transform where
-  getStore = SystemT (asks (.transforms))
 
 applyTransform :: MonadIO m => VulkanPipeline -> Transform -> RenderPassCmd m
 applyTransform pipeline tr = do

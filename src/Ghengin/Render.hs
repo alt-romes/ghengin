@@ -4,13 +4,13 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ViewPatterns #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Render where
 
-import GHC.Records
-import Apecs (Storage, cfold, cmapM)
+import Data.Kind
+import Apecs (Has, cfold, cmapM)
 import Data.Maybe
 
 import Control.Monad.State
@@ -39,14 +39,14 @@ import Ghengin.Render.Queue
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material hiding (material)
 import Ghengin.Utils
+import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
 
-
-type RenderConstraints w = ( HasField "transforms" w (Storage Transform)
-                           , HasField "renderPackets" w (Storage RenderPacket)
-                           , HasField "cameras" w (Storage Camera)
-                           , HasField "modelMatrices" w (Storage ModelMatrix)
-                           , HasField "entityParents" w (Storage Parent)
+type RenderConstraints w = ( Has (World w) (Renderer ()) Transform
+                           , Has (World w) (Renderer ()) RenderPacket
+                           , Has (World w) (Renderer ()) Camera
+                           , Has (World w) (Renderer ()) ModelMatrix
+                           , Has (World w) (Renderer ()) Parent
                            )
 
 data UniformBufferObject = UBO { view :: Mat4

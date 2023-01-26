@@ -2,8 +2,11 @@ assets/
 imgui.ini
 fourmolu.yaml
 _build/
+
 *.aux
 *.log
 *.pdf
 *.ptb
-ocean/main.tex
+ocean/Main.tex
+ocean/Tutorial.tex
+book/prelude/lhs2TeX.sty

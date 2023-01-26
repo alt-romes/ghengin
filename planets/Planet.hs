@@ -79,7 +79,7 @@ instance UISettings PlanetSettings where
 
   type ReactivityInput PlanetSettings = Entity
   type ReactivityOutput PlanetSettings = ()
-  type ReactivityConstraints PlanetSettings w = (HasField "renderPackets" w (C.Storage RenderPacket))
+  type ReactivityConstraints PlanetSettings w = ()
 
   makeSettings = do
     resR   <- newIORef 5

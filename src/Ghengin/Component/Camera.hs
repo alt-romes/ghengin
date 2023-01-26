@@ -2,7 +2,6 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -10,12 +9,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE UndecidableInstances #-} -- instance Has w m Mesh
 module Ghengin.Component.Camera where
 
-import GHC.Records
 import Apecs
 
 -- import Geomancy.Vulkan.Projection
@@ -49,10 +44,6 @@ data View = ViewLookAt    { _target    :: {-# UNPACK #-} !Vec3 } -- ^ Ignore the
 
 instance Component Camera where
   type Storage Camera = Map Camera
-
-instance (Monad m, HasField "cameras" w (Storage Camera)) => Has w m Camera where
-  getStore = SystemT (asks (.cameras))
-
 
 makeView :: Mat4 -> View -> Mat4
 makeView tr view =

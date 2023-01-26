@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -9,10 +8,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Render.Packet
   ( module Ghengin.Render.Packet
@@ -23,9 +18,8 @@ import Data.Unique
 import Data.Typeable
 import Ghengin.Asset.Texture
 import GHC.TypeLits
-import GHC.Records
 import Data.Kind
-import Apecs (Component, Storage, Map, Has, getStore, SystemT(..), asks)
+import Apecs (Component, Storage, Map)
 import Ghengin.Render.Pipeline
 import Ghengin.Component.Material hiding (material)
 import Ghengin.Component.Mesh
@@ -125,9 +119,6 @@ described in bytes.
 -- BIG:TODO: Cache around this Map storage
 instance Component RenderPacket where
   type Storage RenderPacket = Map RenderPacket
-
-instance (Monad m, HasField "renderPackets" w (Storage RenderPacket)) => Has w m RenderPacket where
-  getStore = SystemT (asks (.renderPackets))
 
 -- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map

@@ -5,22 +5,17 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE UndecidableInstances #-} -- HasField Has Transform
 module Ghengin.Component.UI where
 
 import Data.Kind
-import GHC.Records
 import Control.Monad
 import Control.Monad.IO.Class
-import Control.Monad.Reader
 import Data.List.NonEmpty (NonEmpty(..))
 import Data.IORef
 import Data.StateVar
 import Data.Text (Text, pack)
 import Geomancy.Vec3
-import Apecs (Component(..), Map, Storage(..), Has(..), SystemT(..), Entity)
+import Apecs (Component(..), Map, Storage(..), Entity)
 import Unsafe.Coerce
 import Ghengin.Scene.Graph
 import {-# SOURCE #-} Ghengin (Ghengin)
@@ -125,10 +120,6 @@ withCombo t (IOSelectRef ref currIx) (opt:|opts) = do
 
 instance Component (UIWindow w) where
   type Storage (UIWindow w) = Map (UIWindow w)
-
--- TODO: Instructions on having a World record with "transforms"
-instance (Monad m, HasField "uiwindows" w (Storage (UIWindow w))) => Has w m (UIWindow w) where
-  getStore = SystemT (asks (.uiwindows))
 
 -- Careful! The components cannot have the same Id otherwise they will behave
 -- the same.

@@ -1,5 +1,4 @@
 {-# OPTIONS_GHC -Wno-orphans #-} -- instance for worlds
-{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
@@ -109,26 +108,16 @@ module Ghengin.Scene.Graph
 
 import Data.Maybe
 import Geomancy.Mat4
-import GHC.Records
 import Control.Monad.Reader
-import Apecs (Entity, Set, Get, EntityCounter, Storage, Has, Component, Map, SystemT(..), set, get, cmapM)
+import Apecs (Entity, Set, Get, EntityCounter, Storage, Has, Component, Map, set, get, cmapM)
 import Apecs.Core (ExplSet)
 import qualified Apecs
+import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
 import Ghengin.Render.Packet
 import Ghengin.Vulkan
 import Ghengin.Component.Transform
 import Ghengin.Component.Camera
-
--- TODO: Move to somewhere within the engine better and put together requirements on record fields
-instance (Monad m, HasField "entityCounter" w (Storage EntityCounter)) => Has w m EntityCounter where
-  getStore = SystemT (asks (.entityCounter))
-
-instance (Monad m, HasField "entityParents" w (Storage Parent)) => Has w m Parent where
-  getStore = SystemT (asks (.entityParents))
-
-instance (Monad m, HasField "modelMatrices" w (Storage ModelMatrix)) => Has w m ModelMatrix where
-  getStore = SystemT (asks (.modelMatrices))
 
 instance Component Parent where
   type Storage Parent = Map Parent
@@ -150,12 +139,12 @@ sceneGraph :: SceneGraph w a -> Ghengin w a
 sceneGraph = flip runReaderT Nothing
 
 type EntityConstraints w c =
-  ( HasField "entityCounter" w (Storage EntityCounter)
-  , HasField "entityParents" w (Storage Parent)
-  , HasField "modelMatrices" w (Storage ModelMatrix)
-  , Has w (Renderer ()) c
+  ( Has (World w) (Renderer ()) EntityCounter
+  , Has (World w) (Renderer ()) Parent
+  , Has (World w) (Renderer ()) ModelMatrix
+  , Has (World w) (Renderer ()) c
   , ExplSet (Renderer ()) (Storage c)
-  , Set w (Ghengin w) c, Get w (Ghengin w) EntityCounter
+  , Set (World w) (Ghengin w) c, Get (World w) (Ghengin w) EntityCounter
   )
 
 newEntity :: EntityConstraints w c => c -> SceneGraph w Entity
@@ -174,11 +163,11 @@ newEntity' c sub = ask >>= \mparentId -> do
 
 type TraverseConstraints w =
   ( 
-    HasField "transforms"    w (Storage Transform)
-  , HasField "cameras"       w (Storage Camera)
-  , HasField "renderPackets" w (Storage RenderPacket)
-  , HasField "entityParents" w (Storage Parent)
-  , HasField "modelMatrices" w (Storage ModelMatrix)
+    Has (World w) (Renderer ()) Transform
+  , Has (World w) (Renderer ()) Camera
+  , Has (World w) (Renderer ()) RenderPacket
+  , Has (World w) (Renderer ()) Parent
+  , Has (World w) (Renderer ()) ModelMatrix
   )
 
 {-|
@@ -231,7 +220,7 @@ traverseSceneGraph inst f = do
     f p (fromMaybe (ModelMatrix identity 0) mmm)
 
   -- We also want to compute the model matrix of the camera
-  cmapM \(p :: Camera, e :: Entity) -> do
+  cmapM \(_ :: Camera, e :: Entity) -> do
     computeModelMatrix inst e
 
 
@@ -242,7 +231,7 @@ computeModelMatrix :: ∀ w
                    -> Entity
                    -> Ghengin w (Maybe ModelMatrix)
 computeModelMatrix i e = do
-  get @w @_ @(Maybe ModelMatrix, Maybe Transform, Maybe Parent) e >>= \case
+  get @(World w) @_ @(Maybe ModelMatrix, Maybe Transform, Maybe Parent) e >>= \case
     (Nothing, Nothing, Nothing) -> pure Nothing -- We don't have neither transform nor parent.
     (Just _, Nothing, Nothing)  -> error "We have neither transform nor parent, how can we have a model matrix?"
     (Nothing, Just tr, Nothing) -> do

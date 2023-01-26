@@ -1,6 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE RankNTypes #-}
@@ -12,9 +10,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE UndecidableInstances #-} -- instance Has w m Mesh
 module Ghengin.Component.Mesh
   ( Mesh(..) -- Export these from an Internals module, not from here
   , SomeMesh(..)
@@ -30,14 +25,10 @@ module Ghengin.Component.Mesh
 import Data.Kind
 import Control.Monad
 import Data.IORef
-import GHC.TypeLits
-import GHC.Records
 import Data.List.Split (chunksOf)
 import Data.List (sort, foldl')
 import Control.Monad.IO.Class
 
-import Foreign.Ptr
-import qualified Foreign.Storable as S
 import Data.Word
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
@@ -65,9 +56,6 @@ All meshes are freed when the window is closed. However, if you change/discard a
 mesh during the game you must free it explicitly. TODO: Enforce it somehow
 
  -}
-
-instance (Monad m, HasField "meshes" w (A.Storage (Mesh ts))) => A.Has w m (Mesh ts) where
-  getStore = A.SystemT (A.asks (.meshes))
 
 -- TODO: Renderable components should be Cache instead of Map
 instance A.Component (Mesh ts) where

@@ -77,6 +77,8 @@ library
     exposed-modules:  Ghengin,
                       -- Ghengin.Window,
 
+                      Ghengin.World,
+
                       Ghengin.Shaders,
                       Ghengin.Shaders.Lighting,
                       Ghengin.Shaders.Fixed,

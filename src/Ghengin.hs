@@ -1,18 +1,13 @@
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE ImpredicativeTypes #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonadComprehensions #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE PatternSynonyms #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 module Ghengin
@@ -22,7 +17,6 @@ module Ghengin
   , module Geomancy.Mat4
   ) where
 
-import GHC.Records
 import Type.Reflection
 
 import Data.String
@@ -42,24 +36,22 @@ import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan
 import Ghengin.Render.Packet
 import qualified Ghengin.Render.Queue as RQ
-import Ghengin.Scene.Graph
 
 import qualified Ghengin.DearImGui as IM
 
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material
-import Ghengin.Component.Camera
-import Ghengin.Component.Transform
 import Ghengin.Component.UI
 import Ghengin.Render
 
+import Ghengin.World
 
 -- TODO: Somehow systems that want to delete entities should call a special
 -- destructor function that gets rid of resources stuck in components such as
 -- meshes
 
 
-type Ghengin w = SystemT w (Renderer ())
+type Ghengin w = SystemT (World w) (Renderer ())
 
 windowLoop :: Ghengin w Bool -> Ghengin w ()
 windowLoop action = do
@@ -68,17 +60,11 @@ windowLoop action = do
 
 type DeltaTime = Float -- Converted from NominalDiffTime
 
-type WorldConstraints w = ( HasField "transforms" w (Storage Transform)
-                          , HasField "renderPackets" w (Storage RenderPacket)
-                          , HasField "modelMatrices" w (Storage ModelMatrix)
-                          , HasField "entityParents" w (Storage Parent)
-                          , HasField "cameras" w (Storage Camera)
-                          , HasField "uiwindows" w (Storage (UIWindow w))
-                          , Typeable w
-                          )
+initWorld :: MonadIO m => w -> m (World w)
+initWorld w = World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> pure w
 
-ghengin :: WorldConstraints w
-        => w           -- ^ World
+ghengin :: Typeable w
+        => World w           -- ^ World
         -> Ghengin w a -- ^ Init
         -> Ghengin w b -- ^ Run every simulation step (currently ignored)
         -> (a -> DeltaTime -> Ghengin w Bool) -- ^ Run every game
@@ -88,7 +74,7 @@ ghengin :: WorldConstraints w
         -> (a -> Ghengin w c) -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
                                                                                    -- (Just "log.ghengin.log")
-ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConfig Nothing True) . (runVulkanRenderer ()) . (`runSystem` world) $ do
+ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConfig Nothing True) . runVulkanRenderer () . (`runSystem` world) $ do
 
   logDebug "Started Ghengin"
 
@@ -173,7 +159,7 @@ ghengin world initialize _simstep loopstep finalize = withGlobalLogging (LogConf
 
   pure ()
 
-drawUI :: WorldConstraints w => Ghengin w ()
+drawUI :: ∀ w. Typeable w => Ghengin w ()
 drawUI = do
     IM.vulkanNewFrame
     IM.glfwNewFrame

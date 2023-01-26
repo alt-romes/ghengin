@@ -1,10 +1,7 @@
 -- {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Transform.Animation where
-
-import GHC.Records
 
 import Data.Typeable
 
@@ -12,9 +9,12 @@ import Ghengin.Component
 import Ghengin.Component.Transform
 
 import Geomancy.Vec3
+import Ghengin.Vulkan
+
+import {-# SOURCE #-} Ghengin.World (World)
 
 -- Needs source if we would always call transformAnimationUpdate. For now, every game must call it explicitly.
-import Ghengin (Ghengin)
+import {-# SOURCE #-} Ghengin (Ghengin)
 
 -- | An animation constructed from a vectorial movement.
 --
@@ -36,10 +36,9 @@ transformAnimation mov ((+mov) -> dest) = TransformAnimation' mov dest
 instance Component (TransformAnimation w) where
   type Storage (TransformAnimation w) = Map (TransformAnimation w)
 
-instance (Monad m, HasField "transformAnimations" w (Storage (TransformAnimation w))) => Has w m (TransformAnimation w) where
-  getStore = SystemT (asks (.transformAnimations))
-
-transformAnimationUpdate :: (HasField "transformAnimations" w (Storage (TransformAnimation w)), HasField "transforms" w (Storage Transform), Typeable w)
+transformAnimationUpdate :: ( Has (World w) (Renderer ()) (TransformAnimation w)
+                            , Has (World w) (Renderer ()) Transform
+                            , Typeable w)
                          => Float -- ^ Delta time
                          -> Ghengin w ()
 transformAnimationUpdate dt = do

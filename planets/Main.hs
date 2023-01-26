@@ -39,18 +39,8 @@ import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 import qualified Shader
 import Planet
 
--- TODO: EngineWorld data type in engine-land and then only one field must be of that type
-data World = World { renderPackets :: !(Storage RenderPacket)
-                   , transforms    :: !(Storage Transform)
-                   , modelMatrices :: !(Storage ModelMatrix)
-                   , cameras       :: !(Storage Camera)
-                   , uiwindows     :: !(Storage (UIWindow World))
-                   , entityParents :: !(Storage Parent)
-                   , entityCounter :: !(Storage EntityCounter)
-                   }
-
 -- | A better program:
-initG :: Ghengin World ()
+initG :: Ghengin () ()
 initG = do
 
   ps <- liftIO $ makeSettings @PlanetSettings
@@ -82,7 +72,7 @@ initG = do
 
   pure ()
 
-updateG :: () -> DeltaTime -> Ghengin World Bool
+updateG :: () -> DeltaTime -> Ghengin () Bool
 updateG () dt = do
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr
@@ -90,14 +80,14 @@ updateG () dt = do
 
   pure False
 
-endG :: () -> Ghengin World ()
+endG :: () -> Ghengin () ()
 endG () = do
   liftIO $ putStrLn "Goodbye"
 
 main :: IO ()
 main = do
   setLogLevel LogDebug
-  w <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit
+  w <- initWorld ()
   ghengin w initG undefined updateG endG
 
 radians d = d * (pi/180)
