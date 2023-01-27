@@ -100,6 +100,15 @@ same time! Every frame in $B$ the player moves $0.05m$ and every two frames in
 $A$ (which take the same real time as just one in $B$) the player also moves
 $0.025*2 = 0.05m$. 
 
+Finally, the return value of the update function is a @Bool@. This boolean
+indicates whether the game should quit. Usually this will be @False@, but,
+e.g., an in-game button to quit the game could set the return value to @True@
+and in that case the game would quit when the button was pressed.
+
+For now, we don't do anything and always return @False@, that is, the game is
+never quit by an action in game (though it can still be closed using the
+window's built-in close button)
+
 \begin{code}
 update :: () -> DeltaTime -> Game Bool
 update () dt = pure False
