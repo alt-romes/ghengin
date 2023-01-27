@@ -87,7 +87,6 @@ endG () = do
 main :: IO ()
 main = do
   setLogLevel LogDebug
-  w <- initWorld ()
-  ghengin w initG undefined updateG endG
+  ghengin () initG undefined updateG endG
 
 radians d = d * (pi/180)

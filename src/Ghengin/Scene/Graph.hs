@@ -4,7 +4,6 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE UndecidableInstances #-} -- HasField
 {-|
 
 Note [Scene Graph]

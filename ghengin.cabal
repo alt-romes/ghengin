@@ -125,6 +125,7 @@ library
                       Ghengin.Asset.Texture,
 
                       Ghengin.Render,
+                      Ghengin.Render.Class,
                       Ghengin.Render.Packet,
                       Ghengin.Render.Queue,
                       Ghengin.Render.Pipeline
