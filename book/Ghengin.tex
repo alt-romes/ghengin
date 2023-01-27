@@ -1,6 +1,19 @@
-\documentclass[a4paper,openright]{memoir}
+\documentclass[a4paper,twoside,onecolumn,openright]{memoir}
+
+\setlrmarginsandblock{2.5cm}{2.5cm}{*}
+\setulmarginsandblock{2.5cm}{2.5cm}{*}
+\checkandfixthelayout
+
+\copypagestyle{thesis}{ruled}
+\makeevenfoot{thesis}{}{}{\thepage} % Align right page number on even footer
+\makeoddfoot{thesis}{}{}{\thepage}  % Align right page number on odd footer
+\pagestyle{thesis}
+
+\chapterstyle{veelo}
 
 \usepackage{prelude/lhs2TeX}
+\usepackage{graphicx}
+\usepackage{hyperref}
 
 \title{Ghengin: A type-heavy, shader-centric Haskell game engine}
 \author{Rodrigo Mesquita}
@@ -45,8 +58,6 @@ contrast to existing material systems, ...
 
 
 \include{ocean/Tutorial.tex}
-
-\include{ocean/Main.tex}
 
 \end{document}
 

@@ -1,15 +1,12 @@
 all: Ghengin.pdf
 
-Ghengin.pdf: Ghengin.tex ocean/Main.tex ocean/Tutorial.tex prelude/lhs2TeX.sty
+Ghengin.pdf: Ghengin.tex ocean/Tutorial.tex prelude/lhs2TeX.sty images/
 	pdflatex $<
 
 prelude/lhs2TeX.sty: prelude/lhs2TeX.lhs
 	lhs2TeX $< -o $@
 
-ocean/Main.tex: ocean/Main.lhs
-	lhs2TeX $< -o $@
-
-ocean/Main.lhs:
+ocean/Tutorial.lhs:
 	ln -sf ../ocean/ .
 
 ocean/Tutorial.tex: ocean/Tutorial.lhs
