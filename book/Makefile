@@ -18,7 +18,7 @@ Tutorial.html: ocean/Tutorial.tex
 .PHONY: clean
 
 clean:
-	rm -f *.aux *.log *.ptb *.4tc *.4ct *.tmp *.xref *.dvi *.idv *.lg
+	rm -f *.aux *.log *.out *.ptb *.4tc *.4ct *.tmp *.xref *.dvi *.idv *.lg
 	rm -f prelude/lhs2TeX.sty
 	rm -f Ghengin.pdf
 	rm -f ocean/Main.tex ocean/Tutorial.tex ocean/*.aux
