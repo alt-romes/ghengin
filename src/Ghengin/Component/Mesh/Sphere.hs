@@ -8,7 +8,6 @@ import Control.Monad
 import Ghengin
 import Ghengin.Vulkan
 import Ghengin.Component.Mesh
-import Ghengin.Component.Mesh.Vertex
 
 data UnitFace = UF { positions :: [Vec3]
                    , indices   :: [Int]

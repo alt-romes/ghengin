@@ -11,6 +11,8 @@ The ocean simulation will be founded on ``A simple model of ocean waves''
 published in 1986~\cite{10.1145/15886.15894}. However, before the ocean math,
 we must setup the game to use Ghengin.
 
+\section{Setup Ghengin}
+
 A Ghengin game starts by importing the engine and calling the main engine
 function \href{https://hackage.haskell.org/package/ghengin/}{ghengin} from
 @main@. We're making use of a couple of functions which are not yet defined but
@@ -134,4 +136,39 @@ we haven't set up a render pipeline, a camera, or anything for that matter.
 \includegraphics[width=\textwidth]{images/001.png}
 \caption{Screaming magenta\label{fig:001}}
 \end{figure}
+
+
+\section{Drawing a plane}
+
+To create an ocean simulation we need a flat plane to define the ocean surface.
+An ocean surface is defined by a plane with a number $N$ of equally spaced
+particles. We will create all of these particles in their \emph{rest position},
+that is, the position they would be in if the ocean was completely flat and
+there were no waves. Later on, based on wave math from ``A simple model of
+ocean waves''~\cite{10.1145/15886.15894}, every ocean particle's position will
+be shifted from its rest position according to time, wind and possibly other
+factors.
+
+To create the flat ocean plane we need to generate $N$ equally spaced
+\emph{vertices} (see Section~\ref{sec:verts} on vertices). For now, a vertex is
+only defined by its position in the world. To make matters easier, we create
+type synonyms both for a @Position@ property (which is really just a @Vec3@),
+and for the type of @Particle@ vertices (which are vertices with one property:
+a position)
+
+\begin{code}
+type Position = Vec3
+type Particle = Vertex '[Position]
+\end{code}
+
+Then, we define @particles@, that takes as input the number of particles to
+create in a line and generates a list of vertices
+
+\begin{code}
+particles :: Int -> [Particle]
+particles n = [ Sin (vec3 x 0 z) | x <- [1..nf]
+                                 , z <- [1..nf] ]
+  where nf = fromIntegral n :: Float
+\end{code}
+
 

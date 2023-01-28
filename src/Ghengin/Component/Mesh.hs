@@ -113,8 +113,8 @@ renderMesh = \case
 -- because we simply free them at the end. One must free the same meshes as
 -- many times as they are shared for they will only be freed with the last
 -- reference
-createMesh :: Storable (Vertex ts) => VertexArray ts -> Renderer ext (Mesh ts)
-createMesh (VertexArray vs) = do
+createMesh :: Storable (Vertex ts) => [Vertex ts] -> Renderer ext (Mesh ts)
+createMesh (SV.fromList -> vs) = do
   let nverts = SV.length vs
   (buffer, devMem) <- createVertexBuffer vs
   ref <- liftIO $ newIORef 0

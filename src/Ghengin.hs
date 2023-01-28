@@ -17,7 +17,15 @@ module Ghengin
   , module Geomancy.Mat4
 
   , liftIO
+
+  -- * Meshes
+  , Mesh, createMesh, createMeshWithIxs
+  , module Ghengin.Component.Mesh.Vertex
   ) where
+
+-- Re-exports
+import Ghengin.Component.Mesh.Vertex
+-- End re-exports
 
 import Type.Reflection
 

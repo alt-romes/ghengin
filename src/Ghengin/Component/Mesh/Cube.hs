@@ -9,11 +9,12 @@ import Ghengin.Utils
 import Ghengin.Component.Mesh.Vertex
 import Ghengin.Component.Mesh
 import Ghengin.Vulkan (Renderer)
+import qualified Data.Vector.Storable as SV
 
 -- TODO: Seems that creating a mesh without vertices is broken...
 
-cubeMeshVertices :: VertexArray '[Vec3, Vec3, Vec3]
-cubeMeshVertices = VertexArray $
+cubeMeshVertices :: [ Vertex '[Vec3, Vec3, Vec3] ]
+cubeMeshVertices =
   [
       -- left face (white)
       vertex' (-0.5) (-0.5) (-0.5) (0.9) (0.9) (0.9)

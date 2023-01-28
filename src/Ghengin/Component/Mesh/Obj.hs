@@ -43,7 +43,7 @@ loadObjMesh filepath = do
           -- meshVertices = fmap (\(Location x y z w) -> Vertex (vec3 x y z) ()) (V.zip locs normals)
 
       -- TODO: createMeshWithIxs
-      createMesh (VertexArray $ V.convert meshFaces)
+      createMesh (V.toList meshFaces)
 
 -- loadObjMesh :: FilePath -> Renderer ext Mesh
 -- loadObjMesh filepath = do

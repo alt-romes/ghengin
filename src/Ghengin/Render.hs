@@ -9,7 +9,6 @@
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Render where
 
-import Data.Kind
 import Apecs (Has, cfold, cmapM)
 import Data.Maybe
 
@@ -188,6 +187,8 @@ render i = do
               case descriptorSetBinding pipeline 0 1 of
                 UniformResource buf -> lift $ writeMappedBuffer buf (posFromMat4 camTr)
 
+            -- TODO: Write descriptor set #0 bindings just like we do for materials.
+            -- The render pipelien will need to have a resource map just like a material
 
             -- Bind descriptor set #0
             bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
