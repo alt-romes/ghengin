@@ -27,6 +27,8 @@ import qualified Ghengin.Vulkan.Command as Cmd
 import Ghengin.Vulkan.Device
 import Ghengin.Vulkan
 
+data Buffer = Buffer Vk.Buffer Vk.DeviceMemory
+
 createBuffer :: Vk.DeviceSize -> Vk.BufferUsageFlags -> Vk.MemoryPropertyFlags -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
 createBuffer size usage properties = do
   device <- getDevice
@@ -109,10 +111,10 @@ withStagingBuffer bufferData f = rendererBracket
     )
   (uncurry f . fst)
 
-createVertexBuffer :: ∀ α ext. (SV.Storable α) => SV.Vector α -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
+createVertexBuffer :: ∀ α χ. (SV.Storable α) => SV.Vector α -> Renderer χ (Vk.Buffer, Vk.DeviceMemory)
 createVertexBuffer = createDeviceLocalBuffer @α Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT -- use Locations for vertex buffers
 
-createIndex32Buffer :: SV.Vector Int32 -> Renderer ext (Vk.Buffer, Vk.DeviceMemory)
+createIndex32Buffer :: SV.Vector Int32 -> Renderer χ (Vk.Buffer, Vk.DeviceMemory)
 createIndex32Buffer = createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT
 
 -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@

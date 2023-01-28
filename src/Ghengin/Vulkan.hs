@@ -36,6 +36,7 @@ import Ghengin.Vulkan.Frame
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.ImmediateSubmit
 import Ghengin.Utils
+import Ghengin.Render.Class
 
 data RendererEnv ext =
   REnv { _instance        :: !Vk.Instance
@@ -49,6 +50,9 @@ data RendererEnv ext =
        , _extension       :: ext
        }
 newtype Renderer ext a = Renderer { unRenderer :: ReaderT (RendererEnv ext) IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader (RendererEnv ext), MonadFail)
+
+instance MonadRender (Renderer χ) where
+  createVertexBuffer = undefined
 
 pattern MAX_FRAMES_IN_FLIGHT :: Word32
 pattern MAX_FRAMES_IN_FLIGHT = 2 -- We want to work on multiple frames but we don't want the CPU to get too far ahead of the GPU

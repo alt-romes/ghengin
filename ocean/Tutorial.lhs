@@ -162,7 +162,8 @@ type Particle = Vertex '[Position]
 \end{code}
 
 Then, we define @particles@, that takes as input the number of particles to
-create in a line and generates a list of vertices
+create in a line and generates the list of vertices that represents the flat
+ocean (where $y=0$ always).
 
 \begin{code}
 particles :: Int -> [Particle]
@@ -170,5 +171,6 @@ particles n = [ Sin (vec3 x 0 z) | x <- [1..nf]
                                  , z <- [1..nf] ]
   where nf = fromIntegral n :: Float
 \end{code}
+
 
 

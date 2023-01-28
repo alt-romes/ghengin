@@ -45,6 +45,7 @@ import qualified Vulkan as Vk
 import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan
+import qualified Ghengin.Render.Class as MR
 import Ghengin.Component.Mesh.Vertex
 import Ghengin.Utils
 
@@ -113,10 +114,10 @@ renderMesh = \case
 -- because we simply free them at the end. One must free the same meshes as
 -- many times as they are shared for they will only be freed with the last
 -- reference
-createMesh :: Storable (Vertex ts) => [Vertex ts] -> Renderer ext (Mesh ts)
+createMesh :: (MR.MonadRender m, Storable (Vertex ts)) => [Vertex ts] -> m (Mesh ts)
 createMesh (SV.fromList -> vs) = do
   let nverts = SV.length vs
-  (buffer, devMem) <- createVertexBuffer vs
+  (buffer, devMem) <- MR.createVertexBuffer vs
   ref <- liftIO $ newIORef 0
   pure (SimpleMesh buffer devMem (fromIntegral nverts) ref)
 
