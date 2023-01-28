@@ -1,4 +1,7 @@
 %include polycode.fmt
+%format (QUOTE x) = "\mathop{}''" x
+
+% ^ use the | to represent a tick ' in the code
 
 \chapter{Ocean Simulation Tutorial}
 
@@ -149,28 +152,37 @@ ocean waves''~\cite{10.1145/15886.15894}, every ocean particle's position will
 be shifted from its rest position according to time, wind and possibly other
 factors.
 
-To create the flat ocean plane we need to generate $N$ equally spaced
-\emph{vertices} (see Section~\ref{sec:verts} on vertices). For now, a vertex is
-only defined by its position in the world. To make matters easier, we create
-type synonyms both for a @Position@ property (which is really just a @Vec3@),
-and for the type of @Particle@ vertices (which are vertices with one property:
-a position)
+To render an ocean plane we need to create a mesh (see Section~\ref{sec:meshes}
+on meshes) that represents one. To create the flat ocean plane we generate $N$
+equally spaced \emph{vertices} (see Section~\ref{sec:verts} on vertices). For
+now, a vertex is only defined by its position in the world. To make matters
+easier, we create type synonyms both for a @Position@ property (which is really
+just a @Vec3@), and for the type of @Particle@ vertices (which are vertices
+with one property: a position)
 
 \begin{code}
 type Position = Vec3
-type Particle = Vertex '[Position]
+type Particle = Vertex [Position]
 \end{code}
 
 Then, we define @particles@, that takes as input the number of particles to
 create in a line and generates the list of vertices that represents the flat
 ocean (where $y=0$ always).
-
 \begin{code}
-particles :: Int -> [Particle]
-particles n = [ Sin (vec3 x 0 z) | x <- [1..nf]
-                                 , z <- [1..nf] ]
+particles :: Int -> (QUOTE [Particle])
+particles n = [ Sin (vec3 x 0 z) | x <- [1..nf] , z <- [1..nf] ]
   where nf = fromIntegral n :: Float
 \end{code}
 
+
+Finally, we create a mesh from the particle vertices. To create a mesh we use
+@createMesh@ which returns a @ParticleMesh@ which is synonym with @Mesh '[Position]@ in the @Game@ monad.
+
+\begin{code}
+type ParticleMesh = Mesh (QUOTE [Position])
+
+oceanMesh :: Int -> Game ParticleMesh
+oceanMesh = createMesh . particles
+\end{code}
 
 
