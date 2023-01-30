@@ -10,9 +10,11 @@ type-heavy, shader-centric, vulkan-based, haskell game engine, hereby only
 referenced by name. This book is written as a collection of TeX and literate
 Haskell files.
 
-The ocean simulation will be founded on ``A simple model of ocean waves''
-published in 1986~\cite{10.1145/15886.15894}. However, before the ocean math,
-we must setup the game to use Ghengin.
+The ocean wave simulation will be based on ``A simple model of ocean waves''
+published in 1986~\cite{10.1145/15886.15894}, ``Simulating Ocean Water'' (the
+famous Tessendorf waves)~\cite{tessendorfocean} and
+\cite{10.1145/2791261.2791267}.  However, before the ocean math, we must setup
+the game to use Ghengin.
 
 \section{Setup Ghengin}
 
@@ -152,6 +154,8 @@ ocean waves''~\cite{10.1145/15886.15894}, every ocean particle's position will
 be shifted from its rest position according to time, wind and possibly other
 factors.
 
+\subsection{Mesh}
+
 To render an ocean plane we need to create a mesh (see Section~\ref{sec:meshes}
 on meshes) that represents one. To create the flat ocean plane we generate $N$
 equally spaced \emph{vertices} (see Section~\ref{sec:verts} on vertices). For
@@ -176,7 +180,9 @@ particles n = [ Sin (vec3 x 0 z) | x <- [1..nf] , z <- [1..nf] ]
 
 
 Finally, we create a mesh from the particle vertices. To create a mesh we use
-@createMesh@ which returns a @ParticleMesh@ which is synonym with @Mesh '[Position]@ in the @Game@ monad.
+@createMesh@ which returns a @ParticleMesh@ which is synonym with @Mesh
+'[Position]@ in the @Game@ monad. The type of the mesh entails that constituent
+vertices have one property which is a @Position@.
 
 \begin{code}
 type ParticleMesh = Mesh (QUOTE [Position])
@@ -184,5 +190,55 @@ type ParticleMesh = Mesh (QUOTE [Position])
 oceanMesh :: Int -> Game ParticleMesh
 oceanMesh = createMesh . particles
 \end{code}
+
+\subsection{Material}
+
+A mesh defines the form of an entity, but by itself it cannot describe how
+something should be rendered. To render an entity, we need a @RenderPacket@. A
+render packet is the base unit of renderable entities and each render packet is
+formed by a \emph{mesh}, a \emph{material}, and a \emph{render pipeline} which
+is compatible with that mesh and material. Section~\ref{sec:renderpacket}
+describes render packets in detail.
+
+To get started, we create a material (Section \ref{sec:material}) that simply
+defines a base color for all vertices in the mesh associated with that material
+in a render packet. The type of the material is parametrized by its properties
+which, in this case, are only its color. We define the following synonyms:
+
+\begin{code}
+type Color = Vec3
+type OceanMaterial = Material (QUOTE [Color])
+\end{code}
+
+To create the material we will use the @material@ function as described in
+Section~\ref{sec:material}, specifying that the color property is a static
+binding which should only be written to explicitly, rather than every frame (in
+contrast, a @DynamicBinding@ is written every frame). The @material@ function
+takes as an argument a @RenderPipeline@ whose creation we delegate to the
+caller of the @oceanMat@ function. Unfortunately, @material@ is still coupled
+to the Vulkan render backend, so we must lift the @Renderer@ computation into
+@Ghengin@ using @lift@.
+
+\begin{code}
+oceanMat :: RenderPipeline -> Color -> Game OceanMaterial
+oceanMat rp col = lift $ material (StaticBinding col) rp
+\end{code}
+
+Note that the @RenderPipeline@ argument has an underscore in front of it. We'll
+see that a @RenderPipeline@ is parametrized by its render information at the
+type-level. However, the pipeline info is a complex and large type that
+basically describes the whole pipeline, so we do not want to write it out
+completely, and the underscore allows us to do just that. The underscore is
+called a type hole and makes @oceanMat@ have a so-called partial type signature
+which is possible because of the extension @PartialTypeSignatures@. If you
+further want to disable warnings regarding partial type signatures you might
+add the following lines to the top of your module:
+
+\begin{code}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS\_GHC -Wno-partial-type-signatures #-}
+\end{code}
+
+\subsection{Render Pipeline}
 
 

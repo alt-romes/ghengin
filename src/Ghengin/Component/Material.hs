@@ -67,7 +67,7 @@ Resources:
 
 -}
 
-type Material' α = (DescriptorSet, Unique) -> Material α
+type Material' α = Material '[] -> Material α
 
 data Material xs where
 
@@ -102,12 +102,12 @@ material matf rp =
    in do
 
      -- Make the unique identifier for this material
-     uniq <- liftIO $ newUnique
+     uniq <- liftIO newUnique
 
      -- We bail out early if this descriptor pool has no descriptor sets of
      -- type #1 (which would mean there are no bindings in descriptor set #1
      case IM.lookup 1 dpool._set_bindings of
-       Nothing -> pure (matf (EmptyDescriptorSet, uniq))
+       Nothing -> pure (matf (Done (EmptyDescriptorSet, uniq)))
        Just _  -> do
 
          -- We allocate a descriptor set of type #1 and create a closure that will
@@ -124,7 +124,7 @@ material matf rp =
          -- we'll have constructed the actual resource map, and can then create a
          -- final material.
          dummySet <- dsetf mempty
-         let dummyMat = matf (dummySet, uniq)
+         let dummyMat = matf $ Done (dummySet, uniq)
 
          -- Make the resource map for this material
          -- Will also count texture references
@@ -136,7 +136,7 @@ material matf rp =
 
          -- Create the material which stores the final descriptor set with the
          -- updated information.
-         let actualMat = matf (actualDSet, uniq)
+         let actualMat = matf $ Done (actualDSet, uniq)
 
          pure actualMat
 

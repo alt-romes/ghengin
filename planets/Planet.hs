@@ -62,7 +62,7 @@ instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
 planetMaterial :: MinMax -> Texture2D -> Material' PlanetProps
-planetMaterial mm t = Texture2DBinding t . StaticBinding mm . Done
+planetMaterial mm t = Texture2DBinding t . StaticBinding mm
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)

@@ -1,5 +1,7 @@
 {-# LANGUAGE GHC2021 #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module Main where
 
 import Ghengin
@@ -41,4 +43,11 @@ type ParticleMesh = Mesh '[Position]
 
 oceanMesh :: Int -> Game ParticleMesh
 oceanMesh = createMesh . particles
+
+type Color = Vec3
+type OceanMaterial = Material '[Color]
+
+oceanMat :: RenderPipeline _ -> Color -> Game OceanMaterial
+oceanMat p col = lift $ material (StaticBinding col) p
+
 

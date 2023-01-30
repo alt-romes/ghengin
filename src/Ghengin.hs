@@ -12,15 +12,23 @@
 {-# LANGUAGE OverloadedLists #-}
 module Ghengin
   ( module Ghengin
-  -- | TODO: Export Vecs from other module
-  , module Geomancy.Vec3
-  , module Geomancy.Mat4
-
-  , liftIO
 
   -- * Meshes
   , Mesh, createMesh, createMeshWithIxs
   , module Ghengin.Component.Mesh.Vertex
+
+  -- * Materials
+  , Material(Texture2DBinding, StaticBinding, DynamicBinding), Material'
+  , material, HasBindingsAt(..), HasBindingAt(..)
+
+  -- * Render pipelines
+  , RenderPipeline, makeRenderPipeline
+
+  -- | TODO: Export Vecs from other module
+  , module Geomancy.Vec3
+  , module Geomancy.Mat4
+
+  , lift, liftIO
   ) where
 
 -- Re-exports
