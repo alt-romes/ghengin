@@ -37,6 +37,7 @@ import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.ImmediateSubmit
 import Ghengin.Utils
 import Ghengin.Render.Class
+import qualified System.IO.Linear as Linear
 
 data RendererEnv ext =
   REnv { _instance        :: !Vk.Instance

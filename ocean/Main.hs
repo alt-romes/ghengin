@@ -51,3 +51,10 @@ oceanMat :: RenderPipeline _ -> Color -> Game OceanMaterial
 oceanMat p col = lift $ material (StaticBinding col) p
 
 
+oceanShaderPipeline :: ShaderPipeline _
+oceanShaderPipeline
+  = ShaderPipeline (StructInput @(ToStructInput Particle) @(Triangle List))
+    :>-> (vertex, ())
+    :>-> (fragment, ())
+
+

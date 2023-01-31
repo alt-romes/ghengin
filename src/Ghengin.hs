@@ -24,6 +24,9 @@ module Ghengin
   -- * Render pipelines
   , RenderPipeline, makeRenderPipeline
 
+  -- * Shader pipelines
+  , module Ghengin.Shader.Pipeline
+
   -- | TODO: Export Vecs from other module
   , module Geomancy.Vec3
   , module Geomancy.Mat4
@@ -33,42 +36,35 @@ module Ghengin
 
 -- Re-exports
 import Ghengin.Component.Mesh.Vertex
+import Ghengin.Shader.Pipeline
 -- End re-exports
 
-import Type.Reflection
-
-import Data.String
+import Apecs
 import Control.Logger.Simple
 import Control.Monad.Reader
-import Data.Maybe
-
 import Data.IORef
-
+import Data.Maybe
+import Data.String
 import Data.Time.Clock
-import qualified Vulkan as Vk
-import Apecs
-import Geomancy.Vec3
 import Geomancy.Mat4
-
-import Ghengin.Vulkan.RenderPass
-import Ghengin.Vulkan.GLFW.Window
-import Ghengin.Vulkan
-import Ghengin.Render.Packet
-import qualified Ghengin.Render.Queue as RQ
-
-import qualified Ghengin.DearImGui as IM
-
-import Ghengin.Component.Mesh
+import Geomancy.Vec3
 import Ghengin.Component.Material
+import Ghengin.Component.Mesh
 import Ghengin.Component.UI
 import Ghengin.Render
-
+import Ghengin.Render.Packet
+import Ghengin.Vulkan
+import Ghengin.Vulkan.GLFW.Window
+import Ghengin.Vulkan.RenderPass
 import Ghengin.World
+import Type.Reflection
+import qualified Ghengin.DearImGui as IM
+import qualified Ghengin.Render.Queue as RQ
+import qualified Vulkan as Vk
 
 -- TODO: Somehow systems that want to delete entities should call a special
 -- destructor function that gets rid of resources stuck in components such as
 -- meshes
-
 
 type Ghengin w = SystemT (World w) (Renderer ())
 

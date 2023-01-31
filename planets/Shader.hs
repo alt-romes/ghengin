@@ -10,6 +10,7 @@
 {-# LANGUAGE TypeOperators         #-}
 module Shader where
 
+import Ghengin.Shader.Utils
 import Ghengin.Shaders.FIR
 import Ghengin.Shaders
 import Ghengin.Shaders.Lighting

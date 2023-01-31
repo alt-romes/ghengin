@@ -3,8 +3,8 @@ module Ghengin.Component.Mesh.Vertex
   ( Vertex(Sin,(:&),(:&:))
   ) where
 
-import Foreign.Storable
 import Foreign.Ptr
+import Foreign.Storable
 
 data Vertex vs where
 

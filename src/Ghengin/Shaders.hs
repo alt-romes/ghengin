@@ -11,22 +11,10 @@ module Ghengin.Shaders
   ) where
 
 import qualified Data.ByteString.Lazy as BS
-
--- import Data.IntMap (IntMap)
 import qualified FIR
 import qualified Vulkan as Vk
--- import Ghengin.Utils
--- import qualified FIR.Definition as FIR
 
 type GShaderPipeline info = FIR.PipelineStages info ()
-
-
-invLerp :: FIR.DivisionRing a => a -> a -> a -> a
-invLerp value from to = (value FIR.- from) FIR./ (to FIR.- from)
-
-lerp :: FIR.Ring a => a -> a -> a -> a
-lerp from to value = from FIR.+ (to FIR.- from) FIR.* value
-
 
 newtype ShaderByteCode = SBC BS.ByteString
 

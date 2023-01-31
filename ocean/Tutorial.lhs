@@ -241,4 +241,30 @@ add the following lines to the top of your module:
 
 \subsection{Render Pipeline}
 
+To create a render pipeline one must first know and think about how game
+engines render entities. A render pipeline is one of the most important
+concepts in game development with Ghengin (and with any engine really, despite
+it often being out of sight until one reaches a high intermediate level). An in
+depth explanation of rendering and render pipelines is given in
+Section~\ref{sec:rendering} and Section~\ref{sec:renderpipeline}.
+
+In this section, we focus on implementing a render pipeline for our ocean
+simulation. The key idea is that every vertex in our ocean mesh will be
+processed by a \emph{vertex shader} that may use the properties specified in
+the material associated with the ocean mesh, said vertex shader should displace
+the vertex according to a wave function that determines the displacement as a
+function on the current time and on the vertex position, and, then, every
+fragment in the triangles defined by the vertices is processed by a
+\emph{fragment shader} that will color the ocean according to the wave height,
+lighting, base hue, and other properties.
+
+With that in mind, let's start by creating a new module @Ocean.Shader@. In this
+module we will create both our vertex and fragment shader, and define the
+shader pipeline. All shaders (for now?) must be written using the @fir@ shader
+language. We need the following extensions to write @fir@ shaders:
+
+\begin{code}
+
+\end{code}
+
 
