@@ -1,5 +1,6 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Ghengin.Shader.Pipeline
   ( ToStructInput
   , ShaderPipeline(ShaderPipeline, (:>->))
@@ -12,21 +13,21 @@ module Ghengin.Shader.Pipeline
   , FIR.PrimitiveTopology(..), FIR.PrimitiveConnectedness(..)
   ) where
 
+-- import qualified Data.Type.Map
+-- import qualified Data.Type.Nat
+-- import qualified FIR.Layout
+-- import qualified FIR.Validation.Formats
+-- import qualified SPIRV.Image   as SPIRV
 import Data.Coerce
 import Data.Kind
-import GHC.TypeLits
-import Ghengin.Component.Mesh.Vertex
-import qualified FIR
 import FIR.ProgramState (EntryPointInfo(..), Definedness(..))
 import FIR.Validation.Pipeline (GetExecutionInfo)
+import GHC.TypeLits
+import qualified FIR
 import qualified FIR.Definition
+import Ghengin.Shader.Canonical
 
 newtype ShaderPipeline info = ShaderPipeline (FIR.PipelineStages info ())
-
--- pattern StructInput :: ∀ {top :: FIR.PrimitiveTopology Nat} {as :: [FIR.LocationSlot Nat Data.Type.Map.:-> Type]}
---                      . (FIR.Known (FIR.PrimitiveTopology Nat) top, FIR.Known FIR.VertexLocationDescriptions (FIR.Syntax.Synonyms.AnnotateLocationsWithBindingAndOffset 0 (FIR.Validation.Formats.ComputeFormats (Data.Type.Map.InsertionSort as))), KnownNat (FIR.Layout.SumSizeOfLocations as))
---                     => ShaderPipeline ('FIR.VertexInputInfo top (FIR.Syntax.Synonyms.AnnotateLocationsWithBindingAndOffset 0 (FIR.Validation.Formats.ComputeFormats (Data.Type.Map.InsertionSort as))) '[ 0 'Data.Type.Map.:-> FIR.Layout.SumSizeOfLocations as])
--- pattern StructInput = ShaderPipeline FIR.StructInput
 
 pattern (:>->) :: ∀ {info :: FIR.PipelineInfo}
                 . ()
@@ -38,11 +39,36 @@ pattern (:>->) :: ∀ {info :: FIR.PipelineInfo}
 pattern (:>->) x y <- ShaderPipeline ((FIR.:>->) @_ @(_ :: FIR.PipelineInfo) @() (coerce -> x) (y, ()))
   where (:>->) x y  = ShaderPipeline ((FIR.:>->) @_ @(_ :: FIR.PipelineInfo) @() (coerce x)    (y, ()))
 
-type ToStructInput :: Vertex '[Type] -> [FIR.LocationSlot Nat FIR.:-> Type]
+type ToStructInput :: [Type] -> [FIR.LocationSlot Nat FIR.:-> Type]
 type family ToStructInput vx where
-  ToStructInput vx = ToStructInput' vx 0
+  ToStructInput vs = ToStructInput' vs 0
 
-type ToStructInput' :: Vertex '[Type] -> Nat -> [FIR.LocationSlot Nat FIR.:-> Type]
+type ToStructInput' :: [Type] -> Nat -> [FIR.LocationSlot Nat FIR.:-> Type]
 type family ToStructInput' vx n where
-  ToStructInput' (Sin x) n = '[ 'FIR.LocationSlot n 0 'FIR.:-> x ]
+  ToStructInput' '[] n = '[ ]
+  ToStructInput' (x ': xs) n = ('FIR.LocationSlot n 0 'FIR.:-> CanonicalType x) ': ToStructInput' xs (n+1)
+  -- ToStructInput' (x ': xs) n = TypeError (Text "Ghengin: Unknown type for vertex data " :<>: ShowType x)
+
+
+-- pattern StructInput :: ∀ {as :: [FIR.LocationSlot Nat Data.Type.Map.:-> Type]}
+--                      . (FIR.Known (FIR.PrimitiveTopology Nat) (FIR.Triangle FIR.List), FIR.Known FIR.VertexLocationDescriptions (AnnotateLocationsWithBindingAndOffset 0 (FIR.Validation.Formats.ComputeFormats (Data.Type.Map.InsertionSort as))), KnownNat (SumSizeOfLocations as))
+--                     => ShaderPipeline ('FIR.VertexInputInfo (FIR.Triangle FIR.List) (AnnotateLocationsWithBindingAndOffset 0 (FIR.Validation.Formats.ComputeFormats (Data.Type.Map.InsertionSort as))) '[ 0 'Data.Type.Map.:-> SumSizeOfLocations as])
+-- pattern StructInput <- ShaderPipeline FIR.StructInput
+
+-- | Inline 'AnnotateLocationsWithBindingAndOffset' definition from FIR to use
+-- internally
+-- type family AnnotateLocationsWithBindingAndOffset
+--               ( bdNo :: Nat )
+--               ( locationFormats :: [ Nat FIR.:-> SPIRV.ImageFormat Nat ] )
+--            :: [ Nat FIR.:-> ( Nat, Nat, SPIRV.ImageFormat Nat ) ]
+--            where
+--   AnnotateLocationsWithBindingAndOffset _ '[] = '[]
+--   AnnotateLocationsWithBindingAndOffset bdNo
+--       = ( loc 'FIR.:-> '( bdNo, 16 * loc, fmt ) )
+--       ': AnnotateLocationsWithBindingAndOffset bdNo locs
+
+-- type family SumSizeOfLocations (as :: [FIR.LocationSlot Nat FIR.:-> Type]) :: Nat where
+--   SumSizeOfLocations '[] = 0
+--   SumSizeOfLocations ( ( _ 'FIR.:-> a ) ': as )
+--     = ( FIR.SizeOf FIR.Locations a `Data.Type.Nat.RoundUp` 16 ) + SumSizeOfLocations as
 

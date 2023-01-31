@@ -15,6 +15,7 @@ import Ghengin.Shaders.FIR
 import Ghengin.Shaders
 import Ghengin.Shaders.Lighting
 import Ghengin.Shaders.Fixed
+import Ghengin.Shader (VertexShaderModule, FragmentShaderModule)
 
 -- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
 -- Descriptor Set #1 for things bound once per material
@@ -25,15 +26,13 @@ import Ghengin.Shaders.Fixed
 type VertexDefs
   = '[ "out_position"  ':-> Output '[ Location 0 ] (V 4 Float)
      , "out_normal"    ':-> Output '[ Location 1 ] (V 4 Float)
-
-     , "main"          ':-> EntryPoint '[] Vertex
      ]
      :++: FixedDescriptorSetZero
      :++: FixedPushConstant
      :++: FixedVertices
 
 
-vertex :: ShaderModule "main" VertexShader VertexDefs _
+vertex :: VertexShaderModule VertexDefs _
 vertex = shader do
 
     ~(Vec3 x y z)    <- get @"in_position"
@@ -62,13 +61,12 @@ type FragmentDefs
       , "gradient" ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
 
       , "out_col" ':-> Output '[ Location 0 ] (V 4 Float)
-      , "main"    ':-> EntryPoint '[ OriginUpperLeft ] Fragment
       ]
       :++: FixedDescriptorSetZero
       :++: FixedPushConstant
 
 
-fragment :: ShaderModule "main" FragmentShader FragmentDefs _
+fragment :: FragmentShaderModule FragmentDefs _
 fragment = shader do
 
     ~(Vec4 px py pz _)  <- get @"in_position"

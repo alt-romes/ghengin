@@ -24,9 +24,6 @@ module Ghengin
   -- * Render pipelines
   , RenderPipeline, makeRenderPipeline
 
-  -- * Shader pipelines
-  , module Ghengin.Shader.Pipeline
-
   -- | TODO: Export Vecs from other module
   , module Geomancy.Vec3
   , module Geomancy.Mat4
@@ -36,7 +33,6 @@ module Ghengin
 
 -- Re-exports
 import Ghengin.Component.Mesh.Vertex
-import Ghengin.Shader.Pipeline
 -- End re-exports
 
 import Apecs
