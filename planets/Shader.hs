@@ -1,21 +1,20 @@
-{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
-{-# LANGUAGE QualifiedDo      #-}
-{-# LANGUAGE GADTs      #-}
-{-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE BlockArguments        #-}
 {-# LANGUAGE DataKinds             #-}
+{-# LANGUAGE GADTs                 #-}
+{-# LANGUAGE OverloadedLabels      #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE QualifiedDo           #-}
 {-# LANGUAGE RebindableSyntax      #-}
 {-# LANGUAGE TypeApplications      #-}
 {-# LANGUAGE TypeOperators         #-}
+{-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module Shader where
 
+import Ghengin.Shader
+import Ghengin.Shader.FIR
+import Ghengin.Shader.Fixed
+import Ghengin.Shader.Lighting
 import Ghengin.Shader.Utils
-import Ghengin.Shaders.FIR
-import Ghengin.Shaders
-import Ghengin.Shaders.Lighting
-import Ghengin.Shaders.Fixed
-import Ghengin.Shader (VertexShaderModule, FragmentShaderModule)
 
 -- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
 -- Descriptor Set #1 for things bound once per material
@@ -91,9 +90,9 @@ type VertexData =
 
 -- BIG:TODO: Why is the vertex data not being validated? must check again validation to make sure I don't have bugs like that
 
-shaderPipeline :: GShaderPipeline _
+shaderPipeline :: ShaderPipeline _
 shaderPipeline
-  = StructInput @VertexData @(Triangle List)
-    :>-> (vertex, ())
-    :>-> (fragment, ())
+  = ShaderPipeline (StructInput @VertexData @(Triangle List))
+    :>-> vertex
+    :>-> fragment
 

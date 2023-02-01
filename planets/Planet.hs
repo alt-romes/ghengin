@@ -46,7 +46,6 @@ import Ghengin.Component.Material
 import Ghengin.Component.UI
 import Foreign.Ptr
 import qualified Shader
-import Ghengin.Shaders
 import Ghengin.Render.Packet
 
 import Noise

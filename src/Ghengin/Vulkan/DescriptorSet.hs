@@ -29,7 +29,8 @@ import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
 
-import qualified Ghengin.Shaders.FIR as FIR
+import qualified Ghengin.Shader.FIR as FIR
+import Ghengin.Shader
 import qualified FIR.Definition as FIR
 import qualified SPIRV.Decoration as SPIRV
 import qualified SPIRV.PrimTy as SPIRV
@@ -62,14 +63,14 @@ data SomeDefs = ∀ defs. FIR.KnownDefinitions defs => SomeDefs
 -- This might be a slow
 -- function so one should be careful calling it too often.  A more performant
 -- less simple alternative should be added...
-createDescriptorSetBindingsMap :: FIR.PipelineStages info () -> DescriptorSetMap
+createDescriptorSetBindingsMap :: ShaderPipeline info -> DescriptorSetMap
 createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go mempty ppstages)
   where
     go :: Map FIR.Shader [(SPIRV.PointerTy,SomeDefs,SPIRV.Decorations)]
-       -> FIR.PipelineStages info ()
+       -> ShaderPipeline info
        -> Map FIR.Shader [(SPIRV.PointerTy,SomeDefs,SPIRV.Decorations)] -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
-    go acc FIR.VertexInput = acc
-    go acc (pipe FIR.:>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState,())) =
+    go acc (ShaderPipeline FIR.VertexInput) = acc
+    go acc (pipe :>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState)) =
       go (M.insertWith (<>) (FIR.knownValue @stage) (map (\(pt,dc) -> (pt,SomeDefs @defs,dc)) $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) acc) pipe
 
 

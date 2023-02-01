@@ -32,10 +32,8 @@ import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Vulkan.Sampler
 import Ghengin.Scene.Graph
-import Ghengin.Shaders
 import Ghengin.Component (Storage, EntityCounter, explInit, cmap, cmapM)
 
-import qualified Ghengin.Shaders.SimpleShader as SimpleShader
 import qualified Shader
 import Planet
 

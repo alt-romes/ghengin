@@ -14,7 +14,7 @@ import Foreign.Storable
 import Geomancy.Mat4
 import qualified Vulkan as Vk
 
-import Ghengin.Shaders
+import Ghengin.Shader
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.Pipeline
@@ -26,7 +26,7 @@ import Ghengin.Vulkan
 data RenderPipeline info = RenderPipeline { _graphicsPipeline  :: VulkanPipeline
                                           , _renderPass        :: VulkanRenderPass
                                           , _descriptorSetsSet :: NonEmpty (Vector DescriptorSet, DescriptorPool) -- We need descriptor sets for each frame in flight
-                                          , _shaderPipeline    :: GShaderPipeline info
+                                          , _shaderPipeline    :: ShaderPipeline info
                                           }
 
 -- TODO: PushConstants must also be inferred from the shader code
@@ -39,7 +39,7 @@ newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Sto
 -- our buffers too but eventually Uniform will be just a constructor of a more
 -- general Buffer and we should select the correct type of buffer individually.
 makeRenderPipeline :: ( PipelineConstraints info tops descs strides )
-                   => GShaderPipeline info
+                   => ShaderPipeline info
                    -> Renderer χ (RenderPipeline info)
 makeRenderPipeline shaderPipeline = do
 
@@ -64,7 +64,7 @@ makeRenderPipeline shaderPipeline = do
 
   pure $ RenderPipeline pipeline simpleRenderPass dsetsSet shaderPipeline
 
-createPipelineDescriptorSets :: GShaderPipeline info -> Renderer ext (Vector DescriptorSet, DescriptorPool)
+createPipelineDescriptorSets :: ShaderPipeline info -> Renderer ext (Vector DescriptorSet, DescriptorPool)
 createPipelineDescriptorSets pp = do
 
   -- The pipeline should only allocate a descriptor set #0, it needs no else

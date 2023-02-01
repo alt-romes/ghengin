@@ -18,7 +18,7 @@ For now, the vertices are fixed to three V 3s but soon they will be fully custom
 Descriptor set #1 is bound once per material and is fully customizable
 
  -}
-module Ghengin.Shaders.Fixed where
+module Ghengin.Shader.Fixed where
 
 import FIR
 import Math.Linear

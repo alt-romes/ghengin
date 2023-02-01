@@ -43,7 +43,8 @@ import Ghengin.Vulkan.Utils
 import Vulkan.Zero (zero)
 import qualified Data.ByteString as BS
 import qualified Data.Vector as V
-import qualified Ghengin.Shaders.FIR as FIR
+import qualified Ghengin.Shader.FIR as FIR
+import qualified Ghengin.Shader
 import qualified Vulkan as Vk
 import qualified Vulkan.CStruct.Extends as VkC
 
@@ -94,13 +95,13 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                         -> V.Vector Vk.DescriptorSetLayout
                         -> V.Vector Vk.PushConstantRange
                         -> Renderer ext VulkanPipeline
-createGraphicsPipeline (ShaderPipeline ppstages) renderP descriptorSetLayouts pushConstantRanges = do
+createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges = do
   dev <- getDevice
 
   let
-      pipelineShaders :: [(FIR.Shader, Vk.ShaderModule)] -> PipelineStages info2 a -> IO [(FIR.Shader, Vk.ShaderModule)]
-      pipelineShaders acc FIR.VertexInput = pure $ reverse acc
-      pipelineShaders acc ( info FIR.:>-> ( sm@(FIR.ShaderModule _ :: FIR.ShaderModule name shader defs endState) , _) )
+      pipelineShaders :: [(FIR.Shader, Vk.ShaderModule)] -> ShaderPipeline info2 -> IO [(FIR.Shader, Vk.ShaderModule)]
+      pipelineShaders acc (ShaderPipeline FIR.VertexInput) = pure $ reverse acc
+      pipelineShaders acc ( info :>-> ( sm@(FIR.ShaderModule _ :: FIR.ShaderModule name shader defs endState) ) )
         = do
           vksm <- createShaderModule dev =<< compileFIRShader sm
           pipelineShaders ( (knownValue @shader, vksm) : acc) info
