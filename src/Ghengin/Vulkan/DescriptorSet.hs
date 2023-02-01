@@ -39,7 +39,7 @@ import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.Image
 import Ghengin.Vulkan.Sampler
 import Ghengin.Vulkan
-import Ghengin.Shaders
+import Ghengin.Vulkan.Utils
 import qualified Ghengin.Asset.Texture as T
 
 import qualified FIR.Layout

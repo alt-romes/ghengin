@@ -10,10 +10,9 @@
 {-# LANGUAGE ViewPatterns     #-}
 module Ghengin.Shaders.SimpleShader (vertex, fragment, shaderPipeline) where
 
-import FIR
 -- import FIR.Syntax.Labels
-import Math.Linear -- for vectors
-import Ghengin.Shaders
+import Ghengin.Shader.FIR
+import Ghengin.Shader.Pipeline
 
 -------------------
 -- Vertex shader --
@@ -76,8 +75,8 @@ type VertexData =
    , Slot 2 0 ':-> V 3 Float -- in color
    ]
 
-shaderPipeline :: GShaderPipeline _
+shaderPipeline :: ShaderPipeline _
 shaderPipeline =
-  StructInput @VertexData @(Triangle List)
-  :>-> (vertex, ())
-  :>-> (fragment, ())
+  ShaderPipeline (StructInput @VertexData @(Triangle List))
+  Ghengin.Shader.Pipeline.:>-> vertex
+  Ghengin.Shader.Pipeline.:>-> fragment

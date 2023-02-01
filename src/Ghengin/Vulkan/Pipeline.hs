@@ -15,39 +15,37 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Vulkan.Pipeline where
 
+import Control.Monad.Reader
+import Data.Bits ((.|.))
+import Data.Coerce
+import Data.Functor ((<&>))
 import Data.Kind
 import Data.Maybe
-import GHC.TypeNats
-  ( Nat )
-import Control.Monad.Reader
-import qualified Data.ByteString as BS
-import qualified Data.Vector as V
-import Data.Coerce
-import Data.Bits ((.|.))
-import Data.Functor ((<&>))
-
-import Vulkan.Zero (zero)
-import qualified Vulkan.CStruct.Extends as VkC
-import qualified Vulkan as Vk
-
-import qualified Ghengin.Shaders.FIR as FIR
-import FIR.Validation.Pipeline (ValidPipelineInfo)
 import FIR
-  ( ImageFormat(ImageFormat), pattern UI, pattern I, pattern F
-  , Word32
-  , Shader(..)
+  ( (:->)((:->))
+  , BindingStrides, VertexLocationDescriptions
+  , GetVertexInputInfo
+  , ImageFormat
+  , ImageFormat(ImageFormat), pattern UI, pattern I, pattern F
+  , Known, knownValue
   , PipelineInfo
   , PipelineStages
   , PrimitiveConnectedness(..)
   , PrimitiveTopology(..)
-  , (:->)((:->))
-  , Known, knownValue
-  , GetVertexInputInfo
-  , BindingStrides, VertexLocationDescriptions
-  , ImageFormat
+  , Shader(..)
+  , Word32
   )
-import Ghengin.Shaders
+import FIR.Validation.Pipeline (ValidPipelineInfo)
+import GHC.TypeNats ( Nat )
+import Ghengin.Shader
 import Ghengin.Vulkan
+import Ghengin.Vulkan.Utils
+import Vulkan.Zero (zero)
+import qualified Data.ByteString as BS
+import qualified Data.Vector as V
+import qualified Ghengin.Shaders.FIR as FIR
+import qualified Vulkan as Vk
+import qualified Vulkan.CStruct.Extends as VkC
 
 data VulkanPipeline = VulkanPipeline { _pipeline :: Vk.Pipeline
                                      , _pipelineLayout :: Vk.PipelineLayout
@@ -91,12 +89,12 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( strides :: BindingStrides             )
                            ( ext     :: Type                       )
                         .  PipelineConstraints info top descs strides
-                        => GShaderPipeline info
+                        => ShaderPipeline info
                         -> Vk.RenderPass
                         -> V.Vector Vk.DescriptorSetLayout
                         -> V.Vector Vk.PushConstantRange
                         -> Renderer ext VulkanPipeline
-createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges = do
+createGraphicsPipeline (ShaderPipeline ppstages) renderP descriptorSetLayouts pushConstantRanges = do
   dev <- getDevice
 
   let

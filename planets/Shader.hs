@@ -59,8 +59,6 @@ type FragmentDefs
                                   ( Struct '[ "min" ':-> Float
                                             , "max" ':-> Float ] ) -- Careful with alignment...
       , "gradient" ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
-
-      , "out_col" ':-> Output '[ Location 0 ] (V 4 Float)
       ]
       :++: FixedDescriptorSetZero
       :++: FixedPushConstant
@@ -81,7 +79,7 @@ fragment = shader do
 
     ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 cx' cy' cz'
 
-    put @"out_col" (Vec4 colx coly colz 1)
+    put @"out_colour" (Vec4 colx coly colz 1)
 
 --- Pipeline ----
 

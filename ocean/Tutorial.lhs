@@ -239,7 +239,7 @@ add the following lines to the top of your module:
 {-# OPTIONS\_GHC -Wno-partial-type-signatures #-}
 \end{code}
 
-\subsection{Render Pipeline}
+\subsection{Render and Shader Pipeline}
 
 To create a render pipeline one must first know and think about how game
 engines render entities. A render pipeline is one of the most important
@@ -259,12 +259,98 @@ fragment in the triangles defined by the vertices is processed by a
 lighting, base hue, and other properties.
 
 With that in mind, let's start by creating a new module @Ocean.Shader@. In this
-module we will create both our vertex and fragment shader, and define the
-shader pipeline. All shaders (for now?) must be written using the @fir@ shader
-language. We need the following extensions to write @fir@ shaders:
+module we will create both our vertex and fragment shader, and define the shader
+pipeline. A shader pipeline can then be used as a specification to create a
+render pipeline. All shaders must be written using the @fir@ shader language. We
+need the following extensions and imports to write @fir@ shaders. This is a
+natural requirement to using a type-heavy shader language:
+
+\begin{code}
+{-# LANGUAGE GHC2021 #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE RebindableSyntax #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# OPTIONS\_GHC -Wno-partial-type-signatures #-}
+import Ghengin.Shader.FIR
+import Ghengin.Shader
+\end{code}
+
+Our first vertex shader will do absolutely nothing to the position of the point.
+Later we'll revise what should indeed be done, but, for now, we just want to get
+something on the screen. The type signature of the vertex shader indicates
+what's available in its scope. We define one simple @Input@ which can be
+referenced to by the name @in_position@:
+\begin{code}
+vertex :: VertexShaderModule (QUOTE [ "in_position" (QUOTE :->) Input (QUOTE [ Location 0 ]) (V 3 Float) ]) _
+\end{code}
+An @Input@ to the vertex shader represents a property that all vertices passed
+to the input shader. When we previously defined our @Mesh@ we also had to
+specify at the type level the vertex properties. Here it's the same, but at the
+shader level. One could even move the type synonyms definitions to this module
+and import them from the main module. Additionally, note once again the
+underscore for the partial type signature as the last argument to
+@VertexShaderModule@.
+
+The body of the vertex shader accompanies its type signature. A vertex shader
+must output a ``final'' position value (a @Vec4@) in the vulkan clip space for
+the input vertex. The vulkan clip space is defined by $x\in[-1,1], y\in[-1,1],
+z\in[0,1]$.  To do so, we must get the value from the input @in_position@ and
+output the value by writing to the variable @gl_Position@. In fir, we can get
+values from variables, structs and the like using @use@ combined with a
+type-level optic such as @Name@ (to get a variable by name).
+
+\begin{code}
+vertex = shader do
+  ~(Vec3 x y z) <- use @(Name "in_position")
+  put @"gl_Position" (Vec4 x y z 1)
+\end{code}
+
+The fragment shader takes as input the non-built-in outputs of the vertex shader
+(in our case, there are no outputs besides the built-in @gl_Position@), and
+outputs a final color for that fragment. Additionally, both vertex and fragment
+shaders can access values made available through descriptor sets, for example,
+the properties defined by a material are made available in descriptor set $1$.
+Soon, we will paint every fragment with the base color property passed in the
+material. However, we will only see how to access the material color futher
+ahead for a surprise reason. For now, we paint every fragment white by setting
+the built-in output variable @out_col@ with a @Vec4@:
+% (which is fixed at @Location 0@, so there
+% can be no other custom outputs at the same location)
+
+\begin{code}
+fragment :: FragmentShaderModule (QUOTE []) _
+fragment = shader do
+  put @"out_colour" (Vec4 1 1 1 1)
+\end{code}
+
+You might note that the fragment shader definitions list is empty. That's
+alright, we don't need any additional definition to the built in ones.
+
+To finalize the first shader pipeline iteration, we specify the @ShaderPipeline@
+which puts together our shader modules (and an additional specification of the
+vertex data).
+
+\begin{code}
+oceanShaderPipeline :: ShaderPipeline _
+oceanShaderPipeline
+  = ShaderPipeline (StructInput @(ToStructInput (QUOTE [V 3 Float])) @(Triangle List))
+    :>-> vertex
+    :>-> fragment
+\end{code}
+
+The @StructInput@ constructor for now requires a bit of boilerplate. We call
+@ToStructInput@ on the list of properties each vertex has (in our case, a vector
+of size 3 for the position), specify that our mesh is defined by a triangle list
+(currently, this is the only option supported by the engine), and finally wrap
+it into a shader pipeline using @ShaderPipeline@. The @:>->@ constructor
+specifies how the pipeline is connected and to what shader modules.
+
+@oceanShaderPipeline@ is our shader pipeline which can now be used to construct
+a render pipeline. Going back to our @Main@ module, we @import Ocean.Shader@ and
+edit our @ini@ function to create a render pipeline:
 
 \begin{code}
 
 \end{code}
-
 

@@ -6,6 +6,8 @@ module Main where
 
 import Ghengin
 
+import Ocean.Shader
+
 -- | The Ocean World with required component storages
 data OWorld = OWorld
 
@@ -15,6 +17,7 @@ type Game = Ghengin OWorld
 -- | The function run when the game is initialized
 ini :: Game ()
 ini = do
+  oceanRP <- lift $ makeRenderPipeline oceanShaderPipeline
   pure ()
 
 -- | The function run when the game is closed
@@ -49,5 +52,4 @@ type OceanMaterial = Material '[Color]
 
 oceanMat :: RenderPipeline _ -> Color -> Game OceanMaterial
 oceanMat p col = lift $ material (StaticBinding col) p
-
 

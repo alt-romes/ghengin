@@ -39,6 +39,8 @@ pattern (:>->) :: ∀ {info :: FIR.PipelineInfo}
 pattern (:>->) x y <- ShaderPipeline ((FIR.:>->) @_ @(_ :: FIR.PipelineInfo) @() (coerce -> x) (y, ()))
   where (:>->) x y  = ShaderPipeline ((FIR.:>->) @_ @(_ :: FIR.PipelineInfo) @() (coerce x)    (y, ()))
 
+-- TODO: Alternatively explain FIR.Layout.Validation as the non-wrapped way of
+-- defining the inputs in slots
 type ToStructInput :: [Type] -> [FIR.LocationSlot Nat FIR.:-> Type]
 type family ToStructInput vx where
   ToStructInput vs = ToStructInput' vs 0

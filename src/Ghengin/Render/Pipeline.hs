@@ -40,7 +40,7 @@ newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Sto
 -- general Buffer and we should select the correct type of buffer individually.
 makeRenderPipeline :: ( PipelineConstraints info tops descs strides )
                    => GShaderPipeline info
-                   -> Renderer ext (RenderPipeline info)
+                   -> Renderer χ (RenderPipeline info)
 makeRenderPipeline shaderPipeline = do
 
   simpleRenderPass <- createSimpleRenderPass
