@@ -97,6 +97,7 @@ library
                       Ghengin.Render.Packet,
                       Ghengin.Render.Pipeline,
                       Ghengin.Render.Queue,
+                      Ghengin.Render.Property,
                       Ghengin.Scene,
                       Ghengin.Scene.Graph,
                       Ghengin.Shader,

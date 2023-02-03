@@ -16,18 +16,20 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Material where
 
-import Data.Unique
+import Control.Lens ((^.), Lens', lens)
+import Data.Bifunctor
 import Data.Typeable
+import Data.Unique
 import GHC.TypeLits
-import qualified Vulkan as Vk
-import qualified Data.IntMap as IM
-import qualified Data.List.NonEmpty as NE
 import Ghengin.Asset.Texture
 import Ghengin.Render.Pipeline
+import Ghengin.Render.Property
+import Ghengin.Utils
+import Ghengin.Vulkan
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.DescriptorSet
-import Ghengin.Vulkan
-import Ghengin.Utils
+import qualified Data.IntMap as IM
+import qualified Data.List.NonEmpty as NE
 
 {-
 
@@ -73,32 +75,19 @@ data Material xs where
 
   Done :: (DescriptorSet, Unique) -> Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
 
-  DynamicBinding :: ∀ α β
-                 .  (Storable α, Sized α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
-                 => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
-                 -> Material β
-                 -> Material (α:β)
+  MaterialProperty :: ∀ α β
+                   .  PropertyBinding α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
+                   -> Material β
+                   -> Material (α:β)
 
-  StaticBinding :: ∀ α β
-                .  (Storable α, Sized α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
-                => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
-                -> Material β
-                -> Material (α:β)
-
-  Texture2DBinding :: Texture2D -> Material β -> Material (Texture2D:β)
-
--- Use a unique supply rather than Hashable
-
-  -- TODO: Rename a few things (DynamicBinding -> DynamicProperty/Dynamic;
-  -- StaticBinding -> StaticProperty/Static; TextureProperty/Texture)
 
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
 -- TODO: Add Compatible constraint (first move it to its own module)
-material :: Material' α -> RenderPipeline β -> Renderer χ (Material α)
+material :: ∀ α β ξ χ. Material' α -> RenderPipeline β ξ -> Renderer χ (Material α)
 material matf rp = 
-  let (_,dpool) NE.:| _ = rp._descriptorSetsSet
+  let (_,dpool) NE.:| _ = rp^.descriptorSetsSet
    in do
 
      -- Make the unique identifier for this material
@@ -124,11 +113,11 @@ material matf rp =
          -- we'll have constructed the actual resource map, and can then create a
          -- final material.
          dummySet <- dsetf mempty
-         let dummyMat = matf $ Done (dummySet, uniq)
+         let dummyMat :: Material α = matf $ Done (dummySet, uniq)
 
          -- Make the resource map for this material
          -- Will also count texture references
-         resources <- makeResources dummyMat
+         resources <- makeResources (materialProperties @α dummyMat)
 
          -- Create the descriptor set with the written descriptors based on the
          -- created resource map
@@ -239,47 +228,38 @@ instance {-# OVERLAPPING #-} KnownNat n => HasBindingAt' n n (b ': as) b where
   getBindingValue' = headMat
 
   medit' mat update = case mat of
-    DynamicBinding x xs -> do
+    MaterialProperty (DynamicBinding x) xs -> do
       ux <- update x
-      writeDynamicBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
-      pure $ DynamicBinding ux xs
-    StaticBinding x xs -> do
+      writeDynamicBinding ux (fromIntegral (natVal $ Proxy @n) - 1) (xs ^. materialDescriptorSet)
+      pure $ MaterialProperty (DynamicBinding ux) xs
+    MaterialProperty (StaticBinding x) xs -> do
       ux <- update x
-      writeStaticBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
-      pure $ StaticBinding ux xs
-    Texture2DBinding x xs -> do
+      writeStaticBinding ux (fromIntegral (natVal $ Proxy @n) - 1) (xs ^. materialDescriptorSet)
+      pure $ MaterialProperty (StaticBinding ux) xs
+    MaterialProperty (Texture2DBinding x) xs -> do
       ux <- update x
-      updateTextureBinding ux ((fromIntegral $ natVal $ Proxy @n) - 1) (materialDescriptorSet xs)
+      updateTextureBinding ux (fromIntegral (natVal $ Proxy @n) - 1) (xs ^. materialDescriptorSet)
 
       -- We free the texture that was previously bound
       freeTexture x
       -- We increase the texture reference count that was just now bound
       incRefCount ux
 
-      pure $ Texture2DBinding ux xs
+      pure $ MaterialProperty (Texture2DBinding ux) xs
     
 
 instance {-# OVERLAPPABLE #-} HasBindingAt' n (m-1) as b => HasBindingAt' n m (a ': as) b where
-  getBindingValue' = \case
-    DynamicBinding _ xs -> getBindingValue' @n @(m-1) @as @b xs
-    StaticBinding  _ xs -> getBindingValue' @n @(m-1) @as @b xs
-    Texture2DBinding  _ xs -> getBindingValue' @n @(m-1) @as @b xs
-  medit' mat update = case mat of
-    DynamicBinding x xs    -> DynamicBinding x   <$> medit' @n @(m-1) @as @b xs update
-    StaticBinding  x xs    -> StaticBinding x    <$> medit' @n @(m-1) @as @b xs update
-    Texture2DBinding  x xs -> Texture2DBinding x <$> medit' @n @(m-1) @as @b xs update
+  getBindingValue' (MaterialProperty _ xs) = getBindingValue' @n @(m-1) @as @b xs
+  medit' (MaterialProperty x xs) update = MaterialProperty x <$> medit' @n @(m-1) @as @b xs update
 
 headMat :: ∀ α β. Material (α ': β) -> α
 headMat = \case
-  DynamicBinding x _ -> x
-  StaticBinding  x _ -> x
-  Texture2DBinding  x _ -> x
+  MaterialProperty (DynamicBinding    x) _ -> x
+  MaterialProperty (StaticBinding     x) _ -> x
+  MaterialProperty (Texture2DBinding  x) _ -> x
 
 tailMat :: ∀ α β. Material (α ': β) -> Material β
-tailMat = \case
-  DynamicBinding _ xs -> xs
-  StaticBinding  _ xs -> xs
-  Texture2DBinding  _ xs -> xs
+tailMat (MaterialProperty _ xs) = xs
 
 writeDynamicBinding :: ∀ α χ. Storable α => α -> Int -> DescriptorSet -> Renderer χ ()
 writeDynamicBinding a i dset = writeMappedBuffer @α (getUniformBuffer dset i) a
@@ -294,94 +274,48 @@ writeStaticBinding a i dset = writeMappedBuffer @α (getUniformBuffer dset i) a
 updateTextureBinding :: Texture2D -> Int -> DescriptorSet -> Renderer χ ()
 updateTextureBinding tex i dset = updateDescriptorSet (dset._descriptorSet) (IM.singleton i (Texture2DResource tex))
 
-
--- | Recursively make the descriptor set resource map from the material. This
--- will create some resources and simply use some provided in the material
--- properties.
--- * Dynamic buffers: It will create a mapped buffer but write nothing to it - these buffers are written every frame.
--- * Static buffer: It will create and write a buffer that can be manually updated
--- * Texture2D: It will simply add the already existing texture that was created (and engine prepared) on texture creation
---
--- Additionally, update the reference counts of resources that are reference
--- counted:
---  * Texture2D
-makeResources :: Material α -> Renderer χ ResourceMap
-makeResources m = go (matSizeBindings m - 1) m -- TODO: Fix the order instead of going in reverse... <-- actually, this way it's better? this way when a property is added, its index is fixed and doesn't depend on other properties being added or not
-                                                                                                     -- ^ no, it's not that better since the amount of properties is kind of fixed in the type?
-  where
-    go :: Int -> Material α -> Renderer χ ResourceMap
-    go i = \case
-      Done _ -> pure mempty
-
-      DynamicBinding x xs -> do
-
-        -- Allocate the associated buffers
-        mb <- createMappedBuffer (fromIntegral $ sizeOf x) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
-        IM.insert i (UniformResource mb) <$> go (i-1) xs
-
-      StaticBinding x xs -> do
-
-        -- Allocate the associated buffers
-        mb <- createMappedBuffer (fromIntegral $ sizeOf x) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -- TODO: Should this be a deviceLocalBuffer?
-
-        -- Write the static information to this buffer right away
-        writeMappedBuffer mb x
-
-        -- TODO: instead -> createDeviceLocalBuffer Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT x
-
-        IM.insert i (UniformResource mb) <$> go (i-1) xs
-        
-      Texture2DBinding t xs -> do
-
-        incRefCount t
-
-        -- Image has already been allocated when the texture was created, we
-        -- simply pass add it to the resource map
-        IM.insert i (Texture2DResource t) <$> go (i-1) xs
-
-
--- TODO: IT DOESNT NEED TO BE IN REVERSE ....!!!!!!!! The Material type list can
--- simply be in the order left to right (0 to N bindings)...
-
 -- | Returns the number of bindings
 matSizeBindings :: ∀ α. Material α -> Int
 matSizeBindings = -- fromInteger $ natVal $ Proxy @(ListSize α)
   \case
     Done _ -> 0
-    DynamicBinding _ xs -> 1 + matSizeBindings xs
-    StaticBinding _ xs -> 1 + matSizeBindings xs
-    Texture2DBinding _ xs -> 1 + matSizeBindings xs
+    MaterialProperty _ xs -> 1 + matSizeBindings xs
 
 instance Eq (Material '[]) where
   (==) (Done _) (Done _) = True
 
 instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
-  (==) (DynamicBinding x xs) (DynamicBinding y ys) = x == y && xs == ys
-  (==) (StaticBinding x xs) (StaticBinding y ys) = x == y && xs == ys
-  (==) (Texture2DBinding x xs) (Texture2DBinding y ys) = x == y && xs == ys
-  (==) _ _ = False
+  (==) (MaterialProperty a xs) (MaterialProperty b ys) = a == b && xs == ys
 
+materialDescriptorSet :: Lens' (Material α) DescriptorSet
+materialDescriptorSet = lens get' set'
+  where
+    get' :: Material α -> DescriptorSet
+    get' = \case
+      Done x -> fst x
+      MaterialProperty _ xs -> get' xs
+      
+    set' :: Material α -> DescriptorSet -> Material α
+    set' m d = case m of
+      Done x -> Done $ first (const d) x
+      MaterialProperty x m' -> MaterialProperty x (set' m' d)
 
-materialDescriptorSet :: Material α -> DescriptorSet
-materialDescriptorSet = \case
-  Done x -> fst x
-  DynamicBinding _ xs -> materialDescriptorSet xs
-  StaticBinding _ xs -> materialDescriptorSet xs
-  Texture2DBinding _ xs -> materialDescriptorSet xs
+materialProperties :: Material α -> PropertyBindings α
+materialProperties = \case
+  Done _ -> GHNil
+  MaterialProperty x xs -> x :## materialProperties xs
 
 getMaterialUID :: Material α -> Unique
 getMaterialUID = \case
   Done x -> snd x
-  DynamicBinding _ xs -> getMaterialUID xs
-  StaticBinding _ xs -> getMaterialUID xs
-  Texture2DBinding _ xs -> getMaterialUID xs
+  MaterialProperty _ xs -> getMaterialUID xs
 
 freeMaterial :: Material α -> Renderer χ ()
 freeMaterial = \case
   Done x -> destroyDescriptorSet (fst x)
-  StaticBinding _ xs -> freeMaterial xs
-  DynamicBinding _ xs -> freeMaterial xs
-  Texture2DBinding tex xs -> do
+  MaterialProperty (StaticBinding  _    ) xs -> freeMaterial xs
+  MaterialProperty (DynamicBinding _    ) xs -> freeMaterial xs
+  MaterialProperty (Texture2DBinding tex) xs -> do
     freeTexture tex
     freeMaterial xs
 
@@ -395,7 +329,4 @@ data HFList xs where
     (:+#) :: (forall χ. a -> Renderer χ a) -> HFList as -> HFList (a ': as)
 infixr 6 :-#
 infixr 6 :+#
--- type family FunctionsOn xs where
---   FunctionsOn '[] = '[]
---   FunctionsOn (x ': xs) = (x -> x) ': FunctionsOn xs
 

@@ -75,6 +75,18 @@ data HList xs where
     (:#) :: a -> HList as -> HList (a ': as)
 infixr 6 :#
 
+-- | Generic HList
+data GHList c xs where
+    GHNil :: GHList c '[]
+    (:##) :: c a -> GHList c as -> GHList c (a ': as)
+infixr 6 :##
+
+{-
+Note [Coerce HList to List]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+They have the same representation ^_^, so unsafeCoerce is safe ^_^
+-}
+
 headHList :: HList (a ': as) -> a
 headHList (a :# _) = a
 
