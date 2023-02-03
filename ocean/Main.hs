@@ -17,7 +17,7 @@ type Game = Ghengin OWorld
 -- | The function run when the game is initialized
 ini :: Game ()
 ini = do
-  oceanRP <- lift $ makeRenderPipeline oceanShaderPipeline
+  oceanRP <- lift $ makeRenderPipeline oceanShaderPipeline id
   pure ()
 
 -- | The function run when the game is closed
@@ -50,6 +50,6 @@ oceanMesh = createMesh . particles
 type Color = Vec3
 type OceanMaterial = Material '[Color]
 
-oceanMat :: RenderPipeline _ -> Color -> Game OceanMaterial
-oceanMat p col = lift $ material (StaticBinding col) p
+oceanMat :: RenderPipeline α _ -> Color -> Game OceanMaterial
+oceanMat p col = lift $ material (MaterialProperty (StaticBinding col)) p
 

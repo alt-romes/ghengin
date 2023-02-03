@@ -54,7 +54,8 @@ newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Sto
 -- TODO: Currently we assume all our descriptor sets are Uniform buffers and
 -- our buffers too but eventually Uniform will be just a constructor of a more
 -- general Buffer and we should select the correct type of buffer individually.
-makeRenderPipeline :: ( PipelineConstraints info tops descs strides )
+makeRenderPipeline :: forall τ info tops descs strides χ
+                    . ( PipelineConstraints info tops descs strides )
                    => ShaderPipeline info
                    -> (RenderPipeline '[] info -> RenderPipeline τ info)
                    -> Renderer χ (RenderPipeline τ info)
@@ -123,3 +124,26 @@ descriptorSetsSet = lens get' set'
     set' :: RenderPipeline τ α -> NonEmpty (Vector DescriptorSet, DescriptorPool) -> RenderPipeline τ α
     set' rp@RenderPipeline{} newrp = rp{_descriptorSetsSet = newrp}
     set' (RenderProperty x rp) newrp = RenderProperty x (set' rp newrp)
+
+graphicsPipeline :: Lens' (RenderPipeline τ α) VulkanPipeline
+graphicsPipeline = lens get' set'
+  where
+    get' :: RenderPipeline τ α -> VulkanPipeline
+    get' RenderPipeline{_graphicsPipeline} = _graphicsPipeline
+    get' (RenderProperty _ rp) = get' rp
+
+    set' :: RenderPipeline τ α -> VulkanPipeline -> RenderPipeline τ α
+    set' rp@RenderPipeline{} newrp = rp{_graphicsPipeline = newrp}
+    set' (RenderProperty x rp) newrp = RenderProperty x (set' rp newrp)
+
+renderPass :: Lens' (RenderPipeline τ α) VulkanRenderPass
+renderPass = lens get' set'
+  where
+    get' :: RenderPipeline τ α -> VulkanRenderPass
+    get' RenderPipeline{_renderPass} = _renderPass
+    get' (RenderProperty _ rp) = get' rp
+
+    set' :: RenderPipeline τ α -> VulkanRenderPass -> RenderPipeline τ α
+    set' rp@RenderPipeline{} newrp = rp{Ghengin.Render.Pipeline._renderPass = newrp}
+    set' (RenderProperty x rp) newrp = RenderProperty x (set' rp newrp)
+

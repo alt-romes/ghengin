@@ -18,11 +18,14 @@ module Ghengin
   , module Ghengin.Component.Mesh.Vertex
 
   -- * Materials
-  , Material(Texture2DBinding, StaticBinding, DynamicBinding), Material'
+  , Material(..), Material'
   , material, HasBindingsAt(..), HasBindingAt(..)
 
   -- * Render pipelines
   , RenderPipeline, makeRenderPipeline
+
+  -- * Render properties
+  , PropertyBinding(..)
 
   -- | TODO: Export Vecs from other module
   , module Geomancy.Vec3
@@ -33,6 +36,7 @@ module Ghengin
 
 -- Re-exports
 import Ghengin.Component.Mesh.Vertex
+import Ghengin.Render.Property
 -- End re-exports
 
 import Apecs
@@ -57,6 +61,7 @@ import Type.Reflection
 import qualified Ghengin.DearImGui as IM
 import qualified Ghengin.Render.Queue as RQ
 import qualified Vulkan as Vk
+import Control.Lens ((^.))
 
 -- TODO: Somehow systems that want to delete entities should call a special
 -- destructor function that gets rid of resources stuck in components such as
@@ -99,7 +104,7 @@ ghengin world initialize _simstep loopstep finalize = do
 
     -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
     -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
-    rps <- cfold (\acc (RenderPacket _ _ pp _) -> pp._renderPass._renderPass:acc) []
+    rps <- cfold (\acc (RenderPacket _ _ pp _) -> (pp ^. renderPass)._renderPass:acc) []
     imCtx <- case listToMaybe rps of
                Nothing -> pure Nothing
                Just x  -> Just <$> lift (IM.initImGui x)

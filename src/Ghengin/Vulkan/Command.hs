@@ -11,6 +11,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+-- | Better imported qualified as Cmd.
 module Ghengin.Vulkan.Command
   ( Command
   , RenderPassCmd
@@ -18,7 +19,7 @@ module Ghengin.Vulkan.Command
   -- , RenderPassCmdM
   , recordCommand
   , recordCommandOneShot
-  , renderPass
+  , renderPassCmd
   , bindGraphicsPipeline
   , bindComputePipeline
   , bindRayTracingPipeline
@@ -120,8 +121,8 @@ recordCommandOneShot buf (Command cmds) = do
 {-# INLINE recordCommandOneShot #-}
 
 -- | Make a render pass part a command blueprint that can be further composed with other commands
-renderPass :: MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd m -> Command m
-renderPass rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ask >>= \buf -> do
+renderPassCmd :: MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd m -> Command m
+renderPassCmd rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ask >>= \buf -> do
   let
     renderPassInfo = Vk.RenderPassBeginInfo { next = ()
                                             , renderPass  = rpass
@@ -135,7 +136,7 @@ renderPass rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $
   rpcmds
 
   Vk.cmdEndRenderPass buf
-{-# INLINE renderPass #-}
+{-# INLINE renderPassCmd #-}
 
 bindGraphicsPipeline :: MonadIO m => Vk.Pipeline -> RenderPassCmd m
 bindGraphicsPipeline pp = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_GRAPHICS pp

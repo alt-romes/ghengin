@@ -38,8 +38,10 @@ import Ghengin.Render.Queue
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material hiding (material)
 import Ghengin.Utils
+import Ghengin.Render.Property
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
+import Control.Lens ((^.))
 
 type RenderConstraints w = ( Has (World w) (Renderer ()) Transform
                            , Has (World w) (Renderer ()) RenderPacket
@@ -98,7 +100,6 @@ render i = do
   let viewport = viewport' extent
       scissor  = scissor' extent
 
-
   -- Traverse all nodes in the scene graph updating the model matrices
   -- TODO: Currently called traverseSceneGraph, but the name should reflect that the model matrices are updated
   traverseSceneGraph i (const . const $ pure ())
@@ -141,10 +142,10 @@ render i = do
   _ <- withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
     let
-        descriptorSet :: RenderPipeline α -> Int -> DescriptorSet
-        descriptorSet pipeline setIx = fst (pipeline._descriptorSetsSet NE.!! currentFrame) V.! setIx -- must guarantee that there exist this amount of sets in this pipeline
+        descriptorSet :: RenderPipeline α ξ -> Int -> DescriptorSet
+        descriptorSet pipeline setIx = fst ((pipeline^.descriptorSetsSet) NE.!! currentFrame) V.! setIx -- must guarantee that there exist this amount of sets in this pipeline
 
-        descriptorSetBinding :: RenderPipeline α -> Int -> Int -> DescriptorResource
+        descriptorSetBinding :: RenderPipeline α ξ -> Int -> Int -> DescriptorResource
         descriptorSetBinding pipeline setIx bindingIx = (descriptorSet pipeline setIx)._bindings IM.! bindingIx
 
     recordCommand cmdBuffer $ do
@@ -155,14 +156,14 @@ render i = do
       traverseRenderQueue
         renderQueue
         -- Whenever we have a new pipeline, start its renderpass
-        (\(SomePipeline pp') -> renderPass pp'._renderPass._renderPass (pp'._renderPass._framebuffers V.! currentImage) extent)
+        (\(SomePipeline pp') -> renderPassCmd (pp' ^. renderPass)._renderPass ((pp' ^. renderPass)._framebuffers V.! currentImage) extent)
         (\(SomePipeline pipeline) -> do
 
             logTrace ("Binding pipeline")
 
             -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
             -- Bind the pipeline
-            bindGraphicsPipeline (pipeline._graphicsPipeline._pipeline)
+            bindGraphicsPipeline ((pipeline^.graphicsPipeline)._pipeline)
             setViewport viewport
             setScissor  scissor
 
@@ -191,7 +192,7 @@ render i = do
             -- The render pipelien will need to have a resource map just like a material
 
             -- Bind descriptor set #0
-            bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
+            bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout
               0 (descriptorSet pipeline 0)._descriptorSet
 
           )
@@ -199,7 +200,7 @@ render i = do
 
             logTrace ("Binding material")
 
-            case materialDescriptorSet material of
+            case material ^. materialDescriptorSet of
               EmptyDescriptorSet -> pure () -- Bail out, we don't have to do anything on an empty descriptor set. This happens if there isn't a single binding in set #1
               matDSet@DescriptorSet{} -> do
 
@@ -210,7 +211,7 @@ render i = do
                 
                 -- static bindings will have to choose a different dset
                 -- Bind descriptor set #1
-                bindGraphicsDescriptorSet pipeline._graphicsPipeline._pipelineLayout
+                bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout
                   1 matDSet._descriptorSet
 
           )
@@ -220,7 +221,7 @@ render i = do
 
             -- TODO: Bind descriptor set #2
 
-            pushConstants pipeline._graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
+            pushConstants (pipeline^.graphicsPipeline)._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
             renderMesh mesh
           )
         (do
@@ -262,20 +263,7 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
   go :: ∀ υ. Int -> Material υ -> Ghengin ω ()
   go n = \case
     Done _ -> assert (n == (-1)) (pure ()) -- (only triggered with -O0)
-    StaticBinding  _ as ->
-      -- Already has been written to, we simply bind it together with the rest
-      -- of the set and do nothing here.
-      go (n-1) as
-    Texture2DBinding  _ as ->
-      -- As above. Static bindings don't get written every frame.
-      go (n-1) as
-    DynamicBinding (a :: α) as -> do
-      case materialBinding n of
-        -- TODO: Ensure unsafeCoerce is safe here by only allowing
-        -- the construction of dynamic materials if validated at
-        -- compile time against the shader pipeline in each
-        -- matching position?
-        buf -> lift $ writeMappedBuffer @α buf a
-
+    MaterialProperty binding as -> do
+      lift $ writeProperty (materialBinding n) binding -- TODO: We domnt want to fetch the binding so often. Each propety could have its ID and fetch it if required
       go (n-1) as
 

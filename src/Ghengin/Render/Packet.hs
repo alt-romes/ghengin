@@ -90,7 +90,7 @@ data RenderPacket where
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ α β ξ. (Compatible α β ξ, Typeable α, Typeable β, Typeable ξ) => Mesh ξ -> Material α -> RenderPipeline β -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ α β ξ δ. (Compatible α β ξ δ, Typeable α, Typeable β, Typeable ξ) => Mesh ξ -> Material α -> RenderPipeline δ β -> RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
@@ -126,10 +126,10 @@ instance Component RenderPacket where
 -- TODO: Compatible between all α β and ξ (new)
 
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ α β ξ μ. (Compatible α β ξ, Typeable α, Typeable β, Typeable ξ, MonadIO μ) => Mesh ξ -> Material α -> RenderPipeline β -> μ RenderPacket
+renderPacket :: ∀ α β ξ δ μ. (Compatible α β ξ δ, Typeable α, Typeable β, Typeable ξ, MonadIO μ) => Mesh ξ -> Material α -> RenderPipeline δ β -> μ RenderPacket
 renderPacket mesh material pipeline = do
   incRefCount mesh
-  pure $ RenderPacket mesh material pipeline (typeOf pipeline, getMaterialUID material)
+  pure $ RenderPacket mesh material pipeline (typeRep (Proxy @β), getMaterialUID material)
 
 {-
 Note [Render Packet Key]
@@ -162,6 +162,8 @@ The 32bit key is composed of:
   need to merge two shaders into a more generic one (a generic material shader),
   which will probably be more performant than having more shaders)
 * __26 bits__ to uniquely identify the material?
+
+We don't need to consider the render pipeline properties because the info is already a unique identifier of the render pipeline
 -}
 
 -- | See Note [Render Packet Key]
@@ -175,9 +177,9 @@ type RenderKey = (TypeRep, Unique)
 
 -- | 'Compatible' validates at the type level that the mesh and material are
 -- compatible with the render pipeline. See Note [Pipeline compatible materials].
-type family Compatible (xs :: [Type]) (ys :: PipelineInfo) (zs :: [Type]) :: Constraint where
+type family Compatible (xs :: [Type]) (ys :: PipelineInfo) (zs :: [Type]) (ds :: [Type]) :: Constraint where
   -- Reverse because the material bindings are reversed (the last element is the binding #0)
-  Compatible as bs cs = ( MatchesSize (Length cs) (Length (InputLocations bs))
+  Compatible as bs cs ds = ( MatchesSize (Length cs) (Length (InputLocations bs))
                             (Text "There are " :<>: ShowType (Length cs)
                               :<>: Text " mesh vertex properties in vertex "
                               :<>: ShowType cs :<>: Text " but "
@@ -192,7 +194,21 @@ type family Compatible (xs :: [Type]) (ys :: PipelineInfo) (zs :: [Type]) :: Con
                               :<>: Text " descriptors in descriptor set #1.")
                               -- :<>: ShowType (DSetBindings 1 bs))
                         , CompatibleMaterial (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs
-                        , CompatibleMesh (Zip (NumbersFromTo 0 (Length as)) cs) bs )
+                        , CompatibleMesh (Zip (NumbersFromTo 0 (Length as)) cs) bs
+                        , CompatibleRenderProperties (Zip (NumbersFromTo 0 (Length as)) cs) bs
+                        )
+
+type CompatibleRenderProperties :: [(Nat, Type)] -> PipelineInfo -> Constraint
+type family CompatibleRenderProperties xs ys where
+  CompatibleRenderProperties '[] _ = ()
+  CompatibleRenderProperties ('(n,x) ': xs) ys = ( TryMatch x (DSetBinding' 0 n ys)
+                                           ( Sized x
+                                           , Sized (DSetBinding' 0 n ys)
+                                           , MatchesSize (SizeOf x) (SizeOf (DSetBinding' 0 n ys))
+                                             (Text "Render property binding #" :<>: ShowType n :<>: Text " with type " :<>: ShowType x :<>: Text " of size " :<>: ShowType (SizeOf x)
+                                              :<>: Text " isn't compatible with (doesn't have the same size as) the descriptor binding #" :<>: ShowType n :<>: Text " of size " :<>: ShowType (SizeOf (DSetBinding' 0 n ys))
+                                              :<>: Text " with type " :<>: ShowType (DSetBinding' 0 n ys)) )
+                                         , CompatibleMaterial xs ys )
 
 type family CompatibleMesh (xs :: [(Nat,Type)]) (ys :: PipelineInfo) :: Constraint where
   CompatibleMesh '[] _ = ()

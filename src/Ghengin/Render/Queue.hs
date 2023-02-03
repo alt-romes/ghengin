@@ -53,7 +53,7 @@ instance Semigroup (RenderQueue α) where
 instance Monoid (RenderQueue α) where
   mempty = RenderQueue mempty
 
-data SomePipeline = ∀ α. SomePipeline (RenderPipeline α)
+data SomePipeline = ∀ α β. SomePipeline (RenderPipeline α β)
 data SomeMaterial = ∀ α. SomeMaterial (Material α)
 
 fromList :: [(RenderPacket, a)] -> RenderQueue a
@@ -96,7 +96,7 @@ traverseRenderQueue (RenderQueue q) ini f g h finally =
     ini pp $ do -- init the context
       _ <- f pp
       _ <- traverse (\(mt,meshes) ->
-        (g pp mt) <* traverse (uncurry (h pp)) meshes) mts
+        g pp mt <* traverse (uncurry (h pp)) meshes) mts
       finally -- run at the end of the context
         ) q
 {-# INLINE traverseRenderQueue #-}

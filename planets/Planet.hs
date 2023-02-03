@@ -61,7 +61,7 @@ instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
 planetMaterial :: MinMax -> Texture2D -> Material' PlanetProps
-planetMaterial mm t = MatProp (Texture2DBinding t) . MatProp (StaticBinding mm)
+planetMaterial mm t = MaterialProperty (Texture2DBinding t) . MaterialProperty (StaticBinding mm)
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
@@ -164,7 +164,7 @@ textureFromGradient grad = do
   lift $ textureFromImage (ImageRGB8 img) sampler
 
 
-newPlanet :: ∀ a w. (Typeable a, Compatible PlanetProps a '[Vec3,Vec3,Vec3]) => PlanetSettings -> RenderPipeline a -> Ghengin w Planet
+newPlanet :: ∀ a w. (Typeable a, Compatible PlanetProps a '[Vec3,Vec3,Vec3] '[]) => PlanetSettings -> RenderPipeline '[] a -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
   (mesh,minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad

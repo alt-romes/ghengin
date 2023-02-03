@@ -72,4 +72,28 @@ makeResources = foldrM (\(i,x) acc -> go acc i x) mempty . zip [0..] . Unsafe.Co
         pure $ IM.insert i (Texture2DResource t) resources
 
 
+-- | Write a property binding value to a mapped buffer.  Eventually we might
+-- want to associate the binding set and binding #number and get them directly
+-- from the mapped buffers
+--
+-- (1) For each binding
+--    (1.1) If it's dynamic, write the buffer
+--    (1.2) If it's static, do nothing because the buffer is already written
+--    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
+-- (2) Bind the descriptor set #1 with this material's descriptor set ( This is
+-- not being done here ??? )
+--
+-- The material bindings function should be created from a compatible pipeline
+writeProperty :: MappedBuffer -> PropertyBinding α -> Renderer χ ()
+writeProperty buf = \case
+  StaticBinding  _ ->
+    -- Already has been written to, we simply bind it together with the rest of
+    -- the set at draw and do nothing here.
+    pure ()
+  Texture2DBinding  _ ->
+    -- As above. Static bindings don't get written every frame.
+    pure ()
+  DynamicBinding (a :: α) ->
+    -- Dynamic bindings are written every frame
+    writeMappedBuffer @α buf a
 
