@@ -39,7 +39,7 @@ import Data.Proxy
 
 import Data.Bits
 
-import Math.Linear (V(..))
+import Math.Linear (V(..), M(..))
 import qualified SPIRV.Image as SPIRV
 import Data.Type.Map
 import FIR.Prim.Struct
@@ -53,6 +53,9 @@ instance Sized Float where
 
 instance Sized a => Sized (V n a) where
   type SizeOf (V n a) = n * SizeOf a
+
+instance Sized a => Sized (M m n a) where
+  type SizeOf (M m n a) = m * n * SizeOf a
 
 instance Sized (Struct '[]) where
   type SizeOf (Struct '[]) = 0

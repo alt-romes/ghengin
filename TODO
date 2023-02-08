@@ -1,3 +1,4 @@
+[ ] Move hardcoded bindings out of render pipeline and instance it with properties instead
 [ ] FIR doesn't check compatibility between vertex data and vertex shader inputs
 [ ] Instance `Syntatic` to support the engine data types at the shader level
 [ ] Perhaps use more efficient list-like type by default for creating meshes

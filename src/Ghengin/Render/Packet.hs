@@ -193,9 +193,16 @@ type family Compatible (xs :: [Type]) (ys :: PipelineInfo) (zs :: [Type]) (ds ::
                               :<>: ShowType (Length (DSetBindings 1 bs))
                               :<>: Text " descriptors in descriptor set #1.")
                               -- :<>: ShowType (DSetBindings 1 bs))
+                        , MatchesSize (Length ds) (Length (DSetBindings 0 bs))
+                            (Text "There are " :<>: ShowType (Length ds)
+                              :<>: Text " render properties in render pipeline "
+                              :<>: ShowType ds :<>: Text " but "
+                              :<>: ShowType (Length (DSetBindings 0 bs))
+                              :<>: Text " descriptors in descriptor set #0.")
+                              -- :<>: ShowType (DSetBindings 1 bs))
                         , CompatibleMaterial (Zip (NumbersFromTo 0 (Length as)) (Reverse as '[])) bs
-                        , CompatibleMesh (Zip (NumbersFromTo 0 (Length as)) cs) bs
-                        , CompatibleRenderProperties (Zip (NumbersFromTo 0 (Length as)) cs) bs
+                        , CompatibleMesh (Zip (NumbersFromTo 0 (Length cs)) cs) bs
+                        , CompatibleRenderProperties (Zip (NumbersFromTo 0 (Length ds)) ds) bs
                         )
 
 type CompatibleRenderProperties :: [(Nat, Type)] -> PipelineInfo -> Constraint

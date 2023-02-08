@@ -24,13 +24,54 @@
 
 \chapter{Ghengin}
 
-\section{Introduction}
-
 \begin{itemize}
   \item A render packet definition that validates the mesh and material of the
     render packet across the render pipeline it will be rendered in.
   \item Pattern matching on existential materials through type reps
+  \item Most serious games should think about how their game is rendered. ...be
+      dissatisfied with the general purpose solutions which might never feel
+        ``just right''
+  \item There's usually a big jump of unknown from the materials defined in the
+      editor and properties defined to the code written. The code should be
+        more tighly coupled to the rest of the game (in terms of things that
+        directly influence e.g. rendering), in which things are more explicit
+        and foundational. We use types for this. See Core.
 \end{itemize}
+
+\section{Core}
+
+Ghengin is defined by its Core.
+Ghengin should have a small Core that we can reason about.
+Every other feature (e.g. light) should be readily desugared to Core.
+By understanding Core, one can understand the whole of Ghengin more easily, and figure out the differences between more advanced features.
+
+Identify Ghengin Core and thoroughly specify it.
+
+Currently I see Core as
+\begin{itemize}
+    \item Render pipelines with render properties
+    \item Materials which are a group of properties that define the surface
+        things
+    \item Meshes, which are vertices defined by a group of vertex properties,
+        and also mesh properties which are per-mesh properties.
+    \item Properties themselves (Floats, Vec3s, Texture2Ds + Samplers are a
+        possible instance)? Or should the properties be the same for all
+        "Cores"? I think the properties being an abstract ``X'' which can be
+        instanced X = any group of properties. I quite like Ghengin(X) in the
+        style of OutsideIn(X) or HM(X).
+\end{itemize}
+
+\begin{itemize}
+    \item Lights are just syntactic sugar for render pipeline properties.
+    \item Material albedos, textures, normal maps, are just material properties.
+    \item Transforms and per-mesh colors are just mesh properties.
+    \item We can understand all features because they map to the same much
+        simpler Core. There's no hard ambiguity in features between different
+        light types, or material types, or anything, and it's all connected and
+        enforced in the code written through the types.
+\end{itemize}
+
+
 
 \section{Render Pipeline}
 
