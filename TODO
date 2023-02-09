@@ -1,3 +1,5 @@
+[ ] Consider moving Ghengin.Core to its own package
+[ ] Use `Syntatic` and compare with `InternalType` and equality instead of SizeOf
 [ ] Move hardcoded bindings out of render pipeline and instance it with properties instead
 [ ] FIR doesn't check compatibility between vertex data and vertex shader inputs
 [ ] Instance `Syntatic` to support the engine data types at the shader level

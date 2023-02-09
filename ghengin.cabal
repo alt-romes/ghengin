@@ -76,6 +76,10 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  Ghengin,
+
+                      Ghengin.Core.Type.Compatible,
+
+
                       Ghengin.Asset.Texture,
                       Ghengin.Component,
                       Ghengin.Component.Camera,
