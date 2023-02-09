@@ -47,7 +47,7 @@ initG = do
   -- sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   -- tex <- lift $ texture "assets/planet_gradient.png" sampler
 
-  planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline id
+  planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline (RenderProperty (DynamicBinding $ UBO identity identity) . RenderProperty (DynamicBinding $ vec3 0 0 0))
 
   p1 <- newPlanet ps planetPipeline
   p2 <- newPlanet ps2 planetPipeline
