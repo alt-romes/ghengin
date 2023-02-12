@@ -25,7 +25,6 @@ import Ghengin.Vulkan.RenderPass
 import Ghengin.Vulkan.Pipeline
 import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan
-import Ghengin.Utils
 
 import Control.Lens (Lens', lens)
 
@@ -41,7 +40,7 @@ data RenderPipeline tys info where
                     , _shaderPipeline    :: ShaderPipeline info
                     } -> RenderPipeline '[] info
 
-  RenderProperty :: ∀ α β info. (Storable α, Sized α)
+  RenderProperty :: ∀ α β info. Storable α
                  => PropertyBinding α -> RenderPipeline β info -> RenderPipeline (α : β) info
 
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoStarIsType #-}
@@ -47,6 +48,8 @@ import Ghengin.Component.UI
 import Foreign.Ptr
 import qualified Shader
 import Ghengin.Render.Packet
+import Ghengin.Shader.FIR as FIR ((:->)(..), Struct, Syntactic(..))
+import qualified Ghengin.Shader.FIR as FIR
 
 import Noise
 
@@ -55,6 +58,13 @@ type PlanetProps = '[Texture2D,MinMax]
 
 data MinMax = MinMax Float Float
   deriving (Eq, Generic, Show)
+
+instance Syntactic MinMax where
+  type Internal MinMax = FIR.Val (Struct '[ "min" ':-> Float, "max" ':-> Float ])
+  toAST (MinMax x y) = FIR.Struct (FIR.Lit x FIR.:& FIR.Lit y FIR.:& FIR.End)
+  fromAST struct = case (FIR.view @(FIR.Name "min") struct, FIR.view @(FIR.Name "max") struct) of
+                     (FIR.Lit x, FIR.Lit y) -> MinMax x y
+                     _ -> error "impossible"
 
 instance GStorable MinMax
 instance Sized MinMax where
@@ -163,14 +173,19 @@ textureFromGradient grad = do
   sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   lift $ textureFromImage (ImageRGB8 img) sampler
 
-data UBO = UBO !Mat4 !Mat4
-  deriving (Generic, Show)
+data CameraProperty = CameraProperty !Mat4 !Mat4 !Vec3
+  deriving Generic
 
-instance GStorable UBO
-instance Sized UBO where
-  type SizeOf UBO = 2 * 4*4*4
+instance Syntactic CameraProperty where
+  type Internal CameraProperty = FIR.Val ( FIR.Struct '[ "view" ':-> FIR.M 4 4 Float
+                                                       , "proj" ':-> FIR.M 4 4 Float
+                                                       , "camera_pos" ':-> FIR.V 3 Float ] )
+  toAST = undefined
+  fromAST = undefined
 
-newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[UBO, Vec3] p) => PlanetSettings -> RenderPipeline '[UBO, Vec3] p -> Ghengin w Planet
+instance GStorable CameraProperty
+
+newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p) => PlanetSettings -> RenderPipeline '[CameraProperty] p -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
   (mesh,minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad

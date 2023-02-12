@@ -48,7 +48,7 @@ type family CompatibleVertex as p where
   CompatibleVertex ('(n,x) ': xs) p
     = ( Syntactic x
       , Match (SizeOf (InternalType x)) (SizeOf (InputByLocation' n p))
-                        (Text "Vertex property #" :<>: ShowType n :<>: Text " of type " :<>: ShowType x
+                        (Text "Vertex property #" :<>: ShowType n :<>: TypeAndInternalType x
                           :<>: Text " whose internal type is " :<>: ShowType (InternalType x)
                           :<>: Text " isn't compatible with the shader vertex property #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (InputByLocation' n p))
       , CompatibleVertex xs p
@@ -60,7 +60,7 @@ type family CompatibleMaterial as p where
   CompatibleMaterial ('(n,x) ': xs) p
     = ( Syntactic x
       , Match (InternalType x) (DSetBinding' 1 n p)
-              (Text "Material binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType x
+              (Text "Material binding #" :<>: ShowType n :<>: TypeAndInternalType x
                :<>: Text " isn't compatible with the descriptor binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (DSetBinding' 1 n p))
       , CompatibleMaterial xs p
       )
@@ -72,10 +72,15 @@ type family CompatibleRender as p where
   CompatibleRender ('(n,x) ': xs) p
     = ( Syntactic x
       , Match (InternalType x) (DSetBinding' 0 n p)
-              (Text "Render property binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType x
+              (Text "Render property binding #" :<>: ShowType n :<>: TypeAndInternalType x
                 :<>: Text " isn't compatible with the descriptor binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (DSetBinding' 0 n p))
       , CompatibleRender xs p
       )
+
+type TypeAndInternalType :: Type -> ErrorMessage
+type family TypeAndInternalType x where
+  TypeAndInternalType x = Text " of type " :<>: ShowType x :<>: Text " and internal type " :<>: ShowType (InternalType x)
+
 
 
 ------- Matching -----------------------------------

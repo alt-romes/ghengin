@@ -17,7 +17,7 @@ blinnPhong :: ∀ π
 
               , CanGet "in_position" π
               , CanGet "in_normal" π
-              , CanGet "camera_pos" π
+              , CanGet "ubo" π
 
               , _ -- extra constraints (wildcard at the end)
               )
@@ -26,7 +26,7 @@ blinnPhong specularity col = do
 
     ~(Vec4 px py pz _) <- get @"in_position" @(V 4 Float) @π
     ~(Vec4 nx ny nz _) <- get @"in_normal"   @(V 4 Float) @π
-    ~(Vec3 cx cy cz)   <- use @(Name "camera_pos" :.: Name "val")
+    ~(Vec3 cx cy cz)   <- use @(Name "ubo" :.: Name "camera_pos")
 
     let
 

@@ -37,9 +37,8 @@ type FixedVertices
 type FixedDescriptorSetZero
   = '[ "ubo" ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                            ( Struct '[ "view" ':-> M 4 4 Float
-                                     , "proj" ':-> M 4 4 Float ] )
-     , "camera_pos" ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
-                                  ( Struct '[ "val" ':-> V 3 Float ] )
+                                     , "proj" ':-> M 4 4 Float
+                                     , "camera_pos" ':-> V 3 Float ] )
      ]
 
 -- | Push constant is always passed per-model with the model transform matrix according to the scene graph

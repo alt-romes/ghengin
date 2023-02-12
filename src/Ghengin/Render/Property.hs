@@ -12,11 +12,11 @@ import qualified Unsafe.Coerce
 
 data PropertyBinding α where
 
-  DynamicBinding :: ∀ α. (Storable α, Sized α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
+  DynamicBinding :: ∀ α. (Storable α) -- Storable to write the buffers
                  => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                  -> PropertyBinding α
 
-  StaticBinding :: ∀ α. (Storable α, Sized α) -- Storable to write the buffers, Sized to guarantee the instance exists to validate at compile time against the pipeline
+  StaticBinding :: ∀ α. (Storable α) -- Storable to write the buffers
                 => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                 -> PropertyBinding α
 
