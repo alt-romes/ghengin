@@ -27,6 +27,9 @@ module Ghengin
   -- * Render properties
   , PropertyBinding(..)
 
+  -- * Compatible
+  , Compatible
+
   -- | TODO: Export Vecs from other module
   , module Geomancy.Vec3
   , module Geomancy.Mat4
@@ -35,6 +38,7 @@ module Ghengin
   ) where
 
 -- Re-exports
+import Ghengin.Core.Type.Compatible
 import Ghengin.Component.Mesh.Vertex
 import Ghengin.Render.Property
 -- End re-exports

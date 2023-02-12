@@ -170,12 +170,12 @@ instance GStorable UBO
 instance Sized UBO where
   type SizeOf UBO = 2 * 4*4*4
 
-newPlanet :: ∀ a w. (Typeable a, Compatible PlanetProps a '[Vec3,Vec3,Vec3] '[UBO, Vec3]) => PlanetSettings -> RenderPipeline '[UBO, Vec3] a -> Ghengin w Planet
+newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[UBO, Vec3] p) => PlanetSettings -> RenderPipeline '[UBO, Vec3] p -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
   (mesh,minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad
   mat <- lift $ material (planetMaterial minmax tex) pipeline
-  renderPacket @PlanetProps @a mesh mat pipeline
+  renderPacket @p @_ @PlanetProps mesh mat pipeline
 
 newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], MinMax)
 newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
