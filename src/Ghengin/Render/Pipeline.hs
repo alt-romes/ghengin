@@ -1,7 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -9,26 +7,21 @@
 {-# LANGUAGE RecordWildCards #-}
 module Ghengin.Render.Pipeline where
 
-import qualified Data.IntMap as IM
-import qualified Data.Vector as V
+import Control.Lens (Lens', lens)
 import Control.Monad
 import Data.List.NonEmpty (NonEmpty((:|)))
-import Data.Vector (Vector)
 import Foreign.Storable
-
 import Geomancy.Mat4
-import qualified Vulkan as Vk
-
-import Ghengin.Shader
-import Ghengin.Vulkan.Buffer
-import Ghengin.Vulkan.RenderPass
-import Ghengin.Vulkan.Pipeline
-import Ghengin.Vulkan.DescriptorSet
-import Ghengin.Vulkan
-
-import Control.Lens (Lens', lens)
-
 import Ghengin.Render.Property
+import Ghengin.Shader
+import Ghengin.Utils (GHList(..))
+import Ghengin.Vulkan
+import Ghengin.Vulkan.DescriptorSet
+import Ghengin.Vulkan.Pipeline
+import Ghengin.Vulkan.RenderPass
+import qualified Data.IntMap as IM
+import qualified Data.Vector as V
+import qualified Vulkan as Vk
 
 -- | A render pipeline consists of the descriptor sets and a graphics pipeline
 -- required to render certain 'RenderPacket's
@@ -36,7 +29,7 @@ data RenderPipeline tys info where
 
   RenderPipeline :: { _graphicsPipeline  :: VulkanPipeline
                     , _renderPass        :: VulkanRenderPass
-                    , _descriptorSetsSet :: NonEmpty (Vector DescriptorSet, DescriptorPool) -- We need descriptor sets for each frame in flight
+                    , _descriptorSetsSet :: NonEmpty (DescriptorSet, DescriptorPool) -- A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
                     , _shaderPipeline    :: ShaderPipeline info
                     } -> RenderPipeline '[] info
 
@@ -75,52 +68,69 @@ makeRenderPipeline shaderPipeline mkRP = do
   --
   -- TODO: The dpool per frame in flight doesn't make any sense at the moment, for now we simply allocate from the first pool.
   -- TODO: it doesn't need to be per frame in flight, we just need two to switch between, despite the number of frames in flight
-  dsetsSet@(dsets:|_) <- mapM (const (createPipelineDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
+  -- BIG:TODO: Fix multiple frames in flight
+  dsetsSet@((dsetf,dpool):|_) <- mapM (const (createPipelineDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
 
-  pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (V.fromList $ fmap fst (IM.elems $ (snd dsets)._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+  dummySet <- dsetf mempty 
+  let dummyRP :: RenderPipeline τ info = mkRP $ RenderPipeline undefined undefined [(dummySet, dpool)] shaderPipeline
 
-  pure $ mkRP $ RenderPipeline pipeline simpleRenderPass dsetsSet shaderPipeline
+  -- Make the resource map for this render pipeline using the dummyRP
+  resources <- makeResources (renderProperties @τ @info dummyRP)
 
-createPipelineDescriptorSets :: ShaderPipeline info -> Renderer ext (Vector DescriptorSet, DescriptorPool)
+  actualSets <- mapM (\(f,p) -> (,p) <$> f resources) dsetsSet
+
+  pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (V.fromList $ fmap fst (IM.elems dpool._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+
+  pure $ mkRP $ RenderPipeline pipeline simpleRenderPass actualSets shaderPipeline
+
+createPipelineDescriptorSets :: ShaderPipeline info -> Renderer ext (ResourceMap -> Renderer ext DescriptorSet, DescriptorPool)
 createPipelineDescriptorSets pp = do
 
-  -- The pipeline should only allocate a descriptor set #0, it needs no else
+  -- The pipeline should only allocate a descriptor set #0 to be used by render
+  -- properties
 
-  -- Currently we allocate unnecessary #1 sets: the used ones are allocated on a per-material basis
   let dsetmap = createDescriptorSetBindingsMap pp
   dpool <- createDescriptorPool dsetmap
-  dsetf <- allocateDescriptorSet 0 dpool -- allocate descriptor set #0
 
-  let makeResource :: BindingsMap -> Renderer ext ResourceMap
-      makeResource = traverse (\case (Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER,size,_ssf) -> UniformResource <$> createMappedBuffer size Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER)
+  -- Allocate descriptor set #0 to be used by this render pipeline's
+  -- render properties The resources themselves will be written to the
+  -- descriptor set by the function effectively creating the render pipeline
+  -- (which has knowledge of the render properties to allocate the correct type
+  -- of resource for each descriptor)
+  --
+  -- The allocation actually returns a closure which must be applied to a
+  -- resource map to be complete
+  dsetf <- allocateDescriptorSet 0 dpool 
 
-  -- Write with resources for descriptor set #0
-  dset <- dsetf =<< makeResource (dsetmap IM.! 0)
+  pure (dsetf, dpool)
 
-  pure ([dset], dpool)
 
+renderProperties :: RenderPipeline τ info -> PropertyBindings τ
+renderProperties = \case
+  RenderPipeline {} -> GHNil
+  RenderProperty x xs -> x :## renderProperties xs
 
 
 destroyRenderPipeline :: RenderPipeline τ α -> Renderer ext ()
 destroyRenderPipeline (RenderProperty _ rp) = destroyRenderPipeline rp
 destroyRenderPipeline (RenderPipeline gp rp dss _) = do
-  forM_ dss $ \(dsets, dpool) -> do
+  forM_ dss $ \(dset, dpool) -> do
     destroyDescriptorPool dpool
     -- TODO: Destroy descriptor set resources if they are not shared (for now,
     -- this is only set #0, so this is always fine since there is nothing
     -- shared here)
-    mapM_ destroyDescriptorSet dsets
+    destroyDescriptorSet dset
   destroyRenderPass rp
   destroyPipeline gp
 
-descriptorSetsSet :: Lens' (RenderPipeline τ α) (NonEmpty (Vector DescriptorSet, DescriptorPool))
+descriptorSetsSet :: Lens' (RenderPipeline τ α) (NonEmpty (DescriptorSet, DescriptorPool))
 descriptorSetsSet = lens get' set'
   where
-    get' :: RenderPipeline τ α -> NonEmpty (Vector DescriptorSet, DescriptorPool)
+    get' :: RenderPipeline τ α -> NonEmpty (DescriptorSet, DescriptorPool)
     get' RenderPipeline{_descriptorSetsSet} = _descriptorSetsSet
     get' (RenderProperty _ rp) = get' rp
 
-    set' :: RenderPipeline τ α -> NonEmpty (Vector DescriptorSet, DescriptorPool) -> RenderPipeline τ α
+    set' :: RenderPipeline τ α -> NonEmpty (DescriptorSet, DescriptorPool) -> RenderPipeline τ α
     set' rp@RenderPipeline{} newrp = rp{_descriptorSetsSet = newrp}
     set' (RenderProperty x rp) newrp = RenderProperty x (set' rp newrp)
 

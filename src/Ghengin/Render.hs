@@ -9,13 +9,12 @@
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Render where
 
-import Apecs (Has, cfold, cmapM)
+import Apecs (Has, cfold)
 import Data.Maybe
 
 import Control.Monad.State
 import Control.Exception
 
-import qualified Data.IntMap as IM
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 import qualified Vulkan as Vk
@@ -66,10 +65,6 @@ instance S.Storable UniformBufferObject where
     S.poke p vi
     S.pokeElemOff p 1 pr
 
--- instance Poke UniformBufferObject Extended where
---   type SizeOf Extended UniformBufferObject = 128 -- 2*16
---   type Alignment Extended UniformBufferObject = 128 -- 2*16
---   poke = S.poke
 
 {-
 Note [Renderer]
@@ -141,13 +136,6 @@ render i = do
 
   _ <- withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
 
-    let
-        descriptorSet :: RenderPipeline α ξ -> Int -> DescriptorSet
-        descriptorSet pipeline setIx = fst ((pipeline^.descriptorSetsSet) NE.!! currentFrame) V.! setIx -- must guarantee that there exist this amount of sets in this pipeline
-
-        descriptorSetBinding :: RenderPipeline α ξ -> Int -> Int -> DescriptorResource
-        descriptorSetBinding pipeline setIx bindingIx = (descriptorSet pipeline setIx)._bindings IM.! bindingIx
-
     recordCommand cmdBuffer $ do
 
       -- Now, render the renderable entities from the render queue in the given order.
@@ -167,33 +155,21 @@ render i = do
             setViewport viewport
             setScissor  scissor
 
-            -- TODO: This next bit has got to be re-done
-            -- TODO: Bind pipeline-global data to descriptor set #0
-            -- Get main camera, for the time being it's the only possible pipeline data for the shader
-            -- The last camera will override the write buffer
-            lift $ cmapM $ \(Camera proj view, fromMaybe (ModelMatrix identity 0) -> ModelMatrix camTr _) -> do
+            case fst ((pipeline ^. descriptorSetsSet) NE.!! currentFrame) of -- TODO: Fix frames in flight...
+              EmptyDescriptorSet -> pure () -- Bail out, we don't have to do anything on an empty descriptor set. This happens if there isn't a single binding in set #1
+              ppDSet@DescriptorSet{} -> do
 
-              projM <- lift $ makeProjection proj
-              let viewM = makeView camTr view
+                -- These render properties are necessarily compatible with this
+                -- pipeline in the set #0, so the 'descriptorSetBinding' buffer
+                -- will always be valid to write with the corresponding
+                -- material binding
+                --
+                -- getUniformBuffer is partially applied to matDSet so it can be used to fetch each material descriptor
+                lift $ writeRenderProperties (getUniformBuffer ppDSet) pipeline
+                
+                -- Bind descriptor set #0
+                bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout 0 ppDSet._descriptorSet
 
-                  ubo   = UBO viewM projM
-
-              -- TODO : Move out of cmapM
-              -- Currently the descriptor set #0 always has just a uniform buffer and other fixed engine information
-              case descriptorSetBinding pipeline 0 0 of
-                UniformResource buf -> lift $ writeMappedBuffer buf ubo
-
-              -- TODO: Either allow binding set #0 flexibly or describe how the
-              -- implementation always passes this information to the shader
-              case descriptorSetBinding pipeline 0 1 of
-                UniformResource buf -> lift $ writeMappedBuffer buf (posFromMat4 camTr)
-
-            -- TODO: Write descriptor set #0 bindings just like we do for materials.
-            -- The render pipelien will need to have a resource map just like a material
-
-            -- Bind descriptor set #0
-            bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout
-              0 (descriptorSet pipeline 0)._descriptorSet
 
           )
         (\(SomePipeline pipeline) (SomeMaterial material) -> do
@@ -211,8 +187,7 @@ render i = do
                 
                 -- static bindings will have to choose a different dset
                 -- Bind descriptor set #1
-                bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout
-                  1 matDSet._descriptorSet
+                bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout 1 matDSet._descriptorSet
 
           )
         (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> do
@@ -249,12 +224,11 @@ render i = do
 
 -- | Bind a material.
 --
--- (1) For each binding
+-- (1) For each binding, update the property
 --    (1.1) If it's dynamic, write the buffer
 --    (1.2) If it's static, do nothing because the buffer is already written
 --    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
--- (2) Bind the descriptor set #1 with this material's descriptor set ( This is
--- not being done here ??? )
+-- (2) Bind the descriptor set #1 with this material's descriptor set (This is done in the render function)
 --
 -- The material bindings function should be created from a compatible pipeline
 writeMaterial :: ∀ σ ω. (Int -> MappedBuffer) -> Material σ -> Ghengin ω ()
@@ -264,6 +238,25 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
   go n = \case
     Done _ -> assert (n == (-1)) (pure ()) -- (only triggered with -O0)
     MaterialProperty binding as -> do
-      lift $ writeProperty (materialBinding n) binding -- TODO: We domnt want to fetch the binding so often. Each propety could have its ID and fetch it if required
+      lift $ writeProperty (materialBinding n) binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
       go (n-1) as
+
+-- | Bind a render property.
+--
+-- (1) For each binding, update the property
+--    (1.1) If it's dynamic, write the buffer
+--    (1.2) If it's static, do nothing because the buffer is already written
+--    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
+-- (2) Bind the descriptor set #0 with this material's descriptor set (This is done in the render function)
+--
+-- The render property bindings function should be created from a compatible pipeline
+writeRenderProperties :: ∀ σ ω ι. (Int -> MappedBuffer) -> RenderPipeline σ ι -> Ghengin ω ()
+writeRenderProperties renderPropertyBinding mat = go 0 mat where
+
+  go :: ∀ υ. Int -> RenderPipeline υ ι -> Ghengin ω ()
+  go n = \case
+    RenderPipeline {} -> assert (n == (-1)) (pure ()) -- (only triggered with -O0)
+    RenderProperty binding as -> do
+      lift $ writeProperty (renderPropertyBinding n) binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
+      go (n+1) as
 
