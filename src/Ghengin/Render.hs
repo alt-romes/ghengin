@@ -251,11 +251,11 @@ writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
 --
 -- The render property bindings function should be created from a compatible pipeline
 writeRenderProperties :: ∀ σ ω ι. (Int -> MappedBuffer) -> RenderPipeline σ ι -> Ghengin ω ()
-writeRenderProperties renderPropertyBinding mat = go 0 mat where
+writeRenderProperties renderPropertyBinding = go 0 where
 
   go :: ∀ υ. Int -> RenderPipeline υ ι -> Ghengin ω ()
   go n = \case
-    RenderPipeline {} -> assert (n == (-1)) (pure ()) -- (only triggered with -O0)
+    RenderPipeline {} -> pure ()
     RenderProperty binding as -> do
       lift $ writeProperty (renderPropertyBinding n) binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
       go (n+1) as
