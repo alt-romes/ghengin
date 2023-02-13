@@ -13,6 +13,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 
 import Data.Typeable
+import Data.Maybe
 import System.Mem
 import System.Random
 import GHC.TypeLits
@@ -79,12 +80,12 @@ updateG () dt = do
   -- Get main camera, for the time being it's the only possible pipeline data for the shader
   -- The last camera will override the write buffer
 
-  -- cmapM $ \(Camera proj view, fromMaybe (ModelMatrix identity 0) -> ModelMatrix camTr _) -> do
+  cmapM $ \(Camera proj view, fromMaybe (ModelMatrix identity 0) -> ModelMatrix camTr _) -> do
 
-  --   projM <- lift $ makeProjection proj
-  --   let viewM = makeView camTr view
-  --       ubo   = CameraProperty viewM projM (posFromMat4 camTr)
-  --    in pure ()
+    projM <- lift $ makeProjection proj
+    let viewM = makeView camTr view
+        ubo   = CameraProperty viewM projM (posFromMat4 camTr)
+     in pure ()
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr
   cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)

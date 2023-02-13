@@ -30,6 +30,7 @@ import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.DescriptorSet
 import qualified Data.IntMap as IM
 import qualified Data.List.NonEmpty as NE
+import Unsafe.Coerce
 
 {-
 
@@ -117,7 +118,7 @@ material matf rp =
 
          -- Make the resource map for this material
          -- Will also count texture references
-         resources <- makeResources (materialProperties @α dummyMat)
+         resources <- makeResources ((unsafeCoerce . reverse . unsafeCoerce) $ materialProperties @α dummyMat)
 
          -- Create the descriptor set with the written descriptors based on the
          -- created resource map
@@ -300,6 +301,7 @@ materialDescriptorSet = lens get' set'
       Done x -> Done $ first (const d) x
       MaterialProperty x m' -> MaterialProperty x (set' m' d)
 
+-- | Note the properties are returned using the reverse order that I DEFINITELY need to fix because it complicates everything.
 materialProperties :: Material α -> PropertyBindings α
 materialProperties = \case
   Done _ -> GHNil
