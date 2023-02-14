@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Render.Property where
 
 import Data.Foldable
@@ -21,6 +22,7 @@ data PropertyBinding α where
                 -> PropertyBinding α
 
   Texture2DBinding :: Texture2D -> PropertyBinding Texture2D
+
 
 instance Eq α => Eq (PropertyBinding α) where
   (==) (DynamicBinding x) (DynamicBinding y) = x == y
@@ -80,15 +82,13 @@ makeResources = foldrM (\(i,x) acc -> go acc i x) mempty . zip [0..] . Unsafe.Co
 --    (1.1) If it's dynamic, write the buffer
 --    (1.2) If it's static, do nothing because the buffer is already written
 --    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
--- (2) Bind the descriptor set #1 with this material's descriptor set ( This is
--- not being done here ??? )
 --
--- The material bindings function should be created from a compatible pipeline
+-- The property bindings function should be created from a compatible pipeline
 writeProperty :: MappedBuffer -> PropertyBinding α -> Renderer χ ()
 writeProperty buf = \case
   StaticBinding  _ ->
     -- Already has been written to, we simply bind it together with the rest of
-    -- the set at draw and do nothing here.
+    -- the set at draw time and do nothing here.
     pure ()
   Texture2DBinding  _ ->
     -- As above. Static bindings don't get written every frame.
@@ -96,4 +96,45 @@ writeProperty buf = \case
   DynamicBinding (a :: α) ->
     -- Dynamic bindings are written every frame
     writeMappedBuffer @α buf a
+{-# INLINE writeProperty #-}
+
+editProperty :: ∀ α χ
+              . PropertyBinding α   -- ^ Property to edit/update
+             -> (α -> Renderer χ α) -- ^ Update function
+             -> Int                 -- ^ Property index in descriptor set
+             -> DescriptorSet       -- ^ The descriptor set with corresponding index and property resources
+             -> Renderer χ (PropertyBinding α) -- ^ Returns the updated property binding
+editProperty prop update i dset = case prop of
+    DynamicBinding x -> do
+      ux <- update x
+      writeDynamicBinding ux i dset
+      pure $ DynamicBinding ux
+    StaticBinding x -> do
+      ux <- update x
+      writeStaticBinding ux i dset
+      pure $ StaticBinding ux
+    Texture2DBinding x -> do
+      ux <- update x
+      updateTextureBinding ux i dset
+
+      -- We free the texture that was previously bound
+      freeTexture x
+      -- We increase the texture reference count that was just now bound
+      incRefCount ux
+
+      pure $ Texture2DBinding ux
+
+writeDynamicBinding :: ∀ α χ. Storable α => α -> Int -> DescriptorSet -> Renderer χ ()
+writeDynamicBinding a i dset = writeMappedBuffer @α (getUniformBuffer dset i) a
+
+-- For now, static bindings use a mapped buffer as well
+writeStaticBinding :: ∀ α χ. Storable α => α -> Int -> DescriptorSet -> Renderer χ ()
+writeStaticBinding a i dset = writeMappedBuffer @α (getUniformBuffer dset i) a
+
+-- | Overwrite the texture bound on a descriptor set at binding #n
+--
+-- TODO: Is it OK to overwrite previously written descriptor sets at specific points?
+updateTextureBinding :: Texture2D -> Int -> DescriptorSet -> Renderer χ ()
+updateTextureBinding tex i dset = updateDescriptorSet (dset._descriptorSet) (IM.singleton i (Texture2DResource tex))
+
 

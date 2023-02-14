@@ -26,7 +26,6 @@ import Ghengin.Render.Pipeline
 import Ghengin.Render.Property
 import Ghengin.Utils
 import Ghengin.Vulkan
-import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.DescriptorSet
 import qualified Data.IntMap as IM
 import qualified Data.List.NonEmpty as NE
@@ -228,25 +227,8 @@ instance TypeError (Text "Failed to get binding #" :<>: ShowType (n-1) :<>: Text
 instance {-# OVERLAPPING #-} KnownNat n => HasBindingAt' n n (b ': as) b where
   getBindingValue' = headMat
 
-  medit' mat update = case mat of
-    MaterialProperty (DynamicBinding x) xs -> do
-      ux <- update x
-      writeDynamicBinding ux (fromIntegral (natVal $ Proxy @n) - 1) (xs ^. materialDescriptorSet)
-      pure $ MaterialProperty (DynamicBinding ux) xs
-    MaterialProperty (StaticBinding x) xs -> do
-      ux <- update x
-      writeStaticBinding ux (fromIntegral (natVal $ Proxy @n) - 1) (xs ^. materialDescriptorSet)
-      pure $ MaterialProperty (StaticBinding ux) xs
-    MaterialProperty (Texture2DBinding x) xs -> do
-      ux <- update x
-      updateTextureBinding ux (fromIntegral (natVal $ Proxy @n) - 1) (xs ^. materialDescriptorSet)
-
-      -- We free the texture that was previously bound
-      freeTexture x
-      -- We increase the texture reference count that was just now bound
-      incRefCount ux
-
-      pure $ MaterialProperty (Texture2DBinding ux) xs
+  medit' (MaterialProperty prop xs) update =
+    MaterialProperty <$> editProperty prop update (fromIntegral (natVal $ Proxy @n) - 1) (xs ^. materialDescriptorSet) <*> pure xs
     
 
 instance {-# OVERLAPPABLE #-} HasBindingAt' n (m-1) as b => HasBindingAt' n m (a ': as) b where
@@ -261,19 +243,6 @@ headMat = \case
 
 tailMat :: ∀ α β. Material (α ': β) -> Material β
 tailMat (MaterialProperty _ xs) = xs
-
-writeDynamicBinding :: ∀ α χ. Storable α => α -> Int -> DescriptorSet -> Renderer χ ()
-writeDynamicBinding a i dset = writeMappedBuffer @α (getUniformBuffer dset i) a
-
--- For now, static bindings use a mapped buffer as well
-writeStaticBinding :: ∀ α χ. Storable α => α -> Int -> DescriptorSet -> Renderer χ ()
-writeStaticBinding a i dset = writeMappedBuffer @α (getUniformBuffer dset i) a
-
--- | Overwrite the texture bound on a descriptor set at binding #n
---
--- TODO: Is it OK to overwrite previously written descriptor sets at specific points?
-updateTextureBinding :: Texture2D -> Int -> DescriptorSet -> Renderer χ ()
-updateTextureBinding tex i dset = updateDescriptorSet (dset._descriptorSet) (IM.singleton i (Texture2DResource tex))
 
 -- | Returns the number of bindings
 matSizeBindings :: ∀ α. Material α -> Int
