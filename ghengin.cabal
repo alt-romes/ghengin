@@ -78,6 +78,7 @@ library
     exposed-modules:  Ghengin,
 
                       Ghengin.Core.Type.Compatible,
+                      Ghengin.Core.Render.Property,
 
 
                       Ghengin.Asset.Texture,
@@ -101,7 +102,6 @@ library
                       Ghengin.Render.Packet,
                       Ghengin.Render.Pipeline,
                       Ghengin.Render.Queue,
-                      Ghengin.Render.Property,
                       Ghengin.Scene,
                       Ghengin.Scene.Graph,
                       Ghengin.Shader,

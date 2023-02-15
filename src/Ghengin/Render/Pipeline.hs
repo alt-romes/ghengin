@@ -12,7 +12,7 @@ import Control.Monad
 import Data.List.NonEmpty (NonEmpty((:|)))
 import Foreign.Storable
 import Geomancy.Mat4
-import Ghengin.Render.Property
+import Ghengin.Core.Render.Property
 import Ghengin.Shader
 import Ghengin.Utils (GHList(..))
 import Ghengin.Vulkan
@@ -119,6 +119,7 @@ destroyRenderPipeline (RenderPipeline gp rp dss _) = do
     -- TODO: Destroy descriptor set resources if they are not shared (for now,
     -- this is only set #0, so this is always fine since there is nothing
     -- shared here)
+    -- TODO: This now crashes the program
     destroyDescriptorSet dset
   destroyRenderPass rp
   destroyPipeline gp

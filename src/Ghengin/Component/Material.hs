@@ -16,14 +16,14 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Component.Material where
 
-import Control.Lens ((^.), Lens', lens)
+import Control.Lens ((^.), Lens', Lens, lens)
 import Data.Bifunctor
 import Data.Typeable
 import Data.Unique
 import GHC.TypeLits
 import Ghengin.Asset.Texture
 import Ghengin.Render.Pipeline
-import Ghengin.Render.Property
+import Ghengin.Core.Render.Property
 import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Vulkan.DescriptorSet
@@ -129,121 +129,6 @@ material matf rp =
 
          pure actualMat
 
-
-class HasBindingsAt ns α βs where
-  getBindingValues :: Material α -> HList βs
-
-  -- | Like 'medit' but edit multiple material properties/bindings at the same time
-  --
-  -- @
-  -- Update bindings #0 and #2
-  -- newMaterial <- medits @PlanetMaterial @[0,2] mat $ (\_oldMinMax -> newMinMax) :# (\_oldTex -> newTex) :# HNil
-  -- @
-  --
-  -- Updates are done from left to right in the list of updates, if that matters
-  medits :: Material α -> HFList βs -> Renderer χ (Material α)
-
-instance HasBindingsAt '[] α '[] where
-  getBindingValues _ = HNil
-  medits mat _ = pure mat
-
-instance (HasBindingAt n α β, HasBindingsAt ns α βs) => HasBindingsAt (n ': ns) α (β ': βs) where
-  getBindingValues mat = getBindingValue @n @α @β mat :# getBindingValues @ns @α @βs mat
-
-  medits mat (update :-# updates) = do
-    newMat <- medit @n @α @β mat update
-    medits @ns @α @βs newMat updates
-
-  medits mat (update :+# updates) = do
-    newMat <- meditM @n @α @β mat update
-    medits @ns @α @βs newMat updates
-
-class HasBindingAt n α β where
-  getBindingValue :: Material α -> β
-
-  -- | Edit a material.
-  --
-  -- Most materials are (existentially) stored within a render packet, and thus
-  -- cannot be edited without checking what material is what, even if we, at the
-  -- apecs level, only query for entities that we are sure to have that material.
-  --
-  -- To introduce a local equality constraint proving that the material we looked
-  -- up is in fact the one we want to edit, we must use @Data.Typeable@'s @eqT@ function.
-  --
-  -- Example
-  -- @
-  -- RenderPacket oldMesh (someMaterial :: Material mt) pp _ <- C.get planetEntity
-  --
-  -- -- Pattern match on Refl to introduce the mt ~ PlanetMaterial local equality
-  -- Just Refl <- pure $ eqT @mt @PlanetMaterial
-  --
-  -- -- We can now edit the material's second binding because we know it to be a PlanetMaterial material
-  -- newMat    <- medit @2 @PlanetMaterial someMaterial $ \(WithVec3 x y z) -> vec3 x (y+1) z
-  -- C.set planetEntity (renderPacket oldMesh newMat pp)
-  -- @
-  --
-  -- The nice thing about introducing equality constraints is that we can edit
-  -- the material and then re-create the render packet with the same pipeline as
-  -- it was originally created despite us not knowing anything about its type:
-  -- The local equality simply allowed us to edit the Material with at specific
-  -- type, but the information regarding compatibility between *that same type
-  -- (that we previously didn't know enough about to edit)* is preserved!
-  --
-  -- Additionally, when the material is edited through this function
-  -- resources can be automatically managed if needed
-  --
-  -- Previously we would have to recreate and reallocate all the descriptors and
-  -- buffers for a material, now we can simply rewrite the exact buffer without
-  -- doing a single allocation, or update the dset with the new texture
-  --
-  -- Another great thing, previously we would need to allocate a new descriptor
-  -- set every time we wanted to edit a material, but we didn't discard it
-  -- because freeing descriptor sets is actually freeing the pool (or using a
-  -- specific slower flag for freeing individual sets if i'm not mistaken).
-  -- This way, we always re-use the same set by simply writing over the e.g.
-  -- texture bindings if need be
-  medit :: Material α -> (β -> β) -> Renderer χ (Material α)
-
-  -- | Like 'medit' but with monadic computation
-  meditM :: Material α -> (β -> Renderer χ β) -> Renderer χ (Material α)
-
-
-instance HasBindingAt' (n+1) (Length α) α β => HasBindingAt n α β where
-  getBindingValue = getBindingValue' @(n+1) @(Length α) @α @β
-  medit mat update = medit' @(n+1) @(Length α) @α @β mat (pure . update)
-  meditM mat update = medit' @(n+1) @(Length α) @α @β mat update
-
-class HasBindingAt' n m a b where
-  getBindingValue' :: Material a -> b
-  medit' :: Material a -> (b -> Renderer χ b) -> Renderer χ (Material a)
-
-instance TypeError (Text "Failed to get binding #" :<>: ShowType (n-1) :<>: Text " of Material " :<>: ShowType α)
-  => HasBindingAt' n 0 α b where
-  getBindingValue' = undefined
-  medit' = undefined
-
--- This instance should always overlap the recursive instance below because we
--- want to stop when we find the binding
-instance {-# OVERLAPPING #-} KnownNat n => HasBindingAt' n n (b ': as) b where
-  getBindingValue' = headMat
-
-  medit' (MaterialProperty prop xs) update =
-    MaterialProperty <$> editProperty prop update (fromIntegral (natVal $ Proxy @n) - 1) (xs ^. materialDescriptorSet) <*> pure xs
-    
-
-instance {-# OVERLAPPABLE #-} HasBindingAt' n (m-1) as b => HasBindingAt' n m (a ': as) b where
-  getBindingValue' (MaterialProperty _ xs) = getBindingValue' @n @(m-1) @as @b xs
-  medit' (MaterialProperty x xs) update = MaterialProperty x <$> medit' @n @(m-1) @as @b xs update
-
-headMat :: ∀ α β. Material (α ': β) -> α
-headMat = \case
-  MaterialProperty (DynamicBinding    x) _ -> x
-  MaterialProperty (StaticBinding     x) _ -> x
-  MaterialProperty (Texture2DBinding  x) _ -> x
-
-tailMat :: ∀ α β. Material (α ': β) -> Material β
-tailMat (MaterialProperty _ xs) = xs
-
 -- | Returns the number of bindings
 matSizeBindings :: ∀ α. Material α -> Int
 matSizeBindings = -- fromInteger $ natVal $ Proxy @(ListSize α)
@@ -256,19 +141,6 @@ instance Eq (Material '[]) where
 
 instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
   (==) (MaterialProperty a xs) (MaterialProperty b ys) = a == b && xs == ys
-
-materialDescriptorSet :: Lens' (Material α) DescriptorSet
-materialDescriptorSet = lens get' set'
-  where
-    get' :: Material α -> DescriptorSet
-    get' = \case
-      Done x -> fst x
-      MaterialProperty _ xs -> get' xs
-      
-    set' :: Material α -> DescriptorSet -> Material α
-    set' m d = case m of
-      Done x -> Done $ first (const d) x
-      MaterialProperty x m' -> MaterialProperty x (set' m' d)
 
 -- | Note the properties are returned using the reverse order that I DEFINITELY need to fix because it complicates everything.
 materialProperties :: Material α -> PropertyBindings α
@@ -290,14 +162,22 @@ freeMaterial = \case
     freeTexture tex
     freeMaterial xs
 
+instance HasProperties Material where
 
--- Heterogenous list of functions
--- We use this instaed of the below function in Material to get better type
--- inference
-data HFList xs where
-    HFNil :: HFList '[]
-    (:-#) :: (a -> a) -> HFList as -> HFList (a ': as)
-    (:+#) :: (forall χ. a -> Renderer χ a) -> HFList as -> HFList (a ': as)
-infixr 6 :-#
-infixr 6 :+#
+  descriptorSet :: Lens' (Material α) DescriptorSet
+  descriptorSet = lens get' set' where
+    get' :: Material α -> DescriptorSet
+    get' = \case
+      Done x -> fst x
+      MaterialProperty _ xs -> get' xs
+      
+    set' :: Material α -> DescriptorSet -> Material α
+    set' m d = case m of
+      Done x -> Done $ first (const d) x
+      MaterialProperty x m' -> MaterialProperty x (set' m' d)
 
+  puncons :: Material (α:β) -> (PropertyBinding α, Material β)
+  puncons (MaterialProperty p xs) = (p, xs)
+
+  pcons :: PropertyBinding α -> Material β -> Material (α:β)
+  pcons = MaterialProperty

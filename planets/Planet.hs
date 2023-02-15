@@ -54,7 +54,7 @@ import qualified Ghengin.Shader.FIR as FIR
 import Noise
 
 type Planet = RenderPacket
-type PlanetProps = '[Texture2D,MinMax]
+type PlanetProps = '[MinMax,Texture2D]
 
 data MinMax = MinMax Float Float
   deriving (Eq, Generic, Show)
@@ -71,7 +71,7 @@ instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
 planetMaterial :: MinMax -> Texture2D -> Material' PlanetProps
-planetMaterial mm t = MaterialProperty (Texture2DBinding t) . MaterialProperty (StaticBinding mm)
+planetMaterial mm t = MaterialProperty (StaticBinding mm) . MaterialProperty (Texture2DBinding t)
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
@@ -130,7 +130,7 @@ instance UISettings PlanetSettings where
             -- didn't remove the original compatibility between the existential
             -- material and pipeline
             newTex <- textureFromGradient grad
-            newMat <- lift $ medit @1 @PlanetProps mat $ \_ -> newTex
+            newMat <- lift $ mat & propertyAt @1 .~ pure newTex
 -- TODO: For now we have to do this manually since re-using the same mesh but
 -- building a new render packet will make the reference count of the same mesh
 -- be incorrectly increased. Perhaps we could have a similar function which takes some parameters.
@@ -160,7 +160,7 @@ instance UISettings PlanetSettings where
 
            -- Edit multiple material properties at the same time
            -- newMaterial <- lift $ medits @[0,1] @PlanetProps mat $ (\_oldMinMax -> newMinMax) :-# pure :+# HFNil
-           newMaterial <- lift $ medit @0 @PlanetProps mat (\_oldMinMax -> newMinMax)
+           newMaterial <- lift $ mat & propertyAt @0 .~ pure newMinMax
 
            C.set planetEntity =<< renderPacket newMesh newMaterial pp
       _ -> error "Not a planet material nor mesh BOOM"

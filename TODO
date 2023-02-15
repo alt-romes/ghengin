@@ -1,3 +1,5 @@
+[ ] Fix segfault caused by freeing descriptor set in render pipeline
+[ ] Edit for all render properties instead of just material (migrate medit)
 [ ] Fix Frames in Flight
 [ ] Un-built-in Transform and the push constant that pushes it
 [ ] Consider moving Ghengin.Core to its own package

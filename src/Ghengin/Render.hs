@@ -37,7 +37,7 @@ import Ghengin.Render.Queue
 import Ghengin.Component.Mesh
 import Ghengin.Component.Material hiding (material)
 import Ghengin.Utils
-import Ghengin.Render.Property
+import Ghengin.Core.Render.Property
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
 import Control.Lens ((^.))
@@ -176,7 +176,7 @@ render i = do
 
             logTrace ("Binding material")
 
-            case material ^. materialDescriptorSet of
+            case material ^. descriptorSet of
               EmptyDescriptorSet -> pure () -- Bail out, we don't have to do anything on an empty descriptor set. This happens if there isn't a single binding in set #1
               matDSet@DescriptorSet{} -> do
 

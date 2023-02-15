@@ -19,13 +19,14 @@ module Ghengin
 
   -- * Materials
   , Material(..), Material'
-  , material, HasBindingsAt(..), HasBindingAt(..)
+  , material
 
   -- * Render pipelines
   , RenderPipeline, makeRenderPipeline
 
   -- * Render properties
   , PropertyBinding(..)
+  , HasPropertyAt(..)
 
   -- * Compatible
   , Compatible
@@ -34,13 +35,15 @@ module Ghengin
   , module Geomancy.Vec3
   , module Geomancy.Mat4
 
+  , module Control.Lens
+
   , lift, liftIO
   ) where
 
 -- Re-exports
 import Ghengin.Core.Type.Compatible
 import Ghengin.Component.Mesh.Vertex
-import Ghengin.Render.Property
+import Ghengin.Core.Render.Property
 -- End re-exports
 
 import Apecs
@@ -65,7 +68,7 @@ import Type.Reflection
 import qualified Ghengin.DearImGui as IM
 import qualified Ghengin.Render.Queue as RQ
 import qualified Vulkan as Vk
-import Control.Lens ((^.))
+import Control.Lens ((^.), (.~), (%~), Lens, Lens', (&))
 
 -- TODO: Somehow systems that want to delete entities should call a special
 -- destructor function that gets rid of resources stuck in components such as
