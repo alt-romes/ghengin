@@ -28,7 +28,6 @@ import Data.List (foldl')
 import GHC.Float
 import Data.IORef
 import Control.Monad
-import Unsafe.Coerce
 import Ghengin.Vulkan.Sampler
 
 import qualified Foreign.Storable as S
@@ -43,7 +42,6 @@ import qualified Ghengin.Component as C
 import Ghengin.Component.Mesh.Sphere
 import Ghengin.Component.Mesh
 import Ghengin.Component.Mesh.Vertex
-import Ghengin.Component.Material
 import Ghengin.Component.UI
 import Foreign.Ptr
 import qualified Shader

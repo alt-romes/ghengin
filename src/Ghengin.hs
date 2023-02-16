@@ -55,7 +55,7 @@ import Data.String
 import Data.Time.Clock
 import Geomancy.Mat4
 import Geomancy.Vec3
-import Ghengin.Component.Material
+import Ghengin.Core.Material
 import Ghengin.Component.Mesh
 import Ghengin.Component.UI
 import Ghengin.Render

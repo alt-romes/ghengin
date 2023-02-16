@@ -10,9 +10,7 @@ import FIR (Syntactic, InternalType)
 import FIR.ProgramState
 import GHC.TypeLits
 import SPIRV.Decoration (Decoration(..))
-import qualified FIR.Prim.Image as FIR
 import qualified SPIRV.Image as SPIRV
-import qualified SPIRV.ScalarTy
 import Ghengin.Utils ((:<|>:), NumbersFromTo, Zip, SizeOf)
 
 ------- Compatible ---------------------------------
@@ -35,13 +33,13 @@ type family Compatible αs βs ξs π where
       , MatchPropertiesSize (Length cs) (Length (DSetBindings 0 p))
                             (Text " render properties in render pipeline properties " :<>: ShowType cs)
                             (Text " descriptors in descriptor set #0.")
-      , CompatibleVertex   (Zip (NumbersFromTo 0 (Length as)) as) p
-        -- Reverse because the material bindings are reversed (the last element is the binding #0) (TODO: NOT THIS)
-      , CompatibleMaterial (Zip (NumbersFromTo 0 (Length bs)) (Reverse bs)) p
-      , CompatibleRender   (Zip (NumbersFromTo 0 (Length cs)) cs) p
+      , CompatibleVertex'   as p
+      , CompatibleMaterial' bs p
+      , CompatibleRender'   cs p
       )
 
 
+type CompatibleVertex' as p = CompatibleVertex   (Zip (NumbersFromTo 0 (Length as)) as) p
 type CompatibleVertex :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleVertex as p where
   CompatibleVertex '[] _ = ()
@@ -54,6 +52,7 @@ type family CompatibleVertex as p where
       , CompatibleVertex xs p
       )
 
+type CompatibleMaterial' bs p = CompatibleMaterial (Zip (NumbersFromTo 0 (Length bs)) bs) p
 type CompatibleMaterial :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleMaterial as p where
   CompatibleMaterial '[] _ = ()
@@ -65,7 +64,7 @@ type family CompatibleMaterial as p where
       , CompatibleMaterial xs p
       )
 
-
+type CompatibleRender' cs p = CompatibleRender (Zip (NumbersFromTo 0 (Length cs)) cs) p
 type CompatibleRender :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleRender as p where
   CompatibleRender '[] p = ()

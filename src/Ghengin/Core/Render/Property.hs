@@ -115,7 +115,11 @@ writeProperty buf = \case
 --
 -- We can fetch their descriptor set resources, as well as edit their
 -- individual properties through 'HasPropertyAt'.
+--
+-- Consider as an alternative to HasProperties a list-like type of properties
+-- with an χ parameter for the extra information at the list's end.
 class HasProperties φ where
+  properties    :: φ α -> PropertyBindings α
   descriptorSet :: Lens' (φ α) DescriptorSet
   puncons       :: φ (α:β) -> (PropertyBinding α, φ β)
   pcons         :: PropertyBinding α -> φ β -> φ (α:β)
@@ -148,8 +152,9 @@ class HasProperties φ => HasPropertyAt n β φ α where
   -- -- Pattern match on Refl to introduce the mt ~ PlanetMaterial local equality
   -- Just Refl <- pure $ eqT @mt @PlanetMaterial
   --
-  -- -- We can now edit the material's second binding because we know it to be a PlanetMaterial material
-  -- newMat    <- pedit @2 @PlanetMaterial someMaterial $ \(WithVec3 x y z) -> vec3 x (y+1) z
+  -- -- We can now edit the material's second binding using the 'propertyAt'
+  -- -- lens, because we know the material to be a PlanetMaterial
+  -- newMat    <- someMaterial & propertyAt @2 %~ \(WithVec3 x y z) -> pure (vec3 x (y+1) z)
   -- C.set planetEntity (renderPacket oldMesh newMat pp)
   -- @
   --
@@ -260,4 +265,10 @@ editProperty prop update i dset = case prop of
     -- TODO: Is it OK to overwrite previously written descriptor sets at specific points?
     updateTextureBinding :: Texture2D -> Renderer χ ()
     updateTextureBinding = updateDescriptorSet (dset._descriptorSet) . IM.singleton i . Texture2DResource
+
+freeProperty :: PropertyBinding α -> Renderer χ ()
+freeProperty = \case
+  DynamicBinding _ -> pure ()
+  StaticBinding _ -> pure ()
+  Texture2DBinding x -> freeTexture x
 

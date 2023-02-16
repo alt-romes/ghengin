@@ -24,7 +24,6 @@ import Control.Monad.Trans
 
 import Ghengin
 import Ghengin.Asset.Texture
-import Ghengin.Component.Material
 import Ghengin.Component.Mesh
 import Ghengin.Component.Camera
 import Ghengin.Component.Transform

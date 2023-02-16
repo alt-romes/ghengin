@@ -13,7 +13,6 @@ import Apecs (Has, cfold)
 import Data.Maybe
 
 import Control.Monad.State
-import Control.Exception
 
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
@@ -35,7 +34,7 @@ import Ghengin.Scene.Graph
 import Ghengin.Render.Packet
 import Ghengin.Render.Queue
 import Ghengin.Component.Mesh
-import Ghengin.Component.Material hiding (material)
+import Ghengin.Core.Material hiding (material)
 import Ghengin.Utils
 import Ghengin.Core.Render.Property
 import {-# SOURCE #-} Ghengin.World (World)
@@ -232,14 +231,16 @@ render i = do
 --
 -- The material bindings function should be created from a compatible pipeline
 writeMaterial :: ∀ σ ω. (Int -> MappedBuffer) -> Material σ -> Ghengin ω ()
-writeMaterial materialBinding mat = go (matSizeBindings mat - 1) mat where
+writeMaterial materialBinding mat = go 0 mat where
 
   go :: ∀ υ. Int -> Material υ -> Ghengin ω ()
   go n = \case
-    Done _ -> assert (n == (-1)) (pure ()) -- (only triggered with -O0)
+    Done _ -> pure ()
     MaterialProperty binding as -> do
       lift $ writeProperty (materialBinding n) binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
-      go (n-1) as
+      go (n+1) as
+
+-- TODO: Merge these two functions (writeMaterial, writeRenderProperties) using HasProperties
 
 -- | Bind a render property.
 --

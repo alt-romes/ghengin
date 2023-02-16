@@ -17,7 +17,7 @@ module Ghengin.Render.Packet
 import Apecs (Component, Storage, Map)
 import Data.Typeable
 import Data.Unique
-import Ghengin.Component.Material hiding (material)
+import Ghengin.Core.Material hiding (material)
 import Ghengin.Component.Mesh
 import Ghengin.Core.Type.Compatible
 import Ghengin.Render.Pipeline
@@ -116,7 +116,7 @@ instance Component RenderPacket where
 renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, MonadIO μ) => Mesh α -> Material β -> RenderPipeline ξ π -> μ RenderPacket
 renderPacket mesh material pipeline = do
   incRefCount mesh
-  pure $ RenderPacket mesh material pipeline (typeRep (Proxy @β), getMaterialUID material)
+  pure $ RenderPacket mesh material pipeline (typeRep (Proxy @β), materialUID material)
 
 {-
 Note [Render Packet Key]

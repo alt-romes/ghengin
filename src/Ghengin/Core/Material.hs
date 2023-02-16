@@ -1,44 +1,26 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LinearTypes #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE PolyKinds #-}
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE UndecidableInstances #-}
-module Ghengin.Component.Material where
+module Ghengin.Core.Material where
 
-import Control.Lens ((^.), Lens', Lens, lens)
+import Control.Lens ((^.), Lens', lens)
 import Data.Bifunctor
-import Data.Typeable
 import Data.Unique
-import GHC.TypeLits
-import Ghengin.Asset.Texture
-import Ghengin.Render.Pipeline
 import Ghengin.Core.Render.Property
+import Ghengin.Core.Type.Compatible
+import Ghengin.Render.Pipeline
 import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Vulkan.DescriptorSet
 import qualified Data.IntMap as IM
 import qualified Data.List.NonEmpty as NE
-import Unsafe.Coerce
 
 {-
 
 Note [Materials]
 ~~~~~~~~~~~~~~~~
 
-A material is described by the bindings it requires to be rendered. For
-example, a material defined by two textures and a color parameter is described
-by two texture bindings and a ...
+A material is described by the properties it requires to be rendered. For
+example, a material defined by two textures and a color parameter could be
+described by two texture2D property bindings and one static property binding
 
 Materials can only be rendered in compatible render pipelines. That is, any set
 of properties given by its bindings describes a material, but to actually
@@ -47,10 +29,12 @@ compatible) with the material properties.
 
 For example, you might define a material with a color and a light-reflection
 property, but if the shader program knows nothing about lights or colors, then
-that material can't be used in the corresponding pipeline.
+that material can't be used in the pipeline created with that shader.
 
-Materials are paired with pipelines and assigned to entities through 'RenderPacket'...
+Materials are paired with meshes and pipelines and assigned to entities through
+'RenderPacket'...
 
+Move to Note [Property Bindings]:
    * A 'StaticBinding' writes a descriptor set once (or manually every other time) and simply binds it at render time
   
    * The 'DynamicBinding's are written to the default descriptor set #1 of the
@@ -80,12 +64,42 @@ data Material xs where
                    -> Material β
                    -> Material (α:β)
 
+instance Eq (Material '[]) where
+  (==) (Done _) (Done _) = True
+
+instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
+  (==) (MaterialProperty a xs) (MaterialProperty b ys) = a == b && xs == ys
+
+instance HasProperties Material where
+
+  properties   :: Material α -> PropertyBindings α
+  properties = \case
+    Done _ -> GHNil
+    MaterialProperty x xs -> x :## properties xs
+
+  descriptorSet :: Lens' (Material α) DescriptorSet
+  descriptorSet = lens get' set' where
+    get' :: Material α -> DescriptorSet
+    get' = \case
+      Done x -> fst x
+      MaterialProperty _ xs -> get' xs
+      
+    set' :: Material α -> DescriptorSet -> Material α
+    set' m d = case m of
+      Done x -> Done $ first (const d) x
+      MaterialProperty x m' -> MaterialProperty x (set' m' d)
+
+  puncons :: Material (α:β) -> (PropertyBinding α, Material β)
+  puncons (MaterialProperty p xs) = (p, xs)
+
+  pcons :: PropertyBinding α -> Material β -> Material (α:β)
+  pcons = MaterialProperty
+
 
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
--- TODO: Add Compatible constraint (first move it to its own module)
-material :: ∀ α β ξ χ. Material' α -> RenderPipeline β ξ -> Renderer χ (Material α)
+material :: ∀ α β ξ χ. CompatibleMaterial' α ξ => Material' α -> RenderPipeline β ξ -> Renderer χ (Material α)
 material matf rp = 
   let (_,dpool) NE.:| _ = rp^.descriptorSetsSet
    in do
@@ -117,7 +131,7 @@ material matf rp =
 
          -- Make the resource map for this material
          -- Will also count texture references
-         resources <- makeResources ((unsafeCoerce . reverse . unsafeCoerce) $ materialProperties @α dummyMat)
+         resources <- makeResources (properties @_ @α dummyMat)
 
          -- Create the descriptor set with the written descriptors based on the
          -- created resource map
@@ -129,55 +143,14 @@ material matf rp =
 
          pure actualMat
 
--- | Returns the number of bindings
-matSizeBindings :: ∀ α. Material α -> Int
-matSizeBindings = -- fromInteger $ natVal $ Proxy @(ListSize α)
-  \case
-    Done _ -> 0
-    MaterialProperty _ xs -> 1 + matSizeBindings xs
 
-instance Eq (Material '[]) where
-  (==) (Done _) (Done _) = True
-
-instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
-  (==) (MaterialProperty a xs) (MaterialProperty b ys) = a == b && xs == ys
-
--- | Note the properties are returned using the reverse order that I DEFINITELY need to fix because it complicates everything.
-materialProperties :: Material α -> PropertyBindings α
-materialProperties = \case
-  Done _ -> GHNil
-  MaterialProperty x xs -> x :## materialProperties xs
-
-getMaterialUID :: Material α -> Unique
-getMaterialUID = \case
+materialUID :: Material α -> Unique
+materialUID = \case
   Done x -> snd x
-  MaterialProperty _ xs -> getMaterialUID xs
+  MaterialProperty _ xs -> materialUID xs
 
 freeMaterial :: Material α -> Renderer χ ()
 freeMaterial = \case
   Done x -> destroyDescriptorSet (fst x)
-  MaterialProperty (StaticBinding  _    ) xs -> freeMaterial xs
-  MaterialProperty (DynamicBinding _    ) xs -> freeMaterial xs
-  MaterialProperty (Texture2DBinding tex) xs -> do
-    freeTexture tex
-    freeMaterial xs
+  MaterialProperty prop xs -> freeProperty prop >> freeMaterial xs
 
-instance HasProperties Material where
-
-  descriptorSet :: Lens' (Material α) DescriptorSet
-  descriptorSet = lens get' set' where
-    get' :: Material α -> DescriptorSet
-    get' = \case
-      Done x -> fst x
-      MaterialProperty _ xs -> get' xs
-      
-    set' :: Material α -> DescriptorSet -> Material α
-    set' m d = case m of
-      Done x -> Done $ first (const d) x
-      MaterialProperty x m' -> MaterialProperty x (set' m' d)
-
-  puncons :: Material (α:β) -> (PropertyBinding α, Material β)
-  puncons (MaterialProperty p xs) = (p, xs)
-
-  pcons :: PropertyBinding α -> Material β -> Material (α:β)
-  pcons = MaterialProperty

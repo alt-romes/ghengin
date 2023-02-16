@@ -77,14 +77,13 @@ library
     -- Modules exported by the library.
     exposed-modules:  Ghengin,
 
+                      Ghengin.Core.Material,
                       Ghengin.Core.Type.Compatible,
                       Ghengin.Core.Render.Property,
-
 
                       Ghengin.Asset.Texture,
                       Ghengin.Component,
                       Ghengin.Component.Camera,
-                      Ghengin.Component.Material,
                       Ghengin.Component.Mesh,
                       Ghengin.Component.Mesh.Cube,
                       Ghengin.Component.Mesh.Hex,
