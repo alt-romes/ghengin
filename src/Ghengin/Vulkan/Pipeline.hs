@@ -1,4 +1,3 @@
-{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -6,13 +5,11 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
 module Ghengin.Vulkan.Pipeline where
 
 import Control.Monad.Reader
@@ -29,8 +26,6 @@ import FIR
   , ImageFormat(ImageFormat), pattern UI, pattern I, pattern F
   , Known, knownValue
   , PipelineInfo
-  , PipelineStages
-  , PrimitiveConnectedness(..)
   , PrimitiveTopology(..)
   , Shader(..)
   , Word32
@@ -44,7 +39,6 @@ import Vulkan.Zero (zero)
 import qualified Data.ByteString as BS
 import qualified Data.Vector as V
 import qualified Ghengin.Shader.FIR as FIR
-import qualified Ghengin.Shader
 import qualified Vulkan as Vk
 import qualified Vulkan.CStruct.Extends as VkC
 
@@ -101,7 +95,7 @@ createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges 
   let
       pipelineShaders :: [(FIR.Shader, Vk.ShaderModule)] -> ShaderPipeline info2 -> IO [(FIR.Shader, Vk.ShaderModule)]
       pipelineShaders acc (ShaderPipeline FIR.VertexInput) = pure $ reverse acc
-      pipelineShaders acc ( info :>-> ( sm@(FIR.ShaderModule _ :: FIR.ShaderModule name shader defs endState) ) )
+      pipelineShaders acc ( info :>-> sm@(FIR.ShaderModule _ :: FIR.ShaderModule name shader defs endState) )
         = do
           vksm <- createShaderModule dev =<< compileFIRShader sm
           pipelineShaders ( (knownValue @shader, vksm) : acc) info

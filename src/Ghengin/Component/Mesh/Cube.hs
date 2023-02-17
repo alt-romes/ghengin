@@ -1,15 +1,12 @@
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE UnboxedTuples #-}
+{-# LANGUAGE UnboxedSums #-}
 module Ghengin.Component.Mesh.Cube where
 
-import Data.Vector.Storable as V
 import Geomancy
 
-import Ghengin.Utils
 import Ghengin.Component.Mesh.Vertex
 import Ghengin.Component.Mesh
 import Ghengin.Vulkan (Renderer)
-import qualified Data.Vector.Storable as SV
 
 -- TODO: Seems that creating a mesh without vertices is broken...
 

@@ -3,6 +3,8 @@ imgui.ini
 fourmolu.yaml
 _build/
 
+tags
+
 *.aux
 *.log
 *.pdf

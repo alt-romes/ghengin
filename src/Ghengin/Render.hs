@@ -1,11 +1,5 @@
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Render where
 
@@ -34,7 +28,6 @@ import Ghengin.Scene.Graph
 import Ghengin.Render.Packet
 import Ghengin.Render.Queue
 import Ghengin.Component.Mesh
-import Ghengin.Core.Material hiding (material)
 import Ghengin.Utils
 import Ghengin.Core.Render.Property
 import {-# SOURCE #-} Ghengin.World (World)
@@ -164,7 +157,7 @@ render i = do
                 -- material binding
                 --
                 -- getUniformBuffer is partially applied to matDSet so it can be used to fetch each material descriptor
-                lift $ writeRenderProperties (getUniformBuffer ppDSet) pipeline
+                lift $ writePropertiesToResources (getUniformBuffer ppDSet) pipeline
                 
                 -- Bind descriptor set #0
                 bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout 0 ppDSet._descriptorSet
@@ -182,7 +175,7 @@ render i = do
                 -- These materials are necessarily compatible with this pipeline in
                 -- the set #1, so the 'descriptorSetBinding' buffer will always be
                 -- valid to write with the corresponding material binding
-                lift $ writeMaterial (getUniformBuffer matDSet) material
+                lift $ writePropertiesToResources (getUniformBuffer matDSet) material
                 
                 -- static bindings will have to choose a different dset
                 -- Bind descriptor set #1
@@ -221,43 +214,23 @@ render i = do
   -- outside of the scissor will be discarded. We keep it as the whole viewport
   scissor' extent = Vk.Rect2D (Vk.Offset2D 0 0) extent
 
--- | Bind a material.
+-- | Write a property value to its corresponding resource.
 --
--- (1) For each binding, update the property
---    (1.1) If it's dynamic, write the buffer
+-- (1) For each property binding, update the property
+--    (1.1) If it's dynamic, write the mapped buffer
 --    (1.2) If it's static, do nothing because the buffer is already written
 --    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
--- (2) Bind the descriptor set #1 with this material's descriptor set (This is done in the render function)
 --
--- The material bindings function should be created from a compatible pipeline
-writeMaterial :: ∀ σ ω. (Int -> MappedBuffer) -> Material σ -> Ghengin ω ()
-writeMaterial materialBinding mat = go 0 mat where
-
-  go :: ∀ υ. Int -> Material υ -> Ghengin ω ()
-  go n = \case
-    Done _ -> pure ()
-    MaterialProperty binding as -> do
-      lift $ writeProperty (materialBinding n) binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
-      go (n+1) as
-
--- TODO: Merge these two functions (writeMaterial, writeRenderProperties) using HasProperties
-
--- | Bind a render property.
---
--- (1) For each binding, update the property
---    (1.1) If it's dynamic, write the buffer
---    (1.2) If it's static, do nothing because the buffer is already written
---    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
--- (2) Bind the descriptor set #0 with this material's descriptor set (This is done in the render function)
+-- (2) The written resource must be updated in the corresponding descriptor set which must be bound (This is done in the render function)
 --
 -- The render property bindings function should be created from a compatible pipeline
-writeRenderProperties :: ∀ σ ω ι. (Int -> MappedBuffer) -> RenderPipeline σ ι -> Ghengin ω ()
-writeRenderProperties renderPropertyBinding = go 0 where
+writePropertiesToResources :: ∀ φ α ω. HasProperties φ => (Int -> MappedBuffer) -> φ α -> Ghengin ω ()
+writePropertiesToResources propertyBinding = go 0 . properties where
 
-  go :: ∀ υ. Int -> RenderPipeline υ ι -> Ghengin ω ()
+  go :: ∀ β. Int -> PropertyBindings β -> Ghengin ω ()
   go n = \case
-    RenderPipeline {} -> pure ()
-    RenderProperty binding as -> do
-      lift $ writeProperty (renderPropertyBinding n) binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
+    GHNil -> pure ()
+    binding :## as -> do
+      lift $ writeProperty (propertyBinding n) binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
       go (n+1) as
 

@@ -6,7 +6,7 @@ import Data.Bifunctor
 import Data.Unique
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Type.Compatible
-import Ghengin.Render.Pipeline
+import Ghengin.Core.Render.Pipeline
 import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Vulkan.DescriptorSet
@@ -99,7 +99,7 @@ instance HasProperties Material where
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
-material :: ∀ α β ξ χ. CompatibleMaterial' α ξ => Material' α -> RenderPipeline β ξ -> Renderer χ (Material α)
+material :: ∀ α β ξ χ. CompatibleMaterial' α ξ => Material' α -> RenderPipeline ξ β -> Renderer χ (Material α)
 material matf rp = 
   let (_,dpool) NE.:| _ = rp^.descriptorSetsSet
    in do

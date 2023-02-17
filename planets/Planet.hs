@@ -1,15 +1,11 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
@@ -183,7 +179,7 @@ instance Syntactic CameraProperty where
 
 instance GStorable CameraProperty
 
-newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p) => PlanetSettings -> RenderPipeline '[CameraProperty] p -> Ghengin w Planet
+newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p) => PlanetSettings -> RenderPipeline p '[CameraProperty] -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
   (mesh,minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad
@@ -210,9 +206,9 @@ newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
       ns NE.:| nss' -> do
         initialElevation <- evalNoise ns p
         let mask = if enableMask then initialElevation else 1
-        noiseElevation <- foldM (\acc ns' -> evalNoise ns' p >>= pure . (+acc) . (* mask)) initialElevation nss'
+        noiseElevation <- foldM (\acc ns' -> (+acc) . (*mask) <$> evalNoise ns' p) initialElevation nss'
         let elevation = ra' * (1 + noiseElevation)
-        pure $ (p ^* elevation, elevation)
+        pure (p ^* elevation, elevation)
 
   let
       ns' = calculateSmoothNormals is ps'

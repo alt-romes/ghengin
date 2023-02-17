@@ -79,6 +79,7 @@ library
 
                       Ghengin.Core.Material,
                       Ghengin.Core.Type.Compatible,
+                      Ghengin.Core.Render.Pipeline,
                       Ghengin.Core.Render.Property,
 
                       Ghengin.Asset.Texture,
@@ -99,7 +100,6 @@ library
                       Ghengin.Render,
                       Ghengin.Render.Class,
                       Ghengin.Render.Packet,
-                      Ghengin.Render.Pipeline,
                       Ghengin.Render.Queue,
                       Ghengin.Scene,
                       Ghengin.Scene.Graph,
@@ -155,7 +155,8 @@ library
                         TypeFamilies,
                         LambdaCase,
                         UnboxedTuples,
-                        PatternSynonyms
+                        PatternSynonyms,
+                        DisambiguateRecordFields
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.17,

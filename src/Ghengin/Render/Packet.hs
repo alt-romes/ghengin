@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
+-- {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -11,7 +11,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Render.Packet
   ( module Ghengin.Render.Packet
-  , module Ghengin.Render.Pipeline
+  , module Ghengin.Core.Render.Pipeline
   ) where
 
 import Apecs (Component, Storage, Map)
@@ -20,7 +20,7 @@ import Data.Unique
 import Ghengin.Core.Material hiding (material)
 import Ghengin.Component.Mesh
 import Ghengin.Core.Type.Compatible
-import Ghengin.Render.Pipeline
+import Ghengin.Core.Render.Pipeline
 import Ghengin.Utils
 
 {-|
@@ -79,7 +79,7 @@ data RenderPacket where
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ π ξ β α. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ) => Mesh α -> Material β -> RenderPipeline ξ π -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ π ξ β α. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ) => Mesh α -> Material β -> RenderPipeline π ξ -> RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
@@ -113,7 +113,7 @@ instance Component RenderPacket where
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, MonadIO μ) => Mesh α -> Material β -> RenderPipeline ξ π -> μ RenderPacket
+renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, MonadIO μ) => Mesh α -> Material β -> RenderPipeline π ξ -> μ RenderPacket
 renderPacket mesh material pipeline = do
   incRefCount mesh
   pure $ RenderPacket mesh material pipeline (typeRep (Proxy @β), materialUID material)
@@ -156,27 +156,4 @@ We don't need to consider the render pipeline properties because the info is alr
 -- | See Note [Render Packet Key]
 -- TODO: Update note render packet key and material key
 type RenderKey = (TypeRep, Unique)
-
-
-------------------------------------------------------------
--- | If matching fails, the other constraint is passed
--- type family TryMatch (t :: Type) (t' :: Type) (c :: Constraint) :: Constraint where
---   -- Does a Material Texture2D binding match a Texture2D shader binding?
---   TryMatch
---     Texture2D
---     (FIR.Image
---       ('FIR.Properties
---         'FIR.FloatingPointCoordinates
---         Float
---         'SPIRV.TwoD
---         ('Just 'SPIRV.NotDepthImage)
---         'SPIRV.NonArrayed
---         'SPIRV.SingleSampled
---         'SPIRV.Sampled
---         ('Just
---             ('SPIRV.ImageFormat
---                 ('SPIRV.Integer 'SPIRV.Normalised 'SPIRV.ScalarTy.Unsigned)
---                 '[8,8,8,8])))) _ = ()
---   TryMatch _ _ c = c
-------------------------------------------------------------
 
