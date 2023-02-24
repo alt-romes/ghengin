@@ -1,17 +1,20 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Core.Material where
 
-import Control.Lens ((^.), Lens', lens)
+import qualified Apecs
+import Control.Lens ((^.), Lens', lens, to)
 import Data.Bifunctor
 import Data.Unique
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Render.Pipeline
+-- TODO: Remove dependency on Ghengin non-core
 import Ghengin.Utils
+-- TODO: Remove Vulkan dependency by abstracting over the descriptor set
+-- creation and destruction
 import Ghengin.Vulkan
 import Ghengin.Vulkan.DescriptorSet
 import qualified Data.IntMap as IM
-import qualified Data.List.NonEmpty as NE
 
 {-
 
@@ -95,21 +98,28 @@ instance HasProperties Material where
   pcons :: PropertyBinding α -> Material β -> Material (α:β)
   pcons = MaterialProperty
 
+data SomeMaterial = ∀ α. SomeMaterial (Material α)
+instance Apecs.Component SomeMaterial where
+  type Storage SomeMaterial = Apecs.Map SomeMaterial
+{-# DEPRECATED material "Material storage should be a cache" #-}
 
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
 material :: ∀ α β ξ χ. CompatibleMaterial' α ξ => Material' α -> RenderPipeline ξ β -> Renderer χ (Material α)
 material matf rp = 
-  let (_,dpool) NE.:| _ = rp^.descriptorSetsSet
+  -- TODO: There could be more than 1 descriptor pool in flight (+frames in flight)
+  let dpool = rp^.to descriptorPool
    in do
 
      -- Make the unique identifier for this material
      uniq <- liftIO newUnique
 
+     -- TODO: Merge this "dummy" idea with the one in Core.Render.Pipeline
+
      -- We bail out early if this descriptor pool has no descriptor sets of
      -- type #1 (which would mean there are no bindings in descriptor set #1
-     case IM.lookup 1 dpool._set_bindings of
+     mat <- case IM.lookup 1 dpool._set_bindings of
        Nothing -> pure (matf (Done (EmptyDescriptorSet, uniq)))
        Just _  -> do
 
@@ -142,6 +152,8 @@ material matf rp =
          let actualMat = matf $ Done (actualDSet, uniq)
 
          pure actualMat
+     -- TODO: Apecs.newEntity (SomeMaterial mat)
+     pure mat
 
 
 materialUID :: Material α -> Unique

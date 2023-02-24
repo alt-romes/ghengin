@@ -7,6 +7,7 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 module Ghengin.Core.Render.Pipeline where
 
+import qualified Apecs
 import Data.Kind
 import Control.Lens (Lens', lens)
 import Control.Monad
@@ -14,8 +15,10 @@ import Data.List.NonEmpty (NonEmpty((:|)))
 import Foreign.Storable
 import Geomancy.Mat4
 import Ghengin.Core.Render.Property
+-- TODO: Remove dependency on Ghengin non-core
 import Ghengin.Shader
 import Ghengin.Utils (GHList(..))
+-- TODO: Remove dependency on Vulkan somehow?
 import Ghengin.Vulkan
 import Ghengin.Vulkan.DescriptorSet
 import Ghengin.Vulkan.Pipeline
@@ -41,6 +44,10 @@ data RenderPipeline info tys where
                  -> RenderPipeline info β
                  -> RenderPipeline info (α : β)
 
+data SomePipeline = ∀ α β. SomePipeline (RenderPipeline α β)
+instance Apecs.Component SomePipeline where
+  type Storage SomePipeline = Apecs.Map SomePipeline
+{-# DEPRECATED makeRenderPipeline "Storage should be a cache" #-}
 
 -- TODO: PushConstants must also be inferred from the shader code
 -- Add them as possible alternative to descritpor set #2?
@@ -77,6 +84,7 @@ makeRenderPipeline shaderPipeline mkRP = do
   -- BIG:TODO: Fix multiple frames in flight
   dsetsSet@((dsetf,dpool):|_) <- mapM (const (createPipelineDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
 
+  -- TODO: Merge this implementation with the one in Core.Material
   dummySet <- dsetf mempty 
   let dummyRP :: RenderPipeline info τ = mkRP $ RenderPipeline undefined undefined [(dummySet, dpool)] shaderPipeline
 
@@ -138,7 +146,6 @@ renderProperties = \case
   RenderPipeline {} -> GHNil
   RenderProperty x xs -> x :## renderProperties xs
 
-
 destroyRenderPipeline :: RenderPipeline α τ -> Renderer ext ()
 destroyRenderPipeline (RenderProperty _ rp) = destroyRenderPipeline rp
 destroyRenderPipeline (RenderPipeline gp rp dss _) = do
@@ -151,17 +158,6 @@ destroyRenderPipeline (RenderPipeline gp rp dss _) = do
     destroyDescriptorSet dset
   destroyRenderPass rp
   destroyPipeline gp
-
-descriptorSetsSet :: Lens' (RenderPipeline α τ) (NonEmpty (DescriptorSet, DescriptorPool))
-descriptorSetsSet = lens get' set'
-  where
-    get' :: RenderPipeline α τ -> NonEmpty (DescriptorSet, DescriptorPool)
-    get' RenderPipeline{_descriptorSetsSet} = _descriptorSetsSet
-    get' (RenderProperty _ rp) = get' rp
-
-    set' :: RenderPipeline α τ -> NonEmpty (DescriptorSet, DescriptorPool) -> RenderPipeline α τ
-    set' rp@RenderPipeline{} newrp = rp{_descriptorSetsSet = newrp}
-    set' (RenderProperty x rp) newrp = RenderProperty x (set' rp newrp)
 
 graphicsPipeline :: Lens' (RenderPipeline α τ) VulkanPipeline
 graphicsPipeline = lens get' set'
@@ -184,4 +180,8 @@ renderPass = lens get' set'
     set' :: RenderPipeline τ α -> VulkanRenderPass -> RenderPipeline τ α
     set' rp@RenderPipeline{} newrp = rp{Ghengin.Core.Render.Pipeline._renderPass = newrp}
     set' (RenderProperty x rp) newrp = RenderProperty x (set' rp newrp)
+
+descriptorPool :: RenderPipeline α τ -> DescriptorPool
+descriptorPool RenderPipeline{_descriptorSetsSet=(_,dpool) :| _} = dpool
+descriptorPool (RenderProperty _ rp) = descriptorPool rp
 

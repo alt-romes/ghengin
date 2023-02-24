@@ -7,13 +7,15 @@ import Control.Lens ((^.), Lens, Lens', lens)
 import GHC.TypeLits
 import Data.Kind
 import Data.Foldable
+-- TODO: Remove dependency on Ghengin non-core
 import Ghengin.Asset.Texture
 import Ghengin.Utils
+-- TODO: Remove dependency on Vulkan
 import Ghengin.Vulkan (Renderer)
 import Ghengin.Vulkan.Buffer
 import Ghengin.Vulkan.DescriptorSet
 import qualified Data.IntMap as IM
-import qualified Vulkan as Vk -- TODO: Core shouldn't depend on anything external to Core
+import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 import qualified Unsafe.Coerce
 
 data PropertyBinding α where

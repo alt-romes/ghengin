@@ -81,6 +81,7 @@ library
                       Ghengin.Core.Type.Compatible,
                       Ghengin.Core.Render.Pipeline,
                       Ghengin.Core.Render.Property,
+                      Ghengin.Core.Render.Packet,
 
                       Ghengin.Asset.Texture,
                       Ghengin.Component,
@@ -99,7 +100,6 @@ library
                       Ghengin.Input,
                       Ghengin.Render,
                       Ghengin.Render.Class,
-                      Ghengin.Render.Packet,
                       Ghengin.Render.Queue,
                       Ghengin.Scene,
                       Ghengin.Scene.Graph,

@@ -113,7 +113,7 @@ import Apecs.Core (ExplSet)
 import qualified Apecs
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
-import Ghengin.Render.Packet
+import Ghengin.Core.Render.Packet
 import Ghengin.Vulkan
 import Ghengin.Component.Transform
 import Ghengin.Component.Camera

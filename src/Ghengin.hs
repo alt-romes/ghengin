@@ -59,7 +59,7 @@ import Ghengin.Core.Material
 import Ghengin.Component.Mesh
 import Ghengin.Component.UI
 import Ghengin.Render
-import Ghengin.Render.Packet
+import Ghengin.Core.Render.Packet
 import Ghengin.Vulkan
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.RenderPass
@@ -69,6 +69,7 @@ import qualified Ghengin.DearImGui as IM
 import qualified Ghengin.Render.Queue as RQ
 import qualified Vulkan as Vk
 import Control.Lens ((^.), (.~), (%~), Lens, Lens', (&))
+import Ghengin.Utils (Ref(..))
 
 -- TODO: Somehow systems that want to delete entities should call a special
 -- destructor function that gets rid of resources stuck in components such as
@@ -84,7 +85,7 @@ windowLoop action = do
 type DeltaTime = Float -- Converted from NominalDiffTime
 
 initWorld :: MonadIO m => w -> m (World w)
-initWorld w = World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> pure w
+initWorld w = World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> pure w
 
 ghengin :: Typeable w
         => w           -- ^ World
@@ -111,7 +112,8 @@ ghengin world initialize _simstep loopstep finalize = do
 
     -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
     -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
-    rps <- cfold (\acc (RenderPacket _ _ pp _) -> (pp ^. renderPass)._renderPass:acc) []
+    rps <- cfoldM (\acc (RenderPacket _ _ (Ref pp_ref) _) ->
+                    Apecs.get pp_ref >>= \(SomePipeline pp) -> pure ((pp ^. renderPass)._renderPass:acc)) []
     imCtx <- case listToMaybe rps of
                Nothing -> pure Nothing
                Just x  -> Just <$> lift (IM.initImGui x)
@@ -179,8 +181,14 @@ ghengin world initialize _simstep loopstep finalize = do
     rq <- cfold (flip $ \p -> RQ.insert p ()) mempty
     RQ.traverseRenderQueue rq
       (const id)
-      (\(RQ.SomePipeline p) -> lift $ destroyRenderPipeline p)
-      (\_ (RQ.SomeMaterial m) -> lift $ freeMaterial m)
+      (\(RQ.SomePipelineRef (Ref p_ref)) -> do
+        SomePipeline p <- Apecs.get p_ref
+        lift $ destroyRenderPipeline p
+        pure $ SomePipeline p
+        )
+      (\_ (RQ.SomeMaterialRef (Ref m_ref)) -> do
+        SomeMaterial m <- Apecs.get m_ref
+        lift $ freeMaterial m)
       (\_ (SomeMesh m) _ -> do
         -- liftIO $ print =<< readIORef (m.referenceCount)
         lift $ freeMesh m

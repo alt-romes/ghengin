@@ -31,12 +31,16 @@ import Data.Typeable
 import Data.Map (Map)
 import qualified Data.Map as M
 
-import Ghengin.Render.Packet
+import Ghengin.Core.Render.Packet
 import Ghengin.Component.Mesh
+import Ghengin.Utils
 import Ghengin.Core.Material hiding (material)
 
-newtype RenderQueue a = RenderQueue (Map TypeRep (SomePipeline, Map Unique (SomeMaterial, [(SomeMesh, a)])))
+newtype RenderQueue a = RenderQueue (Map TypeRep (SomePipelineRef, Map Unique (SomeMaterialRef, [(SomeMesh, a)])))
   deriving (Functor)
+
+data SomePipelineRef = ∀ π α. SomePipelineRef (Ref (RenderPipeline π α))
+data SomeMaterialRef = ∀ α. SomeMaterialRef (Ref (Material α))
 
 instance Semigroup (RenderQueue α) where
   (<>) (RenderQueue q) (RenderQueue q') =
@@ -52,9 +56,6 @@ instance Semigroup (RenderQueue α) where
 
 instance Monoid (RenderQueue α) where
   mempty = RenderQueue mempty
-
-data SomePipeline = ∀ α β. SomePipeline (RenderPipeline α β)
-data SomeMaterial = ∀ α. SomeMaterial (Material α)
 
 fromList :: [(RenderPacket, a)] -> RenderQueue a
 fromList = foldr (uncurry insert) mempty
@@ -72,7 +73,7 @@ insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue
                   pure (m1, meshes1 <> meshes2)
                 ) id id im1 im2))
         pkey
-        (SomePipeline pipeline, M.insert mkey (SomeMaterial material, [(SomeMesh mesh, x)]) mempty)
+        (SomePipelineRef pipeline, M.insert mkey (SomeMaterialRef material, [(SomeMesh mesh, x)]) mempty)
         q
 
 -- | Traverse the render queue with a function for each different occasion:
@@ -85,18 +86,18 @@ insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue
 --- It's this generic because used for drawing and for freeing all the meshes :)
 traverseRenderQueue :: (Monad μ, Monad μ')
                     => RenderQueue α -- ^ The render queue
-                    -> (SomePipeline -> μ' () -> μ ()) -- ^ The initial context lifting from m to m' for the inner functions
-                    -> (SomePipeline -> μ' β) -- ^ The pipeline changed (nothing should be rendered)
-                    -> (SomePipeline -> SomeMaterial -> μ' ξ) -- ^ The material changed (nothing should be rendered)
+                    -> (SomePipelineRef -> μ' () -> μ ()) -- ^ The initial context lifting from m to m' for the inner functions
+                    -> (SomePipelineRef -> μ' SomePipeline) -- ^ The pipeline changed (nothing should be rendered) (return the pipeline fetched)
+                    -> (SomePipeline -> SomeMaterialRef -> μ' ξ) -- ^ The material changed (nothing should be rendered)
                     -> (SomePipeline -> SomeMesh -> α -> μ' δ) -- ^ The mesh to render
                     -> μ' () -- ^ A command at the end of each render pass
                     -> μ ()
 traverseRenderQueue (RenderQueue q) ini f g h finally =
   () <$ traverse (\(pp,mts) ->
     ini pp $ do -- init the context
-      _ <- f pp
+      smpp <- f pp
       _ <- traverse (\(mt,meshes) ->
-        g pp mt <* traverse (uncurry (h pp)) meshes) mts
+        g smpp mt <* traverse (uncurry (h smpp)) meshes) mts
       finally -- run at the end of the context
         ) q
 {-# INLINE traverseRenderQueue #-}

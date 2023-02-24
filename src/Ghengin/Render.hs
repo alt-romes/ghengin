@@ -8,13 +8,11 @@ import Data.Maybe
 
 import Control.Monad.State
 
-import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 import qualified Vulkan as Vk
 import Geomancy.Mat4
-import qualified Foreign.Storable as S
-import Foreign.Ptr
 
+import qualified Apecs
 import Ghengin.Component.Camera
 import Ghengin.Component.Transform
 import Ghengin.Vulkan.Command
@@ -25,37 +23,26 @@ import Ghengin.Vulkan.RenderPass
 import qualified Ghengin.DearImGui as IM
 import Ghengin.Vulkan
 import Ghengin.Scene.Graph
-import Ghengin.Render.Packet
+import Ghengin.Core.Render.Packet
 import Ghengin.Render.Queue
 import Ghengin.Component.Mesh
 import Ghengin.Utils
 import Ghengin.Core.Render.Property
+import Ghengin.Core.Material
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
 import Control.Lens ((^.))
 
 type RenderConstraints w = ( Has (World w) (Renderer ()) Transform
-                           , Has (World w) (Renderer ()) RenderPacket
                            , Has (World w) (Renderer ()) Camera
                            , Has (World w) (Renderer ()) ModelMatrix
                            , Has (World w) (Renderer ()) Parent
+
+                           -- Core render constraints
+                           , Apecs.Get (World w) (Renderer ()) RenderPacket
+                           , Apecs.Get (World w) (Renderer ()) SomePipeline
+                           , Apecs.Get (World w) (Renderer ()) SomeMaterial
                            )
-
-data UniformBufferObject = UBO { view :: Mat4
-                               , proj :: Mat4
-                               } deriving Show
-
--- TODO: Use and export derive-storable?
-instance S.Storable UniformBufferObject where
-  sizeOf _ = 2 * S.sizeOf @Mat4 undefined
-  alignment _ = 16
-  peek (castPtr -> p) = do
-    vi <- S.peek p
-    pr <- S.peekElemOff p 1
-    pure $ UBO vi pr
-  poke (castPtr -> p) (UBO vi pr) = do
-    S.poke p vi
-    S.pokeElemOff p 1 pr
 
 
 {-
@@ -135,11 +122,15 @@ render i = do
       -- they come, we should bind the pipeline once and each material once.
       traverseRenderQueue
         renderQueue
-        -- Whenever we have a new pipeline, start its renderpass
-        (\(SomePipeline pp') -> renderPassCmd (pp' ^. renderPass)._renderPass ((pp' ^. renderPass)._framebuffers V.! currentImage) extent)
-        (\(SomePipeline pipeline) -> do
+        -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
+        (\(SomePipelineRef (Ref pp'_ref)) m -> do
+          SomePipeline pp' <- lift $ Apecs.get pp'_ref -- TODO: Share this with the next one
+          renderPassCmd (pp' ^. renderPass)._renderPass ((pp' ^. renderPass)._framebuffers V.! currentImage) extent m
+        )
+        (\(SomePipelineRef (Ref pipeline_ref)) -> do
+            SomePipeline pipeline <- lift $ Apecs.get pipeline_ref
 
-            logTrace ("Binding pipeline")
+            logTrace "Binding pipeline"
 
             -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
             -- Bind the pipeline
@@ -147,7 +138,7 @@ render i = do
             setViewport viewport
             setScissor  scissor
 
-            case fst ((pipeline ^. descriptorSetsSet) NE.!! currentFrame) of -- TODO: Fix frames in flight...
+            case pipeline ^. descriptorSet of -- TODO: Fix frames in flight...
               EmptyDescriptorSet -> pure () -- Bail out, we don't have to do anything on an empty descriptor set. This happens if there isn't a single binding in set #1
               ppDSet@DescriptorSet{} -> do
 
@@ -162,11 +153,12 @@ render i = do
                 -- Bind descriptor set #0
                 bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout 0 ppDSet._descriptorSet
 
-
+            pure $ SomePipeline pipeline
           )
-        (\(SomePipeline pipeline) (SomeMaterial material) -> do
+        (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> do
+            SomeMaterial material <- lift $ Apecs.get material_ref
 
-            logTrace ("Binding material")
+            logTrace "Binding material"
 
             case material ^. descriptorSet of
               EmptyDescriptorSet -> pure () -- Bail out, we don't have to do anything on an empty descriptor set. This happens if there isn't a single binding in set #1
@@ -184,7 +176,7 @@ render i = do
           )
         (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> do
 
-            logTrace ("Drawing mesh")
+            logTrace "Drawing mesh"
 
             -- TODO: Bind descriptor set #2
 

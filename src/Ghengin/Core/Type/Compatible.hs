@@ -11,6 +11,7 @@ import FIR.ProgramState
 import GHC.TypeLits
 import SPIRV.Decoration (Decoration(..))
 import qualified SPIRV.Image as SPIRV
+-- TODO: Remove dependency on Ghengin non-core
 import Ghengin.Utils ((:<|>:), NumbersFromTo, Zip, SizeOf)
 
 ------- Compatible ---------------------------------

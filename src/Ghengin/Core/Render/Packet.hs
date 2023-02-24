@@ -9,19 +9,20 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Ghengin.Render.Packet
-  ( module Ghengin.Render.Packet
+module Ghengin.Core.Render.Packet
+  ( module Ghengin.Core.Render.Packet
   , module Ghengin.Core.Render.Pipeline
   ) where
 
 import Apecs (Component, Storage, Map)
+import Debug.Trace
 import Data.Typeable
 import Data.Unique
 import Ghengin.Core.Material hiding (material)
 import Ghengin.Component.Mesh
 import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Render.Pipeline
-import Ghengin.Utils
+import Ghengin.Utils -- TODO: Make explicit imports and get rid of import altogether
 
 {-|
 
@@ -79,7 +80,7 @@ data RenderPacket where
   --  * CompatibleMaterial mesh mat pipeline
   --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ π ξ β α. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ) => Mesh α -> Material β -> RenderPipeline π ξ -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ π ξ β α. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ) => Mesh α -> Ref (Material β) -> Ref (RenderPipeline π ξ) -> RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
@@ -113,10 +114,12 @@ instance Component RenderPacket where
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
-renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, MonadIO μ) => Mesh α -> Material β -> RenderPipeline π ξ -> μ RenderPacket
+{-# DEPRECATED renderPacket "FIXME: Compute materialUID" #-}
+renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π, MonadIO μ) => Mesh α -> Ref (Material β) -> Ref (RenderPipeline π ξ) -> μ RenderPacket
 renderPacket mesh material pipeline = do
   incRefCount mesh
-  pure $ RenderPacket mesh material pipeline (typeRep (Proxy @β), materialUID material)
+  uniq <- liftIO newUnique
+  pure $ RenderPacket mesh material pipeline (typeRep (Proxy @π), trace "Compute id <materialUID material>" uniq)
 
 {-
 Note [Render Packet Key]
@@ -155,5 +158,6 @@ We don't need to consider the render pipeline properties because the info is alr
 
 -- | See Note [Render Packet Key]
 -- TODO: Update note render packet key and material key
+-- TODO: Re-think the whole render queue. How to GPU driven rendering
 type RenderKey = (TypeRep, Unique)
 

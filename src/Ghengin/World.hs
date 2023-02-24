@@ -3,7 +3,9 @@ module Ghengin.World where
 
 import Control.Monad.Reader
 import Apecs
-import Ghengin.Render.Packet (RenderPacket)
+import Ghengin.Core.Render.Packet (RenderPacket)
+import Ghengin.Core.Render.Pipeline (SomePipeline)
+import Ghengin.Core.Material (SomeMaterial)
 import Ghengin.Component.Transform (Transform)
 import Ghengin.Component.Transform.Animation (TransformAnimation)
 import Ghengin.Component.Camera (Camera)
@@ -12,6 +14,8 @@ import Ghengin.Scene.Graph (ModelMatrix, Parent)
 
 data World w =
   World { renderPackets :: !(Storage RenderPacket)
+        , renderPipelines :: !(Storage SomePipeline)
+        , materials     :: !(Storage SomeMaterial)
         , transforms    :: !(Storage Transform)
         , cameras       :: !(Storage Camera)
         , uiwindows     :: !(Storage (UIWindow w))
@@ -27,6 +31,12 @@ data World w =
 
 instance Monad m => Has (World w) m RenderPacket where
   getStore = SystemT (asks (.renderPackets))
+
+instance Monad m => Has (World w) m SomePipeline where
+  getStore = SystemT (asks (.renderPipelines))
+
+instance Monad m => Has (World w) m SomeMaterial where
+  getStore = SystemT (asks (.materials))
 
 instance Monad m => Has (World w) m Transform where
   getStore = SystemT (asks (.transforms))

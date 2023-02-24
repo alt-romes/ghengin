@@ -41,7 +41,8 @@ import Ghengin.Component.Mesh.Vertex
 import Ghengin.Component.UI
 import Foreign.Ptr
 import qualified Shader
-import Ghengin.Render.Packet
+import Ghengin.Core.Render.Packet
+import Ghengin.Core.Material
 import Ghengin.Shader.FIR as FIR ((:->)(..), Struct, Syntactic(..))
 import qualified Ghengin.Shader.FIR as FIR
 
@@ -98,7 +99,8 @@ instance UISettings PlanetSettings where
 
   makeComponents ps@(PlanetSettings re ra co bo nss df grad) planetEntity = do
 
-    (RenderPacket (oldMesh :: Mesh ms) (mat :: Material mt) pp _) <- C.get planetEntity
+    (RenderPacket (oldMesh :: Mesh ms) (Ref mat_ref) pp _) <- C.get planetEntity
+    SomeMaterial (mat :: Material mt) <- C.get mat_ref
 
     -- Local equality for this render packets being a PlanetMaterial by
     -- comparing the runtime tag of this render packet.
@@ -125,11 +127,18 @@ instance UISettings PlanetSettings where
             -- material and pipeline
             newTex <- textureFromGradient grad
             newMat <- lift $ mat & propertyAt @1 .~ pure newTex
+            C.set mat_ref (SomeMaterial newMat) -- TODO: wrap calls to C.set
 -- TODO: For now we have to do this manually since re-using the same mesh but
 -- building a new render packet will make the reference count of the same mesh
 -- be incorrectly increased. Perhaps we could have a similar function which takes some parameters.
-            decRefCount oldMesh 
-            C.set planetEntity =<< renderPacket oldMesh newMat pp
+            -- ^^^ decRefCount oldMesh 
+            -- We no longer need to do this. Now, we only need to recreate the
+            -- render packet if we want to change the material this render
+            -- packet is using.
+            -- However, if we want to change the material (and have the effect
+            -- reflected on all packets with this material), we simply change
+            -- it.
+            -- C.set planetEntity =<< renderPacket oldMesh newMat pp
 
             -- The textures are now reference counted and the discarded one is
             -- freed and the new one's reference count is increased when
@@ -155,8 +164,10 @@ instance UISettings PlanetSettings where
            -- Edit multiple material properties at the same time
            -- newMaterial <- lift $ medits @[0,1] @PlanetProps mat $ (\_oldMinMax -> newMinMax) :-# pure :+# HFNil
            newMaterial <- lift $ mat & propertyAt @0 .~ pure newMinMax
+           C.set mat_ref newMaterial
 
-           C.set planetEntity =<< renderPacket newMesh newMaterial pp
+           -- Here we have to recreate the packet because a mesh is currently not a ref
+           C.set planetEntity =<< renderPacket newMesh (Ref mat_ref) pp
       _ -> error "Not a planet material nor mesh BOOM"
 
     pure ()
@@ -179,12 +190,12 @@ instance Syntactic CameraProperty where
 
 instance GStorable CameraProperty
 
-newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p) => PlanetSettings -> RenderPipeline p '[CameraProperty] -> Ghengin w Planet
+newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p) => PlanetSettings -> Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
   (mesh,minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad
-  mat <- lift $ material (planetMaterial minmax tex) pipeline
-  renderPacket @p @_ @PlanetProps mesh mat pipeline
+  mat <- C.newEntity =<< lift (material (planetMaterial minmax tex) pipeline)
+  renderPacket @p @_ @PlanetProps mesh (Ref mat) pipeline
 
 newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], MinMax)
 newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do

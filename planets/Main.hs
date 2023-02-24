@@ -27,12 +27,13 @@ import Ghengin.Component.Mesh
 import Ghengin.Component.Camera
 import Ghengin.Component.Transform
 import Ghengin.Component.UI
-import Ghengin.Render.Packet
+import Ghengin.Core.Render.Packet
 import Ghengin.Utils
 import Ghengin.Vulkan
 import Ghengin.Vulkan.Sampler
 import Ghengin.Scene.Graph
 import Ghengin.Component (Storage, EntityCounter, explInit, cmap, cmapM)
+import qualified Ghengin.Component as C
 
 import qualified Shader
 import Planet
@@ -47,10 +48,11 @@ initG = do
   -- sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   -- tex <- lift $ texture "assets/planet_gradient.png" sampler
 
-  planetPipeline <- lift $ makeRenderPipeline Shader.shaderPipeline (RenderProperty (DynamicBinding $ CameraProperty identity identity $ vec3 0 0 0))
+  planetPipeline :: RenderPipeline p a <- lift (makeRenderPipeline Shader.shaderPipeline (RenderProperty (DynamicBinding $ CameraProperty identity identity $ vec3 0 0 0)))
+  pipelineRef    :: Ref (RenderPipeline p a) <- Ref <$> C.newEntity (SomePipeline planetPipeline)
 
-  p1 <- newPlanet ps planetPipeline
-  p2 <- newPlanet ps2 planetPipeline
+  p1 <- newPlanet ps  (Ref pipelineRef)
+  p2 <- newPlanet ps2 (Ref pipelineRef)
 
   sceneGraph do
 
@@ -83,7 +85,11 @@ updateG () dt = do
     projM <- lift $ makeProjection proj
     let viewM = makeView camTr view
         ubo   = CameraProperty viewM projM (posFromMat4 camTr)
-     in pure ()
+     in do
+       pure ()
+      -- TODO: Update all render pipelines
+      -- cmapM $ \(rp :: RenderPipeline τ α) -> _
+
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr
   cmap $ \(_ :: RenderPacket, tr :: Transform) -> (tr{rotation = withVec3 tr.rotation (\x y z -> vec3 x (y+0.5*dt) z) } :: Transform)

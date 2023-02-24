@@ -44,6 +44,11 @@ import qualified SPIRV.Image as SPIRV
 import Data.Type.Map
 import FIR.Prim.Struct
 
+import qualified Apecs
+
+-- | Typed reference
+newtype Ref α = Ref { unRef :: Apecs.Entity }
+
 -- TODO Eventually move to its own module
 class Sized a where
   type SizeOf a :: Nat
