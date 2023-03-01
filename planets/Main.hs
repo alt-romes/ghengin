@@ -86,9 +86,12 @@ updateG () dt = do
     let viewM = makeView camTr view
         ubo   = Shader.CameraProperty viewM projM (posFromMat4 camTr)
      in do
-       pure ()
-      -- TODO: Update all render pipelines
-      -- cmapM $ \(rp :: RenderPipeline τ α) -> _
+      cmapM $ \(SomePipeline (rp :: RenderPipeline π props)) ->
+        case eqT @props @'[Shader.CameraProperty] of
+          Just Refl -> do
+            rp' <- lift $ rp & propertyAt @0 .~ pure ubo
+            pure $ (SomePipeline rp')
+          Nothing -> pure $ SomePipeline rp
 
 
   cmapM $ \(_ :: Camera, tr :: Transform) -> lift $ updateFirstPersonCameraTransform dt tr

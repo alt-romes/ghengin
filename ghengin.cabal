@@ -67,6 +67,7 @@ common common-flags
     cc-options: -O0
   else
     ghc-options: -Wall -O2
+    -- -fexpose-all-unfoldings -fspecialize-aggressively
     -- -fllvm
     cc-options: -O2
 

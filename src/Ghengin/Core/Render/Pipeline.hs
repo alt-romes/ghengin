@@ -8,6 +8,7 @@
 module Ghengin.Core.Render.Pipeline where
 
 import qualified Apecs
+import Data.Typeable
 import Data.Kind
 import Control.Lens (Lens', lens)
 import Control.Monad
@@ -44,7 +45,7 @@ data RenderPipeline info tys where
                  -> RenderPipeline info β
                  -> RenderPipeline info (α : β)
 
-data SomePipeline = ∀ α β. SomePipeline (RenderPipeline α β)
+data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β) -- ROMES:TODO Can I not have Typeable here?
 instance Apecs.Component SomePipeline where
   type Storage SomePipeline = Apecs.Map SomePipeline
 {-# DEPRECATED makeRenderPipeline "Storage should be a cache" #-}
