@@ -34,6 +34,7 @@ type FixedVertices
      ]
 
 -- | Descriptor set #0 is fixed (for now?), and the engine always passes these parameters in the descriptor set #0
+-- TODO: Remove completely because it's no longer fixed
 type FixedDescriptorSetZero
   = '[ "ubo" ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                            ( Struct '[ "view" ':-> M 4 4 Float

@@ -1,4 +1,5 @@
 {-# LANGUAGE BlockArguments        #-}
+{-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE DataKinds             #-}
 {-# LANGUAGE GADTs                 #-}
 {-# LANGUAGE OverloadedLabels      #-}
@@ -10,11 +11,27 @@
 {-# OPTIONS_GHC -Wno-partial-type-signatures #-}
 module Shader where
 
+import GHC.Generics (Generic)
 import Ghengin.Shader
 import Ghengin.Shader.FIR
 import Ghengin.Shader.Fixed
 import Ghengin.Shader.Lighting
 import Ghengin.Shader.Utils
+
+import Ghengin (Mat4, Vec3)
+import Ghengin.Utils (GStorable)
+
+data CameraProperty = CameraProperty !Mat4 !Mat4 !Vec3
+  deriving Generic
+
+instance Syntactic CameraProperty where
+  type Internal CameraProperty = Val ( Struct '[ "view" ':-> M 4 4 Float
+                                               , "proj" ':-> M 4 4 Float
+                                               , "camera_pos" ':-> V 3 Float ] )
+  toAST = undefined
+  fromAST = undefined
+
+instance GStorable CameraProperty
 
 -- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
 -- Descriptor Set #1 for things bound once per material
@@ -25,8 +42,8 @@ import Ghengin.Shader.Utils
 type VertexDefs
   = '[ "out_position"  ':-> Output '[ Location 0 ] (V 4 Float)
      , "out_normal"    ':-> Output '[ Location 1 ] (V 4 Float)
+     , "ubo"        ':-> Uniform '[ DescriptorSet 0, Binding 0 ] (InternalType CameraProperty)
      ]
-     :++: FixedDescriptorSetZero
      :++: FixedPushConstant
      :++: FixedVertices
 
@@ -52,6 +69,7 @@ vertex = shader do
 type FragmentDefs
   =  '[ "in_position" ':-> Input '[ Location 0 ] (V 4 Float)
       , "in_normal"   ':-> Input '[ Location 1 ] (V 4 Float)
+      , "ubo"      ':-> Uniform '[ DescriptorSet 0, Binding 0 ] (InternalType CameraProperty)
       -- , "light_pos"  ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
       --                               ( Struct '[ "val" ':-> V 3 Float ] )
       , "minmax"     ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
@@ -59,7 +77,6 @@ type FragmentDefs
                                             , "max" ':-> Float ] ) -- Careful with alignment...
       , "gradient" ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
       ]
-      :++: FixedDescriptorSetZero
       :++: FixedPushConstant
 
 

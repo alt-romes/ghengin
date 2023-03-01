@@ -22,6 +22,8 @@ module Ghengin.Component.Mesh
   , chunksOf
   ) where
 
+
+import Data.Typeable
 import Data.Kind
 import Control.Monad
 import Data.IORef
@@ -84,7 +86,7 @@ data Mesh ts = SimpleMesh { vertexBuffer       :: {-# UNPACK #-} !Vk.Buffer -- 
 
       -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
 
-data SomeMesh = forall ts. SomeMesh (Mesh ts)
+data SomeMesh = forall ts. Typeable ts => SomeMesh (Mesh ts) -- TODO: Typeable hack for now while we don't have a proper mesh properties list
 
 -- Render a mesh command
 renderMesh :: MonadIO m => Mesh a -> RenderPassCmd m

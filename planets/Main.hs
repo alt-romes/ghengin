@@ -48,11 +48,11 @@ initG = do
   -- sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   -- tex <- lift $ texture "assets/planet_gradient.png" sampler
 
-  planetPipeline :: RenderPipeline p a <- lift (makeRenderPipeline Shader.shaderPipeline (RenderProperty (DynamicBinding $ CameraProperty identity identity $ vec3 0 0 0)))
+  planetPipeline :: RenderPipeline p a <- lift (makeRenderPipeline Shader.shaderPipeline (RenderProperty (DynamicBinding $ Shader.CameraProperty identity identity $ vec3 0 0 0)))
   pipelineRef    :: Ref (RenderPipeline p a) <- Ref <$> C.newEntity (SomePipeline planetPipeline)
 
-  p1 <- newPlanet ps  (Ref pipelineRef)
-  p2 <- newPlanet ps2 (Ref pipelineRef)
+  p1 <- newPlanet ps  planetPipeline pipelineRef
+  p2 <- newPlanet ps2 planetPipeline pipelineRef
 
   sceneGraph do
 
@@ -84,7 +84,7 @@ updateG () dt = do
 
     projM <- lift $ makeProjection proj
     let viewM = makeView camTr view
-        ubo   = CameraProperty viewM projM (posFromMat4 camTr)
+        ubo   = Shader.CameraProperty viewM projM (posFromMat4 camTr)
      in do
        pure ()
       -- TODO: Update all render pipelines

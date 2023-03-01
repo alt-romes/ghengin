@@ -1,4 +1,7 @@
-[ ] Camera should be updated for every render pipeline. How to do stuff to either all render pipelines/all materials? Perhaps direct hooks to those places would be the sanest way
+[ ] Next TODO: Fix type errors and implement all of the logic of the camera in userland to experiment its expected feasibility
+[ ] Camera should be updated for every render pipeline. How to do stuff to
+        either all render pipelines/all materials? Perhaps direct hooks to those places
+        would be the sanest way: An answer is to use explicit references as we did.
 [ ] Level editor called with flag (could perhaps toggle game inside the level editor) to move things around and change properties displayed through imgui windows
 [ ] Fix segfault caused by freeing descriptor set in render pipeline
 [ ] Edit for all render properties instead of just material (migrate medit)

@@ -106,7 +106,7 @@ instance Apecs.Component SomeMaterial where
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
-material :: ∀ α β ξ χ. CompatibleMaterial' α ξ => Material' α -> RenderPipeline ξ β -> Renderer χ (Material α)
+material :: ∀ α β π χ. CompatibleMaterial' α π => Material' α -> RenderPipeline π β -> Renderer χ (Material α)
 material matf rp = 
   -- TODO: There could be more than 1 descriptor pool in flight (+frames in flight)
   let dpool = rp^.to descriptorPool

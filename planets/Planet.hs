@@ -1,4 +1,5 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE NoStarIsType #-}
@@ -40,13 +41,15 @@ import Ghengin.Component.Mesh
 import Ghengin.Component.Mesh.Vertex
 import Ghengin.Component.UI
 import Foreign.Ptr
-import qualified Shader
 import Ghengin.Core.Render.Packet
 import Ghengin.Core.Material
 import Ghengin.Shader.FIR as FIR ((:->)(..), Struct, Syntactic(..))
 import qualified Ghengin.Shader.FIR as FIR
+import Unsafe.Coerce
 
 import Noise
+import Shader (CameraProperty)
+import qualified Shader
 
 type Planet = RenderPacket
 type PlanetProps = '[MinMax,Texture2D]
@@ -99,8 +102,11 @@ instance UISettings PlanetSettings where
 
   makeComponents ps@(PlanetSettings re ra co bo nss df grad) planetEntity = do
 
-    (RenderPacket (oldMesh :: Mesh ms) (Ref mat_ref) pp _) <- C.get planetEntity
-    SomeMaterial (mat :: Material mt) <- C.get mat_ref
+    (RenderPacket (oldMesh :: Mesh ms) (Ref mat_ref :: Ref (Material mt)) pp _) <- C.get planetEntity
+    SomeMaterial (unsafeCoerce -> mat :: Material mt) <- C.get mat_ref
+      -- BIG:TODO: Move unsafe coerce to definition of "get_material" that may
+      -- from a statically known reference extract a statically known material
+      -- safely
 
     -- Local equality for this render packets being a PlanetMaterial by
     -- comparing the runtime tag of this render packet.
@@ -164,10 +170,10 @@ instance UISettings PlanetSettings where
            -- Edit multiple material properties at the same time
            -- newMaterial <- lift $ medits @[0,1] @PlanetProps mat $ (\_oldMinMax -> newMinMax) :-# pure :+# HFNil
            newMaterial <- lift $ mat & propertyAt @0 .~ pure newMinMax
-           C.set mat_ref newMaterial
+           C.set mat_ref (SomeMaterial newMaterial)
 
            -- Here we have to recreate the packet because a mesh is currently not a ref
-           C.set planetEntity =<< renderPacket newMesh (Ref mat_ref) pp
+           C.set planetEntity =<< renderPacket @_ @_ @mt @_ newMesh (Ref mat_ref) pp
       _ -> error "Not a planet material nor mesh BOOM"
 
     pure ()
@@ -178,24 +184,13 @@ textureFromGradient grad = do
   sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   lift $ textureFromImage (ImageRGB8 img) sampler
 
-data CameraProperty = CameraProperty !Mat4 !Mat4 !Vec3
-  deriving Generic
 
-instance Syntactic CameraProperty where
-  type Internal CameraProperty = FIR.Val ( FIR.Struct '[ "view" ':-> FIR.M 4 4 Float
-                                                       , "proj" ':-> FIR.M 4 4 Float
-                                                       , "camera_pos" ':-> FIR.V 3 Float ] )
-  toAST = undefined
-  fromAST = undefined
-
-instance GStorable CameraProperty
-
-newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p) => PlanetSettings -> Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
-newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline = do
+newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p) => PlanetSettings -> RenderPipeline p '[CameraProperty] -> Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
+newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = do
   (mesh,minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad
-  mat <- C.newEntity =<< lift (material (planetMaterial minmax tex) pipeline)
-  renderPacket @p @_ @PlanetProps mesh (Ref mat) pipeline
+  mat <- C.newEntity . SomeMaterial =<< lift (material (planetMaterial minmax tex) pipeline)
+  renderPacket @p @_ @PlanetProps mesh (Ref mat) pipelineRef
 
 newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], MinMax)
 newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
