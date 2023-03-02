@@ -1,24 +1,26 @@
+[ ] Fix stuttering possibly due to update not being run per frame in flight
+[ ] Move ghengin-package-macos to more general packaging solution
 [ ] Next TODO: Fix type errors and implement all of the logic of the camera in userland to experiment its expected feasibility
-[ ] Camera should be updated for every render pipeline. How to do stuff to
+[x] Camera should be updated for every render pipeline. How to do stuff to
         either all render pipelines/all materials? Perhaps direct hooks to those places
         would be the sanest way: An answer is to use explicit references as we did.
 [ ] Level editor called with flag (could perhaps toggle game inside the level editor) to move things around and change properties displayed through imgui windows
 [ ] Fix segfault caused by freeing descriptor set in render pipeline
-[ ] Edit for all render properties instead of just material (migrate medit)
+[x] Edit for all render properties instead of just material (migrate medit)
 [ ] Fix Frames in Flight (completely-redo-it)
 [ ] Un-built-in Transform and the push constant that pushes it
 [ ] Consider moving Ghengin.Core to its own package
 [x] Use `Syntatic` and compare with `InternalType` and equality instead of SizeOf
-[ ] Move hardcoded bindings out of render pipeline and instance it with properties instead
+[x] Move hardcoded bindings out of render pipeline and instance it with properties instead
 [ ] FIR doesn't check compatibility between vertex data and vertex shader inputs
 [ ] Instance `Syntatic` to support the engine data types at the shader level
 [ ] Perhaps use more efficient list-like type by default for creating meshes
 [ ] Dear imgui specific render pipeline
-[ ] Custom descriptor set #1 through Render Pipeline constructors + edit function similar to Materials
+[x] Custom descriptor set #0 through Render Pipeline constructors + edit function similar to Materials
 [ ] Untangle World {-# SOURCE #-} imports by creating another module for it
 [ ] Hex map tutorial series https://catlikecoding.com/unity/tutorials/hex-map/
 [x] Compatible mesh constraint with working planets example
-[ ] Get rid of VertexArray altogether (use Storable Vector directly)?
+[x] Get rid of VertexArray altogether (use Storable Vector directly)?
 [x] Successful packaging for macos that bundles vulkan dylibs and assets
 [ ] Fix gradient and move it to another package
 [x] Conditionally enable extensions required by apple silicon only on apple silicon
@@ -67,8 +69,10 @@ Next steps:
     packet) allow to update existentials. This function should also free the mesh/or material updated before creating the new one.
 [ ] Material type list doesn't have to be traversed in reverse... the first item in the list could be binding #0 without any issue
 [ ] Custom lights in descriptor set #0
-[ ] Should the descriptor set #0 be fixed for always needed engine data? (hardcoded) always camera position, lights positions, lights types, ...
-[ ] How to specify arbitrary descriptor set #0 (pipeline global data) and descriptor set #2 data (per model data).
+[x] Should the descriptor set #0 be fixed for always needed engine data? (hardcoded) always camera position, lights positions, lights types, ...
+    No!! Ghengin Core removes those hardcoded bits with great success
+[x] How to specify arbitrary descriptor set #0 (pipeline global data) and descriptor set #2 data (per model data).
+    We've seen how, see Ghengin.Core.Render.Properties
 [x] Free the discarded descriptor sets in the materials (read below) (or at least the mapped buffers)
 [x] Free the materials during execution: careful they might be shared.
 [x] Which UI changed? Currently we don't know and are simply updating all meshes the same
@@ -85,7 +89,8 @@ every frame, and the static bindings don't.
 [x] A function to update materials (read the one below).
 [x] Nailed it: A solution to update the existential materials: I think we'll have a typeable instance (like a runtime type tag) that allows us to pattern match on the type of the material to understand what kind of material it is. Then we know the type of the material and we can safely update the property value. 
 [x] Compatible must ensure all required input parameters in the shader are defined in the material
-[ ] Render packet data for global descriptors properties and for model descriptors properties rather than just the material properties
+[.] Render packet data for global descriptors properties and for model descriptors properties rather than just the material properties
+    (Missing mesh properties)
 [x] Compatible material constraint with working planets example
 [x] Materials must have a compile time size to compare with the size of the descriptors defined in the shader.
 [x] Static bindings which simply choose the descriptor (set?) rather than write to it
@@ -99,7 +104,7 @@ in the visible space order meshes by pipeline and material
 type. Good algorithm that sorts geometry in the best possible way for the engine
 [x] Free render pipelines
 [y] Should each static material have its own descriptor set which simply gets bound instead of writing always over the one created with the pipeline?
-[.] Validate at compile time the meshes and materials registered for a render pipeline. (Missing: mesh validation)
+[x] Validate at compile time the meshes and materials registered for a render pipeline. (Missing: mesh validation)
 [-] Scene graph (BSP, quad/octtree)
 [?] Disallow non-uniform scaling so that calculating the normal in world space is simpler
 [x] Who's pulling in lens? Maybe I can benefit from them if I already have to have them. (Answer: fir)
