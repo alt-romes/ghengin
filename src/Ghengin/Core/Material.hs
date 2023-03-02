@@ -12,14 +12,16 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Utils
 -- TODO: Remove Vulkan dependency by abstracting over the descriptor set
 -- creation and destruction
-import Ghengin.Vulkan
-import Ghengin.Vulkan.DescriptorSet
+import Ghengin.Vulkan (Renderer)
+import Ghengin.Vulkan.DescriptorSet (DescriptorPool(..), DescriptorSet(..), allocateDescriptorSet, destroyDescriptorSet)
 import qualified Data.IntMap as IM
 
 {-
 
 Note [Materials]
 ~~~~~~~~~~~~~~~~
+
+Update note, a large part now describes render properties
 
 A material is described by the properties it requires to be rendered. For
 example, a material defined by two textures and a color parameter could be
@@ -55,8 +57,6 @@ Resources:
 * Material Library File: http://paulbourke.net/dataformats/mtl/
 
 -}
-
-type Material' α = Material '[] -> Material α
 
 data Material xs where
 
@@ -106,7 +106,7 @@ instance Apecs.Component SomeMaterial where
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
-material :: ∀ α β π χ. CompatibleMaterial' α π => Material' α -> RenderPipeline π β -> Renderer χ (Material α)
+material :: ∀ α β π χ. CompatibleMaterial' α π => (Material '[] -> Material α) -> RenderPipeline π β -> Renderer χ (Material α)
 material matf rp = 
   -- TODO: There could be more than 1 descriptor pool in flight (+frames in flight)
   let dpool = rp^.to descriptorPool

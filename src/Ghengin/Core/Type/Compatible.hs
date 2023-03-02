@@ -1,4 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-|
+   TODO: Document the 'Compatible' type constraint
+ -}
 module Ghengin.Core.Type.Compatible where
 
 import Data.Kind
@@ -13,6 +16,13 @@ import SPIRV.Decoration (Decoration(..))
 import qualified SPIRV.Image as SPIRV
 -- TODO: Remove dependency on Ghengin non-core
 import Ghengin.Utils ((:<|>:), NumbersFromTo, Zip, SizeOf)
+
+{-
+Note [The Compatible constraint]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+TODO
+-}
 
 ------- Compatible ---------------------------------
 
@@ -40,7 +50,7 @@ type family Compatible αs βs ξs π where
       )
 
 
-type CompatibleVertex' as p = CompatibleVertex   (Zip (NumbersFromTo 0 (Length as)) as) p
+type CompatibleVertex' as p = CompatibleVertex (Zip (NumbersFromTo 0 (Length as)) as) p
 type CompatibleVertex :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleVertex as p where
   CompatibleVertex '[] _ = ()
@@ -150,3 +160,4 @@ type family InputByLocation' loc info where
 
 
 ----------------------------------------------------
+

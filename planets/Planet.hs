@@ -68,7 +68,7 @@ instance GStorable MinMax
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
-planetMaterial :: MinMax -> Texture2D -> Material' PlanetProps
+planetMaterial :: MinMax -> Texture2D -> Material '[] -> Material PlanetProps
 planetMaterial mm t = MaterialProperty (StaticBinding mm) . MaterialProperty (Texture2DBinding t)
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)

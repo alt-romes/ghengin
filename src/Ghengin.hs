@@ -18,7 +18,7 @@ module Ghengin
   , module Ghengin.Component.Mesh.Vertex
 
   -- * Materials
-  , Material(..), Material'
+  , Material(..)
   , material
 
   -- * Render pipelines
