@@ -22,7 +22,7 @@ name:               ghengin
 --                  | | | +--- code changes with no API change
 version:            0.1.0.0
 
-tested-with: GHC ==9.2.2
+tested-with: GHC ==9.4.4 || ==9.6.1
 
 -- A short (one-line) description of the package.
 -- synopsis:

@@ -1,6 +1,7 @@
 cabal-version:      3.4
 name:               ghengin-dist-macos
 version:            0.1.0.0
+tested-with:        GHC ==9.4.4 || ==9.6.1
 -- synopsis:
 -- description:
 license:            BSD-3-Clause
@@ -21,7 +22,7 @@ executable ghengin-dist-macos
     main-is:          Main.hs
     -- other-modules:
     -- other-extensions:
-    build-depends:    base ^>=4.17.0.0,
+    build-depends:    base >=4.17.0.0,
                       shake,
                       string-interpolate
     hs-source-dirs:   app
