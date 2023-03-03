@@ -15,14 +15,14 @@ module Ghengin.Core.Render.Packet
   ) where
 
 import Apecs (Component, Storage, Map)
-import Debug.Trace
-import Data.Typeable
-import Data.Unique
-import Ghengin.Core.Material hiding (material)
-import Ghengin.Component.Mesh
-import Ghengin.Core.Type.Compatible
+import Debug.Trace ( trace )
+import Data.Typeable ( Typeable, Proxy(Proxy), typeRep, TypeRep )
+import Data.Unique ( Unique, newUnique )
+import Ghengin.Core.Material ( Material )
+import Ghengin.Component.Mesh ( Mesh(referenceCount) )
+import Ghengin.Core.Type.Compatible ( Compatible )
 import Ghengin.Core.Render.Pipeline
-import Ghengin.Utils -- TODO: Make explicit imports and get rid of import altogether
+import Ghengin.Utils ( Ref, MonadIO(..), incRefCount ) -- TODO: Get rid of import altogether
 
 {-|
 

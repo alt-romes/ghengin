@@ -4,14 +4,21 @@
  -}
 module Ghengin.Core.Type.Compatible where
 
-import Data.Kind
-import Data.Type.List hiding (Zip)
-import Data.Type.Maybe
+import Data.Kind ( Type, Constraint )
+import Data.Type.List ( Join, Length )
+import Data.Type.Maybe ( FromMaybe )
 import Data.Type.Map (Values, (:->)(..), Lookup)
 import FIR.Pipeline
+    ( BindingStrides,
+      PipelineInfo(..),
+      PrimitiveTopology,
+      VertexLocationDescriptions,
+      GetVertexInputInfo )
 import FIR (Syntactic, InternalType)
 import FIR.ProgramState
+    ( EntryPointInfo(EntryPointInfo), TLInterfaceVariable )
 import GHC.TypeLits
+    ( TypeError, type (+), Nat, ErrorMessage((:<>:), ShowType, Text) )
 import SPIRV.Decoration (Decoration(..))
 import qualified SPIRV.Image as SPIRV
 -- TODO: Remove dependency on Ghengin non-core

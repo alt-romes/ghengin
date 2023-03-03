@@ -3,13 +3,19 @@ module Ghengin.Core.Material where
 
 import qualified Apecs
 import Control.Lens ((^.), Lens', lens, to)
-import Data.Bifunctor
-import Data.Unique
+import Data.Bifunctor ( Bifunctor(first) )
+import Data.Unique ( Unique, newUnique )
 import Ghengin.Core.Render.Property
-import Ghengin.Core.Type.Compatible
+    ( freeProperty,
+      makeResources,
+      HasProperties(..),
+      PropertyBinding,
+      PropertyBindings )
+import Ghengin.Core.Type.Compatible ( CompatibleMaterial' )
 import Ghengin.Core.Render.Pipeline
+    ( RenderPipeline, descriptorPool )
 -- TODO: Remove dependency on Ghengin non-core
-import Ghengin.Utils
+import Ghengin.Utils ( MonadIO(liftIO), GHList((:##), GHNil) )
 -- TODO: Remove Vulkan dependency by abstracting over the descriptor set
 -- creation and destruction
 import Ghengin.Vulkan (Renderer)

@@ -1,6 +1,6 @@
-[ ] Fix stuttering possibly due to update not being run per frame in flight
+[ ] Fix stuttering most likely due to update not being run per frame in flight
 [ ] Move ghengin-package-macos to more general packaging solution
-[ ] Next TODO: Fix type errors and implement all of the logic of the camera in userland to experiment its expected feasibility
+[x] Fix type errors and implement all of the logic of the camera in userland to experiment its expected feasibility
 [x] Camera should be updated for every render pipeline. How to do stuff to
         either all render pipelines/all materials? Perhaps direct hooks to those places
         would be the sanest way: An answer is to use explicit references as we did.

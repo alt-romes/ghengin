@@ -4,16 +4,24 @@
 module Ghengin.Core.Render.Property where
 
 import Control.Lens ((^.), Lens, Lens', lens)
-import GHC.TypeLits
-import Data.Kind
-import Data.Foldable
+import GHC.TypeLits ( KnownNat, type (+), Nat, natVal )
+import Data.Kind ( Type, Constraint )
+import Data.Foldable ( foldrM )
 -- TODO: Remove dependency on Ghengin non-core
 import Ghengin.Asset.Texture
+    ( freeTexture, Texture2D(referenceCount) )
 import Ghengin.Utils
+    ( Storable(sizeOf), Proxy(Proxy), incRefCount, GHList )
 -- TODO: Remove dependency on Vulkan
 import Ghengin.Vulkan (Renderer)
 import Ghengin.Vulkan.Buffer
+    ( createMappedBuffer, writeMappedBuffer, MappedBuffer )
 import Ghengin.Vulkan.DescriptorSet
+    ( getUniformBuffer,
+      updateDescriptorSet,
+      DescriptorResource(Texture2DResource, UniformResource),
+      DescriptorSet(_descriptorSet),
+      ResourceMap )
 import qualified Data.IntMap as IM
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 import qualified Unsafe.Coerce

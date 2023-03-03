@@ -8,22 +8,41 @@
 module Ghengin.Core.Render.Pipeline where
 
 import qualified Apecs
-import Data.Typeable
-import Data.Kind
+import Data.Typeable ( Typeable )
+import Data.Kind ( Type )
 import Control.Lens (Lens', lens)
-import Control.Monad
+import Control.Monad ( forM_ )
 import Data.List.NonEmpty (NonEmpty((:|)))
-import Foreign.Storable
-import Geomancy.Mat4
+import Foreign.Storable ( Storable(sizeOf) )
+import Geomancy.Mat4 ( Mat4 )
 import Ghengin.Core.Render.Property
+    ( makeResources,
+      HasProperties(..),
+      PropertyBinding,
+      PropertyBindings )
 -- TODO: Remove dependency on Ghengin non-core
-import Ghengin.Shader
+import Ghengin.Shader.Pipeline ( ShaderPipeline )
 import Ghengin.Utils (GHList(..))
 -- TODO: Remove dependency on Vulkan somehow?
 import Ghengin.Vulkan
 import Ghengin.Vulkan.DescriptorSet
+    ( allocateDescriptorSet,
+      createDescriptorPool,
+      createDescriptorSetBindingsMap,
+      destroyDescriptorPool,
+      destroyDescriptorSet,
+      DescriptorPool(_set_bindings),
+      DescriptorSet,
+      ResourceMap )
 import Ghengin.Vulkan.Pipeline
+    ( createGraphicsPipeline,
+      destroyPipeline,
+      PipelineConstraints,
+      VulkanPipeline )
 import Ghengin.Vulkan.RenderPass
+    ( createSimpleRenderPass,
+      destroyRenderPass,
+      VulkanRenderPass(_renderPass) )
 import qualified Data.IntMap as IM
 import qualified Data.Vector as V
 import qualified Vulkan as Vk
