@@ -1,4 +1,5 @@
 -- {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
+{-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -77,10 +78,9 @@ created through 'material', a unique identifier is created for that material.
  -}
 data RenderPacket where
   -- TODO:
-  --  * CompatibleMaterial mesh mat pipeline
-  --  * Mesh parametrized over type that is also validated against pipeline
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ π ξ β α. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π) => Mesh α -> Ref (Material β) -> Ref (RenderPipeline π ξ) -> RenderKey -> RenderPacket
+  RenderPacket :: ∀ π ξ β α. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π)
+               => Mesh α ⊸ Ref (Material β) ⊸ Ref (RenderPipeline π ξ) ⊸ RenderKey -> RenderPacket
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.

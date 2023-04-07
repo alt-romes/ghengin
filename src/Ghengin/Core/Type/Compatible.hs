@@ -2,7 +2,12 @@
 {-|
    TODO: Document the 'Compatible' type constraint
  -}
-module Ghengin.Core.Type.Compatible where
+module Ghengin.Core.Type.Compatible
+  ( Compatible
+  , CompatibleVertex'
+  , CompatibleMaterial'
+  , CompatibleRender'
+  ) where
 
 import Data.Kind ( Type, Constraint )
 import Data.Type.List ( Join, Length )
@@ -97,7 +102,6 @@ type family CompatibleRender as p where
 type TypeAndInternalType :: Type -> ErrorMessage
 type family TypeAndInternalType x where
   TypeAndInternalType x = Text " of type " :<>: ShowType x :<>: Text " and internal type " :<>: ShowType (InternalType x)
-
 
 
 ------- Matching -----------------------------------

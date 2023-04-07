@@ -1,7 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE LambdaCase #-}
@@ -11,7 +10,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
 module Ghengin.Vulkan.DescriptorSet where
 
 import Control.Monad
@@ -42,6 +41,8 @@ import Ghengin.Vulkan.Sampler
 import Ghengin.Vulkan
 import Ghengin.Vulkan.Utils
 import qualified Ghengin.Asset.Texture as T
+
+import Ghengin.Core.Render.Monad
 
 import qualified FIR.Layout
 
@@ -185,8 +186,7 @@ createDescriptorPool dsetmap = do
 destroyDescriptorPool :: DescriptorPool -> Renderer χ ()
 destroyDescriptorPool p = getDevice >>= \dev -> do
   Vk.destroyDescriptorPool dev p._pool Nothing
-  _ <- traverse (destroyDescriptorSetLayout . fst) p._set_bindings
-  pure ()
+  traverse_ (destroyDescriptorSetLayout . fst) p._set_bindings
     where
       destroyDescriptorSetLayout :: Vk.DescriptorSetLayout -> Renderer ext ()
       destroyDescriptorSetLayout layout = getDevice >>= \dev -> Vk.destroyDescriptorSetLayout dev layout Nothing
@@ -229,11 +229,6 @@ data DescriptorSet
                   , _bindings      ::  ResourceMap -- ^ TODO: Rename to _resources instead of _bindings?
                   }
   | EmptyDescriptorSet -- ^ TODO: We don't export this constructor?
-
-type ResourceMap = IntMap DescriptorResource
-
-data DescriptorResource = UniformResource   MappedBuffer
-                        | Texture2DResource T.Texture2D
 
 -- | Allocate a descriptor set from a descriptor pool. This descriptor pool has
 -- the information required to allocate a descriptor set based on its index in
@@ -294,7 +289,7 @@ allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
 updateDescriptorSet :: Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
                     -> ResourceMap
-                    -> Renderer ext ()
+                    -> Renderer ext (Vk.DescriptorSet, ResourceMap)
 updateDescriptorSet dset resources = do
 
   let makeDescriptorWrite i = \case
@@ -360,18 +355,11 @@ updateDescriptorSet dset resources = do
 -- TODO: Write this to the note
 destroyDescriptorSet :: DescriptorSet -> Renderer ext ()
 destroyDescriptorSet EmptyDescriptorSet = pure ()
-destroyDescriptorSet (DescriptorSet _ix _dset dresources) = do
-  _ <- traverse freeDescriptorResource dresources
-  pure ()
+destroyDescriptorSet (DescriptorSet _ix _dset dresources) = traverse_ freeDescriptorResource dresources
+  where
+    freeDescriptorResource :: DescriptorResource -> Renderer ext ()
+    freeDescriptorResource = \case
+      UniformResource u -> destroyMappedBuffer u
+      u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought
 
-freeDescriptorResource :: DescriptorResource -> Renderer ext ()
-freeDescriptorResource = \case
-  UniformResource u -> destroyMappedBuffer u
-  u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought
-
-getUniformBuffer :: DescriptorSet -> Int -> MappedBuffer
-getUniformBuffer dset i = case IM.lookup i dset._bindings of
-                            Just (UniformResource b) -> b
-                            Nothing -> error $ "Expecting a uniform descriptor resource at binding " <> show i <> " but found nothing!"
-                            _ -> error $ "Expecting the descriptor resource at binding " <> show i <> " to be a uniform!"
 

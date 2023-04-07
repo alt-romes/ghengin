@@ -36,3 +36,7 @@ source-repository-package
   type:     git
   location: https://github.com/haskell-game/dear-imgui.hs.git
 
+source-repository-package
+  type:     git
+  location: https://github.com/alt-romes/reference-counting
+

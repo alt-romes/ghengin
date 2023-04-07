@@ -56,7 +56,7 @@ Note [Meshes]
 ~~~~~~~~~~~~~
 
 All meshes are freed when the window is closed. However, if you change/discard a
-mesh during the game you must free it explicitly. TODO: Enforce it somehow
+mesh during the game you must free it explicitly. TODO: Enforce it somehow: linear types+reference counting
 
  -}
 

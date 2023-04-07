@@ -85,6 +85,7 @@ library
                       Ghengin.Core.Render.Pipeline,
                       Ghengin.Core.Render.Property,
                       Ghengin.Core.Render.Packet,
+                      Ghengin.Core.Render.Monad,
 
                       Ghengin.Asset.Texture,
                       Ghengin.Component,
@@ -188,7 +189,8 @@ library
                       primitive,
                       -- fir already depends on lens, so we might as well
                       lens >= 5.2,
-                      linear-base
+                      linear-base,
+                      reference-counting
 
                       -- witch,
                       -- constraints,

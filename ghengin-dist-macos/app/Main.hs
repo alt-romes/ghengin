@@ -114,11 +114,14 @@ main = shakeArgsWith shakeOptions{shakeFiles="_build"} flags $ \fvalues targets 
 
         writeFile' out (infoPlist appName)
 
+    -- Executable
     "_build/*.app/Contents/MacOS/*" %> \out -> do
 
         -- To create the executable, run cabal build and list-bin to build it
-        -- and get the resulting executable path
-        cmd_ "cabal build -f-dev" (takeFileName out)
+        -- and get the resulting executable path. We want to build without the
+        -- +dev flag, so we pass -dev. We also strip things to make the
+        -- executable smaller.
+        cmd_ "cabal build -f-dev --enable-split-sections" (takeFileName out)
         StdoutTrim executable <- cmd "cabal list-bin" (takeFileName out)
 
         -- Copy from cabal's dist folder to the app bundle

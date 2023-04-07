@@ -1,10 +1,11 @@
-{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedRecordDot, LinearTypes #-}
 module Ghengin.Core.Material where
 
 import qualified Apecs
 import Control.Lens ((^.), Lens', lens, to)
 import Data.Bifunctor ( Bifunctor(first) )
 import Data.Unique ( Unique, newUnique )
+import Control.Monad.IO.Class
 import Ghengin.Core.Render.Property
     ( freeProperty,
       makeResources,
@@ -15,7 +16,7 @@ import Ghengin.Core.Type.Compatible ( CompatibleMaterial' )
 import Ghengin.Core.Render.Pipeline
     ( RenderPipeline, descriptorPool )
 -- TODO: Remove dependency on Ghengin non-core
-import Ghengin.Utils ( MonadIO(liftIO), GHList((:##), GHNil) )
+import Ghengin.Utils ( GHList((:##), GHNil) )
 -- TODO: Remove Vulkan dependency by abstracting over the descriptor set
 -- creation and destruction
 import Ghengin.Vulkan (Renderer)
@@ -66,7 +67,7 @@ Resources:
 
 data Material xs where
 
-  Done :: (DescriptorSet, Unique) -> Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
+  Done :: (DescriptorSet, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
 
   MaterialProperty :: ∀ α β
                    .  PropertyBinding α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
@@ -107,7 +108,7 @@ instance HasProperties Material where
 data SomeMaterial = ∀ α. SomeMaterial (Material α)
 instance Apecs.Component SomeMaterial where
   type Storage SomeMaterial = Apecs.Map SomeMaterial
-{-# DEPRECATED material "Material storage should be a cache" #-}
+{-# DEPRECATED material "TODO: Material storage should be a cache" #-}
 
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
@@ -160,7 +161,6 @@ material matf rp =
          pure actualMat
      -- TODO: Apecs.newEntity (SomeMaterial mat)
      pure mat
-
 
 materialUID :: Material α -> Unique
 materialUID = \case

@@ -24,6 +24,19 @@ cabal run planets
 Write ups:
 * https://discourse.haskell.org/t/monthly-update-on-a-haskell-game-engine/5515
 
+### Notes 
+
+Module dependencies:
+```
+find src/ -name '*.hs' | xargs graphmod -q -p | dot -T svg -o mods.svg
+```
+
+General dependencies:
+```
+cabal build -j --ghc-options=-fwrite-ide-info
+calligraphy Ghengin.Core.* --exports-only --collapse-data --collapse-classes --output-stdout | dot -T svg -o img.svg -Kfdp
+```
+
 More resources:
 * https://developer.nvidia.com/blog/vulkan-dos-donts/
 * https://zeux.io/2020/02/27/writing-an-efficient-vulkan-renderer/
