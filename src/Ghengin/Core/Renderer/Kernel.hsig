@@ -1,0 +1,42 @@
+{-# LANGUAGE LinearTypes #-}
+signature Ghengin.Core.Renderer.Kernel where
+
+import Data.IntMap (IntMap)
+import qualified Data.Vector.Storable as SV
+import qualified Vulkan as Vk
+
+import qualified Ghengin.Asset.Texture as T
+
+import Data.Counted
+
+import Ghengin.Core.Render.Monad
+
+
+import Data.Counted
+
+-------- Resources ----------------
+
+type ResourceMap = IntMap DescriptorResource
+
+data DescriptorResource where
+  UniformResource   :: RefC MappedBuffer ⊸ DescriptorResource
+  Texture2DResource :: T.Texture2D ⊸ DescriptorResource
+
+
+-------- Mapped Buffer ------------
+
+data MappedBuffer
+
+-- | TODO: Drop dependency on Vulkan and make DescriptorType a data type renderer agnostic
+createMappedBuffer :: MonadRenderer m => Word -> Vk.DescriptorType -> m (RefC MappedBuffer)
+writeMappedBuffer :: ∀ α m. (MonadRenderer m, SV.Storable α) => RefC MappedBuffer ⊸ α -> m (RefC MappedBuffer)
+
+-------- Descriptor Set -----------
+
+data DescriptorSet
+
+updateDescriptorSet :: MonadRenderer m
+                    => DescriptorSet -- Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
+                    ⊸  ResourceMap               -- ^ The resources we're updating the descriptor set with
+                    ⊸  m (DescriptorSet, ResourceMap)
+

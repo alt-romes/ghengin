@@ -42,7 +42,7 @@ import Ghengin.Vulkan
 import Ghengin.Vulkan.Utils
 import qualified Ghengin.Asset.Texture as T
 
-import Ghengin.Core.Render.Monad
+import Ghengin.Core.Renderer (ResourceMap, DescriptorResource(..))
 
 import qualified FIR.Layout
 
@@ -287,7 +287,7 @@ allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
                         pure $ DescriptorSet ix dset resources) ixs descriptorSets
   
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
-updateDescriptorSet :: Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
+updateDescriptorSet :: Vk.DescriptorSet -- ^ The descriptor set we're updating with these resources
                     -> ResourceMap
                     -> Renderer ext (Vk.DescriptorSet, ResourceMap)
 updateDescriptorSet dset resources = do

@@ -64,6 +64,7 @@ flag dev
                -- Enable with -f+dev
 
 common common-flags
+
   if flag(dev)
     ghc-options: -Wall -O0
     cc-options: -O0
@@ -72,6 +73,19 @@ common common-flags
     -- -fexpose-all-unfoldings -fspecialize-aggressively
     -- -fllvm
     cc-options: -O2
+
+  -- LANGUAGE extensions used by modules in this package.
+  default-extensions: UnicodeSyntax,
+                      NoStarIsType,
+                      DataKinds,
+                      GADTs,
+                      ViewPatterns,
+                      TypeApplications,
+                      TypeFamilies,
+                      LambdaCase,
+                      UnboxedTuples,
+                      PatternSynonyms,
+                      DisambiguateRecordFields
 
 library
     -- Import common warning flags.
@@ -86,6 +100,8 @@ library
                       Ghengin.Core.Render.Property,
                       Ghengin.Core.Render.Packet,
                       Ghengin.Core.Render.Monad,
+                      Ghengin.Core.Render,
+                      Ghengin.Core.Renderer,
 
                       Ghengin.Asset.Texture,
                       Ghengin.Component,
@@ -134,6 +150,8 @@ library
                       Ghengin.Vulkan.Utils,
                       Ghengin.World,
 
+    signatures:       Ghengin.Core.Renderer.Kernel
+
     -- Modules included in this library but not exported.
     -- other-modules:
 
@@ -148,19 +166,6 @@ library
     
     if flag(dev)
       cpp-options: -DDEVELOPMENT
-
-    -- LANGUAGE extensions used by modules in this package.
-    default-extensions: UnicodeSyntax,
-                        NoStarIsType,
-                        DataKinds,
-                        GADTs,
-                        ViewPatterns,
-                        TypeApplications,
-                        TypeFamilies,
-                        LambdaCase,
-                        UnboxedTuples,
-                        PatternSynonyms,
-                        DisambiguateRecordFields
 
     -- Other library packages from which modules are imported.
     build-depends:    base ^>=4.17,
@@ -204,88 +209,119 @@ library
     -- Base language which the package is written in.
     default-language: GHC2021
 
-test-suite ghengin-test
-    -- Import common warning flags.
-    import:           common-flags
+-- library ghengin-core
+--     import:           common-flags
 
-    -- Base language which the package is written in.
-    default-language: GHC2021
+--     exposed-modules:  Ghengin.Core.Material,
+--                       Ghengin.Core.Type.Compatible,
+--                       Ghengin.Core.Render.Pipeline,
+--                       Ghengin.Core.Render.Property,
+--                       Ghengin.Core.Render.Packet,
+--                       Ghengin.Core.Render.Monad,
 
-    -- Modules included in this executable, other than Main.
-    -- other-modules:    Main.Apecs
+--     signatures:       Ghengin.Core.Renderer
 
-    -- LANGUAGE extensions used by modules in this package.
-    default-extensions: UnicodeSyntax
+--     hs-source-dirs:     src/Ghengin/Core/
 
-    -- The interface type and version of the test suite.
-    type:             exitcode-stdio-1.0
+--     build-depends:      base, fir
 
-    -- Directories containing source files.
-    hs-source-dirs:   test
+--     default-extensions: UnicodeSyntax,
+--                         NoStarIsType,
+--                         DataKinds,
+--                         GADTs,
+--                         ViewPatterns,
+--                         TypeApplications,
+--                         TypeFamilies,
+--                         LambdaCase,
+--                         UnboxedTuples,
+--                         PatternSynonyms,
+--                         DisambiguateRecordFields
 
-    -- The entrypoint to the test suite.
-    main-is:          Main.hs
+--     default-language: GHC2021
 
-    -- Test dependencies.
-    build-depends:
-        base ^>=4.17.0.0,
-        ghengin
 
-executable planets
-    -- .hs or .lhs file containing the Main module.
-    main-is:          Main.hs
+-- test-suite ghengin-test
+--     -- Import common warning flags.
+--     import:           common-flags
 
-    -- Modules included in this executable, other than Main.
-    other-modules: Planet, Noise, Shader
+--     -- Base language which the package is written in.
+--     default-language: GHC2021
 
-    -- LANGUAGE extensions used by modules in this package.
-    default-extensions: UnicodeSyntax
+--     -- Modules included in this executable, other than Main.
+--     -- other-modules:    Main.Apecs
 
-    -- Other library packages from which modules are imported.
-    build-depends:
-        base ^>=4.17.0.0,
-        ghengin, mtl, vector, hsnoise, containers, random
+--     -- LANGUAGE extensions used by modules in this package.
+--     default-extensions: UnicodeSyntax
 
-    -- ghc-options: -ddump-simpl
-                 -- -ddump-to-file
-                 -- -dsuppress-ticks
-                 -- -dsuppress-stg-exts
-                 -- -dsuppress-coercions
-                 -- -dsuppress-idinfo
-                 -- -dsuppress-unfoldings
-                 -- -dsuppress-module-prefixes
-                 -- -dsuppress-timestamps
-                 -- -dsuppress-uniques
-                 -- -dsuppress-var-kinds
+--     -- The interface type and version of the test suite.
+--     type:             exitcode-stdio-1.0
 
-    -- Directories containing source files.
-    hs-source-dirs:   planets
+--     -- Directories containing source files.
+--     hs-source-dirs:   test
 
-    -- Base language which the package is written in.
-    default-language: GHC2021
+--     -- The entrypoint to the test suite.
+--     main-is:          Main.hs
 
-executable ocean
-    -- .hs or .lhs file containing the Main module.
-    main-is:          Main.hs
+--     -- Test dependencies.
+--     build-depends:
+--         base ^>=4.17.0.0,
+--         ghengin
 
-    -- Modules included in this executable, other than Main.
-    other-modules:    Ocean.Shader
+-- executable planets
+--     -- .hs or .lhs file containing the Main module.
+--     main-is:          Main.hs
 
-    -- LANGUAGE extensions used by modules in this package.
-    default-extensions: UnicodeSyntax
+--     -- Modules included in this executable, other than Main.
+--     other-modules: Planet, Noise, Shader
 
-    -- Other library packages from which modules are imported.
-    build-depends:
-        base ^>=4.17.0.0,
-        ghengin,
-        mtl,
-        vector,
-        containers,
-        hsnoise
+--     -- LANGUAGE extensions used by modules in this package.
+--     default-extensions: UnicodeSyntax
 
-    -- Directories containing source files.
-    hs-source-dirs:   ocean
+--     -- Other library packages from which modules are imported.
+--     build-depends:
+--         base ^>=4.17.0.0,
+--         ghengin, mtl, vector, hsnoise, containers, random
 
-    -- Base language which the package is written in.
-    default-language: GHC2021
+--     -- ghc-options: -ddump-simpl
+--                  -- -ddump-to-file
+--                  -- -dsuppress-ticks
+--                  -- -dsuppress-stg-exts
+--                  -- -dsuppress-coercions
+--                  -- -dsuppress-idinfo
+--                  -- -dsuppress-unfoldings
+--                  -- -dsuppress-module-prefixes
+--                  -- -dsuppress-timestamps
+--                  -- -dsuppress-uniques
+--                  -- -dsuppress-var-kinds
+
+--     -- Directories containing source files.
+--     hs-source-dirs:   planets
+
+--     -- Base language which the package is written in.
+--     default-language: GHC2021
+
+-- executable ocean
+--     -- .hs or .lhs file containing the Main module.
+--     main-is:          Main.hs
+
+--     -- Modules included in this executable, other than Main.
+--     other-modules:    Ocean.Shader
+
+--     -- LANGUAGE extensions used by modules in this package.
+--     default-extensions: UnicodeSyntax
+
+--     -- Other library packages from which modules are imported.
+--     build-depends:
+--         base ^>=4.17.0.0,
+--         ghengin,
+--         mtl,
+--         vector,
+--         containers,
+--         hsnoise
+
+--     -- Directories containing source files.
+--     hs-source-dirs:   ocean
+
+--     -- Base language which the package is written in.
+--     default-language: GHC2021
 
