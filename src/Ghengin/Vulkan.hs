@@ -8,13 +8,14 @@
 {-# LANGUAGE DataKinds #-}
 module Ghengin.Vulkan where
 
+import Prelude ()
+import Prelude.Linear
 import Data.Word
 import Control.Exception
 
 import GHC.Ptr
 
 import Data.IORef
-import Control.Monad.Reader
 
 import Data.ByteString (ByteString)
 import Data.Vector (Vector)
@@ -24,7 +25,7 @@ import qualified Data.List as L
 import qualified Vulkan.Extensions
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan as Vk
-import Vulkan.Zero (zero)
+import qualified Vulkan.Zero as Vk (zero)
 
 import Ghengin.Vulkan.Device.Instance
 import Ghengin.Vulkan.Device
@@ -33,8 +34,10 @@ import Ghengin.Vulkan.Command
 import Ghengin.Vulkan.Frame
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.ImmediateSubmit
-import Ghengin.Utils
+-- import Ghengin.Utils
 import Ghengin.Render.Class
+import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear as Linear
 import qualified System.IO.Linear as Linear
 
 data RendererEnv ext =
@@ -48,7 +51,12 @@ data RendererEnv ext =
        , _immediateSubmit :: !ImmediateSubmitCtx
        , _extension       :: ext
        }
-newtype Renderer ext a = Renderer { unRenderer :: ReaderT (RendererEnv ext) IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader (RendererEnv ext), MonadFail)
+newtype Renderer ext a = Renderer { unRenderer :: ReaderT (RendererEnv ext) Linear.IO a }
+
+deriving instance Functor (Renderer ext)
+deriving instance Applicative (Renderer ext)
+deriving instance Monad (Renderer ext)
+deriving instance MonadIO (Renderer ext)
 
 instance MonadRender (Renderer χ) where
 
@@ -141,10 +149,10 @@ withCurrentFramePresent :: (MonadTrans t, MonadIO (t (Renderer ext)))
                         -> t (Renderer ext) a
 withCurrentFramePresent action = do
 
-  device <- lift $ getDevice
+  device <- lift getDevice
 
-  currentFrameIndex <- lift $ asks (._frameInFlight) >>= liftIO . readIORef
-  currentFrame <- lift $ advanceCurrentFrame
+  currentFrameIndex <- lift asks (._frameInFlight) >>= liftIO . readIORef
+  currentFrame <- lift advanceCurrentFrame
   let
       cmdBuffer = currentFrame._commandBuffer
       inFlightFence = currentFrame._renderFence
@@ -161,7 +169,7 @@ withCurrentFramePresent action = do
 
   i <- lift $ acquireNextImage imageAvailableSem
 
-  Vk.resetCommandBuffer cmdBuffer zero
+  Vk.resetCommandBuffer cmdBuffer Vk.zero
 
   a <- action cmdBuffer i currentFrameIndex
 
