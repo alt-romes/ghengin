@@ -2,6 +2,7 @@
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 module Ghengin.Core.Render.Property
   ( PropertyBinding(..)
   , PropertyBindings
@@ -10,25 +11,33 @@ module Ghengin.Core.Render.Property
   , makeResources
   -- , freeProperty
   , writeProperty
+
+  -- * Utils
+  , GHList(..)
   ) where
 
+import Data.Proxy
+
 import qualified Prelude
+-- ROMES:TODO: For the lens to be used as a getter, I think we will need this definition of functor rather than the control one.
 import qualified Data.Functor.Linear as Data
 import Prelude.Linear
 import Control.Functor.Linear as Linear
 import Ghengin.Core.Render.Monad
-import Control.Lens ((^.), Lens', lens)
+-- TODO: Some special linear lenses to use propertyAt ... import Control.Lens ((^.), Lens', lens)
 import GHC.TypeLits ( KnownNat, type (+), Nat, natVal )
 import Data.Kind ( Type, Constraint )
 
 -- TODO: Remove dependency on Ghengin non-core
-import Ghengin.Asset.Texture
-    ( freeTexture, Texture2D(referenceCount) )
-import Ghengin.Utils
-    ( Storable(sizeOf), Proxy(Proxy), incRefCount, GHList )
+-- import Ghengin.Asset.Texture
+--     ( freeTexture, Texture2D(referenceCount) )
+-- import Ghengin.Utils
+--     ( Storable(sizeOf), Proxy(Proxy), incRefCount, GHList )
 import qualified Data.IntMap as IM
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 import qualified Unsafe.Linear
+
+import Foreign.Storable (Storable(sizeOf))
 
 import Data.Counted (RefC)
 import qualified Data.Counted as Counted
@@ -45,17 +54,30 @@ data PropertyBinding α where
                 => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                 -> PropertyBinding α
 
-  -- ROMES:TODO: I think the texture needs to be linear
-  Texture2DBinding :: Texture2D -> PropertyBinding Texture2D
+  -- ROMES:TODO: I think the texture needs to be linear and reference counted
+  -- ROMES:TODO:!!: Re-add textures!!! Texture2DBinding :: Texture2D -> PropertyBinding Texture2D
 
 
 instance Eq α => Eq (PropertyBinding α) where
   (==) (DynamicBinding x) (DynamicBinding y) = x == y
   (==) (StaticBinding x)  (StaticBinding y)  = x == y
-  (==) (Texture2DBinding x) (Texture2DBinding y) = x == y
+  -- ROMES:TODO: (==) (Texture2DBinding x) (Texture2DBinding y) = x == y
   (==) x y = Unsafe.Linear.toLinear2 (\_ _ -> False) x y
 
 type PropertyBindings α = GHList PropertyBinding α
+
+-- | Generic HList
+data GHList c xs where
+    GHNil :: GHList c '[]
+    (:##) :: c a -> GHList c as -> GHList c (a ': as)
+infixr 6 :##
+
+{-
+Note [Coerce HList to List]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+They have the same representation ^_^, so unsafeCoerce is safe ^_^
+-}
+
 
 {-
 Note [Property Bindings]
@@ -142,9 +164,10 @@ writeProperty buf = \case
     -- Already has been written to, we simply bind it together with the rest of
     -- the set at draw time and do nothing here.
     pure buf
-  Texture2DBinding  _ ->
-    -- As above. Static bindings don't get written every frame.
-    pure buf
+  -- ROMES:TODO:TEXTURES
+  -- Texture2DBinding  _ ->
+  --   -- As above. Static bindings don't get written every frame.
+  --   pure buf
   DynamicBinding (a :: α) ->
     -- Dynamic bindings are written every frame
     -- writeMappedBuffer @α buf a
@@ -240,6 +263,10 @@ class HasProperties φ => HasPropertyAt n β φ α where
   --
   -- One can think of the type of the function as:
   -- propertyAt :: MonadRenderer μ => Lens (φ α) (μ (φ α)) β (μ (Ur β))
+  --
+  -- This is almost like a lens, but while the we use the linear control
+  -- functor rather than the data one, we won't be able to use this lens as a
+  -- getter
   propertyAt :: MonadRenderer μ => ∀ γ. Linear.Functor γ => (β %ρ -> γ (μ (Ur β))) %χ -> (φ α ⊸ γ (μ (φ α)))
 
 instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β φ α where
@@ -262,7 +289,7 @@ instance {-# OVERLAPPING #-}
   ) => HasPropertyAt' n n φ (β:αs) β where
 
   -- propertyAt' :: MonadRenderer μ => Lens (φ (β:αs)) (μ (φ (β:αs))) β (μ (Ur β))
-  propertyAt' :: ∀ μ p x. MonadRenderer μ => ∀ f. Linear.Functor f => (β %p -> f (μ (Ur β))) %x -> (φ (β:αs) ⊸ f (μ (φ (β:αs))))
+  propertyAt' :: ∀ μ ρ χ. MonadRenderer μ => ∀ γ. Linear.Functor γ => (β %ρ -> γ (μ (Ur β))) %χ -> (φ (β:αs) ⊸ γ (μ (φ (β:αs))))
   propertyAt' afmub s   =
     case puncons s of -- ft
       -- TODO: prop might have to be linear
@@ -287,7 +314,7 @@ instance {-# OVERLAPPING #-}
     propertyValue = \case
       DynamicBinding x -> x
       StaticBinding x -> x
-      Texture2DBinding x -> x
+      -- Texture2DBinding x -> x
 
 nat :: ∀ m. KnownNat m => Int
 nat = fromIntegral (natVal $ Proxy @m)

@@ -1,23 +1,22 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-module Ghengin.Shader.Pipeline
+module Ghengin.Core.Shader.Pipeline
   ( ToStructInput
   , ShaderPipeline(ShaderPipeline, (:>->))
 
+  -- * FIR re-exports
+
   -- | For now, export StructInput and construct ShaderPipeline. Eventually,
-  -- export wrapper that also calls ToStructInput
+  -- export wrapper that also calls ToStructInput.
+  --
+  -- ToStructInput is used to construct a type argument to StructInput
   , pattern FIR.StructInput
 
-  -- * FIR
+  -- Other types needed to construct the shader pipeline description
   , FIR.PrimitiveTopology(..), FIR.PrimitiveConnectedness(..)
   ) where
 
--- import qualified Data.Type.Map
--- import qualified Data.Type.Nat
--- import qualified FIR.Layout
--- import qualified FIR.Validation.Formats
--- import qualified SPIRV.Image   as SPIRV
 import Data.Coerce
 import Data.Kind
 import FIR.ProgramState (EntryPointInfo(..), Definedness(..))
@@ -25,7 +24,7 @@ import FIR.Validation.Pipeline (GetExecutionInfo)
 import GHC.TypeLits
 import qualified FIR
 import qualified FIR.Definition
-import Ghengin.Shader.Canonical
+import Ghengin.Core.Shader.Canonical
 
 newtype ShaderPipeline info = ShaderPipeline (FIR.PipelineStages info ())
 

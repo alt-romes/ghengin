@@ -7,24 +7,28 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
 module Ghengin.Core.Render.Pipeline where
 
-import qualified Apecs
-import Data.Typeable ( Typeable )
-import Data.Kind ( Type )
-import Control.Lens (Lens', lens)
-import Control.Monad ( forM_ )
-import Data.List.NonEmpty (NonEmpty((:|)))
-import Foreign.Storable ( Storable(sizeOf) )
-import Geomancy.Mat4 ( Mat4 )
+-- These don't have to be hardcoded, but what used to be hardcoded to them must be updated
+-- import qualified Apecs
+-- import Geomancy.Mat4 ( Mat4 )
+-- import Control.Lens (Lens', lens)
+
 import Ghengin.Core.Render.Property
-    ( makeResources,
-      HasProperties(..),
-      PropertyBinding,
-      PropertyBindings )
--- TODO: Remove dependency on Ghengin non-core
-import Ghengin.Shader.Pipeline ( ShaderPipeline )
-import Ghengin.Utils (GHList(..))
+import Ghengin.Core.Shader.Pipeline ( ShaderPipeline )
+
+import Data.Typeable
+import Data.Kind
+import Control.Monad ( forM_ )
+import Data.List.NonEmpty
+import Foreign.Storable ( Storable(sizeOf) )
+
 -- TODO: Remove dependency on Vulkan somehow?
-import Ghengin.Vulkan
+-- ROMES:TODO: What are we importing from here?
+-- import Ghengin.Vulkan
+--
+-- What I really want to do with the methods below is create hsigs for each of
+-- them individually.  We will not need the freeing/destruction functions
+-- anymore since most things will be reference counted in the linear IO monad,
+-- and the free function will be an internal implementation detail
 import Ghengin.Vulkan.DescriptorSet
     ( allocateDescriptorSet,
       createDescriptorPool,
@@ -43,10 +47,12 @@ import Ghengin.Vulkan.RenderPass
     ( createSimpleRenderPass,
       destroyRenderPass,
       VulkanRenderPass(_renderPass) )
+
 import qualified Data.IntMap as IM
 import qualified Data.Vector as V
-import qualified Vulkan as Vk
 import qualified FIR.Pipeline
+
+import qualified Vulkan as Vk
 
 -- | A render pipeline consists of the descriptor sets and a graphics pipeline
 -- required to render certain 'RenderPacket's
@@ -65,13 +71,17 @@ data RenderPipeline info tys where
                  -> RenderPipeline info (α : β)
 
 data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β) -- ROMES:TODO Can I not have Typeable here?
-instance Apecs.Component SomePipeline where
-  type Storage SomePipeline = Apecs.Map SomePipeline
-{-# DEPRECATED makeRenderPipeline "Storage should be a cache" #-}
+
+-- ROMES:TODO: Apecs instances should be provided out of Core, despite being
+-- for these types -- they'll exist as orphan instances in Ghengin...
+-- instance Apecs.Component SomePipeline where
+--   type Storage SomePipeline = Apecs.Map SomePipeline
+-- {-# DEPRECATED makeRenderPipeline "Storage should be a cache" #-}
 
 -- TODO: PushConstants must also be inferred from the shader code
 -- Add them as possible alternative to descritpor set #2?
-newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
+-- ROMES:TODO:PushConstants automatically used alongside dset #2
+-- newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
 
 -- TODO: Ensure mesh type matches vertex input
 -- TODO: Shader pipeline and buffers should only be created once and reused

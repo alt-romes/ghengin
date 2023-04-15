@@ -74,18 +74,55 @@ common common-flags
     -- -fllvm
     cc-options: -O2
 
-  -- LANGUAGE extensions used by modules in this package.
-  default-extensions: UnicodeSyntax,
-                      NoStarIsType,
-                      DataKinds,
-                      GADTs,
-                      ViewPatterns,
-                      TypeApplications,
-                      TypeFamilies,
-                      LambdaCase,
-                      UnboxedTuples,
-                      PatternSynonyms,
-                      DisambiguateRecordFields
+
+library ghengin-core
+    visibility:       public
+
+    import:           common-flags
+
+    exposed-modules:  Ghengin.Core.Material,
+
+                      Ghengin.Core.Type.Compatible,
+                      Ghengin.Core.Type.Utils,
+
+                      Ghengin.Core.Shader.Pipeline,
+                      Ghengin.Core.Shader.Canonical,
+
+                      Ghengin.Core.Render.Pipeline,
+                      Ghengin.Core.Render.Property,
+                      Ghengin.Core.Render.Packet,
+                      Ghengin.Core.Render.Monad,
+                      Ghengin.Core.Render,
+
+                      Ghengin.Core.Renderer
+    signatures:       Ghengin.Core.Renderer.Kernel
+
+    hs-source-dirs:   ghengin-core
+
+    build-depends:    base,
+                      fir,
+                      -- TODO: NOT DEPEND ON VULKAN IN CORE
+                      vulkan,
+                      linear-base,
+                      reference-counting,
+
+                      containers,
+                      vector
+
+    default-language: GHC2021
+
+    default-extensions: UnicodeSyntax,
+                        NoStarIsType,
+                        DataKinds,
+                        GADTs,
+                        ViewPatterns,
+                        TypeApplications,
+                        TypeFamilies,
+                        LambdaCase,
+                        UnboxedTuples,
+                        PatternSynonyms,
+                        DisambiguateRecordFields
+
 
 library
     -- Import common warning flags.
@@ -93,15 +130,6 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  Ghengin,
-
-                      Ghengin.Core.Material,
-                      Ghengin.Core.Type.Compatible,
-                      Ghengin.Core.Render.Pipeline,
-                      Ghengin.Core.Render.Property,
-                      Ghengin.Core.Render.Packet,
-                      Ghengin.Core.Render.Monad,
-                      Ghengin.Core.Render,
-                      Ghengin.Core.Renderer,
 
                       Ghengin.Asset.Texture,
                       Ghengin.Component,
@@ -150,8 +178,6 @@ library
                       Ghengin.Vulkan.Utils,
                       Ghengin.World,
 
-    signatures:       Ghengin.Core.Renderer.Kernel
-
     -- Modules included in this library but not exported.
     -- other-modules:
 
@@ -195,7 +221,8 @@ library
                       -- fir already depends on lens, so we might as well
                       lens >= 5.2,
                       linear-base,
-                      reference-counting
+                      reference-counting,
+                      ghengin:ghengin-core
 
                       -- witch,
                       -- constraints,
@@ -209,35 +236,17 @@ library
     -- Base language which the package is written in.
     default-language: GHC2021
 
--- library ghengin-core
---     import:           common-flags
-
---     exposed-modules:  Ghengin.Core.Material,
---                       Ghengin.Core.Type.Compatible,
---                       Ghengin.Core.Render.Pipeline,
---                       Ghengin.Core.Render.Property,
---                       Ghengin.Core.Render.Packet,
---                       Ghengin.Core.Render.Monad,
-
---     signatures:       Ghengin.Core.Renderer
-
---     hs-source-dirs:     src/Ghengin/Core/
-
---     build-depends:      base, fir
-
---     default-extensions: UnicodeSyntax,
---                         NoStarIsType,
---                         DataKinds,
---                         GADTs,
---                         ViewPatterns,
---                         TypeApplications,
---                         TypeFamilies,
---                         LambdaCase,
---                         UnboxedTuples,
---                         PatternSynonyms,
---                         DisambiguateRecordFields
-
---     default-language: GHC2021
+    default-extensions: UnicodeSyntax,
+                        NoStarIsType,
+                        DataKinds,
+                        GADTs,
+                        ViewPatterns,
+                        TypeApplications,
+                        TypeFamilies,
+                        LambdaCase,
+                        UnboxedTuples,
+                        PatternSynonyms,
+                        DisambiguateRecordFields
 
 
 -- test-suite ghengin-test

@@ -25,6 +25,11 @@ import Ghengin.Core.Type.Compatible ( Compatible )
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Utils ( Ref, MonadIO(..), incRefCount ) -- TODO: Get rid of import altogether
 
+import qualified Prelude
+import Prelude.Linear
+
+import Control.Functor.Linear as Linear
+
 {-|
 
 Note [Renderable entities]
@@ -115,10 +120,10 @@ instance Component RenderPacket where
 
 -- | Render packet wrapper that creates the key identifier.
 {-# DEPRECATED renderPacket "FIXME: Compute materialUID" #-}
-renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π, MonadIO μ) => Mesh α -> Ref (Material β) -> Ref (RenderPipeline π ξ) -> μ RenderPacket
-renderPacket mesh material pipeline = do
-  incRefCount mesh
-  uniq <- liftIO newUnique
+renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π, MonadIO μ) => Mesh α ⊸ Ref (Material β) ⊸ Ref (RenderPipeline π ξ) ⊸ μ RenderPacket
+renderPacket mesh material pipeline = Linear.do
+  -- ROMES:TODO: !!! incRefCount mesh
+  Ur uniq <- liftSystemIOU newUnique
   pure $ RenderPacket mesh material pipeline (typeRep (Proxy @π), trace "Compute id <materialUID material>" uniq)
 
 {-

@@ -1,5 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
-module Ghengin.Shader.Canonical where
+module Ghengin.Core.Shader.Canonical where
 
 import Data.Kind
 import qualified FIR

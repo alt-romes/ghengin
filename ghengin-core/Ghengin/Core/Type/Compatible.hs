@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-|
    TODO: Document the 'Compatible' type constraint
  -}
@@ -27,7 +28,8 @@ import GHC.TypeLits
 import SPIRV.Decoration (Decoration(..))
 import qualified SPIRV.Image as SPIRV
 -- TODO: Remove dependency on Ghengin non-core
-import Ghengin.Utils ((:<|>:), NumbersFromTo, Zip, SizeOf)
+
+import Ghengin.Core.Type.Utils
 
 {-
 Note [The Compatible constraint]

@@ -2,11 +2,10 @@
 signature Ghengin.Core.Renderer.Kernel where
 
 import Data.IntMap (IntMap)
-import qualified Data.IntMap as IM
 import qualified Data.Vector.Storable as SV
 import qualified Vulkan as Vk
 
-import qualified Ghengin.Asset.Texture as T
+-- import qualified Ghengin.Asset.Texture as T
 
 import Data.Counted
 
@@ -21,7 +20,7 @@ type ResourceMap = IntMap DescriptorResource
 
 data DescriptorResource where
   UniformResource   :: RefC MappedBuffer ⊸ DescriptorResource
-  Texture2DResource :: T.Texture2D ⊸ DescriptorResource
+  -- ROMES:TODO:!: Texture2DResource :: T.Texture2D ⊸ DescriptorResource
 
 
 -------- Mapped Buffer ------------
@@ -29,8 +28,8 @@ data DescriptorResource where
 data MappedBuffer
 
 -- | TODO: Drop dependency on Vulkan and make DescriptorType a data type renderer agnostic
-createMappedBuffer :: MonadRenderer m => Word -> Vk.DescriptorType -> m MappedBuffer
-writeMappedBuffer :: ∀ α m. (MonadRenderer m, SV.Storable α) => MappedBuffer ⊸ α -> m MappedBuffer
+createMappedBuffer :: MonadRenderer m => Word -> Vk.DescriptorType -> m (RefC MappedBuffer)
+writeMappedBuffer :: ∀ α m. (MonadRenderer m, SV.Storable α) => RefC MappedBuffer ⊸ α -> m (RefC MappedBuffer)
 
 -------- Descriptor Set -----------
 
