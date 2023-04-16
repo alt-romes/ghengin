@@ -1,0 +1,50 @@
+signature Ghengin.Core.Renderer.Pipeline where
+
+import GHC.TypeNats
+import FIR hiding (ShaderPipeline)
+import FIR.Validation.Pipeline (ValidPipelineInfo)
+
+import Ghengin.Core.Render.Monad
+import Ghengin.Core.Shader.Pipeline
+
+-- other renderer details
+import Ghengin.Core.Renderer.RenderPass
+
+data GraphicsPipeline
+
+
+-- import Ghengin.Vulkan.Pipeline
+--     ( createGraphicsPipeline,
+--       destroyPipeline,
+--       PipelineConstraints,
+--       VulkanPipeline )
+
+type PipelineConstraints info top descs strides =
+          ( ValidPipelineInfo info
+          , '(top, descs, strides) ~ GetVertexInputInfo info
+          , Known (PrimitiveTopology Nat)    top
+          , Known VertexLocationDescriptions descs
+          , Known BindingStrides             strides
+          )
+
+-- | Create a pipeline given a vertex shader and a fragment shader (in this
+-- order)
+--
+-- Note that the returned vulkan pipeline must be managed in a structure that
+-- ensures each pipeline renders all related items in sequence instead of
+-- jumping in between pipeline
+createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fragdefs)
+                        -- (CompilableProgram v, CompilableProgram f)
+                        ∀  ( info    :: PipelineInfo               )
+                           ( top     :: PrimitiveTopology Nat      )
+                           ( descs   :: VertexLocationDescriptions )
+                           ( strides :: BindingStrides             )
+                           ( ext     :: Type                       )
+                           ( m       :: Type -> Type               )
+                        .  PipelineConstraints info top descs strides
+                        => MonadRenderer m
+                        => ShaderPipeline info
+                        -> RenderPass
+                        -- -> V.Vector Vk.DescriptorSetLayout
+                        -- -> V.Vector Vk.PushConstantRange
+                        -> m GraphicsPipeline

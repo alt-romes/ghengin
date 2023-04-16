@@ -74,11 +74,24 @@ common common-flags
     -- -fllvm
     cc-options: -O2
 
+  default-extensions: UnicodeSyntax,
+                      NoStarIsType,
+                      DataKinds,
+                      GADTs,
+                      ViewPatterns,
+                      TypeApplications,
+                      TypeFamilies,
+                      LambdaCase,
+                      UnboxedTuples,
+                      PatternSynonyms,
+                      DisambiguateRecordFields
+
+
 
 library ghengin-core
-    visibility:       public
-
     import:           common-flags
+
+    visibility:       public
 
     exposed-modules:  Ghengin.Core.Material,
 
@@ -95,7 +108,11 @@ library ghengin-core
                       Ghengin.Core.Render,
 
                       Ghengin.Core.Renderer
-    signatures:       Ghengin.Core.Renderer.Kernel
+    signatures:       Ghengin.Core.Renderer.Kernel,
+                      Ghengin.Core.Renderer.DescriptorSet,
+                      Ghengin.Core.Renderer.Buffer,
+                      Ghengin.Core.Renderer.Pipeline,
+                      Ghengin.Core.Renderer.RenderPass,
 
     hs-source-dirs:   ghengin-core
 
@@ -110,19 +127,6 @@ library ghengin-core
                       vector
 
     default-language: GHC2021
-
-    default-extensions: UnicodeSyntax,
-                        NoStarIsType,
-                        DataKinds,
-                        GADTs,
-                        ViewPatterns,
-                        TypeApplications,
-                        TypeFamilies,
-                        LambdaCase,
-                        UnboxedTuples,
-                        PatternSynonyms,
-                        DisambiguateRecordFields
-
 
 library
     -- Import common warning flags.
@@ -236,17 +240,6 @@ library
     -- Base language which the package is written in.
     default-language: GHC2021
 
-    default-extensions: UnicodeSyntax,
-                        NoStarIsType,
-                        DataKinds,
-                        GADTs,
-                        ViewPatterns,
-                        TypeApplications,
-                        TypeFamilies,
-                        LambdaCase,
-                        UnboxedTuples,
-                        PatternSynonyms,
-                        DisambiguateRecordFields
 
 
 -- test-suite ghengin-test

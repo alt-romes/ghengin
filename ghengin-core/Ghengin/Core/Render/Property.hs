@@ -23,6 +23,7 @@ import qualified Prelude
 import qualified Data.Functor.Linear as Data
 import Prelude.Linear
 import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
 import Ghengin.Core.Render.Monad
 -- TODO: Some special linear lenses to use propertyAt ... import Control.Lens ((^.), Lens', lens)
 import GHC.TypeLits ( KnownNat, type (+), Nat, natVal )
@@ -185,7 +186,9 @@ writeProperty buf = \case
 -- with an χ parameter for the extra information at the list's end.
 class HasProperties φ where
   properties    :: φ α ⊸ (Ur (PropertyBindings α), φ α)
-  descriptors   :: φ α ⊸ (RefC DescriptorSet, RefC ResourceMap, φ α)
+  descriptors   :: MonadIO m
+                => φ α
+                 ⊸ m (RefC DescriptorSet, RefC ResourceMap, φ α)
   puncons       :: φ (α:β) ⊸ (Ur (PropertyBinding α), φ β) -- ROMES:TODO: This is not gonna be Ur when we re-add textures
   pcons         :: PropertyBinding α %p -> φ β ⊸ φ (α:β)
 
@@ -294,8 +297,10 @@ instance {-# OVERLAPPING #-}
     case puncons s of -- ft
       -- TODO: prop might have to be linear
       (Ur prop, xs0)      ->
-        case descriptors xs0 of
-          (dset, resmap, xs1) -> edit prop dset resmap xs1 Linear.<$> afmub (propertyValue prop)
+        (\mub ->
+          descriptors xs0 >>= \case
+            (dset, resmap, xs1) -> edit prop dset resmap xs1 mub
+        ) Linear.<$> afmub (propertyValue prop)
             -- (\b -> pcons <$> editProperty prop (const b) (fromIntegral (natVal $ Proxy @n)) (xs ^. descriptorSet) <*> pure xs)
    where
     edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ μ (Ur β) ⊸ μ (φ (β:αs))

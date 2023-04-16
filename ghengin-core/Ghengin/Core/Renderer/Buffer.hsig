@@ -1,0 +1,18 @@
+{-# LANGUAGE LinearTypes #-}
+signature Ghengin.Core.Renderer.Buffer where
+
+import qualified Data.Vector.Storable as SV
+import qualified Vulkan as Vk -- TODO:Exchange Vk.DescriptorType for isomorphic datatype
+
+import Data.Counted
+
+import Ghengin.Core.Render.Monad
+
+-------- Mapped Buffer ------------
+
+data MappedBuffer
+
+-- | TODO: Drop dependency on Vulkan and make DescriptorType a data type renderer agnostic
+createMappedBuffer :: MonadRenderer m => Word -> Vk.DescriptorType -> m (RefC MappedBuffer)
+writeMappedBuffer :: ∀ α m. (MonadRenderer m, SV.Storable α) => RefC MappedBuffer ⊸ α -> m (RefC MappedBuffer)
+

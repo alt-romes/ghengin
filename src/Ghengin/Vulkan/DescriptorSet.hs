@@ -251,14 +251,16 @@ data DescriptorSet
 -- simply create a descriptor set and write nothing to it.
 allocateDescriptorSet :: Int -- ^ The set to allocate by index
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
-                      -> Renderer χ (ResourceMap -> Renderer χ DescriptorSet)
+                      -> ResourceMap
+                       ⊸ Renderer χ (ResourceMap -> Renderer χ DescriptorSet)
 allocateDescriptorSet ix = fmap (\case [ds] -> ds; _ -> error $ "Internal error: Failed to allocate a single descriptor set #" <> show ix
                                 ) . allocateDescriptorSets [ix]
 
 -- | Like 'allocateDescriptorSet' but allocate multiple sets at once
-allocateDescriptorSets :: Vector Int -- ^ The sets to allocate by Ix
+allocateDescriptorSets :: Vector Int    -- ^ The sets to allocate by Ix
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
-                      -> Renderer χ (Vector (ResourceMap -> Renderer χ DescriptorSet))
+                       ⊸ Vector ResourceMap -- ^ and the resources to write to them
+                       ⊸ Renderer χ (Vector DescriptorSet)
 allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
   let
       sets :: Vector (Vk.DescriptorSetLayout, BindingsMap)
@@ -279,12 +281,16 @@ allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
   -- Allocate the descriptor sets
   descriptorSets <- Vk.allocateDescriptorSets device allocInfo
 
+  -- ROMES:TODO: make update/writing explicit and allocate only allocates the empty set
+  -- This also would allow us to change the special hacks in updateDescriptorSet to an assertion
+  -- Rename to allocate*Empty*descriptorSet
+
   -- Return a closure that when applied to a resource map will write the
   -- descriptor set with the resources information and then return it
-  pure $ V.zipWith (\ix dset resources -> do
-                        -- Write the descriptor set with the allocated resources
-                        updateDescriptorSet dset resources
-                        pure $ DescriptorSet ix dset resources) ixs descriptorSets
+  V.zipWithM (\ix dset resources -> do
+                      -- Write the descriptor set with the allocated resources
+                      updateDescriptorSet dset resources
+                      pure $ DescriptorSet ix dset resources) ixs descriptorSets
   
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
 updateDescriptorSet :: Vk.DescriptorSet -- ^ The descriptor set we're updating with these resources

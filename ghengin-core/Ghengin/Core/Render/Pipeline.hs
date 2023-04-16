@@ -1,10 +1,6 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE DisambiguateRecordFields #-}
 module Ghengin.Core.Render.Pipeline where
 
 -- These don't have to be hardcoded, but what used to be hardcoded to them must be updated
@@ -12,8 +8,11 @@ module Ghengin.Core.Render.Pipeline where
 -- import Geomancy.Mat4 ( Mat4 )
 -- import Control.Lens (Lens', lens)
 
-import Ghengin.Core.Render.Property
-import Ghengin.Core.Shader.Pipeline ( ShaderPipeline )
+import qualified Prelude
+import Prelude.Linear
+import Control.Functor.Linear
+import Control.Monad.IO.Class.Linear
+import qualified Unsafe.Linear as Unsafe
 
 import Data.Typeable
 import Data.Kind
@@ -29,24 +28,24 @@ import Foreign.Storable ( Storable(sizeOf) )
 -- them individually.  We will not need the freeing/destruction functions
 -- anymore since most things will be reference counted in the linear IO monad,
 -- and the free function will be an internal implementation detail
-import Ghengin.Vulkan.DescriptorSet
-    ( allocateDescriptorSet,
-      createDescriptorPool,
-      createDescriptorSetBindingsMap,
-      destroyDescriptorPool,
-      destroyDescriptorSet,
-      DescriptorPool(_set_bindings),
-      DescriptorSet,
-      ResourceMap )
-import Ghengin.Vulkan.Pipeline
-    ( createGraphicsPipeline,
-      destroyPipeline,
-      PipelineConstraints,
-      VulkanPipeline )
-import Ghengin.Vulkan.RenderPass
-    ( createSimpleRenderPass,
-      destroyRenderPass,
-      VulkanRenderPass(_renderPass) )
+-- import Ghengin.Vulkan.DescriptorSet
+--     ( allocateDescriptorSet,
+--       createDescriptorPool,
+--       createDescriptorSetBindingsMap,
+--       destroyDescriptorPool,
+--       destroyDescriptorSet,
+--       DescriptorPool(_set_bindings),
+--       DescriptorSet,
+--       ResourceMap )
+-- import Ghengin.Vulkan.Pipeline
+--     ( createGraphicsPipeline,
+--       destroyPipeline,
+--       PipelineConstraints,
+--       VulkanPipeline )
+-- import Ghengin.Vulkan.RenderPass
+--     ( createSimpleRenderPass,
+--       destroyRenderPass,
+--       VulkanRenderPass(_renderPass) )
 
 import qualified Data.IntMap as IM
 import qualified Data.Vector as V
@@ -54,21 +53,34 @@ import qualified FIR.Pipeline
 
 import qualified Vulkan as Vk
 
+import Data.Counted
+import qualified Data.Counted.Unsafe as Unsafe.Counted
+
+import Ghengin.Core.Render.Monad
+import Ghengin.Core.Render.Property
+import Ghengin.Core.Shader.Pipeline ( ShaderPipeline )
+
+import Ghengin.Core.Renderer.Pipeline
+import Ghengin.Core.Renderer.RenderPass
+import Ghengin.Core.Renderer.DescriptorSet
+
+
 -- | A render pipeline consists of the descriptor sets and a graphics pipeline
 -- required to render certain 'RenderPacket's
 type RenderPipeline :: FIR.Pipeline.PipelineInfo -> [Type] -> Type
 data RenderPipeline info tys where
 
-  RenderPipeline :: { _graphicsPipeline  :: VulkanPipeline
-                    , _renderPass        :: VulkanRenderPass
-                    , _descriptorSetsSet :: NonEmpty (DescriptorSet, DescriptorPool) -- A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
-                    , _shaderPipeline    :: ShaderPipeline info
-                    } -> RenderPipeline info '[] 
+  RenderPipeline :: GraphicsPipeline -- ^ The graphics pipeline underlying this render pipeline. Can a graphics pipeline be shared amongst Render Pipelines such that this field needs to be ref counted?
+                 ⊸  RefC RenderPass -- ^ A reference counted reference to a render pass, since we might share render passes amongst pipelines
+                 -- ⊸  NonEmpty (DescriptorSet, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
+                 ⊸  (RefC DescriptorSet, RefC ResourceMap, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
+                 ⊸  ShaderPipeline info
+                 %p -> RenderPipeline info '[] 
 
   RenderProperty :: ∀ α β info
                   . PropertyBinding α
                  -> RenderPipeline info β
-                 -> RenderPipeline info (α : β)
+                 ⊸  RenderPipeline info (α : β)
 
 data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β) -- ROMES:TODO Can I not have Typeable here?
 
@@ -82,6 +94,7 @@ data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β
 -- Add them as possible alternative to descritpor set #2?
 -- ROMES:TODO:PushConstants automatically used alongside dset #2
 -- newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
+newtype PushConstantData = PushConstantData { pos_offset :: () } deriving Storable
 
 -- TODO: Ensure mesh type matches vertex input
 -- TODO: Shader pipeline and buffers should only be created once and reused
@@ -89,12 +102,13 @@ data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β
 -- TODO: Currently we assume all our descriptor sets are Uniform buffers and
 -- our buffers too but eventually Uniform will be just a constructor of a more
 -- general Buffer and we should select the correct type of buffer individually.
-makeRenderPipeline :: forall τ info tops descs strides χ
+makeRenderPipeline :: forall τ info tops descs strides m
                     . ( PipelineConstraints info tops descs strides )
+                   => MonadRenderer m
                    => ShaderPipeline info
-                   -> (RenderPipeline info '[] -> RenderPipeline info τ)
-                   -> Renderer χ (RenderPipeline info τ)
-makeRenderPipeline shaderPipeline mkRP = do
+                   -> (RenderPipeline info '[] ⊸ RenderPipeline info τ)
+                   -> m (RenderPipeline info τ)
+makeRenderPipeline shaderPipeline mkRP = Linear.do
 
   simpleRenderPass <- createSimpleRenderPass
 
@@ -112,106 +126,84 @@ makeRenderPipeline shaderPipeline mkRP = do
   -- TODO: The dpool per frame in flight doesn't make any sense at the moment, for now we simply allocate from the first pool.
   -- TODO: it doesn't need to be per frame in flight, we just need two to switch between, despite the number of frames in flight
   -- BIG:TODO: Fix multiple frames in flight
-  dsetsSet@((dsetf,dpool):|_) <- mapM (const (createPipelineDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
-
-  -- TODO: Merge this implementation with the one in Core.Material
-  dummySet <- dsetf mempty 
-  let dummyRP :: RenderPipeline info τ = mkRP $ RenderPipeline undefined undefined [(dummySet, dpool)] shaderPipeline
-
-  -- Make the resource map for this render pipeline using the dummyRP
-  resources <- makeResources (renderProperties @info @τ dummyRP)
-
-  actualSets <- mapM (\(f,p) -> (,p) <$> f resources) dsetsSet
-
-  pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass._renderPass (V.fromList $ fmap fst (IM.elems dpool._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
-
-  pure $ mkRP $ RenderPipeline pipeline simpleRenderPass actualSets shaderPipeline
-
-createPipelineDescriptorSets :: ShaderPipeline info -> Renderer ext (ResourceMap -> Renderer ext DescriptorSet, DescriptorPool)
-createPipelineDescriptorSets pp = do
+  -- dsetsSet@((dsetf,dpool):|_) <- mapM (const (createPipelineDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
 
   -- The pipeline should only allocate a descriptor set #0 to be used by render
   -- properties
 
-  let dsetmap = createDescriptorSetBindingsMap pp
-  dpool <- createDescriptorPool dsetmap
+  dpool0 <- createDescriptorPool shaderPipeline
 
   -- Allocate descriptor set #0 to be used by this render pipeline's
-  -- render properties The resources themselves will be written to the
-  -- descriptor set by the function effectively creating the render pipeline
-  -- (which has knowledge of the render properties to allocate the correct type
-  -- of resource for each descriptor)
+  -- render properties
   --
-  -- The allocation actually returns a closure which must be applied to a
-  -- resource map to be complete
-  dsetf <- allocateDescriptorSet 0 dpool 
+  -- The allocation returns a descriptor set to which no resources were written,
+  -- a resource map must be used with 'updateDescriptorSet' to be complete.
+  (dset0, dpool1) <- allocateEmptyDescriptorSet 0 dpool0
 
-  pure (dsetf, dpool)
+  -- We need a dummy pipeline to analyse the structure and generate the resources to fill the actually pipeline
+  let dummyRP :: RenderPipeline info τ = mkRP $ RenderPipeline undefined undefined undefined shaderPipeline -- (do i need empty dset?)
+
+  -- Make the resource map for this render pipeline using the dummyRP
+  resources0 <- makeResources (properties @(RenderPipeline info) @τ dummyRP)
+
+  (dset1, resources1) <- updateDescriptorSet dset0 resources0
+
+  actualSets <- mapM (\(f,p) -> (,p) <$> f resources) dsetsSet
+
+  pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass (V.fromList $ fmap fst (IM.elems dpool._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+
+  pure $ mkRP $ RenderPipeline pipeline simpleRenderPass actualSets shaderPipeline
 
 instance HasProperties (RenderPipeline π) where
-  properties = \case
-    RenderPipeline {} -> GHNil
-    RenderProperty x xs -> x :## properties xs
+  properties :: RenderPipeline π τ ⊸ (Ur (PropertyBindings τ), RenderPipeline π τ)
+  properties = Unsafe.toLinear $ \rp -> (unsafeGo rp, rp) where
+    unsafeGo :: RenderPipeline π τ -> Ur (PropertyBindings τ)
+    unsafeGo = \case
+      RenderPipeline {} -> Ur GHNil
+      RenderProperty x xs -> case unsafeGo xs of Ur xs' -> Ur (x :## xs')
 
-  descriptorSet :: Lens' (RenderPipeline π α) DescriptorSet
-  descriptorSet = lens get' set' where
-    get' :: RenderPipeline π α -> DescriptorSet
-    get' = \case
-      RenderPipeline {_descriptorSetsSet = ((dset,_) :| _)} -> dset
-      RenderProperty _ xs -> get' xs
+  descriptors :: MonadIO m => (RenderPipeline π α) ⊸ m (RefC DescriptorSet, RefC ResourceMap, RenderPipeline π α)
+  descriptors = Unsafe.toLinear (\rp -> unsafeGo rp >>= \case
+                                          (dset, rmap) -> pure (dset, rmap, rp)) where
+    -- Note it's not linear on the pipeline, unsafe! -- but we return the original reference
+    unsafeGo :: MonadIO m => RenderPipeline π α -> m (RefC DescriptorSet, RefC ResourceMap)
+    unsafeGo = \case
+      RenderPipeline gpip rpass (dset, rmap, dpool) spip ->
+        -- In descriptors, we're returning the whole render pipeline unchanged.
+        -- To return DescriptorSet and ResourceMap we increment their reference
+        -- counts because we unsafely keep one reference in the original
+        -- renderpipeline we return
+        (,) <$> Unsafe.Counted.inc dset <*> Unsafe.Counted.inc rmap
 
-    set' :: RenderPipeline π α -> DescriptorSet -> RenderPipeline π α
-    set' p d = case p of
-      rp@RenderPipeline {_descriptorSetsSet = ((_,dpool) :| fms)} -> rp{_descriptorSetsSet = (d,dpool) :| fms}
-      RenderProperty x m' -> RenderProperty x (set' m' d)
+      -- TODO: This will possibly have to become linear
+      RenderProperty _ xs -> unsafeGo xs
 
-  puncons :: RenderPipeline π (α:β) -> (PropertyBinding α, RenderPipeline π β)
-  puncons (RenderProperty p xs) = (p, xs)
+--     get' :: RenderPipeline π α -> DescriptorSet
+--     get' = \case
+--       RenderPipeline {_descriptorSetsSet = ((dset,_) :| _)} -> dset
+--       RenderProperty _ xs -> get' xs
 
-  pcons :: PropertyBinding α -> RenderPipeline π β -> RenderPipeline π (α:β)
-  pcons = RenderProperty
+--     set' :: RenderPipeline π α -> DescriptorSet -> RenderPipeline π α
+--     set' p d = case p of
+--       rp@RenderPipeline {_descriptorSetsSet = ((_,dpool) :| fms)} -> rp{_descriptorSetsSet = (d,dpool) :| fms}
+--       RenderProperty x m' -> RenderProperty x (set' m' d)
 
-renderProperties :: RenderPipeline info τ -> PropertyBindings τ
-renderProperties = \case
-  RenderPipeline {} -> GHNil
-  RenderProperty x xs -> x :## renderProperties xs
+  puncons (RenderProperty p xs) = (Ur p, xs)
+  pcons = Unsafe.toLinear RenderProperty
 
-destroyRenderPipeline :: RenderPipeline α τ -> Renderer ext ()
-destroyRenderPipeline (RenderProperty _ rp) = destroyRenderPipeline rp
-destroyRenderPipeline (RenderPipeline gp rp dss _) = do
-  forM_ dss $ \(dset, dpool) -> do
-    destroyDescriptorPool dpool
-    -- TODO: Destroy descriptor set resources if they are not shared (for now,
-    -- this is only set #0, so this is always fine since there is nothing
-    -- shared here)
-    -- TODO: This now crashes the program
-    destroyDescriptorSet dset
-  destroyRenderPass rp
-  destroyPipeline gp
 
-graphicsPipeline :: Lens' (RenderPipeline α τ) VulkanPipeline
-graphicsPipeline = lens get' set'
-  where
-    get' :: RenderPipeline α τ -> VulkanPipeline
-    get' RenderPipeline{_graphicsPipeline} = _graphicsPipeline
-    get' (RenderProperty _ rp) = get' rp
-
-    set' :: RenderPipeline α τ -> VulkanPipeline -> RenderPipeline α τ
-    set' rp@RenderPipeline{} newrp = rp{_graphicsPipeline = newrp}
-    set' (RenderProperty x rp) newrp = RenderProperty x (set' rp newrp)
-
-renderPass :: Lens' (RenderPipeline α τ) VulkanRenderPass
-renderPass = lens get' set'
-  where
-    get' :: RenderPipeline τ α -> VulkanRenderPass
-    get' RenderPipeline{_renderPass} = _renderPass
-    get' (RenderProperty _ rp) = get' rp
-
-    set' :: RenderPipeline τ α -> VulkanRenderPass -> RenderPipeline τ α
-    set' rp@RenderPipeline{} newrp = rp{Ghengin.Core.Render.Pipeline._renderPass = newrp}
-    set' (RenderProperty x rp) newrp = RenderProperty x (set' rp newrp)
-
-descriptorPool :: RenderPipeline α τ -> DescriptorPool
-descriptorPool RenderPipeline{_descriptorSetsSet=(_,dpool) :| _} = dpool
-descriptorPool (RenderProperty _ rp) = descriptorPool rp
+-- destroyRenderPipeline :: MonadRenderer m
+--                       => RenderPipeline α τ
+--                       ⊸ m ()
+-- destroyRenderPipeline (RenderProperty _ rp) = destroyRenderPipeline rp
+-- destroyRenderPipeline (RenderPipeline gp rp dss _) = do
+--   forM_ dss $ \(dset, dpool) -> do
+--     destroyDescriptorPool dpool
+--     -- TODO: Destroy descriptor set resources if they are not shared (for now,
+--     -- this is only set #0, so this is always fine since there is nothing
+--     -- shared here)
+--     -- TODO: This now crashes the program
+--     destroyDescriptorSet dset
+--   destroyRenderPass rp
+--   destroyPipeline gp
 

@@ -1,0 +1,15 @@
+signature Ghengin.Core.Renderer.RenderPass where
+
+import Ghengin.Core.Render.Monad
+
+-- import Ghengin.Vulkan.RenderPass
+--     ( createSimpleRenderPass,
+--       destroyRenderPass,
+--       VulkanRenderPass(_renderPass) )
+
+data RenderPass
+
+createSimpleRenderPass :: MonadRenderer m
+                       => m RenderPass
+
+

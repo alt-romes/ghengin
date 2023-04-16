@@ -1,0 +1,70 @@
+{-# LANGUAGE LinearTypes #-}
+signature Ghengin.Core.Renderer.DescriptorSet where
+
+import Data.IntMap (IntMap)
+
+import Data.Counted
+
+import Ghengin.Core.Render.Monad
+import Ghengin.Core.Shader.Pipeline
+
+import Ghengin.Core.Renderer.Buffer
+
+
+-------- Resources ----------------
+-- Resources are a part of the descriptor set module since these resources are
+-- used to manipulate the descriptors of the descriptor set.
+--
+-- e.g. a mapped buffer resource can be bound by a descriptor such that using
+-- that descriptor in the shader will read the buffer resource
+
+type ResourceMap = IntMap DescriptorResource
+
+data DescriptorResource where
+  UniformResource   :: RefC MappedBuffer ⊸ DescriptorResource
+  -- ROMES:TODO:!: Texture2DResource :: T.Texture2D ⊸ DescriptorResource
+
+
+
+-- import Ghengin.Vulkan.DescriptorSet
+--     ( allocateDescriptorSet,
+--       createDescriptorPool,
+--       destroyDescriptorPool,
+--       destroyDescriptorSet,
+--       DescriptorPool(_set_bindings),
+--       DescriptorSet,
+--       ResourceMap )
+
+data DescriptorPool
+
+createDescriptorPool :: MonadRenderer m
+                     => ShaderPipeline info
+                     -> m DescriptorPool
+
+
+data DescriptorSet
+
+-- | Allocates a descriptor set whose layout is defined according to the shader
+-- pipeline information stored in the descriptor pool.
+--
+-- Despite the layout matching the shader, there are no resources written/bound
+-- to the descriptor set.
+--
+-- One must call 'updateDescriptorSet' in order to write the resources to the
+-- allocated descriptor set.
+allocateEmptyDescriptorSet :: MonadRenderer m
+                           => Int -- ^ The set to allocate by index
+                           -> DescriptorPool-- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
+                           ⊸  m (DescriptorSet, DescriptorPool)
+
+-- | Update a descriptor set according to a set of resources.
+--
+-- All indices that are not contained in the resource map will remain as they
+-- are in the descriptor set, while the bindings that do exist in the resource
+-- map will overwrite what was previously written in the descriptor set at
+-- those indices.
+updateDescriptorSet :: MonadRenderer m
+                    => DescriptorSet -- Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
+                    ⊸  ResourceMap               -- ^ The resources we're updating the descriptor set with
+                    ⊸  m (DescriptorSet, ResourceMap)
+
