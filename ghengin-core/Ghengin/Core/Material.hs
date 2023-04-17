@@ -1,27 +1,22 @@
-{-# LANGUAGE OverloadedRecordDot, LinearTypes #-}
+{-# LANGUAGE OverloadedRecordDot, LinearTypes, QualifiedDo, NoImplicitPrelude #-}
 module Ghengin.Core.Material where
 
-import qualified Apecs
-import Control.Lens ((^.), Lens', lens, to)
-import Data.Bifunctor ( Bifunctor(first) )
+import Prelude.Linear
+
 import Data.Unique ( Unique, newUnique )
-import Control.Monad.IO.Class
+import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
+
 import Ghengin.Core.Render.Property
-    ( freeProperty,
-      makeResources,
-      HasProperties(..),
-      PropertyBinding,
-      PropertyBindings )
 import Ghengin.Core.Type.Compatible ( CompatibleMaterial' )
-import Ghengin.Core.Render.Pipeline
-    ( RenderPipeline, descriptorPool )
--- TODO: Remove dependency on Ghengin non-core
-import Ghengin.Utils ( GHList((:##), GHNil) )
--- TODO: Remove Vulkan dependency by abstracting over the descriptor set
--- creation and destruction
-import Ghengin.Vulkan (Renderer)
-import Ghengin.Vulkan.DescriptorSet (DescriptorPool(..), DescriptorSet(..), allocateDescriptorSet, destroyDescriptorSet)
-import qualified Data.IntMap as IM
+import Ghengin.Core.Render.Pipeline ( RenderPipeline(..) )
+
+import Ghengin.Core.Renderer.DescriptorSet
+import Ghengin.Core.Render.Monad
+
+import Data.Counted as Counted
+import qualified Data.Counted.Unsafe as Unsafe.Counted
+import qualified Unsafe.Linear as Unsafe
 
 {-
 
@@ -67,108 +62,118 @@ Resources:
 
 data Material xs where
 
-  Done :: (DescriptorSet, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
+  Done :: (RefC DescriptorSet, RefC ResourceMap, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
 
   MaterialProperty :: ∀ α β
                    .  PropertyBinding α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
                    -> Material β
-                   -> Material (α:β)
+                    ⊸ Material (α:β)
 
-instance Eq (Material '[]) where
-  (==) (Done _) (Done _) = True
+-- Did I need this?
+-- instance Eq (Material '[]) where
+--   (==) (Done _) (Done _) = True
 
-instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
-  (==) (MaterialProperty a xs) (MaterialProperty b ys) = a == b && xs == ys
+-- instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
+--   (==) (MaterialProperty a xs) (MaterialProperty b ys) = a == b && xs == ys
 
 instance HasProperties Material where
 
-  properties   :: Material α -> PropertyBindings α
-  properties = \case
-    Done _ -> GHNil
-    MaterialProperty x xs -> x :## properties xs
+  properties :: Material α ⊸ (Ur (PropertyBindings α), Material α)
+  properties = Unsafe.toLinear $ \m -> (unsafeGo m, m) where
+    unsafeGo :: Material α -> Ur (PropertyBindings α)
+    unsafeGo = \case
+      Done {} -> Ur GHNil
+      MaterialProperty x xs -> case unsafeGo xs of Ur xs' -> Ur (x :## xs')
 
-  descriptorSet :: Lens' (Material α) DescriptorSet
-  descriptorSet = lens get' set' where
-    get' :: Material α -> DescriptorSet
-    get' = \case
-      Done x -> fst x
-      MaterialProperty _ xs -> get' xs
-      
-    set' :: Material α -> DescriptorSet -> Material α
-    set' m d = case m of
-      Done x -> Done $ first (const d) x
-      MaterialProperty x m' -> MaterialProperty x (set' m' d)
+  descriptors   :: MonadIO m
+                => Material α
+                 ⊸ m (RefC DescriptorSet, RefC ResourceMap, Material α)
+  descriptors = Unsafe.toLinear (\mat -> unsafeGo mat >>= \case
+                                          (dset, rmap) -> pure (dset, rmap, mat)) where
+    -- Note it's not linear on the pipeline, unsafe! -- but we return the original reference
+    unsafeGo :: MonadIO m => Material α -> m (RefC DescriptorSet, RefC ResourceMap)
+    unsafeGo = \case
+      Done (dset, rmap, _uq) ->
+        -- In descriptors, we're returning the whole render pipeline unchanged.
+        -- To return DescriptorSet and ResourceMap we increment their reference
+        -- counts because we unsafely keep one reference in the original
+        -- renderpipeline we return
+        (,) <$> Unsafe.Counted.inc dset <*> Unsafe.Counted.inc rmap
 
-  puncons :: Material (α:β) -> (PropertyBinding α, Material β)
-  puncons (MaterialProperty p xs) = (p, xs)
+      -- TODO: This will possibly have to become linear
+      MaterialProperty _ xs -> unsafeGo xs
 
-  pcons :: PropertyBinding α -> Material β -> Material (α:β)
-  pcons = MaterialProperty
+  puncons :: Material (α:β) ⊸ (Ur (PropertyBinding α), Material β)
+  puncons (MaterialProperty p xs) = (Ur p, xs)
+
+  pcons :: PropertyBinding α %p -> Material β ⊸ Material (α:β)
+  pcons = Unsafe.toLinear MaterialProperty
 
 data SomeMaterial = ∀ α. SomeMaterial (Material α)
-instance Apecs.Component SomeMaterial where
-  type Storage SomeMaterial = Apecs.Map SomeMaterial
-{-# DEPRECATED material "TODO: Material storage should be a cache" #-}
+-- ROMES:TODO: InSTANCE OUTSIDE OF CORE!!!!!
+-- instance Apecs.Component SomeMaterial where
+--   type Storage SomeMaterial = Apecs.Map SomeMaterial
+-- {-# DEPRECATED material "TODO: Material storage should be a cache" #-}
 
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
-material :: ∀ α β π χ. CompatibleMaterial' α π => (Material '[] -> Material α) -> RenderPipeline π β -> Renderer χ (Material α)
-material matf rp = 
-  -- TODO: There could be more than 1 descriptor pool in flight (+frames in flight)
-  let dpool = rp^.to descriptorPool
-   in do
+material :: ∀ α β π m. (CompatibleMaterial' α π, MonadRenderer m)
+         => (Material '[] ⊸ Material α) -> RenderPipeline π β ⊸ m (Material α, RenderPipeline π β)
+material matf (RenderProperty pr rps) = material matf rps >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
+material matf (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Linear.do
 
-     -- Make the unique identifier for this material
-     uniq <- liftIO newUnique
+  -- Make the unique identifier for this material
+  Ur uniq <- liftSystemIOU newUnique
 
-     -- TODO: Merge this "dummy" idea with the one in Core.Render.Pipeline
+  -- We allocate an empty descriptor set of type #1 to later write with the
+  -- resource map
+  (dset0, dpool1) <- allocateEmptyDescriptorSet 1 dpool0
 
-     -- We bail out early if this descriptor pool has no descriptor sets of
-     -- type #1 (which would mean there are no bindings in descriptor set #1
-     mat <- case IM.lookup 1 dpool._set_bindings of
-       Nothing -> pure (matf (Done (EmptyDescriptorSet, uniq)))
-       Just _  -> do
+  -- -- We bail out early if this descriptor pool has no descriptor sets of
+  -- -- type #1 (which would mean there are no bindings in descriptor set #1
+  -- mat <- case IM.lookup 1 dpool._set_bindings of
+  --   Nothing -> pure (matf (Done (EmptyDescriptorSet, uniq)))
+  --   Just _  -> do
 
-         -- We allocate a descriptor set of type #1 and create a closure that will
-         -- give us the descriptor set when provided with a resource map.
-         dsetf <- allocateDescriptorSet 1 dpool
+  -- We create a dummy material.
+  -- descriptor set and writes all the resources to their bindings. If we
+  -- pass an empty map of resources, nothing is written. So we create an
+  -- empty resource map to create a dummy descriptor set to create a dummy
+  -- material so we can inspect its structure and allocate the required
+  -- resources that haven't yet been allocated. When we finish doing so,
+  -- we'll have constructed the actual resource map, and can then create a
+  -- final material.
+  let dummyMat :: Material α = matf $ Done undefined
 
-         -- We create a dummy material based on a dummy dset constructed from an
-         -- empty set of resources. The descriptor set function constructs a
-         -- descriptor set and writes all the resources to their bindings. If we
-         -- pass an empty map of resources, nothing is written. So we create an
-         -- empty resource map to create a dummy descriptor set to create a dummy
-         -- material so we can inspect its structure and allocate the required
-         -- resources that haven't yet been allocated. When we finish doing so,
-         -- we'll have constructed the actual resource map, and can then create a
-         -- final material.
-         dummySet <- dsetf mempty
-         let dummyMat :: Material α = matf $ Done (dummySet, uniq)
+  -- Make the resource map for this material
+  -- Will also count texture references
+  resources0 <- makeResources (case properties @_ @α dummyMat of (Ur pbs, _) -> pbs)
 
-         -- Make the resource map for this material
-         -- Will also count texture references
-         resources <- makeResources (properties @_ @α dummyMat)
+  -- Create the descriptor set with the written descriptors based on the
+  -- created resource map
+  (dset1, resources1) <- updateDescriptorSet dset0 resources0
 
-         -- Create the descriptor set with the written descriptors based on the
-         -- created resource map
-         actualDSet <- dsetf resources
+  dset2 <- Counted.new (error "freeDescriptorSet:RefC needs to be parametrised over monad") dset1
+  resources2 <- Counted.new (error "ROMES:TODO!!!!") resources1
 
-         -- Create the material which stores the final descriptor set with the
-         -- updated information.
-         let actualMat = matf $ Done (actualDSet, uniq)
+  -- Create the material which stores the final descriptor set with the
+  -- updated information.
+  pure
+    ( matf $ Done (dset2, resources2, Ur uniq)
+    , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders
+    )
+  -- TODO: Apecs.newEntity (SomeMaterial mat)
 
-         pure actualMat
-     -- TODO: Apecs.newEntity (SomeMaterial mat)
-     pure mat
+materialUID :: Material α ⊸ (Ur Unique, Material α)
+materialUID = Unsafe.toLinear $ \x -> (unsafeGo x, x) where
+  unsafeGo :: Material α -> Ur Unique
+  unsafeGo = \case
+    Done (_,_,y) -> y
+    MaterialProperty _ xs -> unsafeGo xs
 
-materialUID :: Material α -> Unique
-materialUID = \case
-  Done x -> snd x
-  MaterialProperty _ xs -> materialUID xs
-
-freeMaterial :: Material α -> Renderer χ ()
-freeMaterial = \case
-  Done x -> destroyDescriptorSet (fst x)
-  MaterialProperty prop xs -> freeProperty prop >> freeMaterial xs
+-- freeMaterial :: Material α -> Renderer χ ()
+-- freeMaterial = \case
+--   Done x -> destroyDescriptorSet (fst x)
+--   MaterialProperty prop xs -> freeProperty prop >> freeMaterial xs
 

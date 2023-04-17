@@ -1,4 +1,5 @@
 {-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Core.Render.Pipeline where
@@ -10,7 +11,7 @@ module Ghengin.Core.Render.Pipeline where
 
 import qualified Prelude
 import Prelude.Linear
-import Control.Functor.Linear
+import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
 import qualified Unsafe.Linear as Unsafe
 
@@ -53,7 +54,7 @@ import qualified FIR.Pipeline
 
 import qualified Vulkan as Vk
 
-import Data.Counted
+import Data.Counted as Counted
 import qualified Data.Counted.Unsafe as Unsafe.Counted
 
 import Ghengin.Core.Render.Monad
@@ -94,7 +95,6 @@ data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β
 -- Add them as possible alternative to descritpor set #2?
 -- ROMES:TODO:PushConstants automatically used alongside dset #2
 -- newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
-newtype PushConstantData = PushConstantData { pos_offset :: () } deriving Storable
 
 -- TODO: Ensure mesh type matches vertex input
 -- TODO: Shader pipeline and buffers should only be created once and reused
@@ -111,6 +111,7 @@ makeRenderPipeline :: forall τ info tops descs strides m
 makeRenderPipeline shaderPipeline mkRP = Linear.do
 
   simpleRenderPass <- createSimpleRenderPass
+  (srpass1, srpass2) <- share simpleRenderPass
 
   -- Create the descriptor sets and graphics pipeline based on the shader
   -- pipeline
@@ -144,15 +145,19 @@ makeRenderPipeline shaderPipeline mkRP = Linear.do
   let dummyRP :: RenderPipeline info τ = mkRP $ RenderPipeline undefined undefined undefined shaderPipeline -- (do i need empty dset?)
 
   -- Make the resource map for this render pipeline using the dummyRP
-  resources0 <- makeResources (properties @(RenderPipeline info) @τ dummyRP)
+  resources0 <- makeResources (case properties @(RenderPipeline info) @τ dummyRP of (Ur pbs, _) -> pbs)
 
+  -- Bind resources to descriptor set
   (dset1, resources1) <- updateDescriptorSet dset0 resources0
 
-  actualSets <- mapM (\(f,p) -> (,p) <$> f resources) dsetsSet
+  -- Create the graphics pipeline
+  pipeline <- createGraphicsPipeline shaderPipeline srpass1 -- ROMES:TODO:!!!!!
+                                                                     -- (V.fromList $ fmap fst (IM.elems dpool._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
-  pipeline <- createGraphicsPipeline shaderPipeline simpleRenderPass (V.fromList $ fmap fst (IM.elems dpool._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+  dset2 <- Counted.new (error "freeDescriptorSet:RefC needs to be parametrised over monad") dset1
+  resources2 <- Counted.new (error "ROMES:TODO!!!!") resources1
 
-  pure $ mkRP $ RenderPipeline pipeline simpleRenderPass actualSets shaderPipeline
+  pure $ mkRP $ RenderPipeline pipeline srpass2 (dset2, resources2, dpool1) shaderPipeline
 
 instance HasProperties (RenderPipeline π) where
   properties :: RenderPipeline π τ ⊸ (Ur (PropertyBindings τ), RenderPipeline π τ)
@@ -162,7 +167,7 @@ instance HasProperties (RenderPipeline π) where
       RenderPipeline {} -> Ur GHNil
       RenderProperty x xs -> case unsafeGo xs of Ur xs' -> Ur (x :## xs')
 
-  descriptors :: MonadIO m => (RenderPipeline π α) ⊸ m (RefC DescriptorSet, RefC ResourceMap, RenderPipeline π α)
+  descriptors :: MonadIO m => RenderPipeline π α ⊸ m (RefC DescriptorSet, RefC ResourceMap, RenderPipeline π α)
   descriptors = Unsafe.toLinear (\rp -> unsafeGo rp >>= \case
                                           (dset, rmap) -> pure (dset, rmap, rp)) where
     -- Note it's not linear on the pipeline, unsafe! -- but we return the original reference
@@ -177,16 +182,6 @@ instance HasProperties (RenderPipeline π) where
 
       -- TODO: This will possibly have to become linear
       RenderProperty _ xs -> unsafeGo xs
-
---     get' :: RenderPipeline π α -> DescriptorSet
---     get' = \case
---       RenderPipeline {_descriptorSetsSet = ((dset,_) :| _)} -> dset
---       RenderProperty _ xs -> get' xs
-
---     set' :: RenderPipeline π α -> DescriptorSet -> RenderPipeline π α
---     set' p d = case p of
---       rp@RenderPipeline {_descriptorSetsSet = ((_,dpool) :| fms)} -> rp{_descriptorSetsSet = (d,dpool) :| fms}
---       RenderProperty x m' -> RenderProperty x (set' m' d)
 
   puncons (RenderProperty p xs) = (Ur p, xs)
   pcons = Unsafe.toLinear RenderProperty
@@ -206,4 +201,5 @@ instance HasProperties (RenderPipeline π) where
 --     destroyDescriptorSet dset
 --   destroyRenderPass rp
 --   destroyPipeline gp
+
 

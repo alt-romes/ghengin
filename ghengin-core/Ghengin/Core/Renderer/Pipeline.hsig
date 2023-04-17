@@ -1,3 +1,4 @@
+{-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.Pipeline where
 
 import GHC.TypeNats
@@ -9,6 +10,8 @@ import Ghengin.Core.Shader.Pipeline
 
 -- other renderer details
 import Ghengin.Core.Renderer.RenderPass
+
+import Data.Counted
 
 data GraphicsPipeline
 
@@ -39,12 +42,11 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( top     :: PrimitiveTopology Nat      )
                            ( descs   :: VertexLocationDescriptions )
                            ( strides :: BindingStrides             )
-                           ( ext     :: Type                       )
                            ( m       :: Type -> Type               )
                         .  PipelineConstraints info top descs strides
                         => MonadRenderer m
                         => ShaderPipeline info
-                        -> RenderPass
+                        -> RefC RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
                         -- -> V.Vector Vk.DescriptorSetLayout
                         -- -> V.Vector Vk.PushConstantRange
-                        -> m GraphicsPipeline
+                         ⊸ m GraphicsPipeline

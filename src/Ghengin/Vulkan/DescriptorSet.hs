@@ -339,6 +339,8 @@ updateDescriptorSet dset resources = do
   dev <- getDevice
 
   -- Only issue the call if we're actually updating something.
+  -- TODO2:REMOVE THIS, we no longer update the dset with the dummy things,
+  -- simply allocate an empty one and write it explicitly
   -- This allows us to use the dummy resources trick in 'material'
   -- TODO: Note Dummy Resource or a good inline comment...
   when (IM.size resources > 0) $

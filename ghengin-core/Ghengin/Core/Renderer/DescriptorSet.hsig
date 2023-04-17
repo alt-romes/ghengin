@@ -25,7 +25,6 @@ data DescriptorResource where
   -- ROMES:TODO:!: Texture2DResource :: T.Texture2D ⊸ DescriptorResource
 
 
-
 -- import Ghengin.Vulkan.DescriptorSet
 --     ( allocateDescriptorSet,
 --       createDescriptorPool,
@@ -67,4 +66,10 @@ updateDescriptorSet :: MonadRenderer m
                     => DescriptorSet -- Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
                     ⊸  ResourceMap               -- ^ The resources we're updating the descriptor set with
                     ⊸  m (DescriptorSet, ResourceMap)
+
+
+freeDescriptorSet :: MonadRenderer m
+                  => DescriptorSet
+                   ⊸ m ()
+
 

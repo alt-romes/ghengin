@@ -1,5 +1,6 @@
 -- {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
 {-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE NoStarIsType #-}
 {-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -15,15 +16,15 @@ module Ghengin.Core.Render.Packet
   , module Ghengin.Core.Render.Pipeline
   ) where
 
-import Apecs (Component, Storage, Map)
+-- import Apecs (Component, Storage, Map)
 import Debug.Trace ( trace )
 import Data.Typeable ( Typeable, Proxy(Proxy), typeRep, TypeRep )
 import Data.Unique ( Unique, newUnique )
 import Ghengin.Core.Material ( Material )
-import Ghengin.Component.Mesh ( Mesh(referenceCount) )
+-- import Ghengin.Component.Mesh ( Mesh(referenceCount) )
 import Ghengin.Core.Type.Compatible ( Compatible )
 import Ghengin.Core.Render.Pipeline
-import Ghengin.Utils ( Ref, MonadIO(..), incRefCount ) -- TODO: Get rid of import altogether
+-- import Ghengin.Utils ( Ref, MonadIO(..), incRefCount ) -- TODO: Get rid of import altogether
 
 import qualified Prelude
 import Prelude.Linear
@@ -112,19 +113,27 @@ described in bytes.
  -}
 
 -- BIG:TODO: Cache around this Map storage
-instance Component RenderPacket where
-  type Storage RenderPacket = Map RenderPacket
+-- TODO: INSTANCE OuTSIDE OF CORE
+-- instance Component RenderPacket where
+--   type Storage RenderPacket = Map RenderPacket
 
 -- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
 {-# DEPRECATED renderPacket "FIXME: Compute materialUID" #-}
-renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π, MonadIO μ) => Mesh α ⊸ Ref (Material β) ⊸ Ref (RenderPipeline π ξ) ⊸ μ RenderPacket
+renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π, MonadIO μ)
+             => Mesh α
+              ⊸ Ref (Material β)
+              ⊸ Ref (RenderPipeline π ξ)
+              ⊸ μ RenderPacket
 renderPacket mesh material pipeline = Linear.do
   -- ROMES:TODO: !!! incRefCount mesh
   Ur uniq <- liftSystemIOU newUnique
   pure $ RenderPacket mesh material pipeline (typeRep (Proxy @π), trace "Compute id <materialUID material>" uniq)
+
+-- TODO: I think before I can get to this module I will need to handle both
+-- Meshes and References(Apecs-based)!
 
 {-
 Note [Render Packet Key]
