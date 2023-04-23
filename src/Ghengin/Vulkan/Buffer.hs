@@ -117,11 +117,25 @@ createVertexBuffer = createDeviceLocalBuffer @α Vk.BUFFER_USAGE_VERTEX_BUFFER_B
 createIndex32Buffer :: SV.Vector Int32 -> Renderer χ (Vk.Buffer, Vk.DeviceMemory)
 createIndex32Buffer = createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT
 
+data DeviceLocalBuffer where
+  DeviceLocalBuffer :: {-# UNPACK #-} !Vk.Buffer
+                     ⊸ {-# UNPACK #-} !Vk.DeviceMemory
+                     -- ⊸ Word -- Size
+                     ⊸ DeviceLocalBuffer
+
 -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
-data MappedBuffer = UniformBuffer { buffer :: Vk.Buffer
-                                  , devMem :: Vk.DeviceMemory
-                                  , hostMem :: Ptr ()
-                                  , bufSize :: Size
+--
+-- This buffer has USAGE_UNIFORM_BUFFER_BIT and MEMORY_PROPRTY_HOST_VISIBLE and
+-- MEMORY_PROPERTY_HOST_COHERENT_BIT -- we allocate device-local and host-local
+-- memory and writing to the mapped buffer entails writing to the host memory
+-- which is mapped to device memory and hence synchronized automatically
+--
+-- This is unlike DeviceLocalBuffers, which are allocated on the device and
+-- require a staging buffer and a copy command to be written
+data MappedBuffer = UniformBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
+                                  , devMem  :: {-# UNPACK #-} !Vk.DeviceMemory
+                                  , hostMem :: {-# UNPACK #-} !Ptr ()
+                                  , bufSize :: {-# UNPACK #-} !(Ur Size)
                                   }
 
 -- data Buffer where

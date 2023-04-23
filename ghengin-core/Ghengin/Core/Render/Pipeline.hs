@@ -57,10 +57,10 @@ import qualified Vulkan as Vk
 import Data.Counted as Counted
 import qualified Data.Counted.Unsafe as Unsafe.Counted
 
-import Ghengin.Core.Render.Monad
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Shader.Pipeline ( ShaderPipeline )
 
+import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Pipeline
 import Ghengin.Core.Renderer.RenderPass
 import Ghengin.Core.Renderer.DescriptorSet
@@ -102,12 +102,11 @@ data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β
 -- TODO: Currently we assume all our descriptor sets are Uniform buffers and
 -- our buffers too but eventually Uniform will be just a constructor of a more
 -- general Buffer and we should select the correct type of buffer individually.
-makeRenderPipeline :: forall τ info tops descs strides m
+makeRenderPipeline :: forall τ info tops descs strides
                     . ( PipelineConstraints info tops descs strides )
-                   => MonadRenderer m
                    => ShaderPipeline info
                    -> (RenderPipeline info '[] ⊸ RenderPipeline info τ)
-                   -> m (RenderPipeline info τ)
+                   -> Renderer (RenderPipeline info τ)
 makeRenderPipeline shaderPipeline mkRP = Linear.do
 
   simpleRenderPass <- createSimpleRenderPass
@@ -187,9 +186,8 @@ instance HasProperties (RenderPipeline π) where
   pcons = Unsafe.toLinear RenderProperty
 
 
--- destroyRenderPipeline :: MonadRenderer m
---                       => RenderPipeline α τ
---                       ⊸ m ()
+-- destroyRenderPipeline :: RenderPipeline α τ
+--                        ⊸ Renderer ()
 -- destroyRenderPipeline (RenderProperty _ rp) = destroyRenderPipeline rp
 -- destroyRenderPipeline (RenderPipeline gp rp dss _) = do
 --   forM_ dss $ \(dset, dpool) -> do

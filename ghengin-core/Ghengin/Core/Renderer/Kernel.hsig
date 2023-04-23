@@ -4,11 +4,14 @@ signature Ghengin.Core.Renderer.Kernel where
 import qualified Prelude
 import Prelude.Linear
 
+import Control.Functor.Linear        as Linear
 import Control.Monad.IO.Class.Linear as Linear
 
--- | While we don't move MonadRenderer to this, avoid name clashes
-data Renderer_ a
+data Renderer a
 
-instance Linear.MonadIO Renderer_
+instance Linear.Functor Renderer
+instance Linear.Applicative Renderer
+instance Linear.Monad Renderer
+instance Linear.MonadIO Renderer
 
 

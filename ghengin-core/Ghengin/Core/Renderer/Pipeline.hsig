@@ -5,10 +5,10 @@ import GHC.TypeNats
 import FIR hiding (ShaderPipeline)
 import FIR.Validation.Pipeline (ValidPipelineInfo)
 
-import Ghengin.Core.Render.Monad
 import Ghengin.Core.Shader.Pipeline
 
 -- other renderer details
+import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.RenderPass
 
 import Data.Counted
@@ -44,9 +44,8 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( strides :: BindingStrides             )
                            ( m       :: Type -> Type               )
                         .  PipelineConstraints info top descs strides
-                        => MonadRenderer m
                         => ShaderPipeline info
                         -> RefC RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
                         -- -> V.Vector Vk.DescriptorSetLayout
                         -- -> V.Vector Vk.PushConstantRange
-                         ⊸ m GraphicsPipeline
+                         ⊸ Renderer GraphicsPipeline

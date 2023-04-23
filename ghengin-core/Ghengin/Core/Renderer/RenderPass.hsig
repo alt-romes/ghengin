@@ -1,6 +1,6 @@
 signature Ghengin.Core.Renderer.RenderPass where
 
-import Ghengin.Core.Render.Monad
+import Ghengin.Core.Renderer.Kernel
 
 import Data.Counted
 
@@ -11,7 +11,6 @@ import Data.Counted
 
 data RenderPass
 
-createSimpleRenderPass :: MonadRenderer m
-                       => m (RefC RenderPass) -- If we always need this as a reference, it's easier to just return it as such here (avoids exposing a free function)
+createSimpleRenderPass :: Renderer (RefC RenderPass) -- If we always need this as a reference, it's easier to just return it as such here (avoids exposing a free function)
 
 

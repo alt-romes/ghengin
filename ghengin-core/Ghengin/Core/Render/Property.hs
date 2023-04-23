@@ -19,21 +19,15 @@ module Ghengin.Core.Render.Property
 import Data.Proxy
 
 import qualified Prelude
--- ROMES:TODO: For the lens to be used as a getter, I think we will need this definition of functor rather than the control one.
 import qualified Data.Functor.Linear as Data
 import Prelude.Linear
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
-import Ghengin.Core.Render.Monad
 -- TODO: Some special linear lenses to use propertyAt ... import Control.Lens ((^.), Lens', lens)
+-- ROMES:TODO: For the lens to be used as a getter, I think we will need this definition of functor rather than the control one.
 import GHC.TypeLits ( KnownNat, type (+), Nat, natVal )
 import Data.Kind ( Type, Constraint )
 
--- TODO: Remove dependency on Ghengin non-core
--- import Ghengin.Asset.Texture
---     ( freeTexture, Texture2D(referenceCount) )
--- import Ghengin.Utils
---     ( Storable(sizeOf), Proxy(Proxy), incRefCount, GHList )
 import qualified Data.IntMap as IM
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 import qualified Unsafe.Linear
@@ -44,6 +38,7 @@ import Data.Counted (RefC)
 import qualified Data.Counted as Counted
 
 import Ghengin.Core.Renderer
+import Ghengin.Core.Renderer.Kernel
 
 data PropertyBinding α where
 
@@ -113,10 +108,10 @@ TODO: Mesh bindings at dset #2
 -- Additionally, update the reference counts of resources that are reference
 -- counted:
 --  * Texture2D
-makeResources :: ∀ α m. MonadRenderer m => PropertyBindings α ⊸ m ResourceMap
+makeResources :: ∀ α. PropertyBindings α ⊸ Renderer ResourceMap
 makeResources = foldM (\acc (i,x) -> go acc i x) IM.empty . Unsafe.Linear.toLinear2 Prelude.zip [0..] . Unsafe.Linear.coerce -- See Note [Coerce HList to List]
   where
-    go :: ∀ β. ResourceMap ⊸ Int ⊸ PropertyBinding β ⊸ m ResourceMap
+    go :: ∀ β. ResourceMap ⊸ Int ⊸ PropertyBinding β ⊸ Renderer ResourceMap
     go resources i' pb = case pb of
       DynamicBinding x -> Linear.do
 
@@ -159,7 +154,7 @@ makeResources = foldM (\acc (i,x) -> go acc i x) IM.empty . Unsafe.Linear.toLine
 --    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
 --
 -- The property bindings function should be created from a compatible pipeline
-writeProperty :: (MonadRenderer m) => RefC MappedBuffer ⊸ PropertyBinding α -> m (RefC MappedBuffer)
+writeProperty :: RefC MappedBuffer ⊸ PropertyBinding α -> Renderer (RefC MappedBuffer)
 writeProperty buf = \case
   StaticBinding  _ ->
     -- Already has been written to, we simply bind it together with the rest of
@@ -265,12 +260,12 @@ class HasProperties φ => HasPropertyAt n β φ α where
   -- which doesn't let things escape for sure.
   --
   -- One can think of the type of the function as:
-  -- propertyAt :: MonadRenderer μ => Lens (φ α) (μ (φ α)) β (μ (Ur β))
+  -- propertyAt :: Lens (φ α) (Renderer (φ α)) β (Renderer (Ur β))
   --
   -- This is almost like a lens, but while the we use the linear control
   -- functor rather than the data one, we won't be able to use this lens as a
   -- getter
-  propertyAt :: MonadRenderer μ => ∀ γ. Linear.Functor γ => (β %ρ -> γ (μ (Ur β))) %χ -> (φ α ⊸ γ (μ (φ α)))
+  propertyAt :: ∀ γ ρ χ. Linear.Functor γ => (β %ρ -> γ (Renderer (Ur β))) %χ -> (φ α ⊸ γ (Renderer (φ α)))
 
 instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β φ α where
   propertyAt = propertyAt' @n @0 @φ @α @β
@@ -280,7 +275,7 @@ instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β �
 -- There is a default implementation for 'HasPropertyAt' and instances are only
 -- required for the 'HasProperties' class
 class HasPropertyAt' n m φ α β where
-  propertyAt' :: MonadRenderer μ => ∀ f. Linear.Functor f => (β %p -> f (μ (Ur β))) %x -> (φ α ⊸ f (μ (φ α)))
+  propertyAt' :: Linear.Functor f => (β %p -> f (Renderer (Ur β))) %x -> (φ α ⊸ f (Renderer (φ α)))
 
 -- TODO: Instance with type error for "No available property with type X at position N"
 
@@ -292,7 +287,7 @@ instance {-# OVERLAPPING #-}
   ) => HasPropertyAt' n n φ (β:αs) β where
 
   -- propertyAt' :: MonadRenderer μ => Lens (φ (β:αs)) (μ (φ (β:αs))) β (μ (Ur β))
-  propertyAt' :: ∀ μ ρ χ. MonadRenderer μ => ∀ γ. Linear.Functor γ => (β %ρ -> γ (μ (Ur β))) %χ -> (φ (β:αs) ⊸ γ (μ (φ (β:αs))))
+  propertyAt' :: ∀ ρ χ γ. Linear.Functor γ => (β %ρ -> γ (Renderer (Ur β))) %χ -> (φ (β:αs) ⊸ γ (Renderer (φ (β:αs))))
   propertyAt' afmub s   =
     case puncons s of -- ft
       -- TODO: prop might have to be linear
@@ -303,7 +298,7 @@ instance {-# OVERLAPPING #-}
         ) Linear.<$> afmub (propertyValue prop)
             -- (\b -> pcons <$> editProperty prop (const b) (fromIntegral (natVal $ Proxy @n)) (xs ^. descriptorSet) <*> pure xs)
    where
-    edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ μ (Ur β) ⊸ μ (φ (β:αs))
+    edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ Renderer (Ur β) ⊸ Renderer (φ (β:αs))
     edit prop dset resmap xs mub = Linear.do
       -- Ur b <- mub
       -- TODO: Perhaps assert this isn't the last usage of dset and resmap,
@@ -330,7 +325,7 @@ instance {-# OVERLAPPABLE #-}
   ) => HasPropertyAt' n m φ (α ': αs) β where
 
   -- propertyAt' :: MonadRenderer μ => Lens (φ (α:αs)) (μ (φ (α:αs))) β (μ (Ur β))
-  propertyAt' :: MonadRenderer μ => forall f. Linear.Functor f => (β %p -> f (μ (Ur β))) %x -> (φ (α:αs) ⊸ f (μ (φ (α:αs))))
+  propertyAt' :: ∀ f p x. Linear.Functor f => (β %p -> f (Renderer (Ur β))) %x -> (φ (α:αs) ⊸ f (Renderer (φ (α:αs))))
   propertyAt' f x =
     case puncons x of
       (Ur prop, xs) ->
@@ -345,14 +340,13 @@ instance {-# OVERLAPPABLE #-}
 
 -- | Edit the value of a property. You most likely don't need this function.
 -- See 'HasPropertyAt'.
-editProperty :: ∀ α μ p
-              . MonadRenderer μ
-             => PropertyBinding α    -- ^ Property to edit/update
-             ⊸ (α %p -> μ (Ur α))    -- ^ Update function
-             ⊸  Int                  -- ^ Property index in descriptor set
+editProperty :: ∀ α p
+              . PropertyBinding α    -- ^ Property to edit/update
+              ⊸ (α %p -> Renderer (Ur α))    -- ^ Update function
+              ⊸ Int                  -- ^ Property index in descriptor set
              -> DescriptorSet   -- ^ The descriptor set with corresponding index and property resources
-             ⊸  ResourceMap     -- ^ The descriptor set with corresponding index and property resources
-             ⊸ μ (PropertyBinding α, DescriptorSet, ResourceMap) -- ^ Returns the updated property binding
+              ⊸ ResourceMap     -- ^ The descriptor set with corresponding index and property resources
+              ⊸ Renderer (PropertyBinding α, DescriptorSet, ResourceMap) -- ^ Returns the updated property binding
 editProperty prop update i dset resmap0 = Linear.do
   case prop of
     DynamicBinding x -> Linear.do
@@ -402,12 +396,12 @@ editProperty prop update i dset resmap0 = Linear.do
     --   pure $ Texture2DBinding ux
 
   where
-    writeDynamicBinding :: Storable α => RefC MappedBuffer ⊸ α -> μ (RefC MappedBuffer)
+    writeDynamicBinding :: Storable α => RefC MappedBuffer ⊸ α -> Renderer (RefC MappedBuffer)
     writeDynamicBinding = writeMappedBuffer @α
 
     -- TODO: For now, static bindings use a mapped buffer as well, but perhaps
     -- it'd be better to use a GPU local buffer to which we write only so often
-    writeStaticBinding :: Storable α => RefC MappedBuffer ⊸ α -> μ (RefC MappedBuffer)
+    writeStaticBinding :: Storable α => RefC MappedBuffer ⊸ α -> Renderer (RefC MappedBuffer)
     writeStaticBinding = writeMappedBuffer @α
 
     -- | Overwrite the texture bound on a descriptor set at binding #n

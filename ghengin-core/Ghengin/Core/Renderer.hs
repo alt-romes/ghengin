@@ -1,4 +1,4 @@
-{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE LinearTypes, NoImplicitPrelude #-}
 module Ghengin.Core.Renderer
   ( module Ghengin.Core.Renderer.DescriptorSet
   , module Ghengin.Core.Renderer.Buffer
@@ -6,7 +6,6 @@ module Ghengin.Core.Renderer
   ) where
 
 import qualified Data.IntMap as IM
-import qualified Prelude
 import Prelude.Linear
 
 import Control.Functor.Linear
@@ -14,9 +13,9 @@ import Control.Monad.IO.Class.Linear
 
 import qualified Unsafe.Linear as Unsafe
 
-import Ghengin.Core.Render.Monad
-import Ghengin.Core.Renderer.DescriptorSet
 import Ghengin.Core.Renderer.Buffer
+-- import Ghengin.Core.Renderer.Kernel
+import Ghengin.Core.Renderer.DescriptorSet
 
 import Data.Counted
 import qualified Data.Counted.Unsafe as Unsafe.Counted

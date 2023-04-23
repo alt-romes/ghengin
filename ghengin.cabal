@@ -94,6 +94,8 @@ library ghengin-core
     visibility:       public
 
     exposed-modules:  Ghengin.Core.Material,
+                      Ghengin.Core.Mesh,
+                      Ghengin.Core.Mesh.Vertex,
 
                       Ghengin.Core.Type.Compatible,
                       Ghengin.Core.Type.Utils,
@@ -104,7 +106,6 @@ library ghengin-core
                       Ghengin.Core.Render.Pipeline,
                       Ghengin.Core.Render.Property,
                       Ghengin.Core.Render.Packet,
-                      Ghengin.Core.Render.Monad,
                       Ghengin.Core.Render,
 
                       Ghengin.Core.Renderer
@@ -124,7 +125,8 @@ library ghengin-core
                       reference-counting,
 
                       containers,
-                      vector
+                      vector,
+                      split
 
     default-language: GHC2021
 

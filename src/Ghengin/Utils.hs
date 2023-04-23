@@ -47,7 +47,7 @@ import FIR.Prim.Struct
 import qualified Apecs
 
 -- | Typed reference
-newtype Ref α = Ref { unRef :: Apecs.Entity }
+newtype Ref α = Ref { unRef :: Apecs.Entity } -- iso to Int
 
 -- TODO Eventually move to its own module
 class Sized a where

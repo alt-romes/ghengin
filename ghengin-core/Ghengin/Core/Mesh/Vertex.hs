@@ -1,5 +1,5 @@
 {-# LANGUAGE PatternSynonyms #-}
-module Ghengin.Component.Mesh.Vertex
+module Ghengin.Core.Mesh.Vertex
   ( Vertex(Sin,(:&),(:&:))
   ) where
 

@@ -5,9 +5,9 @@ import Data.IntMap (IntMap)
 
 import Data.Counted
 
-import Ghengin.Core.Render.Monad
 import Ghengin.Core.Shader.Pipeline
 
+import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Buffer
 
 
@@ -36,9 +36,8 @@ data DescriptorResource where
 
 data DescriptorPool
 
-createDescriptorPool :: MonadRenderer m
-                     => ShaderPipeline info
-                     -> m DescriptorPool
+createDescriptorPool :: ShaderPipeline info
+                     -> Renderer DescriptorPool
 
 
 data DescriptorSet
@@ -51,10 +50,9 @@ data DescriptorSet
 --
 -- One must call 'updateDescriptorSet' in order to write the resources to the
 -- allocated descriptor set.
-allocateEmptyDescriptorSet :: MonadRenderer m
-                           => Int -- ^ The set to allocate by index
+allocateEmptyDescriptorSet :: Int -- ^ The set to allocate by index
                            -> DescriptorPool-- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
-                           ⊸  m (DescriptorSet, DescriptorPool)
+                           ⊸  Renderer (DescriptorSet, DescriptorPool)
 
 -- | Update a descriptor set according to a set of resources.
 --
@@ -62,14 +60,11 @@ allocateEmptyDescriptorSet :: MonadRenderer m
 -- are in the descriptor set, while the bindings that do exist in the resource
 -- map will overwrite what was previously written in the descriptor set at
 -- those indices.
-updateDescriptorSet :: MonadRenderer m
-                    => DescriptorSet -- Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
+updateDescriptorSet :: DescriptorSet -- Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
                     ⊸  ResourceMap               -- ^ The resources we're updating the descriptor set with
-                    ⊸  m (DescriptorSet, ResourceMap)
+                    ⊸  Renderer (DescriptorSet, ResourceMap)
 
 
-freeDescriptorSet :: MonadRenderer m
-                  => DescriptorSet
-                   ⊸ m ()
+freeDescriptorSet :: DescriptorSet ⊸ Renderer ()
 
 

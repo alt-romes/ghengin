@@ -21,7 +21,7 @@ import Debug.Trace ( trace )
 import Data.Typeable ( Typeable, Proxy(Proxy), typeRep, TypeRep )
 import Data.Unique ( Unique, newUnique )
 import Ghengin.Core.Material ( Material )
--- import Ghengin.Component.Mesh ( Mesh(referenceCount) )
+import Ghengin.Core.Mesh ( Mesh )
 import Ghengin.Core.Type.Compatible ( Compatible )
 import Ghengin.Core.Render.Pipeline
 -- import Ghengin.Utils ( Ref, MonadIO(..), incRefCount ) -- TODO: Get rid of import altogether
@@ -30,6 +30,7 @@ import qualified Prelude
 import Prelude.Linear
 
 import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
 
 {-|
 
@@ -86,7 +87,20 @@ data RenderPacket where
   -- TODO:
   --  * Descriptor set #2 and #0 additional data binding?
   RenderPacket :: ∀ π ξ β α. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π)
-               => Mesh α ⊸ Ref (Material β) ⊸ Ref (RenderPipeline π ξ) ⊸ RenderKey -> RenderPacket
+               => Mesh α
+                ⊸ Ref (Material β)
+                ⊸ Ref (RenderPipeline π ξ)
+                ⊸ RenderKey
+                -> RenderPacket
+
+-- newtype Ref α = Ref { unRef :: Apecs.Entity } -- iso to Int
+-- | For now we inline the definition of Ref, but this should probably be made to a signature or something
+-- It needs to be rethought, this is very specific to the APECS usage.
+-- But we might be indeed able to use Apecs in Core, at least for now (the render loop uses it and such...)
+-- ROMES:TODO:!!!
+-- We really need to write better render loops too, and have them run concurrently with other systems and have the multiple frames in flight and such
+-- Now that we've a better view of the engine as we're refactoring it.... it'd be good to get to it soon
+newtype Ref α = Ref { unRef :: Int } -- iso to Int
 
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.

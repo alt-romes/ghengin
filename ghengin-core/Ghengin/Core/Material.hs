@@ -11,8 +11,8 @@ import Ghengin.Core.Render.Property
 import Ghengin.Core.Type.Compatible ( CompatibleMaterial' )
 import Ghengin.Core.Render.Pipeline ( RenderPipeline(..) )
 
+import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.DescriptorSet
-import Ghengin.Core.Render.Monad
 
 import Data.Counted as Counted
 import qualified Data.Counted.Unsafe as Unsafe.Counted
@@ -118,8 +118,8 @@ data SomeMaterial = ∀ α. SomeMaterial (Material α)
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
-material :: ∀ α β π m. (CompatibleMaterial' α π, MonadRenderer m)
-         => (Material '[] ⊸ Material α) -> RenderPipeline π β ⊸ m (Material α, RenderPipeline π β)
+material :: ∀ α β π. (CompatibleMaterial' α π)
+         => (Material '[] ⊸ Material α) -> RenderPipeline π β ⊸ Renderer (Material α, RenderPipeline π β)
 material matf (RenderProperty pr rps) = material matf rps >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
 material matf (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Linear.do
 
