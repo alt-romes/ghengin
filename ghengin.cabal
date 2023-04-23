@@ -125,8 +125,8 @@ library ghengin-core
                       reference-counting,
 
                       containers,
-                      vector,
-                      split
+                      vector
+                      -- split
 
     default-language: GHC2021
 
@@ -140,12 +140,10 @@ library
                       Ghengin.Asset.Texture,
                       Ghengin.Component,
                       Ghengin.Component.Camera,
-                      Ghengin.Component.Mesh,
                       Ghengin.Component.Mesh.Cube,
                       Ghengin.Component.Mesh.Hex,
                       Ghengin.Component.Mesh.Obj,
                       Ghengin.Component.Mesh.Sphere,
-                      Ghengin.Component.Mesh.Vertex,
                       Ghengin.Component.Transform,
                       Ghengin.Component.Transform.Animation,
                       Ghengin.Component.UI,
@@ -158,9 +156,7 @@ library
                       Ghengin.Scene,
                       Ghengin.Scene.Graph,
                       Ghengin.Shader,
-                      Ghengin.Shader.Canonical,
                       Ghengin.Shader.FIR,
-                      Ghengin.Shader.Pipeline,
                       Ghengin.Shader.Syntactic,
                       Ghengin.Shader.Utils,
                       Ghengin.Shader.Fixed,

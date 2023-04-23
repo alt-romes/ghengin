@@ -18,6 +18,7 @@ module Ghengin.Core.Render.Packet
 
 -- import Apecs (Component, Storage, Map)
 import Debug.Trace ( trace )
+import Type.Reflection ()
 import Data.Typeable ( Typeable, Proxy(Proxy), typeRep, TypeRep )
 import Data.Unique ( Unique, newUnique )
 import Ghengin.Core.Material ( Material )
@@ -105,11 +106,11 @@ newtype Ref α = Ref { unRef :: Int } -- iso to Int
 -- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
 -- Render keys only differentiate the render context, not the render packet itself.
 -- This instance fullfills the purpose of rendering all packets with the same context in a row in the render queue
-instance Eq RenderPacket where
-  (==) (RenderPacket _ _ _ k1) (RenderPacket _ _ _ k2) = k1 == k2
+instance Prelude.Eq RenderPacket where
+  (==) (RenderPacket _ _ _ k1) (RenderPacket _ _ _ k2) = k1 Prelude.== k2
 
-instance Ord RenderPacket where
-  compare (RenderPacket _ _ _ k1) (RenderPacket _ _ _ k2) = compare k1 k2
+instance Prelude.Ord RenderPacket where
+  compare (RenderPacket _ _ _ k1) (RenderPacket _ _ _ k2) = Prelude.compare k1 k2
 
 {-|
 

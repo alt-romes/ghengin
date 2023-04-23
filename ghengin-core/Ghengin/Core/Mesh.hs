@@ -5,11 +5,12 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE QualifiedDo #-}
 module Ghengin.Core.Mesh
   ( Mesh(..) -- Export these from an Internals module, not from here
   , SomeMesh(..)
@@ -17,21 +18,21 @@ module Ghengin.Core.Mesh
   , createMeshWithIxs
   -- , calculateFlatNormals
   -- , calculateSmoothNormals
-  , renderMesh
-  , freeMesh
-  , chunksOf
+  -- , renderMesh
+  -- , freeMesh
+  -- , chunksOf
   ) where
 
+import Prelude.Linear
 
 import Data.Typeable
 import Data.Kind
-import Control.Monad
-import Data.IORef
-import Data.List.Split (chunksOf)
-import Data.List (sort, foldl')
-import Control.Monad.IO.Class
 
-import Data.Word
+import Control.Functor.Linear as Linear
+
+-- import Data.List.Split (chunksOf)
+import Data.List (sort, foldl')
+
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
 
@@ -80,19 +81,20 @@ data Mesh ts = SimpleMesh { vertexBuffer       :: !VertexBuffer -- a vector of v
 data SomeMesh = forall ts. SomeMesh (Mesh ts)
 
 -- Render a mesh command
-renderMesh :: MonadIO m => Mesh a -> RenderPassCmd m
-renderMesh = \case
-  SimpleMesh buf _ nverts _ -> do
-      let buffers = [buf] :: Vector Vk.Buffer
-          offsets = [0]
-      bindVertexBuffers 0 buffers offsets
-      draw nverts
-  IndexedMesh vbuf _ ibuf _ nixs _ -> do
-      let buffers = [vbuf] :: Vector Vk.Buffer
-          offsets = [0]
-      bindVertexBuffers 0 buffers offsets
-      bindIndex32Buffer ibuf 0
-      drawIndexed nixs
+-- ROMES:TODO: Certainly must get back to this
+-- renderMesh :: MonadIO m => Mesh a -> RenderPassCmd m
+-- renderMesh = \case
+--   SimpleMesh buf _ nverts _ -> do
+--       let buffers = [buf] :: Vector Vk.Buffer
+--           offsets = [0]
+--       bindVertexBuffers 0 buffers offsets
+--       draw nverts
+--   IndexedMesh vbuf _ ibuf _ nixs _ -> do
+--       let buffers = [vbuf] :: Vector Vk.Buffer
+--           offsets = [0]
+--       bindVertexBuffers 0 buffers offsets
+--       bindIndex32Buffer ibuf 0
+--       drawIndexed nixs
 
 
 -- | Create a Mesh given a vector of vertices
@@ -108,12 +110,12 @@ renderMesh = \case
 -- many times as they are shared for they will only be freed with the last
 -- reference
 createMesh :: Storable (Vertex ts) => [Vertex ts] -> Renderer (Mesh ts)
-createMesh (SV.fromList -> vs) = do
+createMesh (SV.fromList -> vs) = Linear.do
   vertexBuffer <- createVertexBuffer vs
   pure (SimpleMesh vertexBuffer)
 
-createMeshWithIxs :: Storable a => [a] -> [Int] -> Renderer (Mesh ts)
-createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = do
+createMeshWithIxs :: Storable (Vertex ts) => [Vertex ts] -> [Int] -> Renderer (Mesh ts)
+createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = Linear.do
   vertexBuffer <- createVertexBuffer vertices
   indexBuffer  <- createIndex32Buffer (SV.map fromIntegral ixs)
   pure (IndexedMesh vertexBuffer indexBuffer)
