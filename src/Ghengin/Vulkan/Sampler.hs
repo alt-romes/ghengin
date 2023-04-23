@@ -49,7 +49,7 @@ data Sampler = Sampler { sampler        :: Vk.Sampler
 -- * VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: Take the color of the edge closest to the coordinate beyond the image dimensions.
 -- * VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to edge, but instead uses the edge opposite to the closest edge.
 -- * VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when sampling beyond the dimensions of the image.
-createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer χ Sampler
+createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer Sampler
 createSampler filter addrMode = do
   device <- getDevice
 
@@ -84,7 +84,7 @@ createSampler filter addrMode = do
   pure $ Sampler vkSampler refCount
 
 
-destroySampler :: Sampler -> Renderer χ ()
+destroySampler :: Sampler -> Renderer ()
 destroySampler vs@(Sampler s refs) = do
   dev <- getDevice
 

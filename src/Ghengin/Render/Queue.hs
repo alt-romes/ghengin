@@ -32,7 +32,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 
 import Ghengin.Core.Render.Packet
-import Ghengin.Component.Mesh
+import Ghengin.Core.Mesh
 import Ghengin.Utils
 import Ghengin.Core.Material hiding (material)
 

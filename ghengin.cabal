@@ -87,6 +87,9 @@ common common-flags
                       DisambiguateRecordFields
 
 
+  -- Base language which the package is written in.
+  default-language: GHC2021
+
 
 library ghengin-core
     import:           common-flags
@@ -128,7 +131,38 @@ library ghengin-core
                       vector
                       -- split
 
-    default-language: GHC2021
+library ghengin-vulkan
+    import:           common-flags
+
+    visibility:       public
+
+    exposed-modules:  Ghengin.Vulkan.Renderer.Kernel,
+                      -- Ghengin.Vulkan.Renderer.DescriptorSet,
+                      Ghengin.Vulkan.Renderer.Buffer,
+                      -- Ghengin.Vulkan.Renderer.Pipeline,
+                      -- Ghengin.Vulkan.Renderer.RenderPass,
+
+                      -- Should soon enough be part of the required pieces
+                      Ghengin.Vulkan.Renderer.Command,
+                      -- Modules that don't instance signatures
+                      Ghengin.Vulkan.Renderer.Device,
+                      Ghengin.Vulkan.Renderer.Device.Instance,
+                      Ghengin.Vulkan.Renderer.GLFW.Window,
+
+    hs-source-dirs:   ghengin-vulkan
+
+    build-depends:    base,
+                      fir,
+                      vulkan,
+                      GLFW-b,
+                      linear-base,
+                      reference-counting,
+                      ghengin:ghengin-core,
+
+                      containers,
+                      bytestring,
+                      mtl,
+                      vector
 
 library
     -- Import common warning flags.
@@ -224,7 +258,8 @@ library
                       lens >= 5.2,
                       linear-base,
                       reference-counting,
-                      ghengin:ghengin-core
+                      ghengin:ghengin-core,
+                      ghengin:ghengin-vulkan
 
                       -- witch,
                       -- constraints,
@@ -232,11 +267,11 @@ library
                       -- ghc-typelits-knownnat
                       -- algebraic-graphs
 
+    mixins:           ghengin:ghengin-core requires (Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer)
+
+
     -- Directories containing source files.
     hs-source-dirs:   src
-
-    -- Base language which the package is written in.
-    default-language: GHC2021
 
 
 

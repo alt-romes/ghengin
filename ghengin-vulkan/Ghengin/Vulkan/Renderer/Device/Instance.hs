@@ -5,7 +5,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.Device.Instance where
+module Ghengin.Vulkan.Renderer.Device.Instance where
 
 import GHC.IsList (fromList)
 

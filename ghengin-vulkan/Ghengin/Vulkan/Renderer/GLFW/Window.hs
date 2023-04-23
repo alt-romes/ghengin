@@ -2,7 +2,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.GLFW.Window
+-- | TODO: One day, abstract over window API too
+module Ghengin.Vulkan.Renderer.GLFW.Window
   (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosedOr
   , initGLFW, terminateGLFW
   ) where

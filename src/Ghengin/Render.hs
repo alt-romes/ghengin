@@ -25,7 +25,7 @@ import Ghengin.Vulkan
 import Ghengin.Scene.Graph
 import Ghengin.Core.Render.Packet
 import Ghengin.Render.Queue
-import Ghengin.Component.Mesh
+import Ghengin.Core.Mesh
 import Ghengin.Utils
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Material

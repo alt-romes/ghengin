@@ -1,0 +1,246 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE QualifiedDo #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+module Ghengin.Vulkan.Renderer.Buffer where
+
+import qualified Prelude
+import Prelude.Linear hiding (zero)
+import Control.Functor.Linear as Linear
+import qualified System.IO.Linear as Linear
+import Control.Monad.IO.Class.Linear as Linear
+
+import Foreign.Storable
+
+import Control.Exception
+import Data.Int
+import Data.Counted as Counted
+
+import qualified Data.Vector.Storable as SV
+import Foreign.Ptr
+import Foreign.Marshal.Utils
+import Data.Bits
+import Vulkan.Zero (zero)
+import qualified Vulkan as Vk
+
+import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Core.Mesh.Vertex
+
+import qualified Unsafe.Linear as Unsafe
+
+-- Backpack craziness... importing things from the module we're instancing?
+-- We might need to duplicate these definitions? If we do, does it work?
+-- import {-# SOURCE #-} Ghengin.Core.Renderer.Buffer (Index32Buffer(..), VertexBuffer(..))
+
+import qualified Ghengin.Vulkan.Renderer.Command as Cmd
+
+-------- Specific buffers --------------
+
+-- Inlined definitions from Ghengin Core
+data Index32Buffer where
+  Index32Buffer :: !DeviceLocalBuffer
+                 ⊸ Word
+                %p -> Index32Buffer
+
+createIndex32Buffer :: SV.Vector Int32 -> Renderer Index32Buffer
+createIndex32Buffer vv = Index32Buffer <$> createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT vv <$> pure (SV.length vv)
+
+data VertexBuffer where
+  VertexBuffer :: !DeviceLocalBuffer
+                ⊸ Word
+                %p -> VertexBuffer
+
+createVertexBuffer :: ∀ αs. (SV.Storable (Vertex αs)) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
+createVertexBuffer vv = VertexBuffer <$> createDeviceLocalBuffer @(Vertex αs) Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT vv <*> pure (fromIntegral $ SV.length vv) -- use Locations for vertex buffers
+
+-------- Device-local buffer -----------
+
+data DeviceLocalBuffer where
+  DeviceLocalBuffer :: {-# UNPACK #-} !Vk.Buffer
+                     ⊸ {-# UNPACK #-} !Vk.DeviceMemory
+                     -- ⊸ Word -- Size
+                     ⊸ DeviceLocalBuffer
+
+-- | Fills a device (GPU) local buffer with the provided flags and the provided data
+-- by first copying the data to a staging buffer and then running a buffer copy
+-- one-shot command.
+createDeviceLocalBuffer :: ∀ α. (SV.Storable α) => Vk.BufferUsageFlags -> SV.Vector α -> Renderer DeviceLocalBuffer
+createDeviceLocalBuffer flags bufferData = do
+
+  withStagingBuffer bufferData $ \stagingBuffer bufferSize -> do
+
+    (devBuffer, devMem) <- createBuffer bufferSize (Vk.BUFFER_USAGE_TRANSFER_DST_BIT .|. flags) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT
+
+    -- Copy data from staging buffer to actual buffer inaccessible by the host
+    copyBuffer stagingBuffer devBuffer bufferSize
+
+    pure $ DeviceLocalBuffer devBuffer devMem
+
+-------- Mapped Buffer -----------------
+
+-- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
+--
+-- This buffer has USAGE_UNIFORM_BUFFER_BIT and MEMORY_PROPRTY_HOST_VISIBLE and
+-- MEMORY_PROPERTY_HOST_COHERENT_BIT -- we allocate device-local and host-local
+-- memory and writing to the mapped buffer entails writing to the host memory
+-- which is mapped to device memory and hence synchronized automatically
+--
+-- This is unlike DeviceLocalBuffers, which are allocated on the device and
+-- require a staging buffer and a copy command to be written
+data MappedBuffer = UniformBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
+                                  , devMem  :: {-# UNPACK #-} !Vk.DeviceMemory
+                                  , hostMem :: {-# UNPACK #-} !(Ptr ())
+                                  , bufSize :: {-# UNPACK #-} !(Ur Word)
+                                  }
+
+-- ROMES:TODO: When the next version comes out:
+-- instance Counted.Counted MappedBuffer where
+--   countedFields _ = []
+
+-- | Create a uniform buffer with a given size, but don't copy memory to it
+-- yet. See 'writeUniformBuffer' for that yet. See 'writeUniformBuffer' for
+-- that yet. See 'writeUniformBuffer' for that yet. See 'writeUniformBuffer'
+-- for that.
+--
+-- The size is given by the type of the storable to store in the uniform buffer.
+createMappedBuffer :: ∀ ext. Word -> Vk.DescriptorType -> Renderer (RefC MappedBuffer)
+createMappedBuffer size descriptorType = Linear.do
+
+  case descriptorType of
+    Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -> Linear.do
+
+      let bsize = fromIntegral size
+
+      (buf, devMem0) <- createBuffer bsize Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
+
+      renderer \(REnv inst device0 win) -> Linear.do
+
+        (device1, devMem1, data') <- mapMemory' device0 devMem0 0 bsize zero
+
+        countedUBuf <- Counted.new (error "Use correct free function, push changes to refcounting") (UniformBuffer buf devMem1 (Unsafe.toLinear castPtr data') (Ur size))
+
+        pure $ (countedUBuf, REnv inst device1 win)
+
+    t -> error $ "Unexpected/unsupported storage class for descriptor: " <> show t
+  where
+    mapMemory' :: VulkanDevice ⊸ Vk.DeviceMemory ⊸ Vk.DeviceSize -> Vk.DeviceSize -> Vk.MemoryMapFlags -> Linear.IO (VulkanDevice, Vk.DeviceMemory, Ptr ())
+    mapMemory' = Unsafe.toLinear2 $ \dev mem offset size flgs -> (dev,mem,) <$> (Vk.mapMemory dev._device mem offset size flgs)
+
+
+-- | Note how the storable must be the same as the storable of the uniform buffer so that the sizes match (ROMES:it seems I dropped the type parameter on the buffer, why?)
+writeMappedBuffer :: ∀ α. (SV.Storable α) => (RefC MappedBuffer) ⊸ α -> Renderer (RefC MappedBuffer)
+-- writeMappedBuffer (UniformBuffer _ _ (castPtr -> ptr) s) x = assert (fromIntegral (sizeOf @α undefined) <= s) $ liftIO $ poke @α ptr x -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
+writeMappedBuffer refcbuf x =
+  useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (castPtr -> ptr) s) ->
+    Unsafe.toLinear2 assert (fromIntegral (sizeOf @α undefined) <= s) $ -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
+      Linear.do liftIO $ poke @α ptr x
+                pure (ub, ())
+
+-------- Non-interface details ---------
+
+createBuffer :: Vk.DeviceSize -> Vk.BufferUsageFlags -> Vk.MemoryPropertyFlags -> Renderer (Vk.Buffer, Vk.DeviceMemory)
+createBuffer size usage properties = do
+  device <- getDevice
+  let bufferInfo = Vk.BufferCreateInfo { next = ()
+                                       , flags = zero
+                                       , size  = size
+                                       , usage = usage
+                                       , sharingMode = Vk.SHARING_MODE_EXCLUSIVE
+                                       , queueFamilyIndices = []
+                                       }
+  buffer <- Vk.createBuffer device bufferInfo Nothing
+  memRequirements <- Vk.getBufferMemoryRequirements device buffer
+  memTypeIndex <- liftIO . findMemoryType memRequirements.memoryTypeBits properties =<< asks (._vulkanDevice._physicalDevice)
+  let allocInfo = Vk.MemoryAllocateInfo { next = ()
+                                        , allocationSize = memRequirements.size
+                                        , memoryTypeIndex = memTypeIndex
+                                        }
+  devMem <- Vk.allocateMemory device allocInfo Nothing
+
+  -- Bind buffer to the memory we allocated (or is it the other way around?)
+  Vk.bindBufferMemory device buffer devMem 0
+  pure (buffer, devMem)
+
+-- TODO: Can't forget to call this to free buffer memories after meshes (or the related entities) die
+destroyBuffer :: Vk.Buffer -> Vk.DeviceMemory -> Renderer ()
+destroyBuffer buffer mem = do
+  device <- getDevice
+  Vk.destroyBuffer device buffer Nothing
+  Vk.freeMemory device mem Nothing
+
+-- | Run a one-shot command that copies the whole data between two buffers
+copyBuffer :: Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Renderer ()
+copyBuffer src dst size = immediateSubmit $ Cmd.copyFullBuffer src dst size
+
+-- | Fills a staging buffer with data, uses it with the given function that
+-- typically copies the buffer data from the staging buffer to another one
+-- (e.g. creating device local buffers and copying textures to the device), and
+-- finally frees the staging buffer
+withStagingBuffer :: ∀ α ρ. SV.Storable α => SV.Vector α -> (Vk.Buffer -> Vk.DeviceSize -> Renderer ρ) -> Renderer ρ
+withStagingBuffer bufferData f = rendererBracket
+  (do
+    let l          = SV.length bufferData
+        bufferSize = fromIntegral $ fromIntegral l * sizeOf @α undefined
+    (stagingBuffer, stagingMem) <- createBuffer bufferSize Vk.BUFFER_USAGE_TRANSFER_SRC_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
+
+    device <- getDevice
+    
+    -- Map the buffer memory into CPU accessible memory
+    data' <- Vk.mapMemory device stagingMem 0 bufferSize zero
+    -- Copy buffer data to data' mapped device memory
+    liftIO $ SV.unsafeWith bufferData $ \ptr -> do
+      copyBytes data' (castPtr ptr) (fromIntegral bufferSize)
+    -- Unmap memory
+    Vk.unmapMemory device stagingMem
+
+    pure ((stagingBuffer, bufferSize), stagingMem)
+    )
+  (\((stagingBuffer, _), stagingMem) -> do
+    device <- getDevice
+
+    -- Free staging buffer
+    Vk.destroyBuffer device stagingBuffer Nothing
+    Vk.freeMemory    device stagingMem    Nothing
+
+    )
+  (uncurry f . fst)
+
+-- data Buffer where
+--   -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
+--   UniformBuffer { buffer :: Vk.Buffer
+--                 , devMem :: Vk.DeviceMemory
+--                 , hostMem :: Storable a => Ptr a
+--                 } :: Buffer
+
+-- UniformBuffer:
+--
+-- You can then copy data to the mapped memory using 'copyBytes'
+--
+-- TODO: Enforce pointer is freed with linear types
+--
+-- The returned Ptr has the sizeOf of the storable type and is mapped to
+-- the device buffer. When bytes are copied to this address they are mapped
+-- onto the device buffer.  That is, to write to the buffer you should rather
+-- write to the pointer
+
+
+destroyMappedBuffer :: MappedBuffer -> Renderer ()
+destroyMappedBuffer (UniformBuffer b dm _hostMemory _size) = do
+  -- TODO: Is hostMemory freed with unmap? Or with destroyMemory? Or?
+  device <- getDevice
+  Vk.unmapMemory device dm
+  destroyBuffer b dm
+
+-- data Buffer = Buffer Vk.Buffer Vk.DeviceMemory
+

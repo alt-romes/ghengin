@@ -14,10 +14,10 @@ import Geomancy
 import Codec.Wavefront
 
 import Ghengin.Vulkan
-import Ghengin.Component.Mesh
-import Ghengin.Component.Mesh.Vertex
+import Ghengin.Core.Mesh
+import Ghengin.Core.Mesh.Vertex
 
-loadObjMesh :: FilePath -> Renderer ext (Mesh '[Vec3, Vec3, Vec3]) -- TODO: Type class from ambiguous types defines what properties should be extracted from the object file
+loadObjMesh :: FilePath -> Renderer (Mesh '[Vec3, Vec3, Vec3]) -- TODO: Type class from ambiguous types defines what properties should be extracted from the object file
 loadObjMesh filepath = do
   fromFile filepath >>= \case
     Left err -> liftIO $ fail err
@@ -45,7 +45,7 @@ loadObjMesh filepath = do
       -- TODO: createMeshWithIxs
       createMesh (V.toList meshFaces)
 
--- loadObjMesh :: FilePath -> Renderer ext Mesh
+-- loadObjMesh :: FilePath -> Renderer Mesh
 -- loadObjMesh filepath = do
 --   fromFile filepath >>= \case
 --     Left err -> liftIO $ fail err

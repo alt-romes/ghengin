@@ -42,7 +42,7 @@ module Ghengin
 
 -- Re-exports
 import Ghengin.Core.Type.Compatible
-import Ghengin.Component.Mesh.Vertex
+import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Render.Property
 -- End re-exports
 
@@ -56,7 +56,7 @@ import Data.Time.Clock
 import Geomancy.Mat4
 import Geomancy.Vec3
 import Ghengin.Core.Material
-import Ghengin.Component.Mesh
+import Ghengin.Core.Mesh
 import Ghengin.Component.UI
 import Ghengin.Render
 import Ghengin.Core.Render.Packet

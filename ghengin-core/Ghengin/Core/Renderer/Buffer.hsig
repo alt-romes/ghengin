@@ -6,8 +6,6 @@ import qualified Data.Vector.Storable as SV
 -- TODO:Exchange Vk specific types to renderer agnostic enumerations
 import qualified Vulkan as Vk (DescriptorType, BufferUsageFlags)
 
-import Data.Counted
-
 import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Renderer.Kernel
 
@@ -31,11 +29,12 @@ In Vulkan at least. For some renderers this distinction might not exist...
 
 -}
 
+-------- Specific buffers --------------
 
 data Index32Buffer where
   Index32Buffer :: !DeviceLocalBuffer
                  ⊸ Word                 -- ^ N indices
-                -> Index32Buffer
+                %p -> Index32Buffer
 
 createIndex32Buffer :: SV.Vector Int32 -- ^ Indices
                     -> Renderer Index32Buffer
@@ -43,19 +42,19 @@ createIndex32Buffer :: SV.Vector Int32 -- ^ Indices
 data VertexBuffer where
   VertexBuffer :: !DeviceLocalBuffer
                 ⊸ Word               -- ^ N vertices
-                -> VertexBuffer
+                %p -> VertexBuffer
 
 createVertexBuffer :: SV.Storable (Vertex props)
                    => SV.Vector (Vertex props) -- ^ Vertices
                    -> Renderer VertexBuffer
 
--------- Device-local buffer ------
+-------- Device-local buffer -----------
 
 data DeviceLocalBuffer
 
 createDeviceLocalBuffer :: ∀ α. SV.Storable α => Vk.BufferUsageFlags -> SV.Vector α -> Renderer DeviceLocalBuffer
 
--------- Mapped Buffer ------------
+-------- Mapped Buffer -----------------
 
 -- | A mapped (uniform) buffer. See Note [Mapped vs Device-local Buffers]
 data MappedBuffer

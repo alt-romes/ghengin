@@ -10,7 +10,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
-module Ghengin.Vulkan.Pipeline where
+module Ghengin.Vulkan.Renderer.Pipeline where
 
 import Control.Monad.Reader
 import Data.Bits ((.|.))
@@ -55,7 +55,7 @@ dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT -- TODO: Eventually only the viewpor
 --                      -> Vk.RenderPass
 --                      -> V.Vector Vk.DescriptorSetLayout
 --                      -> V.Vector Vk.PushConstantRange
---                      -> (VulkanPipeline -> Renderer ext a) -> Renderer a
+--                      -> (VulkanPipeline -> Renderer a) -> Renderer a
 -- withGraphicsPipeline vert frag rp sls pcr f = Renderer $ ReaderT $ \renv ->
 --                                           bracket
 --                                             (runReaderT (unRenderer $ createGraphicsPipeline vert frag rp sls pcr) renv)
@@ -88,7 +88,7 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                         -> Vk.RenderPass
                         -> V.Vector Vk.DescriptorSetLayout
                         -> V.Vector Vk.PushConstantRange
-                        -> Renderer ext VulkanPipeline
+                        -> Renderer VulkanPipeline
 createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges = do
   dev <- getDevice
 
@@ -262,7 +262,7 @@ createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges 
 
 
 
-destroyPipeline :: VulkanPipeline -> Renderer ext ()
+destroyPipeline :: VulkanPipeline -> Renderer ()
 destroyPipeline (VulkanPipeline pipeline pipelineLayout) = getDevice >>= \d -> do
   Vk.destroyPipeline d pipeline Nothing
   Vk.destroyPipelineLayout d pipelineLayout Nothing

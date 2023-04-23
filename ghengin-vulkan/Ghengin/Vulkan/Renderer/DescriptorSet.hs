@@ -11,7 +11,7 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
-module Ghengin.Vulkan.DescriptorSet where
+module Ghengin.Vulkan.Renderer.DescriptorSet where
 
 import Control.Monad
 import Data.List.NonEmpty (NonEmpty((:|)))
@@ -162,7 +162,7 @@ data DescriptorPool =
 --
 -- TODO: Right amount of descriptors. For now we simply multiply 1000 by the
 -- number of all total descriptors across sets
-createDescriptorPool :: DescriptorSetMap -> Renderer χ DescriptorPool
+createDescriptorPool :: DescriptorSetMap -> Renderer DescriptorPool
 createDescriptorPool dsetmap = do
 
   layouts <- traverse (\bm -> (,bm) <$> createDescriptorSetLayout bm) dsetmap
@@ -183,12 +183,12 @@ createDescriptorPool dsetmap = do
   descriptorPool <- Vk.createDescriptorPool device poolInfo Nothing
   pure (DescriptorPool descriptorPool layouts)
 
-destroyDescriptorPool :: DescriptorPool -> Renderer χ ()
+destroyDescriptorPool :: DescriptorPool -> Renderer ()
 destroyDescriptorPool p = getDevice >>= \dev -> do
   Vk.destroyDescriptorPool dev p._pool Nothing
   traverse_ (destroyDescriptorSetLayout . fst) p._set_bindings
     where
-      destroyDescriptorSetLayout :: Vk.DescriptorSetLayout -> Renderer ext ()
+      destroyDescriptorSetLayout :: Vk.DescriptorSetLayout -> Renderer ()
       destroyDescriptorSetLayout layout = getDevice >>= \dev -> Vk.destroyDescriptorSetLayout dev layout Nothing
 
 
@@ -196,7 +196,7 @@ destroyDescriptorPool p = getDevice >>= \dev -> do
 --
 -- DescriptorSetLayouts are created and stored by 'DescriptorPool's.
 createDescriptorSetLayout :: BindingsMap -- ^ Binding, type and stage flags for each descriptor in the set to create
-                          -> Renderer ext Vk.DescriptorSetLayout
+                          -> Renderer Vk.DescriptorSetLayout
 createDescriptorSetLayout bindingsMap = getDevice >>= \device -> do
 
   let
@@ -252,7 +252,7 @@ data DescriptorSet
 allocateDescriptorSet :: Int -- ^ The set to allocate by index
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
                       -> ResourceMap
-                       ⊸ Renderer χ (ResourceMap -> Renderer χ DescriptorSet)
+                       ⊸ Renderer (ResourceMap -> Renderer DescriptorSet)
 allocateDescriptorSet ix = fmap (\case [ds] -> ds; _ -> error $ "Internal error: Failed to allocate a single descriptor set #" <> show ix
                                 ) . allocateDescriptorSets [ix]
 
@@ -260,7 +260,7 @@ allocateDescriptorSet ix = fmap (\case [ds] -> ds; _ -> error $ "Internal error:
 allocateDescriptorSets :: Vector Int    -- ^ The sets to allocate by Ix
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
                        ⊸ Vector ResourceMap -- ^ and the resources to write to them
-                       ⊸ Renderer χ (Vector DescriptorSet)
+                       ⊸ Renderer (Vector DescriptorSet)
 allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
   let
       sets :: Vector (Vk.DescriptorSetLayout, BindingsMap)
@@ -295,7 +295,7 @@ allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
 updateDescriptorSet :: Vk.DescriptorSet -- ^ The descriptor set we're updating with these resources
                     -> ResourceMap
-                    -> Renderer ext (Vk.DescriptorSet, ResourceMap)
+                    -> Renderer (Vk.DescriptorSet, ResourceMap)
 updateDescriptorSet dset resources = do
 
   let makeDescriptorWrite i = \case
@@ -361,11 +361,11 @@ updateDescriptorSet dset resources = do
 --
 --
 -- TODO: Write this to the note
-destroyDescriptorSet :: DescriptorSet -> Renderer ext ()
+destroyDescriptorSet :: DescriptorSet -> Renderer ()
 destroyDescriptorSet EmptyDescriptorSet = pure ()
 destroyDescriptorSet (DescriptorSet _ix _dset dresources) = traverse_ freeDescriptorResource dresources
   where
-    freeDescriptorResource :: DescriptorResource -> Renderer ext ()
+    freeDescriptorResource :: DescriptorResource -> Renderer ()
     freeDescriptorResource = \case
       UniformResource u -> destroyMappedBuffer u
       u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought

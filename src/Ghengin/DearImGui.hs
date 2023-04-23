@@ -36,7 +36,7 @@ import Ghengin.Component.UI
 data ImCtx = IMCtx Vk.DescriptorPool IM.Context (FunPtr (Vk.Result -> IO ()), Bool)
 
 -- | Init ImGui (for some renderpass?)
-initImGui :: Vk.RenderPass -> Renderer ext ImCtx
+initImGui :: Vk.RenderPass -> Renderer ImCtx
 initImGui renderPass' = do
   -- Quite big descriptors but is taken from example
   let poolSizes = [ Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_SAMPLER 1000
@@ -91,7 +91,7 @@ initImGui renderPass' = do
 
   pure (IMCtx imGuiDPool imCtx initRes)
 
-destroyImCtx :: ImCtx -> Renderer ext ()
+destroyImCtx :: ImCtx -> Renderer ()
 destroyImCtx (IMCtx pool imCtx initRes) = do
   IM.vulkanShutdown initRes
   IM.destroyContext imCtx
@@ -119,7 +119,7 @@ pushWindow (UIWindow wname act) = do
 
 
 -- | Returns a boolean indicating whether the component was changed in the previous frame
--- pushComp :: UIComponent -> Renderer ext Bool
+-- pushComp :: UIComponent -> Renderer Bool
 -- pushComp = \case
 --   ColorPicker t ref -> IM.colorPicker3 t (unsafeCoerce ref :: IORef ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
 

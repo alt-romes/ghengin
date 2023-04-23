@@ -36,14 +36,14 @@ data Texture2D = Texture2D { image          :: VulkanImage
 instance Eq Texture2D where
   (==) _ _ = False
 
-texture :: FilePath -> Sampler -> Renderer χ Texture2D
+texture :: FilePath -> Sampler -> Renderer Texture2D
 texture fp sampler = do
   liftIO (readImage fp) >>= \case
     Left e -> liftIO (fail e)
     Right dimage -> do
       textureFromImage dimage sampler
 
-freeTexture :: Texture2D -> Renderer χ ()
+freeTexture :: Texture2D -> Renderer ()
 freeTexture t@(Texture2D img sampler refs) = do
 
   () <- decRefCount t
@@ -62,7 +62,7 @@ freeTexture t@(Texture2D img sampler refs) = do
 
 textureFromImage :: DynamicImage
                  -> Sampler
-                 -> Renderer χ Texture2D
+                 -> Renderer Texture2D
 -- (For now) we convert the image to RGBA8 at all costs, which is a bit of a hack
 textureFromImage (ImageRGBA8 . convertRGBA8 -> dimage) sampler =
   let wsb = case dimage of

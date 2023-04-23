@@ -6,7 +6,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.RenderPass where
+module Ghengin.Vulkan.Renderer.RenderPass where
 
 -- TODO: DSL
 
@@ -36,10 +36,10 @@ data VulkanRenderPass = VulkanRenderPass { _renderPass :: Vk.RenderPass
                                          , _framebuffers :: Vector Vk.Framebuffer
                                          }
 
-withSimpleRenderPass :: (VulkanRenderPass -> Renderer ext a) -> Renderer ext a
+withSimpleRenderPass :: (VulkanRenderPass -> Renderer a) -> Renderer ext a
 withSimpleRenderPass f = rendererBracket createSimpleRenderPass destroyRenderPass f
 
-createSimpleRenderPass :: Renderer ext VulkanRenderPass
+createSimpleRenderPass :: Renderer VulkanRenderPass
 createSimpleRenderPass = ask >>= \renv -> do
 
   let
@@ -107,14 +107,14 @@ createSimpleRenderPass = ask >>= \renv -> do
 
   pure $ VulkanRenderPass renderPass framebuffers
 
-destroyRenderPass :: VulkanRenderPass -> Renderer ext ()
+destroyRenderPass :: VulkanRenderPass -> Renderer ()
 destroyRenderPass (VulkanRenderPass rp framebuffers) =
   getDevice >>= \d -> do
     V.mapM_ (destroyFramebuffer d) framebuffers
     Vk.destroyRenderPass d rp Nothing
 
 
-createFramebuffer :: Vk.RenderPass -> Vk.ImageView -> Vk.ImageView -> Renderer ext Vk.Framebuffer
+createFramebuffer :: Vk.RenderPass -> Vk.ImageView -> Vk.ImageView -> Renderer Vk.Framebuffer
 createFramebuffer rp depthImageView imageView = ask >>= \renv -> do
   let
     frameBufferInfo = Vk.FramebufferCreateInfo { next = ()

@@ -87,7 +87,7 @@ makeView tr view =
   
 
 makeProjection :: Projection
-               -> Renderer ext Mat4
+               -> Renderer Mat4
 makeProjection = \case
   Perspective fovRad near far -> do
     extent <- getRenderExtent
@@ -114,7 +114,7 @@ makePerspectiveProjection fovRad near far (fromIntegral -> width) (fromIntegral 
   -- Camera $ unTransform $ perspective fovRad near far width height -- why is it negative??
 
 
-updateFirstPersonCameraTransform :: Float -> Transform -> Renderer ext Transform
+updateFirstPersonCameraTransform :: Float -> Transform -> Renderer Transform
 updateFirstPersonCameraTransform dt tr = do
     r <- ifPressed GLFW.Key'Right (pure $ vec3 0 1 0) (pure $ vec3 0 0 0)
     l <- ifPressed GLFW.Key'Left (pure $ vec3 0 (-1) 0) (pure $ vec3 0 0 0)
@@ -148,15 +148,15 @@ updateFirstPersonCameraTransform dt tr = do
     moveSpeed = 3
     lookSpeed = 2
 
-    getKey :: GLFW.Key -> Renderer ext GLFW.KeyState
+    getKey :: GLFW.Key -> Renderer GLFW.KeyState
     getKey k = do
       w <- asks (._vulkanWindow._window)
       liftIO $ GLFW.getKey w k
 
     ifPressed :: GLFW.Key
-              -> Renderer ext a -- ^ Then
-              -> Renderer ext a -- ^ Else
-              -> Renderer ext a -- ^ Result
+              -> Renderer a -- ^ Then
+              -> Renderer a -- ^ Else
+              -> Renderer a -- ^ Result
     ifPressed k t e = do
       getKey k >>= \case
         GLFW.KeyState'Pressed -> t

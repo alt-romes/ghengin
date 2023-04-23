@@ -4,7 +4,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.Device where
+module Ghengin.Vulkan.Renderer.Device where
 
 import Data.Ord
 import Data.Bits

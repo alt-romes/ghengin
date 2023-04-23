@@ -4,8 +4,8 @@ module Ghengin.Component.Mesh.Cube where
 
 import Geomancy
 
-import Ghengin.Component.Mesh.Vertex
-import Ghengin.Component.Mesh
+import Ghengin.Core.Mesh.Vertex
+import Ghengin.Core.Mesh
 import Ghengin.Vulkan (Renderer)
 
 -- TODO: Seems that creating a mesh without vertices is broken...
@@ -64,6 +64,6 @@ cubeMeshVertices =
  where
    vertex' a b c d e f = vec3 a b c :& vec3 0 0 0 :&: vec3 d e f
 
-cubeMesh :: Renderer ext (Mesh '[Vec3, Vec3, Vec3])
+cubeMesh :: Renderer (Mesh '[Vec3, Vec3, Vec3])
 cubeMesh = createMesh cubeMeshVertices
 

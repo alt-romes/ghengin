@@ -37,7 +37,7 @@ import Ghengin.Utils
 import Ghengin.Render.Class
 import qualified System.IO.Linear as Linear
 
-data RendererEnv ext =
+data RendererEnv =
   REnv { _instance        :: !Vk.Instance
        , _vulkanDevice    :: !VulkanDevice
        , _vulkanWindow    :: !VulkanWindow
@@ -46,17 +46,14 @@ data RendererEnv ext =
        , _frames          :: !(Vector VulkanFrameData)
        , _frameInFlight   :: !(IORef Int)
        , _immediateSubmit :: !ImmediateSubmitCtx
-       , _extension       :: ext
        }
-newtype Renderer ext a = Renderer { unRenderer :: ReaderT (RendererEnv ext) IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader (RendererEnv ext), MonadFail)
-
-instance MonadRender (Renderer χ) where
+newtype Renderer a = Renderer { unRenderer :: ReaderT RendererEnv IO a } deriving (Functor, Applicative, Monad, MonadIO, MonadReader RendererEnv, MonadFail)
 
 pattern MAX_FRAMES_IN_FLIGHT :: Word32
 pattern MAX_FRAMES_IN_FLIGHT = 2 -- We want to work on multiple frames but we don't want the CPU to get too far ahead of the GPU
 
-runVulkanRenderer :: ext -> Renderer ext a -> IO a
-runVulkanRenderer ext r =
+runVulkanRenderer :: ext -> Renderer a -> IO a
+runVulkanRenderer r =
   bracket
   (do
 
@@ -131,14 +128,14 @@ runVulkanRenderer ext r =
 -- N is 'MAX_FRAMES_IN_FLIGHT'
 --
 -- TODO: Figure out mismatch between current image index and current image frame.
-withCurrentFramePresent :: (MonadTrans t, MonadIO (t (Renderer ext)))
-                        -- => ( ∀ α. Renderer ext α -> t (Renderer ext) α ) -- ^ A lift function
+withCurrentFramePresent :: (MonadTrans t, MonadIO (t (Renderer)))
+                        -- => ( ∀ α. Renderer α -> t (Renderer ext) α ) -- ^ A lift function
                         => ( Vk.CommandBuffer
                              -> Int -- ^ Current image index
                              -> Int -- ^ Current frame index
-                             -> t (Renderer ext) a
+                             -> t (Renderer) a
                            )
-                        -> t (Renderer ext) a
+                        -> t (Renderer) a
 withCurrentFramePresent action = do
 
   device <- lift $ getDevice
@@ -174,7 +171,7 @@ withCurrentFramePresent action = do
 
 
 -- | Get the current frame and increase the frame index (i.e. the next call to 'advanceCurrentFrame' will return the next frame)
-advanceCurrentFrame :: Renderer ext VulkanFrameData
+advanceCurrentFrame :: Renderer VulkanFrameData
 advanceCurrentFrame = do
   nref <- asks (._frameInFlight)
   n    <- liftIO $ readIORef nref
@@ -182,11 +179,11 @@ advanceCurrentFrame = do
   asks ((V.! n) . (._frames))
 
 
-acquireNextImage :: Vk.Semaphore -> Renderer ext Int
+acquireNextImage :: Vk.Semaphore -> Renderer Int
 acquireNextImage sem = ask >>= \renv ->
   fromIntegral . snd <$> Vk.acquireNextImageKHR renv._vulkanDevice._device renv._vulkanSwapChain._swapchain maxBound sem Vk.NULL_HANDLE
 
-submitGraphicsQueue :: Vk.CommandBuffer -> Vk.Semaphore -> Vk.Semaphore -> Vk.Fence -> Renderer ext ()
+submitGraphicsQueue :: Vk.CommandBuffer -> Vk.Semaphore -> Vk.Semaphore -> Vk.Fence -> Renderer ()
 submitGraphicsQueue cb sem1 sem2 fence = do
   let
     submitInfo = Vk.SubmitInfo { next = ()
@@ -201,7 +198,7 @@ submitGraphicsQueue cb sem1 sem2 fence = do
   Vk.queueSubmit graphicsQueue [Vk.SomeStruct submitInfo] fence
 
 
-presentPresentQueue :: Vk.Semaphore -> Int -> Renderer ext ()
+presentPresentQueue :: Vk.Semaphore -> Int -> Renderer ()
 presentPresentQueue sem imageIndex = do
   swpc <- asks (._vulkanSwapChain._swapchain)
   let presentInfo = Vk.PresentInfoKHR { next = ()
@@ -282,13 +279,13 @@ rateFn surface d = do
 
 -- :| Utils |:
 
-getRenderExtent :: Renderer ext Vk.Extent2D
+getRenderExtent :: Renderer Vk.Extent2D
 getRenderExtent = asks (._vulkanSwapChain._surfaceExtent)
 
-getDevice :: Renderer ext Vk.Device
+getDevice :: Renderer Vk.Device
 getDevice = asks (._vulkanDevice._device)
 
-rendererBracket :: Renderer ext a -> (a -> Renderer ext b) -> (a -> Renderer ext c) -> Renderer ext c
+rendererBracket :: Renderer a -> (a -> Renderer ext b) -> (a -> Renderer ext c) -> Renderer ext c
 rendererBracket x f g = Renderer $ ReaderT $ \renv ->
   bracket (runReaderT (unRenderer x) renv)
           ((`runReaderT` renv) . unRenderer . f)
@@ -296,7 +293,7 @@ rendererBracket x f g = Renderer $ ReaderT $ \renv ->
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
-immediateSubmit :: Command (Renderer ext) -> Renderer ext ()
+immediateSubmit :: Command (Renderer) -> Renderer ext ()
 immediateSubmit cmd = do
   device <- asks (._vulkanDevice)
   ims <- asks (._immediateSubmit)

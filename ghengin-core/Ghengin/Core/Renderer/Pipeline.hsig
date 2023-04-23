@@ -11,8 +11,6 @@ import Ghengin.Core.Shader.Pipeline
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.RenderPass
 
-import Data.Counted
-
 data GraphicsPipeline
 
 
@@ -42,7 +40,6 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( top     :: PrimitiveTopology Nat      )
                            ( descs   :: VertexLocationDescriptions )
                            ( strides :: BindingStrides             )
-                           ( m       :: Type -> Type               )
                         .  PipelineConstraints info top descs strides
                         => ShaderPipeline info
                         -> RefC RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it

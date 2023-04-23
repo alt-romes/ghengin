@@ -3,12 +3,14 @@ signature Ghengin.Core.Renderer.DescriptorSet where
 
 import Data.IntMap (IntMap)
 
-import Data.Counted
-
 import Ghengin.Core.Shader.Pipeline
 
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Buffer
+
+import Data.Counted as Counted
+
+import qualified Unsafe.Linear as Unsafe
 
 
 -------- Resources ----------------
@@ -20,10 +22,18 @@ import Ghengin.Core.Renderer.Buffer
 
 type ResourceMap = IntMap DescriptorResource
 
+
 data DescriptorResource where
   UniformResource   :: RefC MappedBuffer ⊸ DescriptorResource
   -- ROMES:TODO:!: Texture2DResource :: T.Texture2D ⊸ DescriptorResource
 
+-- ROMES:TODO: These definitions need to be inlined... in the instancing modules?
+-- Shouldn't be too inefficient since the use case, ResourceMap, is usually small
+-- instance Counted a => Counted (IntMap a) where
+--   countedFields = foldMap countedFields
+
+-- instance Counted DescriptorResource where
+--   countedFields (UniformResource x) = [x]
 
 -- import Ghengin.Vulkan.DescriptorSet
 --     ( allocateDescriptorSet,

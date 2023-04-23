@@ -7,7 +7,7 @@ import Control.Monad
 
 import Ghengin
 import Ghengin.Vulkan
-import Ghengin.Component.Mesh
+import Ghengin.Core.Mesh
 
 data UnitFace = UF { positions :: [Vec3]
                    , indices   :: [Int]
@@ -60,7 +60,7 @@ newUnitSphere res color =
 
 newSphereMesh :: Int -- ^ Resolution
           -> Maybe Vec3 -- ^ Color, use the normals if Nothing
-          -> Renderer ext (Mesh [Vec3, Vec3, Vec3])
+          -> Renderer (Mesh [Vec3, Vec3, Vec3])
 newSphereMesh res color =
   let UnitSphere vs is = newUnitSphere res color
    in createMeshWithIxs vs is

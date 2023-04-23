@@ -25,18 +25,12 @@ module Ghengin.Core.Mesh
 
 import Prelude.Linear
 
-import Data.Typeable
 import Data.Kind
 
 import Control.Functor.Linear as Linear
 
 -- import Data.List.Split (chunksOf)
-import Data.List (sort, foldl')
 
-import qualified Data.Map as M
-import qualified Data.IntMap as IM
-
-import Data.Vector (Vector)
 import Data.Vector.Storable (Storable)
 import qualified Data.Vector.Storable as SV
 

@@ -166,11 +166,11 @@ instance HasProperties (RenderPipeline π) where
       RenderPipeline {} -> Ur GHNil
       RenderProperty x xs -> case unsafeGo xs of Ur xs' -> Ur (x :## xs')
 
-  descriptors :: MonadIO m => RenderPipeline π α ⊸ m (RefC DescriptorSet, RefC ResourceMap, RenderPipeline π α)
+  descriptors :: RenderPipeline π α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, RenderPipeline π α)
   descriptors = Unsafe.toLinear (\rp -> unsafeGo rp >>= \case
                                           (dset, rmap) -> pure (dset, rmap, rp)) where
     -- Note it's not linear on the pipeline, unsafe! -- but we return the original reference
-    unsafeGo :: MonadIO m => RenderPipeline π α -> m (RefC DescriptorSet, RefC ResourceMap)
+    unsafeGo :: RenderPipeline π α -> Renderer (RefC DescriptorSet, RefC ResourceMap)
     unsafeGo = \case
       RenderPipeline gpip rpass (dset, rmap, dpool) spip ->
         -- In descriptors, we're returning the whole render pipeline unchanged.

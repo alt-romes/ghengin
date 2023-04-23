@@ -9,18 +9,16 @@ import qualified Data.IntMap as IM
 import Prelude.Linear
 
 import Control.Functor.Linear
-import Control.Monad.IO.Class.Linear
 
 import qualified Unsafe.Linear as Unsafe
 
 import Ghengin.Core.Renderer.Buffer
--- import Ghengin.Core.Renderer.Kernel
+import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.DescriptorSet
 
-import Data.Counted
 import qualified Data.Counted.Unsafe as Unsafe.Counted
 
-getUniformBuffer :: MonadIO lm => ResourceMap ⊸ Int -> lm (RefC MappedBuffer, ResourceMap)
+getUniformBuffer :: ResourceMap ⊸ Int -> Renderer (RefC MappedBuffer, ResourceMap)
 getUniformBuffer = Unsafe.toLinear $ \resourcemap i ->
   case IM.lookup i resourcemap of
     -- We *unsafely* increment the reference because we also return

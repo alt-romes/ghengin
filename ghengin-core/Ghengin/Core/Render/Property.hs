@@ -34,7 +34,6 @@ import qualified Unsafe.Linear
 
 import Foreign.Storable (Storable(sizeOf))
 
-import Data.Counted (RefC)
 import qualified Data.Counted as Counted
 
 import Ghengin.Core.Renderer
@@ -181,9 +180,7 @@ writeProperty buf = \case
 -- with an χ parameter for the extra information at the list's end.
 class HasProperties φ where
   properties    :: φ α ⊸ (Ur (PropertyBindings α), φ α)
-  descriptors   :: MonadIO m
-                => φ α
-                 ⊸ m (RefC DescriptorSet, RefC ResourceMap, φ α)
+  descriptors   :: φ α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, φ α)
   puncons       :: φ (α:β) ⊸ (Ur (PropertyBinding α), φ β) -- ROMES:TODO: This is not gonna be Ur when we re-add textures
   pcons         :: PropertyBinding α %p -> φ β ⊸ φ (α:β)
 

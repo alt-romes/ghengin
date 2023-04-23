@@ -12,7 +12,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 -- | Better imported qualified as Cmd.
-module Ghengin.Vulkan.Command
+module Ghengin.Vulkan.Renderer.Command
   ( Command
   , RenderPassCmd
   -- , CommandM
@@ -57,7 +57,7 @@ import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
-import Ghengin.Vulkan.Device
+import Ghengin.Vulkan.Renderer.Device
 
 -- | A command description: a language to describe what will be recorded in the buffer
 -- 

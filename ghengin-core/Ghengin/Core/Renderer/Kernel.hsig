@@ -1,13 +1,14 @@
 {-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.Kernel where
 
-import qualified Prelude
-import Prelude.Linear
-
 import Control.Functor.Linear        as Linear
 import Control.Monad.IO.Class.Linear as Linear
 
+import Data.Counted
+
 data Renderer a
+
+type RefC = RefC' Renderer
 
 instance Linear.Functor Renderer
 instance Linear.Applicative Renderer

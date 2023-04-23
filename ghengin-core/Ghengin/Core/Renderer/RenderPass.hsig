@@ -2,8 +2,6 @@ signature Ghengin.Core.Renderer.RenderPass where
 
 import Ghengin.Core.Renderer.Kernel
 
-import Data.Counted
-
 -- import Ghengin.Vulkan.RenderPass
 --     ( createSimpleRenderPass,
 --       destroyRenderPass,
