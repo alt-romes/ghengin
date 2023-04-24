@@ -29,11 +29,6 @@ data DescriptorResource where
 
 -- ROMES:TODO: These definitions need to be inlined... in the instancing modules?
 -- Shouldn't be too inefficient since the use case, ResourceMap, is usually small
--- instance Counted a => Counted (IntMap a) where
---   countedFields = foldMap countedFields
-
--- instance Counted DescriptorResource where
---   countedFields (UniformResource x) = [x]
 
 -- import Ghengin.Vulkan.DescriptorSet
 --     ( allocateDescriptorSet,
@@ -51,6 +46,7 @@ createDescriptorPool :: ShaderPipeline info
 
 
 data DescriptorSet
+instance Counted DescriptorSet
 
 -- | Allocates a descriptor set whose layout is defined according to the shader
 -- pipeline information stored in the descriptor pool.

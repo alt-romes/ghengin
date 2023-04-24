@@ -1,7 +1,10 @@
-{-# LANGUAGE LinearTypes, NoImplicitPrelude #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Core.Renderer
   ( module Ghengin.Core.Renderer.DescriptorSet
   , module Ghengin.Core.Renderer.Buffer
+  , module Ghengin.Core.Renderer.Kernel
   , module Ghengin.Core.Renderer
   ) where
 
@@ -16,7 +19,11 @@ import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.DescriptorSet
 
+import Data.Counted
 import qualified Data.Counted.Unsafe as Unsafe.Counted
+
+instance Counted DescriptorResource where
+  countedFields (UniformResource x) = [SomeRefC x]
 
 getUniformBuffer :: ResourceMap ⊸ Int -> Renderer (RefC MappedBuffer, ResourceMap)
 getUniformBuffer = Unsafe.toLinear $ \resourcemap i ->
