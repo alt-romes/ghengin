@@ -142,12 +142,16 @@ library ghengin-vulkan
                       -- Ghengin.Vulkan.Renderer.Pipeline,
                       -- Ghengin.Vulkan.Renderer.RenderPass,
 
+                      -- Don't know
+                      Ghengin.Vulkan.Renderer.ImmediateSubmit,
+
                       -- Should soon enough be part of the required pieces
                       Ghengin.Vulkan.Renderer.Command,
                       -- Modules that don't instance signatures
                       Ghengin.Vulkan.Renderer.Device,
                       Ghengin.Vulkan.Renderer.Device.Instance,
                       Ghengin.Vulkan.Renderer.GLFW.Window,
+                      Ghengin.Vulkan.Renderer.Synchronization,
 
     hs-source-dirs:   ghengin-vulkan
 

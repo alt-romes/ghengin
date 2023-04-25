@@ -60,3 +60,12 @@ unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b)
 unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win) -> Linear.do
   b <- liftSystemIO $ f (device._device)
   pure $ (b, renv)
+
+
+-- | Submit a command to the immediate submit command buffer that synchronously
+-- submits it to the graphics queue
+immediateSubmit :: Command (Renderer) -> Renderer ()
+immediateSubmit cmd = do
+  device <- asks (._vulkanDevice)
+  ims <- asks (._immediateSubmit)
+  immediateSubmit' device._device device._graphicsQueue ims cmd
