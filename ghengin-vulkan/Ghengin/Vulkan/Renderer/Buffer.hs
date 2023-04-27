@@ -54,7 +54,7 @@ data Index32Buffer where
                 %p -> Index32Buffer
 
 createIndex32Buffer :: SV.Vector Int32 -> Renderer Index32Buffer
-createIndex32Buffer vv = Index32Buffer <$> createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT vv <$> pure (SV.length vv)
+createIndex32Buffer vv = Index32Buffer <$> createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT vv <*> pure (fromIntegral $ SV.length vv)
 
 data VertexBuffer where
   VertexBuffer :: !DeviceLocalBuffer
@@ -106,6 +106,9 @@ data MappedBuffer = UniformBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
                                   , bufSize :: {-# UNPACK #-} !(Ur Word)
                                   }
 
+instance Counted MappedBuffer where
+  countedFields (UniformBuffer {}) = []
+
 -- ROMES:TODO: When the next version comes out:
 -- instance Counted.Counted MappedBuffer where
 --   countedFields _ = []
@@ -116,7 +119,7 @@ data MappedBuffer = UniformBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
 -- for that.
 --
 -- The size is given by the type of the storable to store in the uniform buffer.
-createMappedBuffer :: ∀ ext. Word -> Vk.DescriptorType -> Renderer (RefC MappedBuffer)
+createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (RefC MappedBuffer)
 createMappedBuffer size descriptorType = Linear.do
 
   case descriptorType of
@@ -136,8 +139,8 @@ createMappedBuffer size descriptorType = Linear.do
 writeMappedBuffer :: ∀ α. (SV.Storable α) => (RefC MappedBuffer) ⊸ α -> Renderer (RefC MappedBuffer)
 -- writeMappedBuffer (UniformBuffer _ _ (castPtr -> ptr) s) x = assert (fromIntegral (sizeOf @α undefined) <= s) $ liftIO $ poke @α ptr x -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
 writeMappedBuffer refcbuf x = Linear.do
-  (ub, ()) <- useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (Ur ptr) s) ->
-    Unsafe.toLinear2 assert (fromIntegral (sizeOf @α undefined) <= s) $ -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
+  (ub, ()) <- useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (Ur ptr) (Ur s)) ->
+    Unsafe.toLinear2 assert (fromIntegral (sizeOf @α undefined) Prelude.<= s) $ -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
       Linear.do liftSystemIO $ poke @α (castPtr ptr) x
                 pure (ub, ())
   pure ub
@@ -145,7 +148,7 @@ writeMappedBuffer refcbuf x = Linear.do
 -------- Non-interface details ---------
 
 createBuffer :: Vk.DeviceSize -> Vk.BufferUsageFlags -> Vk.MemoryPropertyFlags -> Renderer (Vk.Buffer, Vk.DeviceMemory)
-createBuffer size usage properties = do
+createBuffer size usage properties = Linear.do
   let bufferInfo = Vk.BufferCreateInfo { next = ()
                                        , flags = zero
                                        , size  = size
@@ -153,23 +156,30 @@ createBuffer size usage properties = do
                                        , sharingMode = Vk.SHARING_MODE_EXCLUSIVE
                                        , queueFamilyIndices = []
                                        }
-  buffer <- unsafeUseDevice (\dev -> Vk.createBuffer dev bufferInfo Nothing)
-  memRequirements <- unsafeUseDevice (\dev -> Vk.getBufferMemoryRequirements dev buffer)
-  memTypeIndex <- asks (._vulkanDevice._physicalDevice) >>= liftIO . findMemoryType memRequirements.memoryTypeBits properties
-  let allocInfo = Vk.MemoryAllocateInfo { next = ()
-                                        , allocationSize = memRequirements.size
-                                        , memoryTypeIndex = memTypeIndex
-                                        }
-  devMem <- unsafeUseDevice (\dev -> Vk.allocateMemory dev allocInfo Nothing)
+  unsafeUseVulkanDevice (\device -> do
+    let dev = device._device
+    buffer          <- Vk.createBuffer dev bufferInfo Nothing
+    memRequirements <- Vk.getBufferMemoryRequirements dev buffer
+    memTypeIndex    <- findMemoryType memRequirements.memoryTypeBits properties device._physicalDevice
+    let allocInfo = Vk.MemoryAllocateInfo { next = ()
+                                          , allocationSize = memRequirements.size
+                                          , memoryTypeIndex = memTypeIndex
+                                          }
+    devMem          <- Vk.allocateMemory dev allocInfo Nothing
 
-  -- Bind buffer to the memory we allocated (or is it the other way around?)
-  unsafeUseDevice (\dev -> Vk.bindBufferMemory dev buffer devMem 0)
-  pure (buffer, devMem)
+    -- Bind buffer to the memory we allocated (or is it the other way around?)
+    Vk.bindBufferMemory dev buffer devMem 0
+    Prelude.pure (buffer, devMem)
+                     )
 
 -- | Run a one-shot command that copies the whole data between two buffers.
 -- Returns the two buffers, in the order they were passed to the function
 copyBuffer :: Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> Renderer (Vk.Buffer, Vk.Buffer)
-copyBuffer size = Unsafe.toLinear2 $ \src dst -> (src, dst) <$> immediateSubmit (Cmd.copyFullBuffer src dst size)
+copyBuffer src dst size = Linear.do
+  case Cmd.copyFullBuffer src dst size of
+    (Ur cmd, src', dst') -> Linear.do
+      immediateSubmit cmd
+      pure (src', dst')
 
 -- | Fills a staging buffer with data, uses it with the given function that
 -- typically copies the buffer data from the staging buffer to another one
@@ -226,9 +236,10 @@ withStagingBuffer bufferData f = Linear.do
 
 
 destroyMappedBuffer :: MappedBuffer ⊸ Renderer ()
-destroyMappedBuffer = Unsafe.toLinear $ \(UniformBuffer b dm _hostMemory _size) -> Linear.do
+destroyMappedBuffer (UniformBuffer b dm (Ur _hostMemory) (Ur _size)) = Linear.do
   dm' <- unmapMemory dm
-  destroyBuffer b dm'
+  freeMemory dm'
+  destroyBuffer b
 
 -- data Buffer = Buffer Vk.Buffer Vk.DeviceMemory
 
@@ -238,7 +249,7 @@ destroyMappedBuffer = Unsafe.toLinear $ \(UniformBuffer b dm _hostMemory _size) 
 --
 -- It's a bit weird we dont' need to free the host memory, but until we (TODO) make sure, we return the host memory ptr as unrestricted
 mapMemory :: Vk.DeviceMemory ⊸ Vk.DeviceSize -> Vk.DeviceSize -> Vk.MemoryMapFlags -> Renderer (Vk.DeviceMemory, Ur (Ptr ()))
-mapMemory = Unsafe.toLinear $ \mem offset size flgs -> (mem,) <$> (unsafeUseDevice $ \dev -> Vk.mapMemory dev mem offset size flgs)
+mapMemory = Unsafe.toLinear $ \mem offset size flgs -> (mem,) <$> (unsafeUseDevice $ \dev -> Ur Prelude.<$> Vk.mapMemory dev mem offset size flgs)
 
 -- | Linear wrapper for Vk.unmapMemory
 unmapMemory :: Vk.DeviceMemory ⊸ Renderer Vk.DeviceMemory

@@ -63,10 +63,21 @@ unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _
   b <- liftSystemIO $ f (device._device)
   pure $ (b, renv)
 
+unsafeUseVulkanDevice :: (VulkanDevice -> Unrestricted.IO b)
+                   -> Renderer b
+unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _isctx) -> Linear.do
+  b <- liftSystemIO $ f (device)
+  pure $ (b, renv)
+
+-- | Like 'unsafeUseDevice' but additionally use unsafely a linearly value in the unsafe function
+unsafeUseDeviceAnd :: (a -> Vk.Device -> Unrestricted.IO b)
+                   -> a ⊸ Renderer (b, a)
+unsafeUseDeviceAnd f = Unsafe.toLinear $ \x -> (,x) <$> unsafeUseDevice (f x)
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
-immediateSubmit :: Command System.IO.Linear.IO -> Renderer () -- ROMES: Command IO, is that OK?
+immediateSubmit :: Command System.IO.Linear.IO -> Renderer () -- ROMES: Command IO, is that OK? Can easily move to Command Renderer by unsafeUseDevice
 immediateSubmit cmd = renderer $ \(REnv inst dev win imsctx) -> Linear.do
   (dev', imsctx') <- immediateSubmit' dev imsctx cmd
   pure ((), REnv inst dev' win imsctx')
+

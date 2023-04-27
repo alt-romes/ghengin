@@ -55,7 +55,7 @@ module Ghengin.Vulkan.Renderer.Command
 import GHC.TypeLits
 
 import Prelude hiding (($))
-import Prelude.Linear (($))
+import Prelude.Linear (($), Ur(..))
 import qualified Prelude.Linear as Linear ((.))
 
 import qualified Data.V.Linear as V
@@ -215,7 +215,7 @@ drawIndexed :: Linear.MonadIO m => Word32 -> RenderPassCmd m
 drawIndexed ixCount = unsafeRenderPassCmd_ $ \buf -> Vk.cmdDrawIndexed buf ixCount 1 0 0 0
 {-# INLINE drawIndexed #-}
 
-copyFullBuffer :: Linear.MonadIO m => Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> (Command m, Vk.Buffer, Vk.Buffer)
+copyFullBuffer :: Linear.MonadIO m => Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> (Ur (Command m), Vk.Buffer, Vk.Buffer)
 copyFullBuffer src dst size = case unsafeCmd (src,dst) $ \buf (src',dst') -> Vk.cmdCopyBuffer buf src' dst' [Vk.BufferCopy 0 0 size] of
                                 (cmd, (src', dst')) -> (cmd, src', dst')
 {-# INLINE copyFullBuffer #-}
@@ -289,7 +289,7 @@ copyFullBufferToImage :: Linear.MonadIO μ
                       => Vk.Buffer -- ^ From
                        ⊸ Vk.Image  -- ^ To
                        ⊸ Vk.Extent3D
-                      -> (Command μ, Vk.Buffer, Vk.Image)
+                      -> (Ur (Command μ), Vk.Buffer, Vk.Image)
 copyFullBufferToImage buf img extent =
   let
       subresourceRange = Vk.ImageSubresourceLayers { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
@@ -364,8 +364,8 @@ transitionImageLayout = Unsafe.toLinear $ \img format srcLayout dstLayout ->
 -- Note how `a` is used unrestrictedly in the function `f`. This is because
 -- often this function will be a Vulkan function which isn't linear.
 
-unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> (Command m, a)
-unsafeCmd = Unsafe.toLinear \a f -> (Command $ ReaderT \buf -> Linear.liftSystemIO (f buf a), a)
+unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> (Ur (Command m), a)
+unsafeCmd = Unsafe.toLinear \a f -> (Ur $ Command $ ReaderT \buf -> Linear.liftSystemIO (f buf a), a)
 
 unsafeCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> Command m
 unsafeCmd_ = Unsafe.toLinear \f -> (Command $ ReaderT \buf -> Linear.liftSystemIO (f buf))
