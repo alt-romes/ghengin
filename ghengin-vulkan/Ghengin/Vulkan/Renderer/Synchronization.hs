@@ -19,22 +19,24 @@ import qualified Vulkan as Vk
 
 import qualified Unsafe.Linear as Unsafe
 
+import Ghengin.Vulkan.Renderer.Device
+
 -- | Create a Semaphore
-createSemaphore :: MonadIO m => Vk.Device ⊸ m (Vk.Semaphore, Vk.Device)
+createSemaphore :: MonadIO m => VulkanDevice ⊸ m (Vk.Semaphore, VulkanDevice)
 createSemaphore = Unsafe.toLinear $ \dev ->
   let semaphoreInfo = Vk.SemaphoreCreateInfo { next = (), flags = zero }
-   in (,dev) <$> liftSystemIO (Vk.createSemaphore dev semaphoreInfo Nothing)
+   in (,dev) <$> liftSystemIO (Vk.createSemaphore dev._device semaphoreInfo Nothing)
 
 -- | Create a Fence.
 -- If the first argument is 'True' the fence is already signaled when created
-createFence :: MonadIO m => Vk.Device ⊸ Bool -> m (Vk.Fence, Vk.Device)
+createFence :: MonadIO m => VulkanDevice ⊸ Bool -> m (Vk.Fence, VulkanDevice)
 createFence = Unsafe.toLinear $ \dev isSignaled ->
   let fenceInfo = Vk.FenceCreateInfo { next = (), flags = if isSignaled then Vk.FENCE_CREATE_SIGNALED_BIT else zero }
-   in (,dev) <$> liftSystemIO (Vk.createFence dev fenceInfo Nothing)
+   in (,dev) <$> liftSystemIO (Vk.createFence dev._device fenceInfo Nothing)
 
-destroySem :: MonadIO m => Vk.Device ⊸ Vk.Semaphore ⊸ m ()
-destroySem = Unsafe.toLinear2 $ \dev sem -> liftSystemIO $ Vk.destroySemaphore dev sem Nothing
+destroySem :: MonadIO m => VulkanDevice ⊸ Vk.Semaphore ⊸ m VulkanDevice
+destroySem   = Unsafe.toLinear2 $ \dev sem -> dev <$ liftSystemIO (Vk.destroySemaphore dev._device sem Nothing)
 
-destroyFence :: MonadIO m => Vk.Device ⊸ Vk.Fence ⊸ m ()
-destroyFence = Unsafe.toLinear2 $ \dev fen -> liftSystemIO $ Vk.destroyFence dev fen Nothing
+destroyFence :: MonadIO m => VulkanDevice ⊸ Vk.Fence ⊸ m VulkanDevice
+destroyFence = Unsafe.toLinear2 $ \dev fen -> dev <$ liftSystemIO (Vk.destroyFence dev._device fen Nothing)
 

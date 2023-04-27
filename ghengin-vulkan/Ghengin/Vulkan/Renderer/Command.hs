@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE UnicodeSyntax #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -11,6 +12,8 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 -- | Better imported qualified as Cmd.
 module Ghengin.Vulkan.Renderer.Command
   ( Command
@@ -32,22 +35,35 @@ module Ghengin.Vulkan.Renderer.Command
   , pushConstants
   , draw
   , drawIndexed
-  , withCmdBuffer
-  , makeRenderPassCmd
+  -- ROMES:TODO
+  -- , withCmdBuffer
+  -- , makeRenderPassCmd
 
   , createCommandPool
   , destroyCommandPool
   , createCommandBuffers
   , destroyCommandBuffers
 
-  , embed
+  -- ROMES:TODO
+  -- , embed
 
   -- * Images
   , copyFullBufferToImage
   , transitionImageLayout
   ) where
 
+import GHC.TypeLits
+
+import Prelude hiding (($))
+import Prelude.Linear (($))
+import qualified Prelude.Linear as Linear ((.))
+
+import qualified Data.V.Linear as V
+import qualified Data.V.Linear.Internal as VI
+
 import Control.Monad.Reader
+import qualified Control.Functor.Linear as Linear
+import qualified Control.Monad.IO.Class.Linear as Linear
 import Data.Word
 import Foreign.Storable
 import Foreign.Marshal.Alloc
@@ -58,6 +74,24 @@ import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
 import Ghengin.Vulkan.Renderer.Device
+
+import Ghengin.Core.Type.Utils (w32)
+
+import qualified Unsafe.Linear as Unsafe
+
+{-
+Note [Commands and RenderPassCmds]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A command-like monad allows recording and submition of command buffers?
+
+Regarding linear types: Since we don't expose the internals of the Command and
+RenderCommand implementations, we keep most of it as it is while providing a
+linear interface -- which is safe enough.
+
+A Command is an action run in an environment in which a command buffer is available
+
+-}
 
 -- | A command description: a language to describe what will be recorded in the buffer
 -- 
@@ -89,6 +123,7 @@ type Command m = CommandM m ()
 -- @
 type RenderPassCmd m = RenderPassCmdM m ()
 
+
 newtype CommandM m a = Command (ReaderT Vk.CommandBuffer m a)
   deriving (Functor, Applicative, Monad, MonadIO, MonadTrans)
 
@@ -97,32 +132,35 @@ newtype RenderPassCmdM m a = RenderPassCmd (ReaderT Vk.CommandBuffer m a)
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
-recordCommand :: MonadIO m => Vk.CommandBuffer -> Command m -> m ()
-recordCommand buf (Command cmds) = do
+recordCommand :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m -> m Vk.CommandBuffer
+recordCommand = Unsafe.toLinear $ \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.zero
                                             , inheritanceInfo = Nothing }
 
   -- Begin recording
-  Vk.beginCommandBuffer buf beginInfo
+  Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
 
   -- Record commands
   runReaderT cmds buf
 
   -- Finish recording
-  Vk.endCommandBuffer buf
+  Linear.liftSystemIO $ Vk.endCommandBuffer buf
+
+  Linear.pure buf
 {-# INLINE recordCommand #-}
 
-recordCommandOneShot :: MonadIO m => Vk.CommandBuffer -> Command m -> m ()
-recordCommandOneShot buf (Command cmds) = do
+recordCommandOneShot :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m -> m Vk.CommandBuffer
+recordCommandOneShot = Unsafe.toLinear \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, inheritanceInfo = Nothing }
-  Vk.beginCommandBuffer buf beginInfo
+  Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
   runReaderT cmds buf
-  Vk.endCommandBuffer buf
+  Linear.liftSystemIO $ Vk.endCommandBuffer buf
+  Linear.pure buf
 {-# INLINE recordCommandOneShot #-}
 
 -- | Make a render pass part a command blueprint that can be further composed with other commands
-renderPassCmd :: MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd m -> Command m
-renderPassCmd rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ask >>= \buf -> do
+renderPassCmd :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd m -> Command m
+renderPassCmd rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ReaderT \buf -> Linear.do
   let
     renderPassInfo = Vk.RenderPassBeginInfo { next = ()
                                             , renderPass  = rpass
@@ -131,123 +169,128 @@ renderPassCmd rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Comman
                                             , clearValues = [Vk.Color $ Vk.Float32 0.1 0.1 0.1 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 1 0]
                                             }
 
-  Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
+  Linear.liftSystemIO $ Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
 
-  rpcmds
+  runReaderT rpcmds buf
 
-  Vk.cmdEndRenderPass buf
+  Linear.liftSystemIO $ Vk.cmdEndRenderPass buf
 {-# INLINE renderPassCmd #-}
 
-bindGraphicsPipeline :: MonadIO m => Vk.Pipeline -> RenderPassCmd m
-bindGraphicsPipeline pp = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_GRAPHICS pp
+bindGraphicsPipeline :: Linear.MonadIO m => Vk.Pipeline ⊸ (RenderPassCmd m, Vk.Pipeline)
+bindGraphicsPipeline pp = unsafeRenderPassCmd pp (\buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_GRAPHICS)
 {-# INLINE bindGraphicsPipeline #-}
 
-bindComputePipeline :: MonadIO m => Vk.Pipeline -> RenderPassCmd m
-bindComputePipeline pp = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_COMPUTE pp
+bindComputePipeline :: Linear.MonadIO m => Vk.Pipeline -> (RenderPassCmd m, Vk.Pipeline)
+bindComputePipeline pp = unsafeRenderPassCmd pp (\buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_COMPUTE)
 {-# INLINE bindComputePipeline #-}
 
-bindRayTracingPipeline :: MonadIO m => Vk.Pipeline -> RenderPassCmd m
-bindRayTracingPipeline pp = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_RAY_TRACING_KHR pp
+bindRayTracingPipeline :: Linear.MonadIO m => Vk.Pipeline -> (RenderPassCmd m, Vk.Pipeline)
+bindRayTracingPipeline pp = unsafeRenderPassCmd pp (\buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_RAY_TRACING_KHR)
 {-# INLINE bindRayTracingPipeline #-}
 
-setViewport :: MonadIO m => Vk.Viewport -> RenderPassCmd m
-setViewport viewport = RenderPassCmd $ ask >>= \buf -> Vk.cmdSetViewport buf 0 [viewport]
+setViewport :: Linear.MonadIO m => Vk.Viewport -> RenderPassCmd m
+setViewport viewport = unsafeRenderPassCmd_ (\buf -> Vk.cmdSetViewport buf 0 [viewport])
 {-# INLINE setViewport #-}
 
-setScissor :: MonadIO m => Vk.Rect2D   -> RenderPassCmd m
-setScissor scissor = RenderPassCmd $ ask >>= \buf -> Vk.cmdSetScissor  buf 0 [scissor]
+setScissor :: Linear.MonadIO m => Vk.Rect2D -> RenderPassCmd m
+setScissor scissor = unsafeRenderPassCmd_ (\buf -> Vk.cmdSetScissor buf 0 [scissor])
 {-# INLINE setScissor #-}
 
-bindVertexBuffers :: MonadIO m => Word32 -> Vector Vk.Buffer -> Vector Vk.DeviceSize -> RenderPassCmd m
-bindVertexBuffers i bufs offsets = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindVertexBuffers buf i bufs offsets
+bindVertexBuffers :: Linear.MonadIO m => Word32 -> Vector Vk.Buffer ⊸ Vector Vk.DeviceSize -> (RenderPassCmd m, Vector Vk.Buffer)
+bindVertexBuffers i bufs offsets = unsafeRenderPassCmd bufs (\cmdbuf bufs' -> Vk.cmdBindVertexBuffers cmdbuf i bufs' offsets)
 {-# INLINE bindVertexBuffers #-}
 
-bindIndex32Buffer :: MonadIO m
+bindIndex32Buffer :: Linear.MonadIO m
                   => Vk.Buffer -- ^ Index buffer
-                  -> Vk.DeviceSize -- ^ Offset into index buffer
-                  -> RenderPassCmd m
-bindIndex32Buffer ibuffer offset = RenderPassCmd $ ask >>= \buf -> Vk.cmdBindIndexBuffer buf ibuffer offset Vk.INDEX_TYPE_UINT32
+                   ⊸ Vk.DeviceSize -- ^ Offset into index buffer
+                  -> (RenderPassCmd m, Vk.Buffer)
+bindIndex32Buffer ibuffer offset = unsafeRenderPassCmd ibuffer (\buf ibuf -> Vk.cmdBindIndexBuffer buf ibuf offset Vk.INDEX_TYPE_UINT32)
 {-# INLINE bindIndex32Buffer #-}
 
-draw :: MonadIO m => Word32 -> RenderPassCmd m
-draw vertexCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDraw buf vertexCount 1 0 0
+draw :: Linear.MonadIO m => Word32 -> RenderPassCmd m
+draw vertexCount = unsafeRenderPassCmd_ (\buf -> Vk.cmdDraw buf vertexCount 1 0 0)
 {-# INLINE draw #-}
 
-drawIndexed :: MonadIO m => Word32 -> RenderPassCmd m
-drawIndexed ixCount = RenderPassCmd $ ask >>= \buf -> Vk.cmdDrawIndexed buf ixCount 1 0 0 0
+drawIndexed :: Linear.MonadIO m => Word32 -> RenderPassCmd m
+drawIndexed ixCount = unsafeRenderPassCmd_ $ \buf -> Vk.cmdDrawIndexed buf ixCount 1 0 0 0
 {-# INLINE drawIndexed #-}
 
-copyFullBuffer :: MonadIO m => Vk.Buffer -> Vk.Buffer -> Vk.DeviceSize -> Command m
-copyFullBuffer src dst size = Command $ ask >>= \buf -> do
-  Vk.cmdCopyBuffer buf src dst [Vk.BufferCopy 0 0 size]
+copyFullBuffer :: Linear.MonadIO m => Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> (Command m, Vk.Buffer, Vk.Buffer)
+copyFullBuffer src dst size = case unsafeCmd (src,dst) $ \buf (src',dst') -> Vk.cmdCopyBuffer buf src' dst' [Vk.BufferCopy 0 0 size] of
+                                (cmd, (src', dst')) -> (cmd, src', dst')
 {-# INLINE copyFullBuffer #-}
 
-pushConstants :: ∀ a m. (MonadIO m, Storable a) => Vk.PipelineLayout -> Vk.ShaderStageFlags -> a -> RenderPassCmd m
-pushConstants pipelineLayout stageFlags values =
-  RenderPassCmd $ ask >>= \buf ->
+pushConstants :: ∀ a m. (Linear.MonadIO m, Storable a) => Vk.PipelineLayout ⊸ Vk.ShaderStageFlags -> a -> (RenderPassCmd m, Vk.PipelineLayout)
+pushConstants pipelineLayout stageFlags values = unsafeRenderPassCmd pipelineLayout $ \buf piplayout -> do
     liftIO $ alloca @a $ \ptr -> do
       poke ptr values
-      Vk.cmdPushConstants buf pipelineLayout stageFlags 0 (fromIntegral $ sizeOf values) (castPtr ptr)
+      Vk.cmdPushConstants buf piplayout stageFlags 0 (fromIntegral $ sizeOf values) (castPtr ptr)
 {-# INLINE pushConstants #-}
 
-bindGraphicsDescriptorSet :: MonadIO m
+bindGraphicsDescriptorSet :: Linear.MonadIO m
                           => Vk.PipelineLayout
-                          -> Word32 -- ^ Set index at which to bind the descriptor set
-                          -> Vk.DescriptorSet -> RenderPassCmd m
-bindGraphicsDescriptorSet pipelay ix dset = RenderPassCmd $ ask >>= \buf -> do
-  Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pipelay ix [dset] [] -- offsets array not used
+                          ⊸ Word32 -- ^ Set index at which to bind the descriptor set
+                          -> Vk.DescriptorSet ⊸ (RenderPassCmd m, Vk.PipelineLayout, Vk.DescriptorSet)
+bindGraphicsDescriptorSet pipelay ix dset =
+  case unsafeRenderPassCmd (pipelay,dset)
+    (\buf (pip',dset') -> Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pip' ix [dset'] []) -- offsets array not used
+      of
+    (rpcmd, (p,d)) -> (rpcmd, p, d)
 
 -- | Lift a function that uses a command buffer to a Command
-withCmdBuffer :: MonadIO m => (Vk.CommandBuffer -> m ()) -> Command m
-withCmdBuffer f = Command $ ask >>= lift . f
+-- Get back to this: not trivial with linearity. Probably unsafe will have to be called outside
+-- Or this function will be called unsafeWithCmdBuffer
+-- withCmdBuffer :: Linear.MonadIO m => (Vk.CommandBuffer -> m ()) -> Command m
+-- withCmdBuffer f = Command $ ask >>= lift . f
 
-makeRenderPassCmd :: MonadIO m => (Vk.CommandBuffer -> m ()) -> RenderPassCmd m
-makeRenderPassCmd f = RenderPassCmd $ ask >>= lift . f
+-- As above
+-- makeRenderPassCmd :: Linear.MonadIO m => (Vk.CommandBuffer -> m ()) -> RenderPassCmd m
+-- makeRenderPassCmd f = RenderPassCmd $ ask >>= lift . f
 
 
 -- :| Creation and Destruction |:
 
 -- | Creates a command pool for the graphics queue family
-createCommandPool :: MonadIO m => VulkanDevice -> m Vk.CommandPool
-createCommandPool vkDevice = do
-
+createCommandPool :: Linear.MonadIO m => VulkanDevice ⊸ m (Vk.CommandPool, VulkanDevice)
+createCommandPool = Unsafe.toLinear $ \vkDevice ->
   let
     poolInfo = Vk.CommandPoolCreateInfo { flags = Vk.COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
                                         , queueFamilyIndex = vkDevice._graphicsQueueFamily
                                         }
+   in (,vkDevice) Linear.<$> (Linear.liftSystemIO $ Vk.createCommandPool vkDevice._device poolInfo Nothing)
 
-  Vk.createCommandPool vkDevice._device poolInfo Nothing
+
+destroyCommandPool :: Linear.MonadIO m => VulkanDevice ⊸ Vk.CommandPool ⊸ m VulkanDevice
+destroyCommandPool = Unsafe.toLinear2 $ \dev pool -> dev Linear.<$ Linear.liftSystemIO (Vk.destroyCommandPool dev._device pool Nothing)
 
 
-destroyCommandPool :: MonadIO m => Vk.Device -> Vk.CommandPool -> m ()
-destroyCommandPool dev pool = Vk.destroyCommandPool dev pool Nothing
-
-createCommandBuffers :: MonadIO m => Vk.Device -> Vk.CommandPool -> Word32 -> m (Vector Vk.CommandBuffer)
-createCommandBuffers dev cpool n = do
+createCommandBuffers :: ∀ (n :: Nat) m. (KnownNat n, Linear.MonadIO m) => VulkanDevice ⊸ Vk.CommandPool ⊸ m (V.V n Vk.CommandBuffer, VulkanDevice, Vk.CommandPool)
+createCommandBuffers = Unsafe.toLinear2 \dev cpool ->
   let
     allocInfo = Vk.CommandBufferAllocateInfo { commandPool = cpool
                                              , level = Vk.COMMAND_BUFFER_LEVEL_PRIMARY
-                                             , commandBufferCount = n
+                                             , commandBufferCount = w32 @n
                                              }
-  Vk.allocateCommandBuffers dev allocInfo
+   in (,dev,cpool) Linear.. VI.V @n @Vk.CommandBuffer Linear.<$> Linear.liftSystemIO (Vk.allocateCommandBuffers dev._device allocInfo)
 
-destroyCommandBuffers :: MonadIO m => Vk.Device -> Vk.CommandPool -> Vector Vk.CommandBuffer -> m ()
-destroyCommandBuffers = Vk.freeCommandBuffers
+destroyCommandBuffers :: Linear.MonadIO m => VulkanDevice ⊸ Vk.CommandPool ⊸ V.V n Vk.CommandBuffer ⊸ m (VulkanDevice, Vk.CommandPool)
+destroyCommandBuffers = Unsafe.toLinear3 \dev pool (VI.V bufs) -> (dev,pool) Linear.<$ Linear.liftSystemIO (Vk.freeCommandBuffers dev._device pool bufs)
 
 -- | A peculiar function to be sure. Best used with 'cmapM' from apecs
-embed :: MonadIO m => ((x -> m ()) -> m ()) -> ((x -> RenderPassCmd m) -> RenderPassCmd m)
-embed g h = RenderPassCmd $ ask >>= \buf -> lift $ g (fmap (\case RenderPassCmd act -> runReaderT act buf) h)
+-- Hard with linearity.... reconsider
+-- embed :: Linear.MonadIO m => ((x -> m ()) -> m ()) -> ((x -> RenderPassCmd m) -> RenderPassCmd m)
+-- embed g h = RenderPassCmd $ ask >>= \buf -> lift $ g (fmap (\case RenderPassCmd act -> runReaderT act buf) h)
 
 
 -- :| Images |: --
 
 -- | Assumes the layout of the image is Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL!
-copyFullBufferToImage :: MonadIO μ
+copyFullBufferToImage :: Linear.MonadIO μ
                       => Vk.Buffer -- ^ From
-                      -> Vk.Image  -- ^ To
-                      -> Vk.Extent3D
-                      -> Command μ
-copyFullBufferToImage buf img extent = Command $ ask >>= \cmd ->
+                       ⊸ Vk.Image  -- ^ To
+                       ⊸ Vk.Extent3D
+                      -> (Command μ, Vk.Buffer, Vk.Image)
+copyFullBufferToImage buf img extent =
   let
       subresourceRange = Vk.ImageSubresourceLayers { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
                                                    , mipLevel = 0
@@ -262,15 +305,17 @@ copyFullBufferToImage buf img extent = Command $ ask >>= \cmd ->
                                   , imageOffset = Vk.Offset3D 0 0 0
                                   , imageExtent = extent
                                   }
-   in do
-      Vk.cmdCopyBufferToImage cmd buf img Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
+   in case unsafeCmd (buf,img) $ \cmdbuf (buf', img') -> Vk.cmdCopyBufferToImage cmdbuf buf' img' Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region] of
+        (cmd, (buf',img')) -> (cmd, buf', img')
 
-transitionImageLayout :: MonadIO μ
-                      => Vk.Image -> Vk.Format
+transitionImageLayout :: forall μ
+                       . Linear.MonadIO μ
+                      => Vk.Image
+                       ⊸ Vk.Format -- ^ ROMES:TODO: Being ignored?
                       -> Vk.ImageLayout -- ^ Src layout
                       -> Vk.ImageLayout -- ^ Dst layout
-                      -> Command μ
-transitionImageLayout img format srcLayout dstLayout = Command $ ask >>= \buf -> do
+                      -> (Command μ, Vk.Image)
+transitionImageLayout = Unsafe.toLinear $ \img format srcLayout dstLayout ->
 
   let
 
@@ -301,11 +346,34 @@ transitionImageLayout img format srcLayout dstLayout = Command $ ask >>= \buf ->
                                                         , subresourceRange = subresourceRange
                                                         }
 
-  -- Possible synchronization in pipeline barriers table: ?
-  -- https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap7.html#synchronization-access-types-supported
-  Vk.cmdPipelineBarrier buf
-                        stageFrom stageTo
-                        Vk.zero -- Dependency flags
-                        [] -- Memory barriers
-                        [] -- Buffer barriers
-                        [Vk.SomeStruct layoutChangeUndefTransfer] -- Image memory barriers
+   in ( unsafeCmd_ @μ (\buf ->
+      -- Possible synchronization in pipeline barriers table: ?
+      -- https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap7.html#synchronization-access-types-supported
+      Vk.cmdPipelineBarrier buf
+                            stageFrom stageTo
+                            Vk.zero -- Dependency flags
+                            [] -- Memory barriers
+                            [] -- Buffer barriers
+                            [Vk.SomeStruct layoutChangeUndefTransfer]) -- Image memory barriers
+      , img )
+
+
+
+----- Linear Unsafe Utils
+
+-- Note how `a` is used unrestrictedly in the function `f`. This is because
+-- often this function will be a Vulkan function which isn't linear.
+
+unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> (Command m, a)
+unsafeCmd = Unsafe.toLinear \a f -> (Command $ ReaderT \buf -> Linear.liftSystemIO (f buf a), a)
+
+unsafeCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> Command m
+unsafeCmd_ = Unsafe.toLinear \f -> (Command $ ReaderT \buf -> Linear.liftSystemIO (f buf))
+
+-- | Unsafe for lots of reasons
+unsafeRenderPassCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> (RenderPassCmd m, a)
+unsafeRenderPassCmd = Unsafe.toLinear \a f -> (RenderPassCmd $ ReaderT \buf -> Linear.liftSystemIO (f buf a), a)
+
+unsafeRenderPassCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> RenderPassCmd m
+unsafeRenderPassCmd_ = Unsafe.toLinear \f -> (RenderPassCmd $ ReaderT \buf -> Linear.liftSystemIO (f buf))
+

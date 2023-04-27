@@ -11,6 +11,8 @@ import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
 
 import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Command (Command)
+import Ghengin.Vulkan.Renderer.ImmediateSubmit
 
 -- One day abstract over Window API
 import Ghengin.Vulkan.Renderer.GLFW.Window
@@ -30,7 +32,7 @@ data RendererEnv =
        -- , _commandPool     :: !Vk.CommandPool
        -- , _frames          :: !(Vector VulkanFrameData)
        -- , _frameInFlight   :: !(IORef Int)
-       -- , _immediateSubmit :: !ImmediateSubmitCtx
+       , _immediateSubmit :: !ImmediateSubmitCtx
        }
 -- ROMES: Worried linear StateT might reduce performance, hope not
 newtype Renderer a = Renderer { unRenderer :: Linear.StateT RendererEnv System.IO.Linear.IO a }
@@ -57,15 +59,14 @@ renderer f = Renderer (StateT f)
 -- Note, this is quite unsafe really, but makes usage of non-linear vulkan much easier
 unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b)
                    -> Renderer b
-unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win) -> Linear.do
+unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _isctx) -> Linear.do
   b <- liftSystemIO $ f (device._device)
   pure $ (b, renv)
 
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
-immediateSubmit :: Command (Renderer) -> Renderer ()
-immediateSubmit cmd = do
-  device <- asks (._vulkanDevice)
-  ims <- asks (._immediateSubmit)
-  immediateSubmit' device._device device._graphicsQueue ims cmd
+immediateSubmit :: Command System.IO.Linear.IO -> Renderer () -- ROMES: Command IO, is that OK?
+immediateSubmit cmd = renderer $ \(REnv inst dev win imsctx) -> Linear.do
+  (dev', imsctx') <- immediateSubmit' dev imsctx cmd
+  pure ((), REnv inst dev' win imsctx')

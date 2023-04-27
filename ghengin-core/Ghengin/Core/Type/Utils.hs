@@ -1,8 +1,12 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Ghengin.Core.Type.Utils where
 
-import Math.Linear (V(..), M(..))
 import GHC.TypeLits
+import Data.Proxy
+
+import Data.Word (Word32)
+import Math.Linear (V(..), M(..))
 import FIR.Prim.Struct
 import qualified SPIRV.Image as SPIRV
 import Data.Type.Map
@@ -53,4 +57,7 @@ instance Sized ('SPIRV.ImageFormat c '[]) where
 instance Sized ('SPIRV.ImageFormat c ((x ': xs) :: [Nat])) where
   type SizeOf ('SPIRV.ImageFormat c (x ': xs)) = (x `Div` 8) + SizeOf ('SPIRV.ImageFormat c xs)
   -- Division by 8 because image format size is in bits
+
+w32 :: ∀ n. KnownNat n => Word32
+w32 = fromInteger (natVal (Proxy @n))
 
