@@ -4,21 +4,32 @@
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Vulkan.Renderer.Pipeline where
 
-import Data.Counted
-import Control.Monad.Reader
+import qualified Prelude
+import Prelude.Linear hiding (zero, fromMaybe, IO)
+import Control.Functor.Linear as Linear
+import qualified Data.Functor.Linear as Data.Linear
+import Control.Monad.IO.Class.Linear
+import System.IO.Linear
+import Data.Bifunctor.Linear
+
+import Control.Exception (assert)
+
 import Data.Bits ((.|.))
 import Data.Coerce
-import Data.Functor ((<&>))
-import Data.Kind
+import qualified Data.Functor ((<&>))
 import Data.Maybe
 import FIR
   ( (:->)((:->))
@@ -34,17 +45,18 @@ import FIR
   )
 import FIR.Validation.Pipeline (ValidPipelineInfo)
 import GHC.TypeNats ( Nat )
-import Ghengin.Shader
-import Ghengin.Vulkan
-import Ghengin.Vulkan.Utils
 import Vulkan.Zero (zero)
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as LBS
 import qualified Data.Vector as V
-import qualified Ghengin.Shader.FIR as FIR
+import qualified FIR hiding (ShaderPipeline, (:>->))
 import qualified Vulkan as Vk
 import qualified Vulkan.CStruct.Extends as VkC
 
+import qualified Unsafe.Linear as Unsafe
+
 import Ghengin.Core.Shader.Pipeline
+import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.RenderPass
 
 newtype GraphicsPipeline = GraphicsPipeline VulkanPipeline
@@ -91,26 +103,30 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( strides :: BindingStrides             )
                         .  PipelineConstraints info top descs strides
                         => ShaderPipeline info
-                        -> RefC RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
-                        -- -> V.Vector Vk.DescriptorSetLayout
+                        -> RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
+                         ⊸ V.Vector Vk.DescriptorSetLayout
                          ⊸ V.Vector Vk.PushConstantRange
-                        -> Renderer GraphicsPipeline
-createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges = do
-  dev <- getDevice
+                        -> Renderer (GraphicsPipeline, RenderPass, V.Vector Vk.DescriptorSetLayout)
+createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP descriptorSetLayouts pushConstantRanges -> Linear.do
+
+  Ur dev <- unsafeGetDevice
 
   let
-      pipelineShaders :: [(FIR.Shader, Vk.ShaderModule)] -> ShaderPipeline info2 -> IO [(FIR.Shader, Vk.ShaderModule)]
-      pipelineShaders acc (ShaderPipeline FIR.VertexInput) = pure $ reverse acc
-      pipelineShaders acc ( info :>-> sm@(FIR.ShaderModule _ :: FIR.ShaderModule name shader defs endState) )
-        = do
-          vksm <- createShaderModule dev =<< compileFIRShader sm
-          pipelineShaders ( (knownValue @shader, vksm) : acc) info
-
+    pipelineShaders :: [(FIR.Shader, Vk.ShaderModule)]
+                     ⊸ ShaderPipeline info2
+                    -> IO [(FIR.Shader, Vk.ShaderModule)]
+    pipelineShaders acc (ShaderPipeline FIR.VertexInput) = pure $ reverse acc
+    pipelineShaders acc ( info :>-> sm@(FIR.ShaderModule _ :: FIR.ShaderModule name shader defs endState) )
+      = Linear.do
+        (vksm, dev') <- compileFIRShader sm >>= Unsafe.toLinear2 createShaderModule dev
+        Unsafe.toLinear (\_ -> pure ()) dev' -- forget dev' alias
+        pipelineShaders ( (knownValue @shader, vksm) : acc) info
 
   shaders <- liftIO $ pipelineShaders [] ppstages
+  (Ur shaderStageInfos, shaderModules) <- pure $ first (Unsafe.toLinear Ur . map (\case (Ur x) -> x)) $ -- [Ur x] to Ur [x]
+                                                 unzip $ map (uncurry shaderInfo) shaders :: Renderer (Ur [Vk.PipelineShaderStageCreateInfo '[]], [Vk.ShaderModule])
 
   let
-    shaderStageInfos = map (uncurry shaderInfo) shaders :: [Vk.PipelineShaderStageCreateInfo '[]]
 
     shaderStages = V.fromList $ map VkC.SomeStruct shaderStageInfos :: V.Vector (VkC.SomeStruct Vk.PipelineShaderStageCreateInfo)
 
@@ -231,13 +247,9 @@ createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges 
                          { flags = zero
                          , setLayouts = descriptorSetLayouts
                          , pushConstantRanges = pushConstantRanges
-                         -- , pushConstantRanges = [Vk.PushConstantRange { offset = 0
-                         --                                              , size   = fromIntegral $ sizeOf @PushConstantData undefined
-                         --                                              , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT
-                         --                                              }]
                          }
 
-  pipelineLayout <- Vk.createPipelineLayout dev pipelineLayoutInfo Nothing
+  Ur unsafePipelineLayout <- liftSystemIOU $ Vk.createPipelineLayout dev pipelineLayoutInfo Nothing
 
   let 
     pipelineInfo = Vk.GraphicsPipelineCreateInfo { next = ()
@@ -253,57 +265,77 @@ createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges 
                                                  , depthStencilState = Just depthStencilInfo
                                                  , colorBlendState = Just (VkC.SomeStruct colorBlendingInfo)
                                                  , dynamicState = Just dynamicStateInfo
-                                                 , layout = pipelineLayout
-                                                 , renderPass = renderP
+                                                 , layout = unsafePipelineLayout
+                                                 , renderPass = renderP._renderPass
                                                  , subpass = 0 -- the index of the subpass in the render pass where this pipeline will be used.
                                                  , basePipelineHandle = Vk.NULL_HANDLE
                                                  , basePipelineIndex = -1
                                                  }
 
-  (_, [pipeline]) <- Vk.createGraphicsPipelines dev Vk.NULL_HANDLE [VkC.SomeStruct pipelineInfo] Nothing
+  Ur (_, pipelines) <- liftSystemIOU $ Vk.createGraphicsPipelines dev Vk.NULL_HANDLE [VkC.SomeStruct pipelineInfo] Nothing
+  pipeline <- pure $ assert (V.length pipelines == 1) $ V.unsafeHead pipelines
 
-  mapM_ (liftIO . destroyShaderModule dev . snd) shaders
+  -- ROMES:TODO: Free shader modules
+  devs <- Data.Linear.traverse (liftIO . destroyShaderModule dev) shaderModules -- destroy shader modules after creating the pipeline
+  Unsafe.toLinear (\_ -> pure ()) devs -- forget dev aliases
 
-  pure $ VulkanPipeline pipeline pipelineLayout
+  pure (GraphicsPipeline (VulkanPipeline pipeline unsafePipelineLayout), renderP, descriptorSetLayouts)
 
 
 
 destroyPipeline :: VulkanPipeline ⊸ Renderer ()
-destroyPipeline (VulkanPipeline pipeline pipelineLayout) = getDevice >>= \d -> do
-  Vk.destroyPipeline d pipeline Nothing
-  Vk.destroyPipelineLayout d pipelineLayout Nothing
+destroyPipeline = Unsafe.toLinear \(VulkanPipeline pipeline pipelineLayout) -> unsafeUseDevice \dev -> do
+  Vk.destroyPipeline dev pipeline Nothing
+  Vk.destroyPipelineLayout dev pipelineLayout Nothing
 
 
 -- :| Shader Modules |:
 
 createShaderModule :: Vk.Device ⊸ ShaderByteCode -> IO (Vk.ShaderModule, Vk.Device)
-createShaderModule dev sbc =
-  Vk.createShaderModule dev createInfo Nothing where
-    createInfo = Vk.ShaderModuleCreateInfo
+createShaderModule = Unsafe.toLinear $ \dev sbc ->
+  let createInfo = Vk.ShaderModuleCreateInfo
                  { next = ()
                  , flags = zero
                  , code = BS.toStrict $ coerce sbc
                  }
+   in liftSystemIO $ (,dev) Prelude.<$> Vk.createShaderModule dev createInfo Nothing
 
-destroyShaderModule :: Vk.Device ⊸ Vk.ShaderModule ⊸ IO Vk.Device
-destroyShaderModule d sm = Vk.destroyShaderModule d sm Nothing
+newtype ShaderByteCode = SBC LBS.ByteString
+
+-- | Compile a shader program into SPIR-V bytecode.
+--
+-- === Example
+--
+-- @
+-- vertexShaderByteCode <- compileShader SimpleShader.vertex
+-- fragShaderByteCode   <- compileShader SimpleShader.fragment
+-- @
+compileFIRShader :: FIR.CompilableProgram prog => prog -> IO ShaderByteCode
+compileFIRShader m = liftSystemIO do
+  FIR.compile [] m Prelude.>>= \case
+    Right (Just (FIR.ModuleBinary bs), _) -> Prelude.pure (SBC bs)
+    Left e -> error $ show e
+    _      -> error "Couldn't generate module binary when compiling"
+
+destroyShaderModule :: Vk.Device ⊸ Vk.ShaderModule ⊸ System.IO.Linear.IO Vk.Device
+destroyShaderModule = Unsafe.toLinear2 \d sm -> d <$ liftSystemIO (Vk.destroyShaderModule d sm Nothing)
 
 
 -- From https://gitlab.com/sheaf/fir/-/blob/master/fir-examples/src/Vulkan/Pipeline.hs
 
 shaderInfo
   :: FIR.Shader
-  -> Vk.ShaderModule
-  -> Vk.PipelineShaderStageCreateInfo '[]
-shaderInfo shaderStage shaderModule =
-  Vk.PipelineShaderStageCreateInfo
+  %p -> Vk.ShaderModule
+   ⊸ (Ur (Vk.PipelineShaderStageCreateInfo '[]), Vk.ShaderModule) -- the shader module is copied to the shader create info? either way the shader module should be freed after the pipeline shader stage create info is used
+shaderInfo = Unsafe.toLinear2 \shaderStage shaderModule ->
+  (Ur Vk.PipelineShaderStageCreateInfo
     { Vk.next               = ()
     , Vk.flags              = zero
     , Vk.name               = "main"
     , Vk.module'            = shaderModule
     , Vk.stage              = stageFlag shaderStage
     , Vk.specializationInfo = Nothing
-    }
+    }, shaderModule)
 
 simpleFormat :: ImageFormat Word32 -> Maybe Vk.Format
 simpleFormat ( ImageFormat UI widths ) = case widths of
@@ -412,7 +444,7 @@ assemblyAndVertexInputStateInfo =
 
     vertexBindingDescriptions :: [ Vk.VertexInputBindingDescription ]
     vertexBindingDescriptions =
-      bindingStrides <&> \( binding :-> stride ) ->
+      bindingStrides Data.Functor.<&> \( binding :-> stride ) ->
           Vk.VertexInputBindingDescription
             { Vk.binding   = binding
             , Vk.stride    = stride
@@ -421,7 +453,7 @@ assemblyAndVertexInputStateInfo =
 
     vertexAttributeDescriptions :: [ Vk.VertexInputAttributeDescription ]
     vertexAttributeDescriptions =
-      attributes <&> \ ( location :-> ( binding, offset, format ) ) ->
+      attributes Data.Functor.<&> \ ( location :-> ( binding, offset, format ) ) ->
         Vk.VertexInputAttributeDescription 
           { Vk.location = location
           , Vk.binding  = binding
@@ -444,7 +476,7 @@ assemblyAndVertexInputStateInfo =
 ---- Vulkan Utils ----
 ----------------------
 
-stageFlag :: FIR.Shader -> Vk.ShaderStageFlagBits
+stageFlag :: FIR.Shader %p -> Vk.ShaderStageFlagBits
 stageFlag FIR.VertexShader                 = Vk.SHADER_STAGE_VERTEX_BIT
 stageFlag FIR.TessellationControlShader    = Vk.SHADER_STAGE_TESSELLATION_CONTROL_BIT
 stageFlag FIR.TessellationEvaluationShader = Vk.SHADER_STAGE_TESSELLATION_EVALUATION_BIT

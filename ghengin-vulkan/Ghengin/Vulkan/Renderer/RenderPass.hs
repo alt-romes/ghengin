@@ -17,7 +17,6 @@ module Ghengin.Vulkan.Renderer.RenderPass where
 import Data.Proxy
 import GHC.TypeNats
 
-import qualified Prelude
 import Prelude.Linear hiding (zero)
 import qualified Data.Functor.Linear as Data.Linear
 import Control.Functor.Linear as Linear
@@ -25,7 +24,6 @@ import Control.Monad.IO.Class.Linear as Linear
 import Data.Bifunctor.Linear
 
 import Data.Bits
-import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import qualified Data.V.Linear as V
 import qualified Data.V.Linear.Internal as VI
@@ -145,7 +143,7 @@ createFramebuffers rp depthImgV imgVs = runStateT ((Unsafe.toLinear \case (VI.V 
   where
     -- Hope this threading doesn't impact performance too much. TODO: Benchmarks....
     createFramebufferState :: Vk.ImageView ⊸ StateT (Vk.RenderPass, Vk.ImageView) Renderer (Vk.Framebuffer, Vk.ImageView)
-    createFramebufferState imageView = StateT (\(rp, depthImgV) -> createFramebuffer rp depthImgV imageView >>= \case (fb, (rp',dimgv',imgv')) -> pure ((fb, imgv'), (rp', dimgv')))
+    createFramebufferState imageView = StateT (\(rp', depthImgV') -> createFramebuffer rp' depthImgV' imageView >>= \case (fb, (rp'',dimgv',imgv')) -> pure ((fb, imgv'), (rp'', dimgv')))
 -- ROMES:force inline everywhere with this stateT?
 
 createFramebuffer :: Vk.RenderPass ⊸ Vk.ImageView ⊸ Vk.ImageView ⊸ Renderer (Vk.Framebuffer, (Vk.RenderPass, Vk.ImageView, Vk.ImageView))

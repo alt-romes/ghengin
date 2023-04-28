@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TupleSections #-}
@@ -20,6 +21,8 @@ import qualified Prelude
 import Prelude.Linear
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
+import qualified Data.Functor.Linear as Data.Linear
+
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List as L
@@ -34,14 +37,12 @@ import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
 
--- import qualified Ghengin.Shader.FIR as FIR
--- import Ghengin.Shader
 import qualified FIR hiding (ShaderPipeline, (:>->))
 import qualified FIR.Definition as FIR
 import qualified SPIRV.Decoration as SPIRV
 import qualified SPIRV.PrimTy as SPIRV
 import qualified SPIRV.Storage
--- import Ghengin.Utils
+
 import Ghengin.Vulkan.Renderer.Buffer
 import Ghengin.Vulkan.Renderer.Image
 import Ghengin.Vulkan.Renderer.Sampler
@@ -50,11 +51,12 @@ import Ghengin.Vulkan.Renderer.Kernel
 -- import qualified Ghengin.Asset.Texture as T
 
 import Ghengin.Core.Shader.Pipeline
-import Ghengin.Core.Renderer (ResourceMap, DescriptorResource(..))
+import Ghengin.Core.Renderer.DescriptorSet (ResourceMap, DescriptorResource(..)) -- When it errors out due to cyclic imports, inline definitions from hsig.
 
 import Ghengin.Vulkan.Renderer.Pipeline (stageFlag)
 
 import qualified FIR.Layout
+import qualified Unsafe.Linear as Unsafe
 
 type Size = Word
 
@@ -91,7 +93,7 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go mempty ppstag
                          -> DescriptorSetMap -- ^ Mapping from descriptor set indexes to a list of their bindings (corresponding binding type, shader stage)
     makeDescriptorSetMap =
       M.foldrWithKey (\shader ls acc' -> 
-        foldr (\(pt@(SPIRV.PointerTy _ primTy),somedefs,S.toList -> decs) acc ->
+        Prelude.foldr (\(pt@(SPIRV.PointerTy _ primTy),somedefs,S.toList -> decs) acc ->
           case decs of
             [SPIRV.Binding (fromIntegral -> bindingIx), SPIRV.DescriptorSet (fromIntegral -> descriptorSetIx)] ->
               case somedefs of
@@ -110,7 +112,7 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go mempty ppstag
     mergeSameDS :: BindingsMap
                 -> BindingsMap
                 -> BindingsMap
-    mergeSameDS = IM.mergeWithKey (\_ (dt,ss,sf) (dt',_ss',sf') -> if dt == dt' then Just (dt, ss, sf .|. sf')
+    mergeSameDS = IM.mergeWithKey (\_ (dt,ss,sf) (dt',_ss',sf') -> if dt == dt' then Just (dt, ss, sf FIR..|. sf')
                                                                                 else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id -- TODO: Could pattern match on type equality too?
 
 
@@ -174,33 +176,35 @@ data DescriptorPool =
 --
 -- TODO: Right amount of descriptors. For now we simply multiply 1000 by the
 -- number of all total descriptors across sets
-createDescriptorPool :: DescriptorSetMap -> Renderer DescriptorPool
-createDescriptorPool dsetmap = do
+createDescriptorPool :: ShaderPipeline info -> Renderer DescriptorPool
+createDescriptorPool sp =
+  case createDescriptorSetBindingsMap sp of
+    dsetmap -> Linear.do
 
-  layouts <- traverse (\bm -> (,bm) <$> createDescriptorSetLayout bm) dsetmap
+      layouts <- Prelude.traverse (\bm -> (,bm) <$> createDescriptorSetLayout bm) dsetmap
 
-  let 
-    descriptorsAmounts :: [(Vk.DescriptorType, Int)] -- ^ For each type, its amount
-    descriptorsAmounts = map (\(t :| ls) -> (t, 1000 * (length ls + 1))) . NonEmpty.group . L.sort $ foldMap (foldr (\(ty,_,_) -> (ty:)) mempty) dsetmap
-    poolsSizes = map (\(t,fromIntegral -> a) -> Vk.DescriptorPoolSize {descriptorCount = a, type' = t}) descriptorsAmounts
+      let 
+        descriptorsAmounts :: [(Vk.DescriptorType, Int)] -- ^ For each type, its amount
+        descriptorsAmounts = Prelude.map (\(t :| ls) -> (t, 1000 * (Prelude.length ls + 1))) Prelude.. NonEmpty.group Prelude.. L.sort $ Prelude.foldMap (Prelude.foldr (\(ty,_,_) -> (ty:)) Prelude.mempty) dsetmap
+        poolsSizes = Prelude.map (\(t,fromIntegral -> a) -> Vk.DescriptorPoolSize {descriptorCount = a, type' = t}) descriptorsAmounts
 
-    setsAmount = fromIntegral $ length dsetmap
-    poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = V.fromList poolsSizes
-                                           , maxSets = 1000 * setsAmount
-                                           , flags = Vk.zero
-                                           , next = ()
-                                           }
+        setsAmount = fromIntegral $ Prelude.length dsetmap
+        poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = V.fromList poolsSizes
+                                               , maxSets = 1000 * setsAmount
+                                               , flags = Vk.zero
+                                               , next = ()
+                                               }
 
-  descriptorPool <- Vk.createDescriptorPool device poolInfo Nothing
-  pure (DescriptorPool descriptorPool layouts)
+      descriptorPool <- unsafeUseDevice (\device -> Vk.createDescriptorPool device poolInfo Nothing)
+      pure (DescriptorPool descriptorPool layouts)
 
-destroyDescriptorPool :: DescriptorPool -> Renderer ()
-destroyDescriptorPool p = do
-  Vk.destroyDescriptorPool dev p._pool Nothing
-  traverse_ (destroyDescriptorSetLayout . fst) p._set_bindings
+destroyDescriptorPool :: DescriptorPool ⊸ Renderer ()
+destroyDescriptorPool = Unsafe.toLinear \p -> Linear.do
+  unsafeUseDevice (\dev -> Vk.destroyDescriptorPool dev p._pool Nothing)
+  consume_empty_IntMap <$> Data.Linear.traverse (destroyDescriptorSetLayout . Unsafe.toLinear fst) p._set_bindings
     where
-      destroyDescriptorSetLayout :: Vk.DescriptorSetLayout -> Renderer ()
-      destroyDescriptorSetLayout layout = unsafeUseDevice (\dev -> Vk.destroyDescriptorSetLayout dev layout Nothing)
+      destroyDescriptorSetLayout :: Vk.DescriptorSetLayout ⊸ Renderer ()
+      destroyDescriptorSetLayout = Unsafe.toLinear \layout -> unsafeUseDevice (\dev -> Vk.destroyDescriptorSetLayout dev layout Nothing)
 
 
 -- | Create a DescriptorSetLayout for a group of bindings (that represent a set) and their properties.
@@ -234,9 +238,9 @@ createDescriptorSetLayout bindingsMap =
 
 
 data DescriptorSet
-  = DescriptorSet { _ix :: Int
+  = DescriptorSet { _ix :: Ur Int
                   , _descriptorSet :: Vk.DescriptorSet
-                  , _bindings      ::  ResourceMap -- ^ TODO: Rename to _resources instead of _bindings?
+                  , _bindings      :: ResourceMap -- ^ TODO: Rename to _resources instead of _bindings?
                   }
   | EmptyDescriptorSet -- ^ TODO: We don't export this constructor?
 
@@ -259,22 +263,20 @@ data DescriptorSet
 -- To write and obtain the descriptor set, apply the returned function to a
 -- resource map. If the function is applied to an empty resource map, it'll
 -- simply create a descriptor set and write nothing to it.
-allocateDescriptorSet :: Int -- ^ The set to allocate by index
+allocateEmptyDescriptorSet :: Int -- ^ The set to allocate by index
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
-                      -> ResourceMap
-                       ⊸ Renderer (ResourceMap -> Renderer DescriptorSet)
-allocateDescriptorSet ix = fmap (\case [ds] -> ds; _ -> error $ "Internal error: Failed to allocate a single descriptor set #" <> show ix
-                                ) . allocateDescriptorSets [ix]
+                       ⊸ Renderer (DescriptorSet, DescriptorPool)
+allocateEmptyDescriptorSet ix = fmap (Unsafe.toLinear \case ([ds], x) -> (ds, x); _ -> error $ "Internal error: Failed to allocate a single descriptor set #" <> show ix
+                                ) . allocateEmptyDescriptorSets [ix]
 
--- | Like 'allocateDescriptorSet' but allocate multiple sets at once
-allocateDescriptorSets :: Vector Int    -- ^ The sets to allocate by Ix
+-- | Like 'allocateEmptyDescriptorSet' but allocate multiple sets at once
+allocateEmptyDescriptorSets :: [Int]    -- ^ The sets to allocate by Ix
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
-                       ⊸ Vector ResourceMap -- ^ and the resources to write to them
-                       ⊸ Renderer (Vector DescriptorSet)
-allocateDescriptorSets ixs dpool = Linear.do
+                       ⊸ Renderer ([DescriptorSet], DescriptorPool)
+allocateEmptyDescriptorSets ixs = Unsafe.toLinear \dpool -> Linear.do
   let
-      sets :: Vector (Vk.DescriptorSetLayout, BindingsMap)
-      sets = fmap (\i -> case IM.lookup i dpool._set_bindings of
+      sets :: [(Vk.DescriptorSetLayout, BindingsMap)]
+      sets = map (\i -> case IM.lookup i dpool._set_bindings of
                            Just x -> x
                            Nothing -> error $ "Internal error: We're trying to allocate a descriptor set #" <> show i <> " with no bindings."
                   ) ixs
@@ -284,28 +286,30 @@ allocateDescriptorSets ixs dpool = Linear.do
                   -- might result in an empty returned vector)
 
       allocInfo = Vk.DescriptorSetAllocateInfo { descriptorPool = dpool._pool
-                                               , setLayouts = fmap fst sets
+                                               , setLayouts = V.fromList $ map (Unsafe.toLinear fst) sets
                                                , next = ()
                                                }
 
   -- Allocate the descriptor sets
-  descriptorSets <- Vk.allocateDescriptorSets device allocInfo
+  descriptorSets <- unsafeUseDevice (\dev -> Vk.allocateDescriptorSets dev allocInfo)
+  pure (descriptorSets, dpool)
 
   -- ROMES:TODO: make update/writing explicit and allocate only allocates the empty set
   -- This also would allow us to change the special hacks in updateDescriptorSet to an assertion
   -- Rename to allocate*Empty*descriptorSet
+  -- DONE! Just delete the comments when this all works...
 
   -- Return a closure that when applied to a resource map will write the
   -- descriptor set with the resources information and then return it
-  V.zipWithM (\ix dset resources -> do
-                      -- Write the descriptor set with the allocated resources
-                      updateDescriptorSet dset resources
-                      pure $ DescriptorSet ix dset resources) ixs descriptorSets
+  -- V.zipWithM (\ix dset resources -> do
+  --                     -- Write the descriptor set with the allocated resources
+  --                     updateDescriptorSet dset resources
+  --                     pure $ DescriptorSet ix dset resources) ixs descriptorSets
   
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
-updateDescriptorSet :: Vk.DescriptorSet -- ^ The descriptor set we're updating with these resources
-                    -> ResourceMap
-                    -> Renderer (Vk.DescriptorSet, ResourceMap)
+updateDescriptorSet :: DescriptorSet -- ^ The descriptor set we're updating with these resources
+                     ⊸ ResourceMap
+                     ⊸ Renderer (Vk.DescriptorSet, ResourceMap)
 updateDescriptorSet dset resources = do
 
   let makeDescriptorWrite i = \case
@@ -347,15 +351,14 @@ updateDescriptorSet dset resources = do
         --                             , texelBufferView = []
         --                             }
 
-  dev <- getDevice
-
   -- Only issue the call if we're actually updating something.
   -- TODO2:REMOVE THIS, we no longer update the dset with the dummy things,
   -- simply allocate an empty one and write it explicitly
   -- This allows us to use the dummy resources trick in 'material'
   -- TODO: Note Dummy Resource or a good inline comment...
-  when (IM.size resources > 0) $
-    Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeDescriptorWrite resources) []
+  -- when (IM.size resources > 0) $
+
+  unsafeUseDevice (\dev -> Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeDescriptorWrite resources) [])
 
 -- | Destroy a descriptor set 
 --
@@ -372,14 +375,18 @@ updateDescriptorSet dset resources = do
 --
 --
 -- TODO: Write this to the note
-destroyDescriptorSet :: DescriptorSet -> Renderer ()
+destroyDescriptorSet :: DescriptorSet ⊸ Renderer ()
 destroyDescriptorSet EmptyDescriptorSet = pure ()
-destroyDescriptorSet (DescriptorSet _ix _dset dresources) = traverse_ freeDescriptorResource dresources
+destroyDescriptorSet (DescriptorSet _ix _dset dresources) = consume_empty_IntMap <$> Data.Linear.traverse freeDescriptorResource dresources
   where
-    freeDescriptorResource :: DescriptorResource -> Renderer ()
+    freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
     freeDescriptorResource = \case
       UniformResource u -> destroyMappedBuffer u
-      -- ROMES:TODO: What will be of this? I guess Texture2D will be RefCounted field of DescriptorResource
+      -- ROMES:TODO: What will be of this? I guess Texture2D will be RefCounted field of DescriptorResource!
       -- u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought
+
+-- Util
+consume_empty_IntMap :: IntMap () ⊸ ()
+consume_empty_IntMap = Unsafe.toLinear \_ -> ()
 
 
