@@ -29,12 +29,12 @@ type PresentQueueFamily  = Word32
 --  The return value is maybe a tuple with three items: the rating associated with the device (higher is better), the graphics queue family and the present queue family
 type DeviceRateFunction = (Vk.PhysicalDevice -> IO (Maybe (Int, GraphicsQueueFamily, PresentQueueFamily)))
 
-data VulkanDevice = VulkanDevice { _physicalDevice :: Vk.PhysicalDevice
-                                 , _device         :: Vk.Device
-                                 , _graphicsQueue  :: Vk.Queue
-                                 , _presentQueue   :: Vk.Queue
-                                 , _graphicsQueueFamily :: GraphicsQueueFamily
-                                 , _presentQueueFamily  :: PresentQueueFamily
+data VulkanDevice = VulkanDevice { _physicalDevice      :: !Vk.PhysicalDevice
+                                 , _device              :: !Vk.Device
+                                 , _graphicsQueue       :: !Vk.Queue
+                                 , _presentQueue        :: !Vk.Queue
+                                 , _graphicsQueueFamily :: !GraphicsQueueFamily
+                                 , _presentQueueFamily  :: !PresentQueueFamily
                                  }
 
 createVulkanDevice :: Vk.Instance

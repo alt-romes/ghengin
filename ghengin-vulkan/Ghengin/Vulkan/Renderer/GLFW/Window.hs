@@ -22,8 +22,8 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Vulkan.Exception as Vk (VulkanException(..))
 import qualified Vulkan as Vk
 
-data VulkanWindow = VulkanWindow { _window :: GLFW.Window
-                                 , _surface :: Vk.SurfaceKHR
+data VulkanWindow = VulkanWindow { _window  :: !GLFW.Window
+                                 , _surface :: !Vk.SurfaceKHR
                                  }
 
 createVulkanWindow :: Vk.Instance

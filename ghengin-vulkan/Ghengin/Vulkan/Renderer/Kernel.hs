@@ -1,5 +1,5 @@
 {-# LANGUAGE NoImplicitPrelude, LinearTypes, PatternSynonyms, QualifiedDo,
-   OverloadedRecordDot #-}
+   OverloadedRecordDot, BlockArguments #-}
 module Ghengin.Vulkan.Renderer.Kernel where
 
 import qualified Prelude as Unrestricted
@@ -9,10 +9,12 @@ import qualified System.IO.Linear
 import qualified Data.Functor.Linear as Data.Linear
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
+import qualified Data.V.Linear as V
 
 import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Vulkan.Renderer.Command (Command)
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
+import Ghengin.Vulkan.Renderer.SwapChain
 
 -- One day abstract over Window API
 import Ghengin.Vulkan.Renderer.GLFW.Window
@@ -28,7 +30,7 @@ data RendererEnv =
   REnv { _instance        :: !Vk.Instance
        , _vulkanDevice    :: !VulkanDevice
        , _vulkanWindow    :: !VulkanWindow
-       -- , _vulkanSwapChain :: !VulkanSwapChain
+       , _vulkanSwapChain :: !VulkanSwapChain
        -- , _commandPool     :: !Vk.CommandPool
        -- , _frames          :: !(Vector VulkanFrameData)
        -- , _frameInFlight   :: !(IORef Int)
@@ -59,15 +61,18 @@ renderer f = Renderer (StateT f)
 -- Note, this is quite unsafe really, but makes usage of non-linear vulkan much easier
 unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b)
                    -> Renderer b
-unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _isctx) -> Linear.do
+unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _swp _isctx) -> Linear.do
   b <- liftSystemIO $ f (device._device)
   pure $ (b, renv)
 
 unsafeUseVulkanDevice :: (VulkanDevice -> Unrestricted.IO b)
                    -> Renderer b
-unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _isctx) -> Linear.do
+unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _swp _isctx) -> Linear.do
   b <- liftSystemIO $ f (device)
   pure $ (b, renv)
+
+unsafeGetDevice :: Renderer (Ur Vk.Device)
+unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv._vulkanDevice._device, renv)
 
 -- | Like 'unsafeUseDevice' but additionally use unsafely a linearly value in the unsafe function
 unsafeUseDeviceAnd :: (a -> Vk.Device -> Unrestricted.IO b)
@@ -77,7 +82,10 @@ unsafeUseDeviceAnd f = Unsafe.toLinear $ \x -> (,x) <$> unsafeUseDevice (f x)
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
 immediateSubmit :: Command System.IO.Linear.IO -> Renderer () -- ROMES: Command IO, is that OK? Can easily move to Command Renderer by unsafeUseDevice
-immediateSubmit cmd = renderer $ \(REnv inst dev win imsctx) -> Linear.do
+immediateSubmit cmd = renderer $ \(REnv inst dev win swp imsctx) -> Linear.do
   (dev', imsctx') <- immediateSubmit' dev imsctx cmd
-  pure ((), REnv inst dev' win imsctx')
+  pure ((), REnv inst dev' win swp imsctx')
+
+consumeUnits :: V.V n () ⊸ ()
+consumeUnits = Unsafe.toLinear \_ -> ()
 

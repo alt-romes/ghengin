@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
-module Ghengin.Vulkan.Image where
+module Ghengin.Vulkan.Renderer.Image where
 
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
-import Ghengin.Vulkan.Device
+import Ghengin.Vulkan.Renderer.Device
 
 data VulkanImage = VulkanImage { _image :: Vk.Image
                                , _devMem :: Vk.DeviceMemory

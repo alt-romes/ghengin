@@ -19,8 +19,8 @@ import Geomancy.Mat4
 import qualified Vulkan as Vk
 import Apecs
 
-import Ghengin.Vulkan.Command
-import Ghengin.Vulkan.Pipeline
+import Ghengin.Vulkan.Renderer.Command
+import Ghengin.Vulkan.Renderer.Pipeline
 
 data Transform = Transform { position :: {-# UNPACK #-} !Vec3
                            , scale    :: {-# UNPACK #-} !Vec3

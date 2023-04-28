@@ -11,9 +11,15 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE QualifiedDo #-}
 module Ghengin.Vulkan.Renderer.DescriptorSet where
 
-import Control.Monad
+import qualified Prelude
+import Prelude.Linear
+import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List as L
@@ -28,23 +34,29 @@ import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
 
-import qualified Ghengin.Shader.FIR as FIR
-import Ghengin.Shader
+-- import qualified Ghengin.Shader.FIR as FIR
+-- import Ghengin.Shader
+import qualified FIR hiding (ShaderPipeline, (:>->))
 import qualified FIR.Definition as FIR
 import qualified SPIRV.Decoration as SPIRV
 import qualified SPIRV.PrimTy as SPIRV
 import qualified SPIRV.Storage
-import Ghengin.Utils
-import Ghengin.Vulkan.Buffer
-import Ghengin.Vulkan.Image
-import Ghengin.Vulkan.Sampler
-import Ghengin.Vulkan
-import Ghengin.Vulkan.Utils
-import qualified Ghengin.Asset.Texture as T
+-- import Ghengin.Utils
+import Ghengin.Vulkan.Renderer.Buffer
+import Ghengin.Vulkan.Renderer.Image
+import Ghengin.Vulkan.Renderer.Sampler
+import Ghengin.Vulkan.Renderer.Kernel
+-- import Ghengin.Vulkan.Renderer.Utils
+-- import qualified Ghengin.Asset.Texture as T
 
+import Ghengin.Core.Shader.Pipeline
 import Ghengin.Core.Renderer (ResourceMap, DescriptorResource(..))
 
+import Ghengin.Vulkan.Renderer.Pipeline (stageFlag)
+
 import qualified FIR.Layout
+
+type Size = Word
 
 -- | Mapping from each binding to corresponding binding type, size, shader stage
 type BindingsMap = IntMap (Vk.DescriptorType, Size, Vk.ShaderStageFlags)
@@ -72,7 +84,7 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go mempty ppstag
        -> Map FIR.Shader [(SPIRV.PointerTy,SomeDefs,SPIRV.Decorations)] -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
     go acc (ShaderPipeline FIR.VertexInput) = acc
     go acc (pipe :>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState)) =
-      go (M.insertWith (<>) (FIR.knownValue @stage) (map (\(pt,dc) -> (pt,SomeDefs @defs,dc)) $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) acc) pipe
+      go (M.insertWith (Prelude.<>) (FIR.knownValue @stage) (map (\(pt,dc) -> (pt,SomeDefs @defs,dc)) $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) acc) pipe
 
 
     makeDescriptorSetMap :: Map FIR.Shader [(SPIRV.PointerTy, SomeDefs, SPIRV.Decorations)]
@@ -179,17 +191,16 @@ createDescriptorPool dsetmap = do
                                            , next = ()
                                            }
 
-  device <- getDevice
   descriptorPool <- Vk.createDescriptorPool device poolInfo Nothing
   pure (DescriptorPool descriptorPool layouts)
 
 destroyDescriptorPool :: DescriptorPool -> Renderer ()
-destroyDescriptorPool p = getDevice >>= \dev -> do
+destroyDescriptorPool p = do
   Vk.destroyDescriptorPool dev p._pool Nothing
   traverse_ (destroyDescriptorSetLayout . fst) p._set_bindings
     where
       destroyDescriptorSetLayout :: Vk.DescriptorSetLayout -> Renderer ()
-      destroyDescriptorSetLayout layout = getDevice >>= \dev -> Vk.destroyDescriptorSetLayout dev layout Nothing
+      destroyDescriptorSetLayout layout = unsafeUseDevice (\dev -> Vk.destroyDescriptorSetLayout dev layout Nothing)
 
 
 -- | Create a DescriptorSetLayout for a group of bindings (that represent a set) and their properties.
@@ -197,8 +208,7 @@ destroyDescriptorPool p = getDevice >>= \dev -> do
 -- DescriptorSetLayouts are created and stored by 'DescriptorPool's.
 createDescriptorSetLayout :: BindingsMap -- ^ Binding, type and stage flags for each descriptor in the set to create
                           -> Renderer Vk.DescriptorSetLayout
-createDescriptorSetLayout bindingsMap = getDevice >>= \device -> do
-
+createDescriptorSetLayout bindingsMap =
   let
       makeBinding bindingIx (descriptorType',_ss,sflags) =
         Vk.DescriptorSetLayoutBinding { binding = fromIntegral bindingIx
@@ -213,7 +223,7 @@ createDescriptorSetLayout bindingsMap = getDevice >>= \device -> do
                                                     , flags = Vk.zero
                                                     }
 
-  Vk.createDescriptorSetLayout device layoutInfo Nothing
+   in unsafeUseDevice (\device -> Vk.createDescriptorSetLayout device layoutInfo Nothing)
 
 
 
@@ -261,7 +271,7 @@ allocateDescriptorSets :: Vector Int    -- ^ The sets to allocate by Ix
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
                        ⊸ Vector ResourceMap -- ^ and the resources to write to them
                        ⊸ Renderer (Vector DescriptorSet)
-allocateDescriptorSets ixs dpool = getDevice >>= \device -> do
+allocateDescriptorSets ixs dpool = Linear.do
   let
       sets :: Vector (Vk.DescriptorSetLayout, BindingsMap)
       sets = fmap (\i -> case IM.lookup i dpool._set_bindings of
@@ -318,23 +328,24 @@ updateDescriptorSet dset resources = do
                                     , imageInfo = []
                                     , texelBufferView = []
                                     }
-        Texture2DResource (T.Texture2D vkimage sampler _) -> do
-          let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                                 , imageView = vkimage._imageView
-                                                 , sampler   = sampler.sampler
-                                                 }
+        -- ROMES:TODO: IMPORTANT!!! TEXTURES!!
+        -- Texture2DResource (T.Texture2D vkimage sampler _) -> do
+        --   let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+        --                                          , imageView = vkimage._imageView
+        --                                          , sampler   = sampler.sampler
+        --                                          }
 
-           in Vk.SomeStruct Vk.WriteDescriptorSet
-                                    { next = ()
-                                    , dstSet = dset -- the descriptor set to update with this write
-                                    , dstBinding = fromIntegral i
-                                    , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
-                                    , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
-                                    , descriptorCount = 1 -- Only one buffer in the array of buffers to update
-                                    , bufferInfo = [] -- The one buffer info
-                                    , imageInfo = [imageInfo]
-                                    , texelBufferView = []
-                                    }
+        --    in Vk.SomeStruct Vk.WriteDescriptorSet
+        --                             { next = ()
+        --                             , dstSet = dset -- the descriptor set to update with this write
+        --                             , dstBinding = fromIntegral i
+        --                             , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+        --                             , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
+        --                             , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+        --                             , bufferInfo = [] -- The one buffer info
+        --                             , imageInfo = [imageInfo]
+        --                             , texelBufferView = []
+        --                             }
 
   dev <- getDevice
 
@@ -368,6 +379,7 @@ destroyDescriptorSet (DescriptorSet _ix _dset dresources) = traverse_ freeDescri
     freeDescriptorResource :: DescriptorResource -> Renderer ()
     freeDescriptorResource = \case
       UniformResource u -> destroyMappedBuffer u
-      u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought
+      -- ROMES:TODO: What will be of this? I guess Texture2D will be RefCounted field of DescriptorResource
+      -- u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought
 
 

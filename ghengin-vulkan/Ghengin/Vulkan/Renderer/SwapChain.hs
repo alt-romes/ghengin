@@ -6,7 +6,7 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.SwapChain (VulkanSwapChain(..), createSwapChain, destroySwapChain) where
+module Ghengin.Vulkan.Renderer.SwapChain (VulkanSwapChain(..), createSwapChain, destroySwapChain) where
 
 import Data.Ord
 import Data.Word
@@ -18,15 +18,15 @@ import qualified Data.List as L
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Vulkan as Vk
 
-import Ghengin.Vulkan.Device
-import Ghengin.Vulkan.GLFW.Window
-import Ghengin.Vulkan.Image
+import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.GLFW.Window
+import Ghengin.Vulkan.Renderer.Image
 
-data VulkanSwapChain = VulkanSwapChain { _swapchain  :: Vk.SwapchainKHR
-                                       , _imageViews :: Vector Vk.ImageView
-                                       , _surfaceFormat :: Vk.SurfaceFormatKHR
-                                       , _surfaceExtent :: Vk.Extent2D
-                                       , _depthImage    :: VulkanImage
+data VulkanSwapChain = VulkanSwapChain { _swapchain     :: !Vk.SwapchainKHR
+                                       , _imageViews    :: !(Vector Vk.ImageView)
+                                       , _surfaceFormat :: !Vk.SurfaceFormatKHR
+                                       , _surfaceExtent :: !Vk.Extent2D
+                                       , _depthImage    :: !VulkanImage
                                        }
 
 createSwapChain :: VulkanWindow -> VulkanDevice -> IO VulkanSwapChain

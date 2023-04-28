@@ -1,5 +1,5 @@
 [ ] Gigant refactor using linear types and backpack sigs for the renderer
-[ ] By default, QualifiedDo and NoImplicitPrelude in ghengin-core
+[ ] By default, QualifiedDo and NoImplicitPrelude in ghengin-core and default to Prelude.Linear (and perhaps in ghengin-vulkan and others too)
 [ ] Fix stuttering most likely due to update not being run per frame in flight
 [ ] Move ghengin-package-macos to more general packaging solution
 [x] Fix type errors and implement all of the logic of the camera in userland to experiment its expected feasibility

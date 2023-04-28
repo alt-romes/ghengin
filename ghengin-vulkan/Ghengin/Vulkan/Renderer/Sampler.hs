@@ -1,11 +1,14 @@
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Ghengin.Vulkan.Sampler
+{-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE QualifiedDo #-}
+module Ghengin.Vulkan.Renderer.Sampler
   (
   -- * Sampler
     Sampler(..)
   , createSampler
-  , destroySampler
+  -- , destroySampler
 
   -- * Filters
   , Vk.Filter
@@ -24,20 +27,25 @@ module Ghengin.Vulkan.Sampler
 
   ) where
 
-import Control.Monad
-import Data.StateVar
-import Control.Logger.Simple
-import Prelude hiding (filter)
-import Control.Monad.IO.Class
+-- import Data.StateVar
+-- import Control.Logger.Simple
+
+import Prelude.Linear hiding (get)
+import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
+
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
-import Ghengin.Vulkan
-import Data.IORef
-import Ghengin.Utils (decRefCount)
 
-data Sampler = Sampler { sampler        :: Vk.Sampler
-                       , referenceCount :: IORef Int
-                       }
+import qualified Unsafe.Linear as Unsafe
+
+import Ghengin.Vulkan.Renderer.Kernel
+
+import Data.Counted as Counted
+
+newtype Sampler = Sampler { sampler :: Vk.Sampler }
+instance Counted Sampler where
+  countedFields Sampler{} = []
 
 -- | Create a sampler with the given filter and sampler address mode
 --
@@ -49,10 +57,8 @@ data Sampler = Sampler { sampler        :: Vk.Sampler
 -- * VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: Take the color of the edge closest to the coordinate beyond the image dimensions.
 -- * VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to edge, but instead uses the edge opposite to the closest edge.
 -- * VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when sampling beyond the dimensions of the image.
-createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer Sampler
-createSampler filter addrMode = do
-  device <- getDevice
-
+createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer (RefC Sampler)
+createSampler filter addrMode = Linear.do
   let
       -- TODO: Make more flexible as needed
       info = Vk.SamplerCreateInfo { magFilter = filter
@@ -79,26 +85,11 @@ createSampler filter addrMode = do
                                   , next = ()
                                   }
 
-  vkSampler <- Vk.createSampler device info Nothing
-  refCount <- liftIO $ newIORef 0
-  pure $ Sampler vkSampler refCount
+  vkSampler <- unsafeUseDevice (\dev -> Vk.createSampler dev info Nothing)
+  refc <- Counted.new destroySampler (Sampler vkSampler)
+  pure refc
 
 
-destroySampler :: Sampler -> Renderer ()
-destroySampler vs@(Sampler s refs) = do
-  dev <- getDevice
-
-  () <- decRefCount vs
-
-  count <- liftIO $ get refs
-  when (count == 0) $ do
-    logDebug "Freeing sampler..."
-    -- If ref count were -1 then we could have already freed it too many times.
-    -- It shouldn't happen in reality because it would mean the sampler wasn't
-    -- assigned to a material and the free was called directly
-    Vk.destroySampler dev s Nothing
-
-  -- TODO: Don't include this when built for production somehow
-  when (count < 0) $ do
-    logError "Destroying sampler more times than the number of assignments..."
+destroySampler :: Sampler ⊸ Renderer ()
+destroySampler (Sampler s) = Unsafe.toLinear (\s' -> unsafeUseDevice (\dev -> Vk.destroySampler dev s' Nothing)) s
 

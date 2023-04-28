@@ -137,13 +137,16 @@ library ghengin-vulkan
     visibility:       public
 
     exposed-modules:  Ghengin.Vulkan.Renderer.Kernel,
-                      -- Ghengin.Vulkan.Renderer.DescriptorSet,
+                      Ghengin.Vulkan.Renderer.DescriptorSet,
                       Ghengin.Vulkan.Renderer.Buffer,
-                      -- Ghengin.Vulkan.Renderer.Pipeline,
-                      -- Ghengin.Vulkan.Renderer.RenderPass,
+                      Ghengin.Vulkan.Renderer.Pipeline,
+                      Ghengin.Vulkan.Renderer.RenderPass,
 
                       -- Don't know
                       Ghengin.Vulkan.Renderer.ImmediateSubmit,
+                      Ghengin.Vulkan.Renderer.Image,
+                      Ghengin.Vulkan.Renderer.SwapChain,
+                      Ghengin.Vulkan.Renderer.Sampler,
 
                       -- Should soon enough be part of the required pieces
                       Ghengin.Vulkan.Renderer.Command,

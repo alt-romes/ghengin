@@ -94,7 +94,8 @@ data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β
 -- TODO: PushConstants must also be inferred from the shader code
 -- Add them as possible alternative to descritpor set #2?
 -- ROMES:TODO:PushConstants automatically used alongside dset #2
--- newtype PushConstantData = PushConstantData { pos_offset :: Mat4 } deriving Storable
+newtype PushConstantData = PushConstantData { pos_offset :: () -- Mat4
+                                            } deriving Storable
 
 -- TODO: Ensure mesh type matches vertex input
 -- TODO: Shader pipeline and buffers should only be created once and reused
@@ -150,8 +151,9 @@ makeRenderPipeline shaderPipeline mkRP = Linear.do
   (dset1, resources1) <- updateDescriptorSet dset0 resources0
 
   -- Create the graphics pipeline
-  pipeline <- createGraphicsPipeline shaderPipeline srpass1 -- ROMES:TODO:!!!!!
-                                                                     -- (V.fromList $ fmap fst (IM.elems dpool._set_bindings)) [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+  pipeline <- createGraphicsPipeline shaderPipeline srpass1
+                                     -- (V.fromList $ fmap fst (IM.elems dpool._set_bindings))
+                                     [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   dset2 <- Counted.new (error "freeDescriptorSet:RefC needs to be parametrised over monad") dset1
   resources2 <- Counted.new (error "ROMES:TODO!!!!") resources1

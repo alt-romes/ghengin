@@ -10,8 +10,10 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE LinearTypes #-}
 module Ghengin.Vulkan.Renderer.Pipeline where
 
+import Data.Counted
 import Control.Monad.Reader
 import Data.Bits ((.|.))
 import Data.Coerce
@@ -41,6 +43,11 @@ import qualified Data.Vector as V
 import qualified Ghengin.Shader.FIR as FIR
 import qualified Vulkan as Vk
 import qualified Vulkan.CStruct.Extends as VkC
+
+import Ghengin.Core.Shader.Pipeline
+import Ghengin.Vulkan.Renderer.RenderPass
+
+newtype GraphicsPipeline = GraphicsPipeline VulkanPipeline
 
 data VulkanPipeline = VulkanPipeline { _pipeline :: Vk.Pipeline
                                      , _pipelineLayout :: Vk.PipelineLayout
@@ -82,13 +89,12 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( top     :: PrimitiveTopology Nat      )
                            ( descs   :: VertexLocationDescriptions )
                            ( strides :: BindingStrides             )
-                           ( ext     :: Type                       )
                         .  PipelineConstraints info top descs strides
                         => ShaderPipeline info
-                        -> Vk.RenderPass
-                        -> V.Vector Vk.DescriptorSetLayout
-                        -> V.Vector Vk.PushConstantRange
-                        -> Renderer VulkanPipeline
+                        -> RefC RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
+                        -- -> V.Vector Vk.DescriptorSetLayout
+                         ⊸ V.Vector Vk.PushConstantRange
+                        -> Renderer GraphicsPipeline
 createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges = do
   dev <- getDevice
 
@@ -262,7 +268,7 @@ createGraphicsPipeline ppstages renderP descriptorSetLayouts pushConstantRanges 
 
 
 
-destroyPipeline :: VulkanPipeline -> Renderer ()
+destroyPipeline :: VulkanPipeline ⊸ Renderer ()
 destroyPipeline (VulkanPipeline pipeline pipelineLayout) = getDevice >>= \d -> do
   Vk.destroyPipeline d pipeline Nothing
   Vk.destroyPipelineLayout d pipelineLayout Nothing
@@ -270,7 +276,7 @@ destroyPipeline (VulkanPipeline pipeline pipelineLayout) = getDevice >>= \d -> d
 
 -- :| Shader Modules |:
 
-createShaderModule :: Vk.Device -> ShaderByteCode -> IO Vk.ShaderModule
+createShaderModule :: Vk.Device ⊸ ShaderByteCode -> IO (Vk.ShaderModule, Vk.Device)
 createShaderModule dev sbc =
   Vk.createShaderModule dev createInfo Nothing where
     createInfo = Vk.ShaderModuleCreateInfo
@@ -279,7 +285,7 @@ createShaderModule dev sbc =
                  , code = BS.toStrict $ coerce sbc
                  }
 
-destroyShaderModule :: Vk.Device -> Vk.ShaderModule -> IO ()
+destroyShaderModule :: Vk.Device ⊸ Vk.ShaderModule ⊸ IO Vk.Device
 destroyShaderModule d sm = Vk.destroyShaderModule d sm Nothing
 
 
@@ -433,3 +439,15 @@ assemblyAndVertexInputStateInfo =
         }
 
    in (makeAssemblyInfo primTop, vertexInputStateInfo)
+
+----------------------
+---- Vulkan Utils ----
+----------------------
+
+stageFlag :: FIR.Shader -> Vk.ShaderStageFlagBits
+stageFlag FIR.VertexShader                 = Vk.SHADER_STAGE_VERTEX_BIT
+stageFlag FIR.TessellationControlShader    = Vk.SHADER_STAGE_TESSELLATION_CONTROL_BIT
+stageFlag FIR.TessellationEvaluationShader = Vk.SHADER_STAGE_TESSELLATION_EVALUATION_BIT
+stageFlag FIR.GeometryShader               = Vk.SHADER_STAGE_GEOMETRY_BIT
+stageFlag FIR.FragmentShader               = Vk.SHADER_STAGE_FRAGMENT_BIT
+stageFlag FIR.ComputeShader                = Vk.SHADER_STAGE_COMPUTE_BIT

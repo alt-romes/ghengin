@@ -4,12 +4,17 @@ signature Ghengin.Core.Renderer.Pipeline where
 import GHC.TypeNats
 import FIR hiding (ShaderPipeline)
 import FIR.Validation.Pipeline (ValidPipelineInfo)
+import qualified Data.Vector as V -- ROMES:TODO: Can we replace with Data.V.Linear?
 
 import Ghengin.Core.Shader.Pipeline
 
 -- other renderer details
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.RenderPass
+
+-- TODO: Get Rid of it.
+-- Make push constants automatic as part of the mesh properties (as long as it fits in the push constants)
+import qualified Vulkan as Vk
 
 data GraphicsPipeline
 
@@ -44,5 +49,5 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                         => ShaderPipeline info
                         -> RefC RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
                         -- -> V.Vector Vk.DescriptorSetLayout
-                        -- -> V.Vector Vk.PushConstantRange
-                         ⊸ Renderer GraphicsPipeline
+                         ⊸ V.Vector Vk.PushConstantRange
+                        -> Renderer GraphicsPipeline

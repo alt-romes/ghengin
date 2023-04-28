@@ -17,7 +17,6 @@ module Ghengin.Vulkan.Renderer.Buffer where
 import qualified Prelude
 import Prelude.Linear hiding (zero)
 import Control.Functor.Linear as Linear
-import qualified System.IO.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
 
 import Foreign.Storable
