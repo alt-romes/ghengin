@@ -323,10 +323,8 @@ allocateEmptyDescriptorSets ixs = Unsafe.toLinear \dpool -> Linear.do
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
 updateDescriptorSet :: DescriptorSet -- ^ The descriptor set we're updating with these resources
                      ⊸ ResourceMap
-                     ⊸ Renderer DescriptorSet
-updateDescriptorSet (DescriptorSet ix dset old_resources_r) new_resources = Linear.do
-
-  (old_resources, free_old_res) <- get old_resources_r 
+                     ⊸ Renderer (Vk.DescriptorSet, ResourceMap)
+updateDescriptorSet dset resources = do
 
   let makeDescriptorWrite i = \case
         UniformResource buf -> do

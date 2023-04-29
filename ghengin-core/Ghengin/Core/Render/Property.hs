@@ -177,7 +177,7 @@ writeProperty buf = \case
 -- with an χ parameter for the extra information at the list's end.
 class HasProperties φ where
   properties    :: φ α ⊸ (Ur (PropertyBindings α), φ α)
-  descriptors   :: φ α ⊸ Renderer (RefC DescriptorSet, φ α)
+  descriptors   :: φ α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, φ α)
   puncons       :: φ (α:β) ⊸ (Ur (PropertyBinding α), φ β) -- ROMES:TODO: This is not gonna be Ur when we re-add textures
   pcons         :: PropertyBinding α %p -> φ β ⊸ φ (α:β)
 
@@ -288,18 +288,20 @@ instance {-# OVERLAPPING #-}
       (Ur prop, xs0)      ->
         (\mub ->
           descriptors xs0 >>= \case
-            (dset, xs1) -> edit prop dset xs1 mub
+            (dset, resmap, xs1) -> edit prop dset resmap xs1 mub
         ) Linear.<$> afmub (propertyValue prop)
             -- (\b -> pcons <$> editProperty prop (const b) (fromIntegral (natVal $ Proxy @n)) (xs ^. descriptorSet) <*> pure xs)
    where
-    edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ φ αs ⊸ Renderer (Ur β) ⊸ Renderer (φ (β:αs))
-    edit prop dset xs mub = Linear.do
+    edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ Renderer (Ur β) ⊸ Renderer (φ (β:αs))
+    edit prop dset resmap xs mub = Linear.do
       -- Ur b <- mub
       -- TODO: Perhaps assert this isn't the last usage of dset and resmap,
       -- though I imagine it would be quite hard to get into that situation.
       (dset'  , freeDSet)   <- Counted.get dset
-      (updatedProp, dset'') <- editProperty prop (const mub) (nat @n) dset'
+      (resmap', freeResMap) <- Counted.get resmap
+      (updatedProp, dset'', resmap'') <- editProperty prop (const mub) (nat @n) dset' resmap'
       freeDSet dset''
+      freeResMap resmap''
       pure $ pcons updatedProp xs
 
     propertyValue :: PropertyBinding α ⊸ α
@@ -337,8 +339,9 @@ editProperty :: ∀ α p
               ⊸ (α %p -> Renderer (Ur α))    -- ^ Update function
               ⊸ Int                  -- ^ Property index in descriptor set
              -> DescriptorSet   -- ^ The descriptor set with corresponding index and property resources
-              ⊸ Renderer (PropertyBinding α, DescriptorSet) -- ^ Returns the updated property binding
-editProperty prop update i dset = Linear.do
+              ⊸ ResourceMap     -- ^ The descriptor set with corresponding index and property resources
+              ⊸ Renderer (PropertyBinding α, DescriptorSet, ResourceMap) -- ^ Returns the updated property binding
+editProperty prop update i dset resmap0 = Linear.do
   case prop of
     DynamicBinding x -> Linear.do
       Ur ux <- update x
