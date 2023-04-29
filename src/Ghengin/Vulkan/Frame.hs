@@ -3,7 +3,7 @@ module Ghengin.Vulkan.Frame where
 import Control.Monad.IO.Class
 import qualified Vulkan as Vk
 
-import Ghengin.Vulkan.Synchronization
+import Ghengin.Vulkan.Renderer.Synchronization
 
 data VulkanFrameData = VulkanFrameData { _renderFence      :: Vk.Fence
                                        , _renderSemaphore  :: Vk.Semaphore

@@ -205,9 +205,6 @@ library
                       Ghengin.Utils,
                       Ghengin.Vulkan,
                       Ghengin.Vulkan.Frame,
-                      Ghengin.Vulkan.Image,
-                      Ghengin.Vulkan.Sampler,
-                      Ghengin.Vulkan.SwapChain,
                       Ghengin.Vulkan.Utils,
                       Ghengin.World,
 
@@ -264,8 +261,13 @@ library
                       -- ghc-typelits-knownnat
                       -- algebraic-graphs
 
-    mixins:           ghengin:ghengin-core requires (Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer)
-
+    -- ROMES: To reproduce error message bug with backpack, comment out some of the requires lines below:
+    mixins:           ghengin:ghengin-core requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                                                    , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                                                    , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                                                    , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                                                    , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                                                    )
 
     -- Directories containing source files.
     hs-source-dirs:   src

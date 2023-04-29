@@ -23,6 +23,7 @@ import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
 import qualified Data.Functor.Linear as Data.Linear
 
+import Data.Bits
 import Data.List.NonEmpty (NonEmpty((:|)))
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List as L
@@ -31,6 +32,7 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
+import qualified Data.IntMap.Internal as IMI
 import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Vulkan.CStruct.Extends as Vk
@@ -55,6 +57,7 @@ import Ghengin.Core.Shader.Pipeline
 import Ghengin.Vulkan.Renderer.Pipeline (stageFlag)
 
 import Data.Counted as Counted
+import qualified Data.Counted.Unsafe as Unsafe
 
 import qualified FIR.Layout
 import qualified Unsafe.Linear as Unsafe
@@ -94,7 +97,7 @@ data SomeDefs = ∀ defs. FIR.KnownDefinitions defs => SomeDefs
 -- function so one should be careful calling it too often.  A more performant
 -- less simple alternative should be added...
 createDescriptorSetBindingsMap :: ShaderPipeline info -> DescriptorSetMap
-createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go mempty ppstages)
+createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempty ppstages)
   where
     go :: Map FIR.Shader [(SPIRV.PointerTy,SomeDefs,SPIRV.Decorations)]
        -> ShaderPipeline info
@@ -122,12 +125,12 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go mempty ppstag
                                 acc
             _ -> acc -- we keep folding. currently we don't validate anything futher
           ) acc' ls
-        ) mempty
+        ) Prelude.mempty
 
     mergeSameDS :: BindingsMap
                 -> BindingsMap
                 -> BindingsMap
-    mergeSameDS = IM.mergeWithKey (\_ (dt,ss,sf) (dt',_ss',sf') -> if dt == dt' then Just (dt, ss, sf FIR..|. sf')
+    mergeSameDS = IM.mergeWithKey (\_ (dt,ss,sf) (dt',_ss',sf') -> if dt Prelude.== dt' then Just (dt, ss, sf .|. sf')
                                                                                 else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id -- TODO: Could pattern match on type equality too?
 
 
@@ -196,7 +199,7 @@ createDescriptorPool sp =
   case createDescriptorSetBindingsMap sp of
     dsetmap -> Linear.do
 
-      layouts <- Prelude.traverse (\bm -> (,bm) <$> createDescriptorSetLayout bm) dsetmap
+      layouts <- Data.Linear.traverse (Unsafe.toLinear \bm -> (,bm) <$> createDescriptorSetLayout bm) dsetmap
 
       let 
         descriptorsAmounts :: [(Vk.DescriptorType, Int)] -- ^ For each type, its amount
@@ -205,7 +208,7 @@ createDescriptorPool sp =
 
         setsAmount = fromIntegral $ Prelude.length dsetmap
         poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = V.fromList poolsSizes
-                                               , maxSets = 1000 * setsAmount
+                                               , maxSets = 1000 Prelude.* setsAmount
                                                , flags = Vk.zero
                                                , next = ()
                                                }
@@ -255,7 +258,6 @@ createDescriptorSetLayout bindingsMap =
 data DescriptorSet
   = DescriptorSet { _ix :: Ur Int
                   , _descriptorSet :: Vk.DescriptorSet
-                  , _bindings      :: ResourceMap -- ^ TODO: Rename to _resources instead of _bindings?
                   }
 
 -- | Allocate a descriptor set from a descriptor pool. This descriptor pool has
@@ -305,7 +307,7 @@ allocateEmptyDescriptorSets ixs = Unsafe.toLinear \dpool -> Linear.do
                                                }
   let vixs = V.map Ur $ V.fromList ixs
   -- Allocate the descriptor sets
-  descriptorSets <- unsafeUseDevice (\dev -> V.zipWith3 DescriptorSet Prelude.<$> pure vixs Prelude.<*> Vk.allocateDescriptorSets dev allocInfo Prelude.<*> pure (V.replicate (V.length vixs) IM.empty))
+  descriptorSets <- unsafeUseDevice (\dev -> V.zipWith DescriptorSet Prelude.<$> Prelude.pure vixs Prelude.<*> Vk.allocateDescriptorSets dev allocInfo)
   pure (descriptorSets, dpool)
 
   -- ROMES:TODO: make update/writing explicit and allocate only allocates the empty set
@@ -323,14 +325,15 @@ allocateEmptyDescriptorSets ixs = Unsafe.toLinear \dpool -> Linear.do
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
 updateDescriptorSet :: DescriptorSet -- ^ The descriptor set we're updating with these resources
                      ⊸ ResourceMap
-                     ⊸ Renderer (Vk.DescriptorSet, ResourceMap)
-updateDescriptorSet dset resources = do
+                     ⊸ Renderer (DescriptorSet, ResourceMap)
+updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> Linear.do
+  -- Ach... the resource map must only be freed when the descriptor set is no longer in use... right?
 
   let makeDescriptorWrite i = \case
-        UniformResource buf -> do
+        UniformResource buf ->
           -- Each descriptor only has one buffer. If we had an array of buffers in a descriptor we would need multiple descriptor buffer infos
           let bufferInfo = Vk.DescriptorBufferInfo
-                                               { buffer = buf.buffer
+                                               { buffer = (Unsafe.get buf).buffer
                                                , offset = 0
                                                , range  = Vk.WHOLE_SIZE -- the whole buffer
                                                }
@@ -372,6 +375,7 @@ updateDescriptorSet dset resources = do
   -- when (IM.size resources > 0) $
 
   unsafeUseDevice (\dev -> Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeDescriptorWrite resources) [])
+  pure (DescriptorSet uix dset, resources)
 
 -- | Destroy a descriptor set 
 --
@@ -388,8 +392,13 @@ updateDescriptorSet dset resources = do
 --
 --
 -- TODO: Write this to the note
+--
+-- TODO: The descriptor sets don't need to be freed! perhaps make them unrestricted elsewhere and get rid of this function
 destroyDescriptorSet :: DescriptorSet ⊸ Renderer ()
-destroyDescriptorSet (DescriptorSet (Ur _ix) _dset dresources) = consume_empty_IntMap <$> Data.Linear.traverse freeDescriptorResource dresources
+destroyDescriptorSet (DescriptorSet (Ur _ix) _dset) = Unsafe.toLinear (\_ -> pure ()) _dset
+
+freeResourceMap :: ResourceMap ⊸ Renderer ()
+freeResourceMap resmap = consume_empty_IntMap <$> Data.Linear.traverse freeDescriptorResource resmap
 
 freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
 freeDescriptorResource = \case
@@ -403,4 +412,24 @@ freeDescriptorResource = \case
 consume_empty_IntMap :: IntMap () ⊸ ()
 consume_empty_IntMap = Unsafe.toLinear \_ -> ()
 
+
+-- Aren't these unsafe ? :)
+
+instance Data.Linear.Functor IntMap where
+  fmap f x = Unsafe.toLinear2 Prelude.fmap (Unsafe.toLinear f) x
+  {-# INLINE fmap #-}
+
+instance Data.Linear.Traversable IntMap where
+  traverse :: ∀ t a b. Data.Linear.Applicative t => (a %1 -> t b) -> IntMap a %1 -> t (IntMap b)
+  traverse f = go
+    where
+      go :: IntMap a %1 -> t (IntMap b)
+      go IMI.Nil = Data.Linear.pure IMI.Nil
+      go (IMI.Tip k v) = Unsafe.toLinear (\k' -> IMI.Tip k' Data.Linear.<$> f v) k
+      go bin = Unsafe.toLinear (\(IMI.Bin p m l r) ->
+          if m < 0
+             then Data.Linear.liftA2 (flip (IMI.Bin p m)) (go r) (go l)
+             else Data.Linear.liftA2 (IMI.Bin p m) (go l) (go r)
+        ) bin
+  {-# INLINE traverse #-}
 

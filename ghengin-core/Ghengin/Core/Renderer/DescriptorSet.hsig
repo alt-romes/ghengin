@@ -68,11 +68,12 @@ allocateEmptyDescriptorSet :: Int -- ^ The set to allocate by index
 -- those indices.
 updateDescriptorSet :: DescriptorSet -- Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
                     ⊸  ResourceMap               -- ^ The resources we're updating the descriptor set with
-                    ⊸  Renderer (DescriptorSet, ResourceMap)
+                    ⊸  Renderer (DescriptorSet, ResourceMap) -- ^ Returns the updated descriptor set and threads through the resource map used
+                                                             -- ROMES: where are the overwritten descriptors being freed?
 
 
 freeDescriptorSet :: DescriptorSet ⊸ Renderer ()
-freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
+freeResourceMap :: ResourceMap ⊸ Renderer ()
 
 -- ROMES:TODO: shareResourceMap function, since the fields of ResourceMap are already refcounted?
-
+  

@@ -156,7 +156,7 @@ makeRenderPipeline shaderPipeline mkRP = Linear.do
                                      [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   dset2 <- Counted.new freeDescriptorSet dset1
-  resources2 <- Counted.new (error "ROMES:TODO!!!!") resources1
+  resources2 <- Counted.new freeResourceMap resources1
 
   pure $ mkRP $ RenderPipeline pipeline srpass2 (dset2, resources2, dpool1) shaderPipeline
 
