@@ -3,10 +3,12 @@ signature Ghengin.Core.Renderer.Kernel where
 
 import Control.Functor.Linear        as Linear
 import Control.Monad.IO.Class.Linear as Linear
+import qualified System.IO.Linear
 
 import Data.Counted
 
-data Renderer a
+data RendererEnv
+newtype Renderer a = Renderer { unRenderer :: Linear.StateT RendererEnv System.IO.Linear.IO a }
 
 type RefC = RefC' Renderer
 
