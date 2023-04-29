@@ -51,12 +51,27 @@ import Ghengin.Vulkan.Renderer.Kernel
 -- import qualified Ghengin.Asset.Texture as T
 
 import Ghengin.Core.Shader.Pipeline
-import Ghengin.Core.Renderer.DescriptorSet (ResourceMap, DescriptorResource(..)) -- When it errors out due to cyclic imports, inline definitions from hsig.
 
 import Ghengin.Vulkan.Renderer.Pipeline (stageFlag)
 
+import Data.Counted as Counted
+
 import qualified FIR.Layout
 import qualified Unsafe.Linear as Unsafe
+
+-------- Resources ----------------
+-- (INLINED from hsig file)
+-- Resources are a part of the descriptor set module since these resources are
+-- used to manipulate the descriptors of the descriptor set.
+--
+-- e.g. a mapped buffer resource can be bound by a descriptor such that using
+-- that descriptor in the shader will read the buffer resource
+
+type ResourceMap = IntMap DescriptorResource
+
+data DescriptorResource where
+  UniformResource   :: RefC MappedBuffer ⊸ DescriptorResource
+  -- ROMES:TODO:!: Texture2DResource :: T.Texture2D ⊸ DescriptorResource
 
 type Size = Word
 
@@ -242,7 +257,6 @@ data DescriptorSet
                   , _descriptorSet :: Vk.DescriptorSet
                   , _bindings      :: ResourceMap -- ^ TODO: Rename to _resources instead of _bindings?
                   }
-  | EmptyDescriptorSet -- ^ TODO: We don't export this constructor?
 
 -- | Allocate a descriptor set from a descriptor pool. This descriptor pool has
 -- the information required to allocate a descriptor set based on its index in
@@ -272,11 +286,11 @@ allocateEmptyDescriptorSet ix = fmap (Unsafe.toLinear \case ([ds], x) -> (ds, x)
 -- | Like 'allocateEmptyDescriptorSet' but allocate multiple sets at once
 allocateEmptyDescriptorSets :: [Int]    -- ^ The sets to allocate by Ix
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
-                       ⊸ Renderer ([DescriptorSet], DescriptorPool)
+                       ⊸ Renderer (Vector DescriptorSet, DescriptorPool)
 allocateEmptyDescriptorSets ixs = Unsafe.toLinear \dpool -> Linear.do
   let
       sets :: [(Vk.DescriptorSetLayout, BindingsMap)]
-      sets = map (\i -> case IM.lookup i dpool._set_bindings of
+      sets = map (Unsafe.toLinear \i -> case IM.lookup i dpool._set_bindings of
                            Just x -> x
                            Nothing -> error $ "Internal error: We're trying to allocate a descriptor set #" <> show i <> " with no bindings."
                   ) ixs
@@ -289,9 +303,9 @@ allocateEmptyDescriptorSets ixs = Unsafe.toLinear \dpool -> Linear.do
                                                , setLayouts = V.fromList $ map (Unsafe.toLinear fst) sets
                                                , next = ()
                                                }
-
+  let vixs = V.map Ur $ V.fromList ixs
   -- Allocate the descriptor sets
-  descriptorSets <- unsafeUseDevice (\dev -> Vk.allocateDescriptorSets dev allocInfo)
+  descriptorSets <- unsafeUseDevice (\dev -> V.zipWith3 DescriptorSet Prelude.<$> pure vixs Prelude.<*> Vk.allocateDescriptorSets dev allocInfo Prelude.<*> pure (V.replicate (V.length vixs) IM.empty))
   pure (descriptorSets, dpool)
 
   -- ROMES:TODO: make update/writing explicit and allocate only allocates the empty set
@@ -309,8 +323,10 @@ allocateEmptyDescriptorSets ixs = Unsafe.toLinear \dpool -> Linear.do
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
 updateDescriptorSet :: DescriptorSet -- ^ The descriptor set we're updating with these resources
                      ⊸ ResourceMap
-                     ⊸ Renderer (Vk.DescriptorSet, ResourceMap)
-updateDescriptorSet dset resources = do
+                     ⊸ Renderer DescriptorSet
+updateDescriptorSet (DescriptorSet ix dset old_resources_r) new_resources = Linear.do
+
+  (old_resources, free_old_res) <- get old_resources_r 
 
   let makeDescriptorWrite i = \case
         UniformResource buf -> do
@@ -355,7 +371,6 @@ updateDescriptorSet dset resources = do
   -- TODO2:REMOVE THIS, we no longer update the dset with the dummy things,
   -- simply allocate an empty one and write it explicitly
   -- This allows us to use the dummy resources trick in 'material'
-  -- TODO: Note Dummy Resource or a good inline comment...
   -- when (IM.size resources > 0) $
 
   unsafeUseDevice (\dev -> Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeDescriptorWrite resources) [])
@@ -376,14 +391,15 @@ updateDescriptorSet dset resources = do
 --
 -- TODO: Write this to the note
 destroyDescriptorSet :: DescriptorSet ⊸ Renderer ()
-destroyDescriptorSet EmptyDescriptorSet = pure ()
-destroyDescriptorSet (DescriptorSet _ix _dset dresources) = consume_empty_IntMap <$> Data.Linear.traverse freeDescriptorResource dresources
-  where
-    freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
-    freeDescriptorResource = \case
-      UniformResource u -> destroyMappedBuffer u
-      -- ROMES:TODO: What will be of this? I guess Texture2D will be RefCounted field of DescriptorResource!
-      -- u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought
+destroyDescriptorSet (DescriptorSet (Ur _ix) _dset dresources) = consume_empty_IntMap <$> Data.Linear.traverse freeDescriptorResource dresources
+
+freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
+freeDescriptorResource = \case
+  UniformResource u -> assertLast u >>= Counted.forget
+  -- ROMES:TODO: It really should be refcounted, right?... should I ensure this is the last reference?
+  --  -> destroyMappedBuffer u
+  -- ROMES:TODO: What will be of this? I guess Texture2D will be RefCounted field of DescriptorResource!
+  -- u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought
 
 -- Util
 consume_empty_IntMap :: IntMap () ⊸ ()

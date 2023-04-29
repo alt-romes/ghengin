@@ -62,7 +62,7 @@ Resources:
 
 data Material xs where
 
-  Done :: (RefC DescriptorSet, RefC ResourceMap, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
+  Done :: (RefC DescriptorSet, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
 
   MaterialProperty :: ∀ α β
                    .  PropertyBinding α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
@@ -154,8 +154,8 @@ material matf (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Linear
   -- created resource map
   (dset1, resources1) <- updateDescriptorSet dset0 resources0
 
-  dset2 <- Counted.new (error "freeDescriptorSet:RefC needs to be parametrised over monad") dset1
-  resources2 <- Counted.new (error "ROMES:TODO!!!!") resources1
+  dset2 <- Counted.new freeDescriptorSet dset1
+  resources2 <- Counted.new freeResourceMap resources1
 
   -- Create the material which stores the final descriptor set with the
   -- updated information.

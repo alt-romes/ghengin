@@ -74,7 +74,7 @@ data RenderPipeline info tys where
   RenderPipeline :: GraphicsPipeline -- ^ The graphics pipeline underlying this render pipeline. Can a graphics pipeline be shared amongst Render Pipelines such that this field needs to be ref counted?
                  ⊸  RefC RenderPass -- ^ A reference counted reference to a render pass, since we might share render passes amongst pipelines
                  -- ⊸  NonEmpty (DescriptorSet, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
-                 ⊸  (RefC DescriptorSet, RefC ResourceMap, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
+                 ⊸  (RefC DescriptorSet, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
                  ⊸  ShaderPipeline info
                  %p -> RenderPipeline info '[] 
 
@@ -148,17 +148,16 @@ makeRenderPipeline shaderPipeline mkRP = Linear.do
   resources0 <- makeResources (case properties @(RenderPipeline info) @τ dummyRP of (Ur pbs, _) -> pbs)
 
   -- Bind resources to descriptor set
-  (dset1, resources1) <- updateDescriptorSet dset0 resources0
+  dset1 <- updateDescriptorSet dset0 resources0
 
   -- Create the graphics pipeline
   pipeline <- createGraphicsPipeline shaderPipeline srpass1
                                      -- (V.fromList $ fmap fst (IM.elems dpool._set_bindings))
                                      [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
-  dset2 <- Counted.new (error "freeDescriptorSet:RefC needs to be parametrised over monad") dset1
-  resources2 <- Counted.new (error "ROMES:TODO!!!!") resources1
+  dset2 <- Counted.new freeDescriptorSet dset1
 
-  pure $ mkRP $ RenderPipeline pipeline srpass2 (dset2, resources2, dpool1) shaderPipeline
+  pure $ mkRP $ RenderPipeline pipeline srpass2 (dset2, dpool1) shaderPipeline
 
 instance HasProperties (RenderPipeline π) where
   properties :: RenderPipeline π τ ⊸ (Ur (PropertyBindings τ), RenderPipeline π τ)
@@ -168,18 +167,18 @@ instance HasProperties (RenderPipeline π) where
       RenderPipeline {} -> Ur GHNil
       RenderProperty x xs -> case unsafeGo xs of Ur xs' -> Ur (x :## xs')
 
-  descriptors :: RenderPipeline π α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, RenderPipeline π α)
+  descriptors :: RenderPipeline π α ⊸ Renderer (RefC DescriptorSet, RenderPipeline π α)
   descriptors = Unsafe.toLinear (\rp -> unsafeGo rp >>= \case
-                                          (dset, rmap) -> pure (dset, rmap, rp)) where
+                                          dset -> pure (dset, rp)) where
     -- Note it's not linear on the pipeline, unsafe! -- but we return the original reference
     unsafeGo :: RenderPipeline π α -> Renderer (RefC DescriptorSet, RefC ResourceMap)
     unsafeGo = \case
-      RenderPipeline gpip rpass (dset, rmap, dpool) spip ->
+      RenderPipeline gpip rpass (dset, dpool) spip ->
         -- In descriptors, we're returning the whole render pipeline unchanged.
-        -- To return DescriptorSet and ResourceMap we increment their reference
-        -- counts because we unsafely keep one reference in the original
-        -- renderpipeline we return
-        (,) <$> Unsafe.Counted.inc dset <*> Unsafe.Counted.inc rmap
+        -- To return DescriptorSet we increment their reference counts because
+        -- we unsafely keep one reference in the original renderpipeline we
+        -- return
+        Unsafe.Counted.inc dset
 
       -- TODO: This will possibly have to become linear
       RenderProperty _ xs -> unsafeGo xs
