@@ -10,15 +10,16 @@
 module Ghengin.Vulkan.Renderer.GLFW.Window
   (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosedOr
   , initGLFW, terminateGLFW
+  , GLFWToken
   ) where
 
 import GHC.Int (Int32)
 import qualified Prelude
-import Prelude.Linear hiding (IO)
+import Prelude.Linear
+import qualified Prelude.Linear as Linear (IO(..))
 import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear
+import Control.Monad.IO.Class.Linear as Linear
 import qualified Unsafe.Linear as Unsafe
-import System.IO.Linear
 
 import Foreign.Ptr
 import Foreign.Marshal.Alloc
@@ -35,17 +36,18 @@ data VulkanWindow = VulkanWindow { _window  :: !GLFW.Window
                                  , _surface :: !Vk.SurfaceKHR
                                  }
 
-createVulkanWindow :: Vk.Instance
+createVulkanWindow :: Linear.MonadIO m
+                   => Vk.Instance
                     ⊸ (Int, Int) -- ^ (width, height)
                    -> String     -- ^ window name
-                   -> System.IO.Linear.IO (VulkanWindow, Vk.Instance)
+                   -> m (VulkanWindow, Vk.Instance)
 createVulkanWindow inst dimensions label = Linear.do
   win <- createWindow dimensions label
   (surface, inst', win') <- createSurface inst win
   pure (VulkanWindow win' surface, inst')
 
 -- TODO: Can I destroy the window before the instance?
-destroyVulkanWindow :: Vk.Instance ⊸ VulkanWindow ⊸ IO Vk.Instance
+destroyVulkanWindow :: Linear.MonadIO m => Vk.Instance ⊸ VulkanWindow ⊸ m Vk.Instance
 destroyVulkanWindow inst (VulkanWindow win surface) = Linear.do
   inst' <- destroySurface inst surface
   destroyWindow win
@@ -53,7 +55,7 @@ destroyVulkanWindow inst (VulkanWindow win surface) = Linear.do
 
 -- | Creates a window and its GLFW context. Probably doesn't work if we need
 -- multiple windows
-createWindow :: (Int, Int) -> String -> System.IO.Linear.IO GLFW.Window
+createWindow :: Linear.MonadIO m => (Int, Int) -> String -> m GLFW.Window
 createWindow (w,h) label = liftSystemIO $ do
   Just win <- GLFW.createWindow w h label Nothing Nothing
   Prelude.pure win
@@ -61,12 +63,12 @@ createWindow (w,h) label = liftSystemIO $ do
 
 -- | Destroys the window and the GLFW context. To have multiple windows this
 -- wouldn't work
-destroyWindow :: GLFW.Window ⊸ IO ()
+destroyWindow :: Linear.MonadIO m => GLFW.Window ⊸ m ()
 destroyWindow = Unsafe.toLinear \win -> liftSystemIO $ GLFW.destroyWindow win
 {-# INLINE destroyWindow #-}
 
 -- | Create a surface (it must be destroyed by Vulkan).
-createSurface :: Vk.Instance ⊸ GLFW.Window ⊸ System.IO.Linear.IO (Vk.SurfaceKHR, Vk.Instance, GLFW.Window)
+createSurface :: Linear.MonadIO m => Vk.Instance ⊸ GLFW.Window ⊸ m (Vk.SurfaceKHR, Vk.Instance, GLFW.Window)
 createSurface = Unsafe.toLinear2 \i w -> liftSystemIO $ do
   alloca $ \surfacePtr -> do
     r <- Vk.Result Prelude.<$> GLFW.createWindowSurface @Int32 (Vk.instanceHandle i) w nullPtr surfacePtr
@@ -75,16 +77,16 @@ createSurface = Unsafe.toLinear2 \i w -> liftSystemIO $ do
     Prelude.pure (surface, i, w)
 {-# INLINE createSurface #-}
 
-destroySurface :: Vk.Instance ⊸ Vk.SurfaceKHR ⊸ IO Vk.Instance
+destroySurface :: Linear.MonadIO m => Vk.Instance ⊸ Vk.SurfaceKHR ⊸ m Vk.Instance
 destroySurface = Unsafe.toLinear2 \i s -> liftSystemIO $ i Prelude.<$ Vk.destroySurfaceKHR i s Nothing
 {-# INLINE destroySurface #-}
 
 -- -- | Run an IO action many many times until the window is closed by a normal
 -- -- window-closing event.
-loopUntilClosedOr :: ∀ m. MonadIO m => GLFW.Window ⊸ m Bool -> m GLFW.Window
+loopUntilClosedOr :: ∀ m. Linear.MonadIO m => GLFW.Window ⊸ m Bool -> m GLFW.Window
 loopUntilClosedOr = loopUntilClosedOr' False
   where
-  loopUntilClosedOr' :: MonadIO m => Bool ⊸ GLFW.Window ⊸ m Bool -> m GLFW.Window
+  loopUntilClosedOr' :: Linear.MonadIO m => Bool ⊸ GLFW.Window ⊸ m Bool -> m GLFW.Window
   loopUntilClosedOr' shouldClose win action =
     if shouldClose then pure win
     else Linear.do
@@ -98,12 +100,15 @@ loopUntilClosedOr = loopUntilClosedOr' False
         windowShouldClose :: GLFW.Window ⊸ m (Bool, GLFW.Window)
         windowShouldClose = Unsafe.toLinear \w -> (,w) <$> liftSystemIO (GLFW.windowShouldClose w)
 
--- | TODO: Return linear token that must be freed to guarantee GLFW is terminated
-initGLFW :: IO ()
+data GLFWToken = GLFWToken
+
+-- | Returns a linear token to guarantee GLFW is terminated
+initGLFW :: Linear.MonadIO m => m GLFWToken
 initGLFW = liftSystemIO $ do
   True <- GLFW.init
   True <- GLFW.vulkanSupported
   GLFW.windowHint (GLFW.WindowHint'ClientAPI GLFW.ClientAPI'NoAPI)
+  Prelude.pure GLFWToken
 
-terminateGLFW :: IO ()
-terminateGLFW = liftSystemIO $ GLFW.terminate
+terminateGLFW :: Linear.MonadIO m => GLFWToken ⊸ m ()
+terminateGLFW GLFWToken = liftSystemIO $ GLFW.terminate

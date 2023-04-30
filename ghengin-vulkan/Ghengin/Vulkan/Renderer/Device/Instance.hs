@@ -5,14 +5,20 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
-module Ghengin.Vulkan.Renderer.Device.Instance where
+{-# LANGUAGE LinearTypes #-}
+module Ghengin.Vulkan.Renderer.Device.Instance (createInstance, destroyInstance) where
 
 import GHC.IsList (fromList)
+import Prelude hiding (($))
+import Prelude.Linear (($))
 
 import Data.Bits ((.|.))
 
 import Control.Monad
 import Foreign.C.String
+
+import qualified Control.Monad.IO.Class.Linear as Linear
+import qualified Unsafe.Linear as Unsafe
 
 import qualified Data.ByteString as BS
 import qualified Data.Vector as V
@@ -29,10 +35,11 @@ instanceExtensions = [
                      -- , Vk.EXT_METAL_SURFACE_EXTENSION_NAME
                      ]
 
-createInstance :: V.Vector BS.ByteString -- ^ Validation layers
+createInstance :: Linear.MonadIO m
+               => V.Vector BS.ByteString -- ^ Validation layers
                -- -> BS.ByteString          -- ^ Application name
-               -> IO Vk.Instance
-createInstance validationLayers = do
+               -> m Vk.Instance
+createInstance validationLayers = Linear.liftSystemIO $ do
   -- This will only return something if GLFW has been initialized
   glfwExtensions <- GLFW.getRequiredInstanceExtensions >>= cstringListToVector
 
@@ -82,6 +89,6 @@ createInstance validationLayers = do
     cstringListToVector = fmap fromList . traverse BS.packCString
 
 
-destroyInstance :: Vk.Instance -> IO ()
-destroyInstance vkInst = Vk.destroyInstance vkInst Nothing
+destroyInstance :: Linear.MonadIO m => Vk.Instance ⊸ m ()
+destroyInstance = Unsafe.toLinear $ \vkInst -> Linear.liftSystemIO $ Vk.destroyInstance vkInst Nothing
 

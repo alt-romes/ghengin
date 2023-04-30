@@ -6,10 +6,16 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE BlockArguments #-}
 module Ghengin.Vulkan.Renderer.SwapChain (VulkanSwapChain(..), createSwapChain, destroySwapChain) where
 
+import Prelude hiding (($))
+import Prelude.Linear (($))
 import Data.Ord
 import Data.Word
+import qualified Unsafe.Linear as Unsafe
+import qualified Control.Monad.IO.Class.Linear as Linear
 
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -29,8 +35,8 @@ data VulkanSwapChain = VulkanSwapChain { _swapchain     :: !Vk.SwapchainKHR
                                        , _depthImage    :: !VulkanImage
                                        }
 
-createSwapChain :: VulkanWindow -> VulkanDevice -> IO VulkanSwapChain
-createSwapChain win device = do
+createSwapChain :: Linear.MonadIO m => VulkanWindow ⊸ VulkanDevice ⊸ m (VulkanSwapChain, VulkanWindow, VulkanDevice)
+createSwapChain = Unsafe.toLinear2 \win device -> Linear.liftSystemIO $ do
 
   let physicalDevice = device._physicalDevice
       surface        = win._surface
@@ -80,18 +86,19 @@ createSwapChain win device = do
 
   depthImage <- createImage device depthFormat (Vk.Extent3D extent.width extent.height 1) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT Vk.IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT Vk.IMAGE_ASPECT_DEPTH_BIT
 
-  pure $ VulkanSwapChain swpc swpchainImageViews surfaceFormat extent depthImage
+  pure (VulkanSwapChain swpc swpchainImageViews surfaceFormat extent depthImage, win, device)
 
 
-destroySwapChain :: Vk.Device -> VulkanSwapChain -> IO ()
-destroySwapChain d swpc = do
+destroySwapChain :: Linear.MonadIO m => VulkanDevice ⊸ VulkanSwapChain ⊸ m VulkanDevice
+destroySwapChain = Unsafe.toLinear2 \d swpc -> Linear.liftSystemIO $ do
 
-  Vk.destroyImageView d swpc._depthImage._imageView Nothing
-  Vk.destroyImage     d swpc._depthImage._image     Nothing
-  Vk.freeMemory       d swpc._depthImage._devMem    Nothing
+  Vk.destroyImageView d._device swpc._depthImage._imageView Nothing
+  Vk.destroyImage     d._device swpc._depthImage._image     Nothing
+  Vk.freeMemory       d._device swpc._depthImage._devMem    Nothing
 
-  mapM_ (destroyImageView d) swpc._imageViews
-  Vk.destroySwapchainKHR d swpc._swapchain Nothing
+  mapM_ (destroyImageView d._device) swpc._imageViews
+  Vk.destroySwapchainKHR d._device swpc._swapchain Nothing
+  pure d
 
 
 chooseSwapSurfaceFormat :: V.Vector Vk.SurfaceFormatKHR -> Vk.SurfaceFormatKHR

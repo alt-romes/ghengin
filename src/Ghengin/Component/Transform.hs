@@ -1,6 +1,9 @@
 {-# OPTIONS_GHC -Wno-orphans #-} -- Transform instances
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -12,20 +15,23 @@ module Ghengin.Component.Transform
   , makeTransform
   ) where
 
-import Control.Monad.IO.Class
+import Control.Monad.IO.Class.Linear
 
 import Geomancy hiding (Transform)
 import Geomancy.Mat4
 import qualified Vulkan as Vk
 import Apecs
 
+import qualified Unsafe.Linear as Unsafe
+
+-- ROMES:TODO: Eventually make this abstract over renderer!
 import Ghengin.Vulkan.Renderer.Command
 import Ghengin.Vulkan.Renderer.Pipeline
 
 data Transform = Transform { position :: {-# UNPACK #-} !Vec3
                            , scale    :: {-# UNPACK #-} !Vec3
                            , rotation :: {-# UNPACK #-} !Vec3
-                           -- , mat      :: Mat4 -- This field must be lazy so that's computed only when needed. Then it'll be computed/cached so subsequent accesses will be instantaneous
+                           -- , mat      :: Mat4 -- This field must be lazy so that's computed only when needed. Then it'll be computed/cached so subsequent accesses will be instantaneous?
                            }
 
 noTransform :: Transform
@@ -37,9 +43,10 @@ noTransform = Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0)
 instance Component Transform where
   type Storage Transform = Map Transform
 
-applyTransform :: MonadIO m => VulkanPipeline -> Transform -> RenderPassCmd m
-applyTransform pipeline tr = do
-  pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform tr)
+applyTransform :: MonadIO m => RendererPipeline t ⊸ Transform -> (RenderPassCmd m, RendererPipeline t)
+applyTransform = Unsafe.toLinear \pipeline tr ->
+  let (rpcm, vkplayout) = pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform tr)
+   in (rpcm, Unsafe.toLinear (\_lyout -> pipeline) vkplayout)
 
 -- Make a Matrix 4 by applying translate * R(y) * R(x) * R(z) * scale transformation
 makeTransform :: Transform -> Mat4

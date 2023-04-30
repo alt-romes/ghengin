@@ -169,6 +169,9 @@ library ghengin-vulkan
                       Ghengin.Vulkan.Renderer.Pipeline,
                       Ghengin.Vulkan.Renderer.RenderPass,
 
+                      -- To be an instance eventually
+                      Ghengin.Vulkan.Renderer,
+
                       -- Don't know
                       Ghengin.Vulkan.Renderer.ImmediateSubmit,
                       Ghengin.Vulkan.Renderer.Image,
@@ -231,7 +234,6 @@ library
                       Ghengin.DearImGui.Gradient,
                       Ghengin.Input,
                       Ghengin.Render,
-                      Ghengin.Render.Class,
                       Ghengin.Render.Queue,
                       Ghengin.Scene,
                       Ghengin.Scene.Graph,
@@ -242,7 +244,6 @@ library
                       Ghengin.Shader.Fixed,
                       Ghengin.Shader.Lighting,
                       Ghengin.Utils,
-                      Ghengin.Vulkan,
                       Ghengin.World,
 
     -- Modules included in this library but not exported.

@@ -4,8 +4,12 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 module Ghengin.Vulkan.Renderer.Device where
 
+import Prelude hiding (($))
+import Prelude.Linear (($))
 import Data.Ord
 import Data.Bits
 import Data.Maybe
@@ -16,9 +20,13 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.List as L
 import qualified Data.Set as S
+import qualified System.IO.Linear as Linear
+import qualified Control.Monad.IO.Class.Linear as Linear
 
 import qualified Vulkan.CStruct.Extends as VkC
 import qualified Vulkan as Vk
+
+import qualified Unsafe.Linear as Unsafe
 
 -- We create a logical device always with a graphics queue and a present queue
 
@@ -38,11 +46,11 @@ data VulkanDevice = VulkanDevice { _physicalDevice      :: !Vk.PhysicalDevice
                                  }
 
 createVulkanDevice :: Vk.Instance
-                   -> Vector ByteString -- ^ Validation Layers
+                    ⊸ Vector ByteString -- ^ Validation Layers
                    -> Vector ByteString -- ^ Device Extensions
                    -> DeviceRateFunction
-                   -> IO VulkanDevice
-createVulkanDevice inst validationLayers deviceExtensions rateFn = do
+                   -> Linear.IO (VulkanDevice, Vk.Instance)
+createVulkanDevice = Unsafe.toLinear $ \inst validationLayers deviceExtensions rateFn -> Linear.liftSystemIO $ do
 
   (physicalDevice, graphicsQF, presentQF) <- pickPhysicalDevice inst rateFn
 
@@ -65,11 +73,11 @@ createVulkanDevice inst validationLayers deviceExtensions rateFn = do
   device        <- Vk.createDevice physicalDevice deviceCreateInfo Nothing
   graphicsQueue <- Vk.getDeviceQueue device graphicsQF 0
   presentQueue  <- Vk.getDeviceQueue device presentQF  0
-  pure $ VulkanDevice physicalDevice device graphicsQueue presentQueue graphicsQF presentQF
+  pure (VulkanDevice physicalDevice device graphicsQueue presentQueue graphicsQF presentQF, inst)
 
 
-destroyVulkanDevice :: VulkanDevice -> IO ()
-destroyVulkanDevice d = Vk.destroyDevice d._device Nothing
+destroyVulkanDevice :: VulkanDevice ⊸ Linear.IO ()
+destroyVulkanDevice = Unsafe.toLinear $ \d -> Linear.liftSystemIO (Vk.destroyDevice d._device Nothing)
 
 
 pickPhysicalDevice :: Vk.Instance

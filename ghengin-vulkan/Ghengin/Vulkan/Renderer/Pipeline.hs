@@ -59,11 +59,13 @@ import Ghengin.Core.Shader.Pipeline
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.RenderPass
 
-newtype GraphicsPipeline = GraphicsPipeline VulkanPipeline
+data RendererPipeline (t :: PipelineType)
+  = VulkanPipeline { _pipeline :: Vk.Pipeline
+                   , _pipelineLayout :: Vk.PipelineLayout
+                   }
 
-data VulkanPipeline = VulkanPipeline { _pipeline :: Vk.Pipeline
-                                     , _pipelineLayout :: Vk.PipelineLayout
-                                     }
+-- ROMES:TODO: Type data
+data PipelineType = Graphics | Compute
 
 dynamicStates :: V.Vector Vk.DynamicState
 dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT -- TODO: Eventually only the viewport needs to be dynamic right?
@@ -106,7 +108,7 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                         -> RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
                          ⊸ V.Vector Vk.DescriptorSetLayout
                          ⊸ V.Vector Vk.PushConstantRange
-                        -> Renderer (GraphicsPipeline, RenderPass, V.Vector Vk.DescriptorSetLayout)
+                        -> Renderer (RendererPipeline Graphics, RenderPass, V.Vector Vk.DescriptorSetLayout)
 createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP descriptorSetLayouts pushConstantRanges -> Linear.do
 
   Ur dev <- unsafeGetDevice
@@ -279,11 +281,11 @@ createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP descriptorSetLayo
   devs <- Data.Linear.traverse (liftIO . destroyShaderModule dev) shaderModules -- destroy shader modules after creating the pipeline
   Unsafe.toLinear (\_ -> pure ()) devs -- forget dev aliases
 
-  pure (GraphicsPipeline (VulkanPipeline pipeline unsafePipelineLayout), renderP, descriptorSetLayouts)
+  pure (VulkanPipeline pipeline unsafePipelineLayout, renderP, descriptorSetLayouts)
 
 
 
-destroyPipeline :: VulkanPipeline ⊸ Renderer ()
+destroyPipeline :: RendererPipeline t ⊸ Renderer ()
 destroyPipeline = Unsafe.toLinear \(VulkanPipeline pipeline pipelineLayout) -> unsafeUseDevice \dev -> do
   Vk.destroyPipeline dev pipeline Nothing
   Vk.destroyPipelineLayout dev pipelineLayout Nothing

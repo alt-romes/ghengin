@@ -18,15 +18,15 @@ data VulkanFrameData = VulkanFrameData { _renderFence      :: Vk.Fence
                                        }
 
 
-initVulkanFrameData :: MonadIO m => VulkanDevice -> Vk.CommandBuffer -> m (VulkanFrameData, VulkanDevice)
-initVulkanFrameData dev buf = Linear.do
+initVulkanFrameData :: MonadIO m => Vk.CommandBuffer ⊸ VulkanDevice ⊸ m (VulkanFrameData, VulkanDevice)
+initVulkanFrameData buf dev = Linear.do
   (inFlightFence    , dev) <- createFence dev True
   (imageAvailableSem, dev) <- createSemaphore dev
   (renderFinishedSem, dev) <- createSemaphore dev
   pure (VulkanFrameData inFlightFence imageAvailableSem renderFinishedSem buf, dev)
 
-destroyVulkanFrameData :: MonadIO m => VulkanDevice ⊸ VulkanFrameData ⊸ m VulkanDevice
-destroyVulkanFrameData dev (VulkanFrameData f s1 s2 buf) = Linear.do
+destroyVulkanFrameData :: MonadIO m => VulkanFrameData ⊸ VulkanDevice ⊸ m VulkanDevice
+destroyVulkanFrameData (VulkanFrameData f s1 s2 buf) dev = Linear.do
   dev <- destroyFence dev f
   dev <- destroySem   dev s1
   dev <- destroySem   dev s2

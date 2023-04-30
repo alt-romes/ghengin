@@ -16,8 +16,10 @@ import Ghengin.Core.Renderer.RenderPass
 -- Make push constants automatic as part of the mesh properties (as long as it fits in the push constants)
 import qualified Vulkan as Vk
 
-data GraphicsPipeline
+data RendererPipeline (t :: PipelineType)
 
+-- ROMES:TODO: Type data
+data PipelineType = Graphics | Compute
 
 -- import Ghengin.Vulkan.Pipeline
 --     ( createGraphicsPipeline,
@@ -50,5 +52,5 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                         -> RefC RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
                         -- -> V.Vector Vk.DescriptorSetLayout
                          ⊸ V.Vector Vk.PushConstantRange
-                        -> Renderer GraphicsPipeline
+                        -> Renderer (RendererPipeline Graphics)
 

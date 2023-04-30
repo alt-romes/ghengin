@@ -79,6 +79,11 @@ import Ghengin.Core.Type.Utils (w32)
 
 import qualified Unsafe.Linear as Unsafe
 
+-- TODO: We define these commands in terms of Vk.layouts and such, it'd be
+-- better to define them in terms of RendererPipeline such that we can
+-- eventually create an hsig for Commands...
+-- To fix the module loop, we'd need an hs-boot file for the RendererPipeline definition
+
 {-
 Note [Commands and RenderPassCmds]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
