@@ -260,6 +260,9 @@ data DescriptorSet
                   , _descriptorSet :: Vk.DescriptorSet
                   }
 
+instance Counted DescriptorSet where
+  countedFields _ = []
+
 -- | Allocate a descriptor set from a descriptor pool. This descriptor pool has
 -- the information required to allocate a descriptor set based on its index in
 -- the shader.
@@ -394,8 +397,8 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> Li
 -- TODO: Write this to the note
 --
 -- TODO: The descriptor sets don't need to be freed! perhaps make them unrestricted elsewhere and get rid of this function
-destroyDescriptorSet :: DescriptorSet ⊸ Renderer ()
-destroyDescriptorSet (DescriptorSet (Ur _ix) _dset) = Unsafe.toLinear (\_ -> pure ()) _dset
+freeDescriptorSet :: DescriptorSet ⊸ Renderer ()
+freeDescriptorSet (DescriptorSet (Ur _ix) _dset) = Unsafe.toLinear (\_ -> pure ()) _dset
 
 freeResourceMap :: ResourceMap ⊸ Renderer ()
 freeResourceMap resmap = consume_empty_IntMap <$> Data.Linear.traverse freeDescriptorResource resmap

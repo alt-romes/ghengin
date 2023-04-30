@@ -98,13 +98,13 @@ library ghengin-core
 
     exposed-modules:  Ghengin.Core.Material,
                       Ghengin.Core.Mesh,
-                      Ghengin.Core.Mesh.Vertex,
+                      -- Ghengin.Core.Mesh.Vertex,
 
-                      Ghengin.Core.Type.Compatible,
-                      Ghengin.Core.Type.Utils,
+                      -- Ghengin.Core.Type.Compatible,
+                      -- Ghengin.Core.Type.Utils,
 
-                      Ghengin.Core.Shader.Pipeline,
-                      Ghengin.Core.Shader.Canonical,
+                      -- Ghengin.Core.Shader.Pipeline,
+                      -- Ghengin.Core.Shader.Canonical,
 
                       Ghengin.Core.Render.Pipeline,
                       Ghengin.Core.Render.Property,
@@ -128,8 +128,35 @@ library ghengin-core
                       reference-counting,
 
                       containers,
+                      vector,
+
+                      ghengin:ghengin-core-indep
+
+-- Temporary solution until #23322 is fixed
+library ghengin-core-indep
+    import:           common-flags
+
+    visibility:       public
+
+    exposed-modules:  Ghengin.Core.Mesh.Vertex,
+
+                      Ghengin.Core.Type.Compatible,
+                      Ghengin.Core.Type.Utils,
+
+                      Ghengin.Core.Shader.Pipeline,
+                      Ghengin.Core.Shader.Canonical,
+
+    hs-source-dirs:   ghengin-core-indep
+
+    build-depends:    base,
+                      fir,
+                      -- TODO: NOT DEPEND ON VULKAN IN CORE
+                      vulkan,
+                      linear-base,
+                      reference-counting,
+
+                      containers,
                       vector
-                      -- split
 
 library ghengin-vulkan
     import:           common-flags
@@ -147,6 +174,7 @@ library ghengin-vulkan
                       Ghengin.Vulkan.Renderer.Image,
                       Ghengin.Vulkan.Renderer.SwapChain,
                       Ghengin.Vulkan.Renderer.Sampler,
+                      Ghengin.Vulkan.Renderer.Frame,
 
                       -- Should soon enough be part of the required pieces
                       Ghengin.Vulkan.Renderer.Command,
@@ -165,11 +193,22 @@ library ghengin-vulkan
                       linear-base,
                       reference-counting,
                       ghengin:ghengin-core,
+                      ghengin:ghengin-core-indep,
 
                       containers,
                       bytestring,
                       mtl,
                       vector
+
+    -- Until #23322 is fixed?
+    -- Nope, also doesn't work. Perhaps we could support this sort of cyclic dependencies.
+    -- mixins:           ghengin:ghengin-core requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+    --                                                 , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+    --                                                 , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+    --                                                 , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+    --                                                 , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+    --                                                 )
+
 
 library
     -- Import common warning flags.
@@ -204,8 +243,6 @@ library
                       Ghengin.Shader.Lighting,
                       Ghengin.Utils,
                       Ghengin.Vulkan,
-                      Ghengin.Vulkan.Frame,
-                      Ghengin.Vulkan.Utils,
                       Ghengin.World,
 
     -- Modules included in this library but not exported.
@@ -252,6 +289,7 @@ library
                       lens >= 5.2,
                       linear-base,
                       reference-counting,
+                      ghengin:ghengin-core-indep,
                       ghengin:ghengin-core,
                       ghengin:ghengin-vulkan
 

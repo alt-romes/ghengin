@@ -60,7 +60,7 @@ data VertexBuffer where
                 ⊸ Word
                 %p -> VertexBuffer
 
-createVertexBuffer :: ∀ αs. (SV.Storable (Vertex αs)) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
+createVertexBuffer :: ∀ αs. SV.Storable (Vertex αs) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
 createVertexBuffer vv = VertexBuffer <$> createDeviceLocalBuffer @(Vertex αs) Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT vv <*> pure (fromIntegral $ SV.length vv) -- use Locations for vertex buffers
 
 -------- Device-local buffer -----------

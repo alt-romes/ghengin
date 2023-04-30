@@ -46,8 +46,8 @@ data VertexBuffer where
                 ⊸ Word               -- ^ N vertices
                 %p -> VertexBuffer
 
-createVertexBuffer :: SV.Storable (Vertex props)
-                   => SV.Vector (Vertex props) -- ^ Vertices
+createVertexBuffer :: ∀ αs. SV.Storable (Vertex αs)
+                   => SV.Vector (Vertex αs) -- ^ Vertices
                    -> Renderer VertexBuffer
 
 -------- Device-local buffer -----------
