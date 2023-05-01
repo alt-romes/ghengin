@@ -1,6 +1,8 @@
+{-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.RenderPass where
 
 import Ghengin.Core.Renderer.Kernel
+import Data.Counted
 
 -- import Ghengin.Vulkan.RenderPass
 --     ( createSimpleRenderPass,
@@ -9,6 +11,9 @@ import Ghengin.Core.Renderer.Kernel
 
 data RenderPass
 
-createSimpleRenderPass :: Renderer (RefC RenderPass) -- If we always need this as a reference, it's easier to just return it as such here (avoids exposing a free function)
+instance Counted RenderPass
+
+createSimpleRenderPass :: Renderer RenderPass -- If we always need this as a reference, it's easier to just return it as such here (avoids exposing a free function)
+destroyRenderPass :: RenderPass ⊸ Renderer ()
 
 

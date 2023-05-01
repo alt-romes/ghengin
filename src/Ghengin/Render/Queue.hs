@@ -33,7 +33,7 @@ import qualified Data.Map as M
 
 import Ghengin.Core.Render.Packet
 import Ghengin.Core.Mesh
-import Ghengin.Utils
+-- import Ghengin.Utils
 import Ghengin.Core.Material hiding (material)
 
 newtype RenderQueue a = RenderQueue (Map TypeRep (SomePipelineRef, Map Unique (SomeMaterialRef, [(SomeMesh, a)])))

@@ -5,6 +5,8 @@ import Control.Functor.Linear        as Linear
 import Control.Monad.IO.Class.Linear as Linear
 import qualified System.IO.Linear
 
+import qualified Prelude
+
 import Data.Counted
 
 data RendererEnv

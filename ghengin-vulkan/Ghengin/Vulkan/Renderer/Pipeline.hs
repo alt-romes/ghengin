@@ -48,6 +48,7 @@ import GHC.TypeNats ( Nat )
 import Vulkan.Zero (zero)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
+import qualified Data.IntMap as IM
 import qualified Data.Vector as V
 import qualified FIR hiding (ShaderPipeline, (:>->))
 import qualified Vulkan as Vk
@@ -58,6 +59,7 @@ import qualified Unsafe.Linear as Unsafe
 import Ghengin.Core.Shader.Pipeline
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.RenderPass
+import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet (DescriptorPool(..))
 
 data RendererPipeline (t :: PipelineType)
   = VulkanPipeline { _pipeline :: Vk.Pipeline
@@ -106,10 +108,11 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                         .  PipelineConstraints info top descs strides
                         => ShaderPipeline info
                         -> RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
-                         ⊸ V.Vector Vk.DescriptorSetLayout
+                         ⊸ DescriptorPool
                          ⊸ V.Vector Vk.PushConstantRange
-                        -> Renderer (RendererPipeline Graphics, RenderPass, V.Vector Vk.DescriptorSetLayout)
-createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP descriptorSetLayouts pushConstantRanges -> Linear.do
+                        -> Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
+createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstantRanges -> Linear.do
+  Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ Prelude.fmap (Prelude.fst) (IM.elems dpool._set_bindings)
 
   Ur dev <- unsafeGetDevice
 
@@ -281,7 +284,7 @@ createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP descriptorSetLayo
   devs <- Data.Linear.traverse (liftIO . destroyShaderModule dev) shaderModules -- destroy shader modules after creating the pipeline
   Unsafe.toLinear (\_ -> pure ()) devs -- forget dev aliases
 
-  pure (VulkanPipeline pipeline unsafePipelineLayout, renderP, descriptorSetLayouts)
+  pure (VulkanPipeline pipeline unsafePipelineLayout, renderP, dpool)
 
 
 

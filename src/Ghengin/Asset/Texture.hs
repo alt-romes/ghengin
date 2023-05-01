@@ -20,12 +20,11 @@ import Control.Monad.Reader
 import Codec.Picture
 
 import qualified Vulkan as Vk
-import Ghengin.Utils
-import Ghengin.Vulkan
-import Ghengin.Vulkan.Sampler
-import Ghengin.Vulkan.Command
-import Ghengin.Vulkan.Image
-import Ghengin.Vulkan.Buffer
+import Ghengin.Vulkan.Renderer
+import Ghengin.Vulkan.Renderer.Sampler
+import Ghengin.Vulkan.Renderer.Command
+import Ghengin.Vulkan.Renderer.Image
+import Ghengin.Vulkan.Renderer.Buffer
 
 data Texture2D = Texture2D { image          :: VulkanImage
                            , sampler        :: Sampler

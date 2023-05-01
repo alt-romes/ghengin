@@ -111,7 +111,6 @@ makeRenderPipeline :: forall τ info tops descs strides
 makeRenderPipeline shaderPipeline mkRP = Linear.do
 
   simpleRenderPass <- createSimpleRenderPass
-  (srpass1, srpass2) <- share simpleRenderPass
 
   -- Create the descriptor sets and graphics pipeline based on the shader
   -- pipeline
@@ -151,14 +150,15 @@ makeRenderPipeline shaderPipeline mkRP = Linear.do
   (dset1, resources1) <- updateDescriptorSet dset0 resources0
 
   -- Create the graphics pipeline
-  pipeline <- createGraphicsPipeline shaderPipeline srpass1
-                                     -- (V.fromList $ fmap fst (IM.elems dpool._set_bindings))
+  (pipeline, simpleRenderPass2, dpool2) <- createGraphicsPipeline
+                                     shaderPipeline simpleRenderPass dpool1
                                      [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   dset2 <- Counted.new freeDescriptorSet dset1
   resources2 <- Counted.new freeResourceMap resources1
+  simpleRenderPass3 <- Counted.new destroyRenderPass simpleRenderPass2
 
-  pure $ mkRP $ RenderPipeline pipeline srpass2 (dset2, resources2, dpool1) shaderPipeline
+  pure $ mkRP $ RenderPipeline pipeline simpleRenderPass3 (dset2, resources2, dpool2) shaderPipeline
 
 instance HasProperties (RenderPipeline π) where
   properties :: RenderPipeline π τ ⊸ (Ur (PropertyBindings τ), RenderPipeline π τ)

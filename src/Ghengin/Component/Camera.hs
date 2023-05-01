@@ -19,10 +19,8 @@ import Geomancy.Vec3
 
 import qualified Graphics.UI.GLFW as GLFW
 
-import Ghengin.Vulkan.GLFW.Window
-import Ghengin.Vulkan
-import Ghengin.Utils
-import qualified Vulkan
+import Ghengin.Vulkan.Renderer.GLFW.Window
+import Ghengin.Core.Renderer.Kernel
 
 import Ghengin.Component.Transform
 

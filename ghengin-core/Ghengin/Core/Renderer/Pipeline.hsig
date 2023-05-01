@@ -11,6 +11,7 @@ import Ghengin.Core.Shader.Pipeline
 -- other renderer details
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.RenderPass
+import Ghengin.Core.Renderer.DescriptorSet
 
 -- TODO: Get Rid of it.
 -- Make push constants automatic as part of the mesh properties (as long as it fits in the push constants)
@@ -49,8 +50,8 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( strides :: BindingStrides             )
                         .  PipelineConstraints info top descs strides
                         => ShaderPipeline info
-                        -> RefC RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
-                        -- -> V.Vector Vk.DescriptorSetLayout
+                        -> RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
+                         ⊸ DescriptorPool
                          ⊸ V.Vector Vk.PushConstantRange
-                        -> Renderer (RendererPipeline Graphics)
+                        -> Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
 

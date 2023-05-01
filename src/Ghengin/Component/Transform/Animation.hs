@@ -9,7 +9,7 @@ import Ghengin.Component
 import Ghengin.Component.Transform
 
 import Geomancy.Vec3
-import Ghengin.Vulkan
+import Ghengin.Core.Renderer.Kernel
 
 import {-# SOURCE #-} Ghengin.World (World)
 
