@@ -5,5 +5,5 @@ import Apecs
 import Ghengin.Core.Renderer.Kernel
 import {-# SOURCE #-} Ghengin.World (World)
 
-type Ghengin w = SystemT (World w) Renderer ()
+type Ghengin w = SystemT (World w) Renderer
 

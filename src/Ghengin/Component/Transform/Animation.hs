@@ -36,8 +36,8 @@ transformAnimation mov ((+mov) -> dest) = TransformAnimation' mov dest
 instance Component (TransformAnimation w) where
   type Storage (TransformAnimation w) = Map (TransformAnimation w)
 
-transformAnimationUpdate :: ( Has (World w) (Renderer ()) (TransformAnimation w)
-                            , Has (World w) (Renderer ()) Transform
+transformAnimationUpdate :: ( Has (World w) Renderer (TransformAnimation w)
+                            , Has (World w) Renderer Transform
                             , Typeable w)
                          => Float -- ^ Delta time
                          -> Ghengin w ()

@@ -6,7 +6,7 @@ import Geomancy
 
 import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Mesh
-import Ghengin.Vulkan (Renderer)
+import Ghengin.Vulkan.Renderer.Kernel (Renderer)
 
 -- TODO: Seems that creating a mesh without vertices is broken...
 

@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -9,20 +10,32 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE QualifiedDo #-}
 module Ghengin.Component.Camera where
 
 import Apecs
+import Data.Word (Word32)
+
+import Prelude.Linear (Ur(..), ($))
+import Prelude hiding (($))
 
 -- import Geomancy.Vulkan.Projection
 import Geomancy.Mat4
 import Geomancy.Vec3
 
+import Ghengin.Utils (Epsilon(..))
+
 import qualified Graphics.UI.GLFW as GLFW
 
 import Ghengin.Vulkan.Renderer.GLFW.Window
-import Ghengin.Core.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Kernel -- We can't use Core yet to construct a renderer-agnostic battery pack because we need to be aware of GLFW in this module, for now.
 
 import Ghengin.Component.Transform
+import qualified Control.Functor.Linear as Linear
+import qualified Control.Monad.IO.Class.Linear as Linear
+import qualified Unsafe.Linear as Unsafe
+
+import qualified Vulkan.Core10.FundamentalTypes (Extent2D(..))
 
 data Camera = Camera !Projection !View deriving Show
 
@@ -85,12 +98,12 @@ makeView tr view =
   
 
 makeProjection :: Projection
-               -> Renderer Mat4
+               -> Renderer (Ur Mat4)
 makeProjection = \case
-  Perspective fovRad near far -> do
-    extent <- getRenderExtent
-    pure $ makePerspectiveProjection fovRad near far extent.width extent.height
-  Orthogonal -> liftIO $ fail "TODO: Orthogonal projection not yet supported"
+  Perspective fovRad near far -> Linear.do
+    Ur extent <- getRenderExtent
+    Linear.pure $ Ur $ makePerspectiveProjection @Word32 fovRad near far extent.width extent.height
+  Orthogonal -> Linear.liftSystemIO $ fail "TODO: Orthogonal projection not yet supported"
 
 
 -- ^ Make a perspective camera using the renderer's width and height
@@ -112,12 +125,12 @@ makePerspectiveProjection fovRad near far (fromIntegral -> width) (fromIntegral 
   -- Camera $ unTransform $ perspective fovRad near far width height -- why is it negative??
 
 
-updateFirstPersonCameraTransform :: Float -> Transform -> Renderer Transform
-updateFirstPersonCameraTransform dt tr = do
-    r <- ifPressed GLFW.Key'Right (pure $ vec3 0 1 0) (pure $ vec3 0 0 0)
-    l <- ifPressed GLFW.Key'Left (pure $ vec3 0 (-1) 0) (pure $ vec3 0 0 0)
-    u <- ifPressed GLFW.Key'Up   (pure $ vec3 1 0 0) (pure $ vec3 0 0 0)
-    d <- ifPressed GLFW.Key'Down (pure $ vec3 (-1) 0 0) (pure $ vec3 0 0 0)
+updateFirstPersonCameraTransform :: Float -> Transform -> Renderer (Ur Transform)
+updateFirstPersonCameraTransform dt tr = Linear.do
+    Ur r <- ifPressed GLFW.Key'Right (vec3 0 1 0)    (vec3 0 0 0)
+    Ur l <- ifPressed GLFW.Key'Left  (vec3 0 (-1) 0) (vec3 0 0 0)
+    Ur u <- ifPressed GLFW.Key'Up    (vec3 1 0 0)    (vec3 0 0 0)
+    Ur d <- ifPressed GLFW.Key'Down  (vec3 (-1) 0 0) (vec3 0 0 0)
 
     let rotateV = normalize (r + l + u + d)
     -- TODO: mod of y rotation with 2*pi
@@ -130,32 +143,38 @@ updateFirstPersonCameraTransform dt tr = do
         rightDir   = vec3 (cos ry) 0 (-sin ry)
         upDir      = vec3 0 (-1) 0
 
-    mf <- ifPressed GLFW.Key'W (pure forwardDir) (pure $ vec3 0 0 0)
-    mb <- ifPressed GLFW.Key'S (pure (-forwardDir)) (pure $ vec3 0 0 0)
-    mr <- ifPressed GLFW.Key'D (pure rightDir) (pure $ vec3 0 0 0)
-    ml <- ifPressed GLFW.Key'A (pure (-rightDir)) (pure $ vec3 0 0 0)
-    mu <- ifPressed GLFW.Key'Space (pure upDir) (pure $ vec3 0 0 0)
-    md <- ifPressed GLFW.Key'LeftShift (pure (-upDir)) (pure $ vec3 0 0 0)
+    Ur mf <- ifPressed GLFW.Key'W         (forwardDir)  (vec3 0 0 0)
+    Ur mb <- ifPressed GLFW.Key'S         (-forwardDir) (vec3 0 0 0)
+    Ur mr <- ifPressed GLFW.Key'D         (rightDir)    (vec3 0 0 0)
+    Ur ml <- ifPressed GLFW.Key'A         (-rightDir)   (vec3 0 0 0)
+    Ur mu <- ifPressed GLFW.Key'Space     (upDir)       (vec3 0 0 0)
+    Ur md <- ifPressed GLFW.Key'LeftShift (-upDir)      (vec3 0 0 0)
 
     let moveDir = mf + mb + mr + ml + mu + md
 
         tr'' = tr'{position = if nearZero moveDir then tr'.position else tr'.position + moveDir ^* dt ^* moveSpeed} :: Transform
 
-    pure (tr'' :: Transform)
+    Linear.pure $ Ur (tr'' :: Transform)
   where
     moveSpeed = 3
     lookSpeed = 2
 
-    getKey :: GLFW.Key -> Renderer GLFW.KeyState
-    getKey k = do
-      w <- asks (._vulkanWindow._window)
-      liftIO $ GLFW.getKey w k
+    getKey :: GLFW.Key -> Renderer (Ur GLFW.KeyState)
+    getKey k = Linear.do
+      Ur unsafe_w <- renderer $ Unsafe.toLinear \renv -> Linear.pure (Ur renv._vulkanWindow._window, renv)
+      Linear.liftSystemIOU $ GLFW.getKey unsafe_w k
 
     ifPressed :: GLFW.Key
-              -> Renderer a -- ^ Then
-              -> Renderer a -- ^ Else
-              -> Renderer a -- ^ Result
+              -> a -- ^ Then
+              -> a -- ^ Else
+              -> Renderer (Ur a) -- ^ Result
     ifPressed k t e = do
-      getKey k >>= \case
-        GLFW.KeyState'Pressed -> t
-        _ -> e
+      getKey k Linear.>>= \case
+        Ur GLFW.KeyState'Pressed -> Linear.pure (Ur t)
+        Ur _ -> Linear.pure (Ur e)
+
+
+-- * Utils
+
+posFromMat4 :: Mat4 -> Vec3
+posFromMat4 = flip withColMajor (\_ _ _ x _ _ _ y _ _ _ z _ _ _ _ -> vec3 x y z)

@@ -60,7 +60,7 @@ import Ghengin.Core.Mesh
 import Ghengin.Component.UI
 import Ghengin.Render
 import Ghengin.Core.Render.Packet
-import Ghengin.Vulkan
+import Ghengin.Core.Renderer.Kernel
 import Ghengin.Vulkan.GLFW.Window
 import Ghengin.Vulkan.RenderPass
 import Ghengin.World
@@ -75,7 +75,7 @@ import Ghengin.Utils (Ref(..))
 -- destructor function that gets rid of resources stuck in components such as
 -- meshes
 
-type Ghengin w = SystemT (World w) (Renderer ())
+type Ghengin w = SystemT (World w) Renderer
 
 windowLoop :: Ghengin w Bool -> Ghengin w ()
 windowLoop action = do

@@ -23,15 +23,12 @@ module Ghengin.Utils
   , Proxy(..)
   ) where
 
-import GHC.Records
-import Data.IORef
 import GHC.TypeLits
 import Control.Monad
 import Control.Monad.Trans
 import Control.Logger.Simple
 import Data.Kind
 import Geomancy.Vec3
-import Geomancy.Mat4
 import Data.StateVar
 import Foreign.Storable
 import Foreign.Storable.Generic
@@ -39,55 +36,13 @@ import Data.Proxy
 
 import Data.Bits
 
-import Math.Linear (V(..), M(..))
-import qualified SPIRV.Image as SPIRV
-import Data.Type.Map
-import FIR.Prim.Struct
-
-import qualified Apecs
-
 -- | Typed reference
-newtype Ref α = Ref { unRef :: Apecs.Entity } -- iso to Int
-
--- TODO Eventually move to its own module
-class Sized a where
-  type SizeOf a :: Nat
-
-instance Sized Float where
-  type SizeOf Float = 4
-
-instance Sized a => Sized (V n a) where
-  type SizeOf (V n a) = n * SizeOf a
-
-instance Sized a => Sized (M m n a) where
-  type SizeOf (M m n a) = m * n * SizeOf a
-
-instance Sized (Struct '[]) where
-  type SizeOf (Struct '[]) = 0
-
-instance Sized a => Sized (Struct ((k ':-> a) ': xs)) where
-  type SizeOf (Struct ((_ ':-> a) ': xs)) = SizeOf a + SizeOf (Struct xs)
-
-instance Sized Vec3 where
-  type SizeOf Vec3 = 3 * SizeOf Float
-
-instance Sized ('SPIRV.ImageFormat c '[]) where
-  type SizeOf ('SPIRV.ImageFormat _ '[]) = 0
-
-instance Sized ('SPIRV.ImageFormat c ((x ': xs) :: [Nat])) where
-  type SizeOf ('SPIRV.ImageFormat c (x ': xs)) = (x `Div` 8) + SizeOf ('SPIRV.ImageFormat c xs)
-  -- Division by 8 because image format size is in bits
+-- newtype Ref α = Ref { unRef :: Apecs.Entity } -- iso to Int
 
 data HList xs where
     HNil :: HList '[]
     (:#) :: a -> HList as -> HList (a ': as)
 infixr 6 :#
-
--- | Generic HList
-data GHList c xs where
-    GHNil :: GHList c '[]
-    (:##) :: c a -> GHList c as -> GHList c (a ': as)
-infixr 6 :##
 
 {-
 Note [Coerce HList to List]
@@ -100,8 +55,6 @@ headHList (a :# _) = a
 
 tailHList :: HList (a ': as) -> HList as
 tailHList (_ :# as) = as
-
-type Size = Word
 
 (.&&.) :: Bits a => a -> a -> Bool
 x .&&. y = (/= zeroBits) (x .&. y)
@@ -120,57 +73,6 @@ findM p = foldr go (pure Nothing)
     go x acc = do
       b <- p x
       if b then pure (Just x) else acc
-
-type family FromMaybe (a :: k) (m :: Maybe k) :: k where
-  FromMaybe a 'Nothing = a
-  FromMaybe _ ('Just a) = a
-
-type family Concat (as :: [[k]]) :: [k] where
-  Concat '[] = '[]
-  Concat (x ': xs) = x ++ Concat xs
-
-type family (++) as bs where
-  (++) '[] bs = bs
-  (++) (x ': xs) ys = x : xs ++ ys
-
-type (!!) :: [Type] -> Nat -> Type
-type family (!!) as n where
-  (!!) as n = Index as n 0 (Text "Getting out of bounds index " :<>: ShowType n :<>: Text " of list " :<>: ShowType as)
-
-type Index :: [Type] -> Nat -> Nat -> ErrorMessage -> Type
-type family Index xs n m e where
-  Index (x ': xs) n n _ = x
-  Index (x ': xs) n m e = Index xs n (m+1) e
-  Index '[] n m e       = TypeError e
-
-type family Length α :: Nat where
-  Length '[] = 0
-  Length (_ ': as) = Length as + 1
-
-type (:<|>:) :: Maybe a -> Maybe a -> Maybe a
-type family (:<|>:) mx my where
-  (:<|>:) ('Just x) _ = 'Just x
-  (:<|>:) 'Nothing ('Just y) = 'Just y
-  (:<|>:) 'Nothing 'Nothing  = 'Nothing
-
-type family Reverse xs acc where
-  Reverse '[] acc = acc
-  Reverse (x ': xs) acc = Reverse xs (x ': acc)
-
-type Zip :: [a] -> [b] -> [(a,b)]
-type family Zip xs ys where
-  Zip '[] _ = '[]
-  Zip _ '[] = '[]
-  Zip (a ': as) (b ': bs) = '(a, b) ': Zip as bs
-
-type NumbersFromTo :: Nat -> Nat -> [Nat]
-type family NumbersFromTo from to where
-  NumbersFromTo to to = '[]
-  NumbersFromTo from to = from ': NumbersFromTo (from+1) to
-
-
-posFromMat4 :: Mat4 -> Vec3
-posFromMat4 = flip withColMajor (\_ _ _ x _ _ _ y _ _ _ z _ _ _ _ -> vec3 x y z)
 
 
 -- * Known nats
@@ -219,15 +121,6 @@ instance Epsilon Double where
 
 instance Epsilon Vec3 where
   nearZero a = nearZero (dot a a)
-
-
-incRefCount :: HasField "referenceCount" a (IORef Int) => MonadIO m => a -> m ()
-incRefCount x = do
-  liftIO $ atomicModifyIORef' x.referenceCount (\c -> (c+1,()))
-
-decRefCount :: HasField "referenceCount" a (IORef Int) => MonadIO m => a -> m ()
-decRefCount x = do
-  liftIO $ atomicModifyIORef' x.referenceCount (\c -> (c-1,()))
 
 instance Show (HList '[]) where
   show _ = "HNil"

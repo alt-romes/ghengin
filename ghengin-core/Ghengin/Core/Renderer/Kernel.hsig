@@ -1,22 +1,53 @@
 {-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.Kernel where
 
+import Prelude.Linear
 import Control.Functor.Linear        as Linear
 import Control.Monad.IO.Class.Linear as Linear
 import qualified System.IO.Linear
 
-import qualified Prelude
+import qualified Prelude as Base
+import qualified Control.Monad.IO.Class as Base
 
 import Data.Counted
+
+import qualified Vulkan as Vk -- Remove occurrences by duplicating vulkan types into standalone ones.
 
 data RendererEnv
 newtype Renderer a = Renderer { unRenderer :: Linear.StateT RendererEnv System.IO.Linear.IO a }
 
 type RefC = RefC' Renderer
 
+-- These could all be shared accross backends :)
 instance Linear.Functor Renderer
 instance Linear.Applicative Renderer
 instance Linear.Monad Renderer
 instance Linear.MonadIO Renderer
 
+-- Inlined in instancing module... (make GHC support hsig definitions!)
+-- We need this for Apecs (it requires an instance of Base's MonadIO!)
+-- The worry is instancing all the Monad interface -- it's very unsafe!, as it might make us misuse
+-- Renderer... even so, its better than forking Apecs at the moment
+-- Or is it?
+--
+-- Here's another idea: define a module Ghengin.Apecs which wraps Apecs calls
+-- with linear types by unsafely coercing between @Renderer a@ and a new
+-- @UnrestrictedRenderer a@. It's cool that the representation of Renderer and
+-- UnrestrictedRenderer are the same, since IO and StateT are defined as their
+-- linear variants, just without linear types!
+--
+-- instance Base.Functor Renderer
+-- instance Base.Applicative Renderer
+-- instance Base.Monad Renderer
+-- instance Base.MonadIO Renderer
+  -- Base.liftIO :: Base.IO a -> Renderer a
+  -- Base.liftIO x = liftSystemIO x
+
+
+-- ROMES:TODO: really, we should be able to share this definition.
+-- The limitation is backpack. Fix this one day in GHC
+renderer :: (RendererEnv ⊸ System.IO.Linear.IO (a, RendererEnv)) ⊸ Renderer a
+-- renderer f = Renderer (StateT f)
+
+getRenderExtent :: Renderer (Ur Vk.Extent2D)
 

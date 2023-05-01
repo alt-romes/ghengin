@@ -114,7 +114,7 @@ import qualified Apecs
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
 import Ghengin.Core.Render.Packet
-import Ghengin.Vulkan
+import Ghengin.Core.Renderer.Kernel
 import Ghengin.Component.Transform
 import Ghengin.Component.Camera
 
@@ -138,11 +138,11 @@ sceneGraph :: SceneGraph w a -> Ghengin w a
 sceneGraph = flip runReaderT Nothing
 
 type EntityConstraints w c =
-  ( Has (World w) (Renderer ()) EntityCounter
-  , Has (World w) (Renderer ()) Parent
-  , Has (World w) (Renderer ()) ModelMatrix
-  , Has (World w) (Renderer ()) c
-  , ExplSet (Renderer ()) (Storage c)
+  ( Has (World w) Renderer EntityCounter
+  , Has (World w) Renderer Parent
+  , Has (World w) Renderer ModelMatrix
+  , Has (World w) Renderer c
+  , ExplSet Renderer (Storage c)
   , Set (World w) (Ghengin w) c, Get (World w) (Ghengin w) EntityCounter
   )
 
@@ -162,11 +162,11 @@ newEntity' c sub = ask >>= \mparentId -> do
 
 type TraverseConstraints w =
   ( 
-    Has (World w) (Renderer ()) Transform
-  , Has (World w) (Renderer ()) Camera
-  , Has (World w) (Renderer ()) RenderPacket
-  , Has (World w) (Renderer ()) Parent
-  , Has (World w) (Renderer ()) ModelMatrix
+    Has (World w) Renderer Transform
+  , Has (World w) Renderer Camera
+  , Has (World w) Renderer RenderPacket
+  , Has (World w) Renderer Parent
+  , Has (World w) Renderer ModelMatrix
   )
 
 {-|

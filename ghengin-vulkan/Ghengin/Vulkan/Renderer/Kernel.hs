@@ -86,6 +86,11 @@ immediateSubmit cmd = renderer $ \(REnv inst dev win swp imsctx) -> Linear.do
   (dev', imsctx') <- immediateSubmit' dev imsctx cmd
   pure ((), REnv inst dev' win swp imsctx')
 
+-- | Get the extent of the images in the swapchain?
+getRenderExtent :: Renderer (Ur Vk.Extent2D)
+getRenderExtent = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv._vulkanSwapChain._surfaceExtent, renv)
+
+-- Move to utils?
 consumeUnits :: V.V n () ⊸ ()
 consumeUnits = Unsafe.toLinear \_ -> ()
 

@@ -4,8 +4,8 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Component.Mesh.Obj where
 
+import qualified Prelude.Linear as Linear
 import Control.Monad
-import Control.Monad.IO.Class
 
 import qualified Data.Vector as V
 
@@ -13,15 +13,18 @@ import Geomancy
 
 import Codec.Wavefront
 
-import Ghengin.Vulkan
+import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Core.Mesh
 import Ghengin.Core.Mesh.Vertex
 
+import qualified Control.Functor.Linear as Linear
+import qualified Control.Monad.IO.Class.Linear as Linear
+
 loadObjMesh :: FilePath -> Renderer (Mesh '[Vec3, Vec3, Vec3]) -- TODO: Type class from ambiguous types defines what properties should be extracted from the object file
 loadObjMesh filepath = do
-  fromFile filepath >>= \case
-    Left err -> liftIO $ fail err
-    Right wavefrontObj -> do
+  Linear.liftSystemIOU (fromFile filepath) Linear.>>= \case
+    Linear.Ur (Left err) -> Linear.liftSystemIO $ fail err
+    Linear.Ur (Right wavefrontObj) ->
       let
           locs    = wavefrontObj.objLocations
           normals = wavefrontObj.objNormals
@@ -43,7 +46,7 @@ loadObjMesh filepath = do
           -- meshVertices = fmap (\(Location x y z w) -> Vertex (vec3 x y z) ()) (V.zip locs normals)
 
       -- TODO: createMeshWithIxs
-      createMesh (V.toList meshFaces)
+       in createMesh (V.toList meshFaces)
 
 -- loadObjMesh :: FilePath -> Renderer Mesh
 -- loadObjMesh filepath = do

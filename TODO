@@ -1,3 +1,8 @@
+[ ] Much more parallelism... both host and device (GPU)
+[ ] Clean up ghengin-core and ghengin-vulkan (better utils, custom prelude and
+    exports in cabal (-XNoImplicitPrelude), linear by default (-XLinearTypes, -XQualifiedDo), block args too)
+[ ] Longterm: WebGPU backend + WASM GHC compilation
+[ ] Ghengin.Prelude
 [ ] Gigant refactor using linear types and backpack sigs for the renderer
 [ ] By default, QualifiedDo and NoImplicitPrelude in ghengin-core and default to Prelude.Linear (and perhaps in ghengin-vulkan and others too)
 [ ] Fix stuttering most likely due to update not being run per frame in flight

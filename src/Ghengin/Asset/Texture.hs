@@ -19,8 +19,10 @@ import Control.Logger.Simple
 import Control.Monad.Reader
 import Codec.Picture
 
+import Foreign.Storable
+
 import qualified Vulkan as Vk
-import Ghengin.Vulkan.Renderer
+import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.Sampler
 import Ghengin.Vulkan.Renderer.Command
 import Ghengin.Vulkan.Renderer.Image
