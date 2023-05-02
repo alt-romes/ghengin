@@ -1,3 +1,8 @@
+[ ] Write some nice comments about how to use linear types with Dupable and Consumable and UrT that makes things Monads, those are really useful. Write a blog post about it even.
+[ ] Make better use of Consumable and Dupable... (linear types cleanup) (e.g. consumeUnits is just a specialisation of consume from Consumable -- change it.)
+[ ] ghengin should not import Ghengin.Vulkan either. It should simply ensure
+    (for now) that ghengin-core is instanced with ghengin-vulkan, but later on we
+    might even delegate that responsibility to the user
 [ ] Much more parallelism... both host and device (GPU)
 [ ] Clean up ghengin-core and ghengin-vulkan (better utils, custom prelude and
     exports in cabal (-XNoImplicitPrelude), linear by default (-XLinearTypes, -XQualifiedDo), block args too)

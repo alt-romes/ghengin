@@ -105,12 +105,15 @@ module Ghengin.Scene.Graph
   , EntityConstraints
   ) where
 
+import Prelude.Linear (Ur(..), ($))
+import Prelude hiding (($))
 import Data.Maybe
 import Geomancy.Mat4
 import Control.Monad.Reader
 import Apecs (Entity, Set, Get, EntityCounter, Storage, Has, Component, Map, set, get, cmapM)
 import Apecs.Core (ExplSet)
-import qualified Apecs
+import Ghengin.Apecs (UnsafeRenderer)
+import qualified Ghengin.Apecs as Apecs
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
 import Ghengin.Core.Render.Packet
@@ -127,46 +130,50 @@ instance Component ModelMatrix where
 -- TODO: Is having Maybe Entity bad for performance and would perhaps be better to simply have a global parent with an identity transform?
 type SceneGraph w = ReaderT (Maybe Entity) (Ghengin w)
 
+-- what if instead of each entity having a parent, we have a global object with
+-- a component called "Parents Matrix", which is a binary matrix representing
+-- the parenting relationship. Would it be more efficient? How would we use it?
+
 newtype Parent = Parent Entity
 
 -- | The integer identifies the instance in which this model matrix was computed
 --
--- It's important that the matrix field is lazy... (not yet i think)
+-- It could be important that the matrix field is lazy... (not yet i think)... if we were to try to cache something
 data ModelMatrix = ModelMatrix Mat4 {-# UNPACK #-} !Int
 
 sceneGraph :: SceneGraph w a -> Ghengin w a
 sceneGraph = flip runReaderT Nothing
 
 type EntityConstraints w c =
-  ( Has (World w) Renderer EntityCounter
-  , Has (World w) Renderer Parent
-  , Has (World w) Renderer ModelMatrix
-  , Has (World w) Renderer c
-  , ExplSet Renderer (Storage c)
+  ( Has (World w) UnsafeRenderer EntityCounter
+  , Has (World w) UnsafeRenderer Parent
+  , Has (World w) UnsafeRenderer ModelMatrix
+  , Has (World w) UnsafeRenderer c
+  , ExplSet UnsafeRenderer (Storage c)
   , Set (World w) (Ghengin w) c, Get (World w) (Ghengin w) EntityCounter
   )
 
 newEntity :: EntityConstraints w c => c -> SceneGraph w Entity
 newEntity c = ask >>= \mparentId -> lift $ do
-  ne <- Apecs.newEntity c
+  Ur ne <- Apecs.newEntity c
   Apecs.set ne (Parent <$> mparentId)
   pure ne
 
 -- | Create an entity with children
 newEntity' :: EntityConstraints w c => c -> SceneGraph w a -> SceneGraph w (Entity, a)
 newEntity' c sub = ask >>= \mparentId -> do
-  ne <- lift $ Apecs.newEntity c
+  Ur ne <- lift $ Apecs.newEntity c
   lift $ Apecs.set ne (Parent <$> mparentId)
   a  <- local (const $ Just ne) sub
   pure (ne, a)
 
 type TraverseConstraints w =
   ( 
-    Has (World w) Renderer Transform
-  , Has (World w) Renderer Camera
-  , Has (World w) Renderer RenderPacket
-  , Has (World w) Renderer Parent
-  , Has (World w) Renderer ModelMatrix
+    Has (World w) UnsafeRenderer Transform
+  , Has (World w) UnsafeRenderer Camera
+  , Has (World w) UnsafeRenderer RenderPacket
+  , Has (World w) UnsafeRenderer Parent
+  , Has (World w) UnsafeRenderer ModelMatrix
   )
 
 {-|

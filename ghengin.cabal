@@ -220,6 +220,7 @@ library
     -- Modules exported by the library.
     exposed-modules:  Ghengin,
 
+                      Ghengin.Apecs,
                       Ghengin.Asset.Texture,
                       Ghengin.Component,
                       Ghengin.Component.Camera,
@@ -272,7 +273,7 @@ library
                       mtl,
                       text >= 2.0.1,
                       containers,
-                      apecs,
+                      linear-apecs,
                       geomancy >= 0.2.4.2,
                       wavefront,
                       time,
