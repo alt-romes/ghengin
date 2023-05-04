@@ -4,6 +4,8 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 {-|
 
 Note [Scene Graph]
@@ -105,21 +107,26 @@ module Ghengin.Scene.Graph
   , EntityConstraints
   ) where
 
-import Prelude.Linear (Ur(..), ($))
-import Prelude hiding (($))
-import Data.Maybe
+import Prelude.Linear
+import qualified Prelude
+import Control.Functor.Linear as Linear hiding (get)
+import qualified Data.Functor.Linear as Data.Linear
+import Data.Maybe.Linear
+
 import Geomancy.Mat4
-import Control.Monad.Reader
-import Apecs (Entity, Set, Get, EntityCounter, Storage, Has, Component, Map, set, get, cmapM)
+
+import Apecs.Linear (Entity, Set, Get, EntityCounter, Storage, Has, Component, Map, set, get, cmapM)
 import Apecs.Core (ExplSet)
-import Ghengin.Apecs (UnsafeRenderer)
-import qualified Ghengin.Apecs as Apecs
-import {-# SOURCE #-} Ghengin.World (World)
+import qualified Apecs.Linear as Apecs
+
+import {-# SOURCE #-} Ghengin.World
 import {-# SOURCE #-} Ghengin (Ghengin)
+
 import Ghengin.Core.Render.Packet
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Component.Transform
 import Ghengin.Component.Camera
+import Ghengin.Component.Orphans
 
 instance Component Parent where
   type Storage Parent = Map Parent
@@ -128,7 +135,7 @@ instance Component ModelMatrix where
   type Storage ModelMatrix = Map ModelMatrix
 
 -- TODO: Is having Maybe Entity bad for performance and would perhaps be better to simply have a global parent with an identity transform?
-type SceneGraph w = ReaderT (Maybe Entity) (Ghengin w)
+type SceneGraph w = ReaderT (Ur (Maybe Entity)) (Ghengin w)
 
 -- what if instead of each entity having a parent, we have a global object with
 -- a component called "Parents Matrix", which is a binary matrix representing
@@ -141,39 +148,40 @@ newtype Parent = Parent Entity
 -- It could be important that the matrix field is lazy... (not yet i think)... if we were to try to cache something
 data ModelMatrix = ModelMatrix Mat4 {-# UNPACK #-} !Int
 
-sceneGraph :: SceneGraph w a -> Ghengin w a
-sceneGraph = flip runReaderT Nothing
+sceneGraph :: SceneGraph w a ⊸ Ghengin w a
+sceneGraph = flip runReaderT (Ur Nothing)
 
 type EntityConstraints w c =
-  ( Has (World w) UnsafeRenderer EntityCounter
-  , Has (World w) UnsafeRenderer Parent
-  , Has (World w) UnsafeRenderer ModelMatrix
-  , Has (World w) UnsafeRenderer c
-  , ExplSet UnsafeRenderer (Storage c)
+  ( Has (World w) Renderer EntityCounter
+  , Has (World w) Renderer Parent
+  , Has (World w) Renderer ModelMatrix
+  , Has (World w) Renderer c
+  , ExplSet Renderer (Storage c)
   , Set (World w) (Ghengin w) c, Get (World w) (Ghengin w) EntityCounter
+  , Dupable w
   )
 
-newEntity :: EntityConstraints w c => c -> SceneGraph w Entity
-newEntity c = ask >>= \mparentId -> lift $ do
-  Ur ne <- Apecs.newEntity c
-  Apecs.set ne (Parent <$> mparentId)
-  pure ne
+newEntity :: EntityConstraints w c => c -> SceneGraph w (Ur Entity)
+newEntity c = ask >>= \(Ur mparentId) -> lift $ Linear.do
+      Ur ne <- Apecs.newEntity c
+      Apecs.set ne (Parent Data.Linear.<$> mparentId)
+      pure (Ur ne)
 
 -- | Create an entity with children
-newEntity' :: EntityConstraints w c => c -> SceneGraph w a -> SceneGraph w (Entity, a)
-newEntity' c sub = ask >>= \mparentId -> do
-  Ur ne <- lift $ Apecs.newEntity c
-  lift $ Apecs.set ne (Parent <$> mparentId)
-  a  <- local (const $ Just ne) sub
-  pure (ne, a)
+newEntity' :: EntityConstraints w c => c -> SceneGraph w a -> SceneGraph w (Ur Entity, a)
+newEntity' c sub = ask >>= \(Ur mparentId) -> Linear.do
+    Ur ne <- lift $ Apecs.newEntity c
+    lift $ Apecs.set ne (Parent Data.Linear.<$> mparentId)
+    a  <- local (\(Ur _) -> Ur $ Just ne) sub
+    pure (Ur ne, a)
 
 type TraverseConstraints w =
   ( 
-    Has (World w) UnsafeRenderer Transform
-  , Has (World w) UnsafeRenderer Camera
-  , Has (World w) UnsafeRenderer RenderPacket
-  , Has (World w) UnsafeRenderer Parent
-  , Has (World w) UnsafeRenderer ModelMatrix
+    Has (World w) Renderer Transform
+  , Has (World w) Renderer Camera
+  , Has (World w) Renderer Parent
+  , Has (World w) Renderer ModelMatrix
+  , Dupable w
   )
 
 {-|
@@ -219,14 +227,14 @@ traverseSceneGraph :: TraverseConstraints w
                    => Int -- ^ The frame instance
                    -> (RenderPacket -> ModelMatrix -> Ghengin w ()) -- ^ A function on renderable entities (by their components)
                    -> Ghengin w ()
-traverseSceneGraph inst f = do
+traverseSceneGraph inst f = Linear.do
 
-  cmapM \(p :: RenderPacket, e :: Entity) -> do
-    mmm <- computeModelMatrix inst e
-    f p (fromMaybe (ModelMatrix identity 0) mmm)
+  cmapM \(p :: RenderPacket, e :: Entity) -> Linear.do
+    Ur mmm <- computeModelMatrix inst e
+    move <$> f p (fromMaybe (ModelMatrix identity 0) mmm)
 
   -- We also want to compute the model matrix of the camera
-  cmapM \(_ :: Camera, e :: Entity) -> do
+  cmapM \(_ :: Camera, e :: Entity) -> Linear.do
     computeModelMatrix inst e
 
 
@@ -235,57 +243,57 @@ computeModelMatrix :: ∀ w
                     . TraverseConstraints w
                    => Int -- ^ The frame instance
                    -> Entity
-                   -> Ghengin w (Maybe ModelMatrix)
-computeModelMatrix i e = do
+                   -> Ghengin w (Ur (Maybe ModelMatrix))
+computeModelMatrix i e =
   get @(World w) @_ @(Maybe ModelMatrix, Maybe Transform, Maybe Parent) e >>= \case
-    (Nothing, Nothing, Nothing) -> pure Nothing -- We don't have neither transform nor parent.
-    (Just _, Nothing, Nothing)  -> error "We have neither transform nor parent, how can we have a model matrix?"
-    (Nothing, Just tr, Nothing) -> do
+    Ur (Nothing, Nothing, Nothing) -> pure (Ur Nothing) -- We don't have neither transform nor parent.
+    Ur (Just _, Nothing, Nothing)  -> error "We have neither transform nor parent, how can we have a model matrix?"
+    Ur (Nothing, Just tr, Nothing) -> Linear.do
       -- Our model matrix is our transform matrix because we don't have a parent.
       let mm = ModelMatrix (makeTransform tr) i
       set e mm
-      pure (Just mm)
-    (jmm@(Just (ModelMatrix _ inst)), Just tr, Nothing) -> do
+      pure $ Ur (Just mm)
+    Ur (jmm@(Just (ModelMatrix _ inst)), Just tr, Nothing) ->
       -- Our model matrix must be updated according to our transform if it is outdated
       if inst == i
-         then pure jmm
-         else do
+         then pure $ Ur jmm
+         else Linear.do
            let mm = ModelMatrix (makeTransform tr) i
            set e mm
-           pure (Just mm)
-    (Nothing, Nothing, Just (Parent p)) -> do
+           pure $ Ur (Just mm)
+    Ur (Nothing, Nothing, Just (Parent p)) -> Linear.do
       -- Our model matrix is our parent's
-      mm <- computeModelMatrix i p
+      Ur mm <- computeModelMatrix i p
       set e mm
-      pure mm
-    (jmm@(Just (ModelMatrix _ inst)), Nothing, Just (Parent p)) -> do
+      pure $ Ur mm
+    Ur (jmm@(Just (ModelMatrix _ inst)), Nothing, Just (Parent p)) ->
       -- Our model matrix is our parent's and must be updated if outdated
       if inst == i
-         then pure jmm
-         else do
-           mm <- computeModelMatrix i p
+         then pure $ Ur jmm
+         else Linear.do
+           Ur mm <- computeModelMatrix i p
            set e mm
-           pure mm
-    (Nothing, Just tr, Just (Parent p)) -> do
+           pure $ Ur mm
+    Ur (Nothing, Just tr, Just (Parent p)) -> Linear.do
       -- Our model matrix is our transform times our parent's (MODEL = TRANSFORM X PARENT_MODEL)
-      mm <- computeModelMatrix i p >>= \case
-        Nothing -> do
-          pure (Just $ ModelMatrix (makeTransform tr) i)
-        Just (ModelMatrix pmm _) -> do -- the parent's model matrix is necessarily up to date given it was just recursively computed
-          pure (Just $ ModelMatrix (makeTransform tr <> pmm) i)
+      Ur mm <- computeModelMatrix i p >>= \case
+        Ur Nothing ->
+          pure $ Ur $ Just $ ModelMatrix (makeTransform tr) i
+        Ur (Just (ModelMatrix pmm _)) -> -- the parent's model matrix is necessarily up to date given it was just recursively computed
+          pure $ Ur $ Just $ ModelMatrix (makeTransform tr Prelude.<> pmm) i
       set e mm
-      pure mm
-    (jmm@(Just (ModelMatrix _ inst)), Just tr, Just (Parent p)) -> do
+      pure $ Ur mm
+    Ur (jmm@(Just (ModelMatrix _ inst)), Just tr, Just (Parent p)) -> Linear.do
       -- Our model matrix is our transform times our parent's (MODEL = TRANSFORM X PARENT_MODEL) if not outdated
       if inst == i
-         then pure jmm
-         else do
-           mm <- computeModelMatrix i p >>= \case
-             Nothing -> do
-               pure (Just $ ModelMatrix (makeTransform tr) i)
-             Just (ModelMatrix pmm _) -> do
-               pure (Just $ ModelMatrix (makeTransform tr <> pmm) i)
+         then pure $ Ur jmm
+         else Linear.do
+           Ur mm <- computeModelMatrix i p >>= \case
+             Ur Nothing ->
+               pure $ Ur $ Just $ ModelMatrix (makeTransform tr) i
+             Ur (Just (ModelMatrix pmm _)) ->
+               pure $ Ur $ Just $ ModelMatrix (makeTransform tr Prelude.<> pmm) i
            set e mm
-           pure mm
+           pure $ Ur mm
 
 

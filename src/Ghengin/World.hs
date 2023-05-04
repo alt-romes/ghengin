@@ -2,7 +2,7 @@
 module Ghengin.World where
 
 import Control.Monad.Reader
-import Apecs
+import Apecs.Linear
 import Ghengin.Core.Render.Packet (RenderPacket)
 import Ghengin.Core.Render.Pipeline (SomePipeline)
 import Ghengin.Core.Material (SomeMaterial)
@@ -11,6 +11,8 @@ import Ghengin.Component.Transform.Animation (TransformAnimation)
 import Ghengin.Component.Camera (Camera)
 import Ghengin.Component.UI (UIWindow)
 import Ghengin.Scene.Graph (ModelMatrix, Parent)
+
+import qualified Unsafe.Linear as Unsafe
 
 data World w =
   World { renderPackets :: !(Storage RenderPacket)
@@ -24,6 +26,16 @@ data World w =
         , entityCounter :: !(Storage EntityCounter)
         , world         :: !w
         }
+
+instance Consumable w => Consumable (World w) where
+  consume = Unsafe.toLinear $ \_ -> ()
+    -- ROMES:TODO: Get back to this. If everything is reference counted then
+    -- this will be true...
+    -- Must instance Dupable (RefCounted X) and Dupable for all Stores in
+    -- linear-apecs
+
+instance Dupable w => Dupable (World w) where
+  dup2 = Unsafe.toLinear $ \w -> (w,w)
 
 
 -- TODO: Can I move these out so that there are no cyclic dependencies yet we
@@ -66,5 +78,4 @@ instance (Monad m, Has w m (TransformAnimation w)) => Has (World w) m (Transform
 --   getStore = SystemT $ do
 --     w <- asks (.world)
 --     withReaderT (const w) $ unSystem getStore
-
 

@@ -127,11 +127,6 @@ described in bytes.
 
  -}
 
--- BIG:TODO: Cache around this Map storage
--- TODO: INSTANCE OuTSIDE OF CORE
--- instance Component RenderPacket where
---   type Storage RenderPacket = Map RenderPacket
-
 -- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 

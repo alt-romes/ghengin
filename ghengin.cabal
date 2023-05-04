@@ -98,6 +98,8 @@ library ghengin-core
 
     exposed-modules:  Ghengin.Core.Material,
                       Ghengin.Core.Mesh,
+
+                      -- Moved to ghengin-core-indep until #23322 is fixed
                       -- Ghengin.Core.Mesh.Vertex,
 
                       -- Ghengin.Core.Type.Compatible,
@@ -220,9 +222,8 @@ library
     -- Modules exported by the library.
     exposed-modules:  Ghengin,
 
-                      Ghengin.Apecs,
                       Ghengin.Asset.Texture,
-                      Ghengin.Component,
+
                       Ghengin.Component.Camera,
                       Ghengin.Component.Mesh.Cube,
                       Ghengin.Component.Mesh.Hex,
@@ -231,19 +232,26 @@ library
                       Ghengin.Component.Transform,
                       Ghengin.Component.Transform.Animation,
                       Ghengin.Component.UI,
+                      Ghengin.Component.Orphans,
+
                       Ghengin.DearImGui,
                       Ghengin.DearImGui.Gradient,
+
                       Ghengin.Input,
+
                       Ghengin.Render,
                       Ghengin.Render.Queue,
+
                       Ghengin.Scene,
                       Ghengin.Scene.Graph,
+
                       Ghengin.Shader,
                       Ghengin.Shader.FIR,
                       Ghengin.Shader.Syntactic,
                       Ghengin.Shader.Utils,
                       Ghengin.Shader.Fixed,
                       Ghengin.Shader.Lighting,
+
                       Ghengin.Utils,
                       Ghengin.World,
 

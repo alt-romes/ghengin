@@ -5,7 +5,7 @@ module Ghengin.Component.Transform.Animation where
 
 import Data.Typeable
 
-import Ghengin.Component
+import Apecs.Linear
 import Ghengin.Component.Transform
 
 import Geomancy.Vec3

@@ -35,9 +35,8 @@ module Ghengin.Vulkan.Renderer.Command
   , pushConstants
   , draw
   , drawIndexed
-  -- ROMES:TODO
-  -- , withCmdBuffer
-  -- , makeRenderPassCmd
+  , withCmdBuffer
+  , makeRenderPassCmd
 
   , createCommandPool
   , destroyCommandPool
@@ -245,12 +244,15 @@ bindGraphicsDescriptorSet pipelay ix dset =
 -- | Lift a function that uses a command buffer to a Command
 -- Get back to this: not trivial with linearity. Probably unsafe will have to be called outside
 -- Or this function will be called unsafeWithCmdBuffer
--- withCmdBuffer :: Linear.MonadIO m => (Vk.CommandBuffer -> m ()) -> Command m
--- withCmdBuffer f = Command $ ask >>= lift . f
+--
+-- This is an unsafe function because the command buffer can be used
+-- unrestrictedly! Make sure you don't free it.
+withCmdBuffer :: Linear.MonadIO m => (Vk.CommandBuffer -> m ()) -> Command m
+withCmdBuffer f = Command $ ReaderT f
 
 -- As above
--- makeRenderPassCmd :: Linear.MonadIO m => (Vk.CommandBuffer -> m ()) -> RenderPassCmd m
--- makeRenderPassCmd f = RenderPassCmd $ ask >>= lift . f
+makeRenderPassCmd :: Linear.MonadIO m => (Vk.CommandBuffer -> m ()) -> RenderPassCmd m
+makeRenderPassCmd f = RenderPassCmd $ ReaderT f
 
 
 -- :| Creation and Destruction |:

@@ -1,3 +1,12 @@
+[ ] Get rid of StateVar ?
+[ ] The World should really be an heterogenous list such that we can add and remove compontents at will, meaning the list of components we're using is more modular (we can add the transform animation components storage only if we're using animation). Though we can still have some built in ones.
+[ ] We could have an unrestricted Ghengin monad simply by wrapping the linear
+    bits with UrT!... Perhaps as an alternative instanciation of Ghengin? So
+    we'd have linear-ghengin and just ghengin, but the core of both,
+    ghengin-core, is always linear and resources there are carefully threaded
+    through, so implementation wise resources are not forgotten. In games, we
+    can relax what we enforce in the types regarding resources, or keep them
+    still
 [ ] Write some nice comments about how to use linear types with Dupable and Consumable and UrT that makes things Monads, those are really useful. Write a blog post about it even.
 [ ] Make better use of Consumable and Dupable... (linear types cleanup) (e.g. consumeUnits is just a specialisation of consume from Consumable -- change it.)
 [ ] ghengin should not import Ghengin.Vulkan either. It should simply ensure

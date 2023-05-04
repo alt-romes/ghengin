@@ -4,6 +4,8 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 module Ghengin.DearImGui
   ( module Ghengin.DearImGui
   , IM.vulkanNewFrame
@@ -13,8 +15,14 @@ module Ghengin.DearImGui
 
 -- #define IMGUI_DEBUG
 
+import qualified Prelude
+import Prelude.Linear
+import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
+import qualified Unsafe.Linear as Unsafe
+
 import Foreign
-import Control.Monad.Reader
+import qualified Control.Monad as Base
 
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
@@ -24,11 +32,11 @@ import qualified DearImGui.Vulkan as IM
 import qualified DearImGui.GLFW   as IM
 import qualified DearImGui.GLFW.Vulkan as IM
 
-import Ghengin.Vulkan.Command
-import Ghengin.Vulkan.GLFW.Window
-import Ghengin.Vulkan.SwapChain
-import Ghengin.Vulkan.Device
-import Ghengin.Vulkan
+import Ghengin.Vulkan.Renderer.Command
+import Ghengin.Vulkan.Renderer.GLFW.Window
+import Ghengin.Vulkan.Renderer.SwapChain
+import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Kernel
 import {-# SOURCE #-} Ghengin (Ghengin)
 
 import Ghengin.Component.UI
@@ -36,8 +44,8 @@ import Ghengin.Component.UI
 data ImCtx = IMCtx Vk.DescriptorPool IM.Context (FunPtr (Vk.Result -> IO ()), Bool)
 
 -- | Init ImGui (for some renderpass?)
-initImGui :: Vk.RenderPass -> Renderer ImCtx
-initImGui renderPass' = do
+initImGui :: Vk.RenderPass ⊸ Renderer (ImCtx, Vk.RenderPass)
+initImGui = Unsafe.toLinear $ \renderPass' -> Linear.do
   -- Quite big descriptors but is taken from example
   let poolSizes = [ Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_SAMPLER 1000
                   , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER 1000
@@ -59,15 +67,14 @@ initImGui renderPass' = do
                                              }
 
   -- Create descriptor pool
-  device <- getDevice
-  imGuiDPool <- Vk.createDescriptorPool device poolInfo Nothing
+  imGuiDPool <- unsafeUseDevice (\device -> Vk.createDescriptorPool device poolInfo Nothing)
 
   -- Setup imgui context
-  imCtx <- IM.createContext
+  imCtx <- liftSystemIO IM.createContext
 
   -- Setup platform/renderer backends (glfw+vulkan)
-  renv <- ask
-  _booj <- IM.glfwInitForVulkan renv._vulkanWindow._window True
+  Ur renv <- renderer $ Unsafe.toLinear $ \renv -> (Ur renv, renv)
+  Ur _booj <- liftSystemIOU $ IM.glfwInitForVulkan renv._vulkanWindow._window True
   let initInfo = IM.InitInfo { instance' = renv._instance
                              , physicalDevice = renv._vulkanDevice._physicalDevice
                              , device = renv._vulkanDevice._device
@@ -80,23 +87,22 @@ initImGui renderPass' = do
                              , imageCount = fromIntegral $ length renv._vulkanSwapChain._imageViews
                              , msaaSamples = Vk.SAMPLE_COUNT_1_BIT
                              , mbAllocator = Nothing
-                             , checkResult = \x -> when (x /= Vk.SUCCESS) (fail $ show x)
+                             , checkResult = \x -> Base.when (x /= Vk.SUCCESS) (Base.fail $ show x)
                              }
   
-  initRes <- IM.vulkanInit initInfo renderPass'
+  initRes <- liftSystemIO $ IM.vulkanInit initInfo renderPass'
 
-  immediateSubmit $ withCmdBuffer ((() <$) . IM.vulkanCreateFontsTexture)
+  immediateSubmit $ withCmdBuffer ((() <$) . consume . liftSystemIOU . IM.vulkanCreateFontsTexture)
 
   IM.vulkanDestroyFontUploadObjects
 
-  pure (IMCtx imGuiDPool imCtx initRes)
+  pure (IMCtx imGuiDPool imCtx initRes, renderPass')
 
-destroyImCtx :: ImCtx -> Renderer ()
-destroyImCtx (IMCtx pool imCtx initRes) = do
+destroyImCtx :: ImCtx ⊸ Renderer ()
+destroyImCtx = Unsafe.toLinear $ \(IMCtx pool imCtx initRes) -> Linear.do
   IM.vulkanShutdown initRes
   IM.destroyContext imCtx
-  device <- getDevice
-  Vk.destroyDescriptorPool device pool Nothing
+  unsafeUseDevice (\device -> Vk.destroyDescriptorPool device pool Nothing)
 
 
 renderDrawData :: MonadIO m => IM.DrawData -> RenderPassCmd m

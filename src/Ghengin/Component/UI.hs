@@ -5,69 +5,79 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE QualifiedDo #-}
+{-# LANGUAGE LinearTypes #-}
 module Ghengin.Component.UI where
 
+import Prelude.Linear hiding (IO)
+import qualified Prelude
 import Data.Kind
-import Control.Monad
-import Control.Monad.IO.Class
+import qualified Control.Monad as Base
+import Control.Functor.Linear as Linear hiding (get)
+import Control.Monad.IO.Class.Linear
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.IORef
+import Data.IORef (IORef)
+import System.IO.Linear
 import Data.StateVar
 import Data.Text (Text, pack)
 import Geomancy.Vec3
-import Apecs (Component(..), Map, Storage(..), Entity)
+import Apecs.Linear (Component(..), Map, Storage(..), Entity)
 import Unsafe.Coerce
 import Ghengin.Scene.Graph
 import {-# SOURCE #-} Ghengin (Ghengin)
 
+
 import qualified DearImGui as IM
+
 
 data UIWindow w = forall a. UIWindow Text (Ghengin w a)
 
 -- TODO: UI in the Scene Graph?
 newEntityUI :: EntityConstraints w (UIWindow w)
-            => Text -> Ghengin w a -> SceneGraph w Entity
+            => Text -> Ghengin w a -> SceneGraph w (Ur Entity)
 newEntityUI text act = newEntity (UIWindow text act)
 
 type UI w = Ghengin w Bool
 
-data IOSelectRef a = IOSelectRef (IORef a) (IORef Int)
+data IOSelectRef a = IOSelectRef (Ur (IORef a)) (Ur (IORef Int))
 newIOSelectRef :: MonadIO m => a -> m (IOSelectRef a)
-newIOSelectRef x = IOSelectRef <$> liftIO (newIORef x) <*> liftIO (newIORef 0)
+newIOSelectRef x = liftIO $ IOSelectRef <$> newIORef x <*> newIORef 0
 
-readIOSelectRef :: MonadIO m => IOSelectRef a -> m a
-readIOSelectRef (IOSelectRef r _) = liftIO $ readIORef r
+readIOSelectRef :: MonadIO m => IOSelectRef a -> m (Ur a)
+readIOSelectRef (IOSelectRef (Ur r) _) = liftIO $ readIORef r
 
-instance HasGetter (IOSelectRef a) a where
-  get = liftIO . readIOSelectRef
+-- instance HasGetter (IOSelectRef a) a where
+--   get x = Linear.do
+--     Ur y <- liftIO $ readIOSelectRef x
+--     pure y
 
 -- The component should also define how to update the scene
 
 
-colorPicker :: Text -> IORef Vec3 -> UI w
-colorPicker t ref = IM.colorPicker3 t (unsafeCoerce ref :: IORef IM.ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
+colorPicker :: Dupable w => Text -> IORef Vec3 -> UI w
+colorPicker t ref = liftSystemIO $ IM.colorPicker3 t (unsafeCoerce ref :: IORef IM.ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
 
-sliderFloat :: Text -> IORef Float -> Float -> Float -> UI w
-sliderFloat = IM.sliderFloat
+sliderFloat :: Dupable w => Text -> IORef Float -> Float -> Float -> UI w
+sliderFloat a b c d = liftSystemIO $ IM.sliderFloat a b c d
 
-sliderInt :: Text -> IORef Int -> Int -> Int -> UI w
-sliderInt = IM.sliderInt
+sliderInt :: Dupable w => Text -> IORef Int -> Int -> Int -> UI w
+sliderInt a b c d = liftSystemIO $ IM.sliderInt a b c d
 
-sliderVec3 :: Text -> IORef Vec3 -> Float -> Float -> UI w
-sliderVec3 t ref f1 f2 = do
-  v <- get ref
-  withVec3 v $ \x y z -> do
-    tmpR <- liftIO $ newIORef (x,y,z)
-    b <- IM.sliderFloat3 t tmpR f1 f2
-    (x',y',z') <- get tmpR
-    ref $= vec3 x' y' z'
+sliderVec3 :: Dupable w => Text -> IORef Vec3 -> Float -> Float -> UI w
+sliderVec3 t ref f1 f2 = liftIO $ Linear.do
+  Ur v <- readIORef ref
+  withVec3 v $ \x y z -> Linear.do
+    Ur tmpR <- newIORef (x,y,z)
+    Ur b <- liftSystemIOU $ IM.sliderFloat3 t tmpR f1 f2
+    Ur (x',y',z') <- readIORef tmpR
+    writeIORef ref (vec3 x' y' z')
     pure b
 
-dragFloat :: Text -> IORef Float -> Float -> Float -> UI w
-dragFloat t ref f1 f2 = IM.dragFloat t ref 0.05 f1 f2
+dragFloat :: Dupable w => Text -> IORef Float -> Float -> Float -> UI w
+dragFloat t ref f1 f2 = liftSystemIO $ IM.dragFloat t ref 0.05 f1 f2
 
-checkBox :: Text -> IORef Bool -> UI w
-checkBox = IM.checkbox
+checkBox :: Dupable w => Text -> IORef Bool -> UI w
+checkBox a b = liftSystemIO $ IM.checkbox a b
 
     -- get ref >>= \case
     --   WithVec3 x y z -> do
@@ -77,42 +87,42 @@ checkBox = IM.checkbox
     --     ref $= vec3 x' y' z'
     --     pure b
 
-withTree :: Text -> Ghengin w a -> Ghengin w ()
-withTree t act = do
-  b <- IM.treeNode t
-  if b then do
-    _ <- act
-    IM.treePop
+withTree :: Dupable w => Text -> Ghengin w () -> Ghengin w ()
+withTree t act = Linear.do
+  Ur b <- liftSystemIOU $ IM.treeNode t
+  if b then Linear.do
+    act
+    liftSystemIO IM.treePop
     pure ()
   else
     pure ()
 
-button :: Text -> UI w
-button = IM.button
+button :: Dupable w => Text -> UI w
+button x = liftSystemIO $ IM.button x
 
-withCombo :: Show a
+withCombo :: (Show a, Dupable w)
           => Text      -- ^ Combo label
           -> IOSelectRef a   -- ^ Reference to current item
           -> NonEmpty a -- ^ List of possible items
           -> UI w
-withCombo t (IOSelectRef ref currIx) (opt:|opts) = do
+withCombo t (IOSelectRef (Ur ref) (Ur currIx)) (opt:|opts) = Linear.do
 
-  currSelected <- get currIx
+  Ur currSelected <- liftIO $ readIORef currIx
 
-  b <- IM.beginCombo t (pack . show $ (opt:opts) !! currSelected)
-  if b then do
+  Ur b <- liftSystemIOU $ IM.beginCombo t (pack $ show $ (opt:opts) Prelude.!! currSelected)
+  if b then liftSystemIO $ do
 
-    bs <- forM (zip (opt:opts) [0..]) $ \(o, n) -> do
+    bs <- Base.forM (Prelude.zip (opt:opts) [0..]) $ \(o, n) -> do
             currIx' <- get currIx
             let is_selected = currIx' == n
             b' <- IM.selectableWith (IM.defSelectableOptions{IM.selected=is_selected}) (pack $ show o)
-            when b' $ currIx $= n
+            Base.when b' $ currIx $= n
             -- when is_selected (IM.setItemDefaultFocus)
-            pure b'
+            Prelude.pure b'
     currIx' <- get currIx
-    ref $= ((opt:opts) !! currIx')
+    ref $= ((opt:opts) Prelude.!! currIx')
     IM.endCombo
-    pure $ or bs
+    Prelude.pure $ or bs
 
   else
     pure False

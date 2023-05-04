@@ -20,7 +20,7 @@ import Control.Monad.IO.Class.Linear
 import Geomancy hiding (Transform)
 import Geomancy.Mat4
 import qualified Vulkan as Vk
-import Apecs
+import Apecs.Linear
 
 import qualified Unsafe.Linear as Unsafe
 

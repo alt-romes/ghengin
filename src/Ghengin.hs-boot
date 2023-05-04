@@ -1,7 +1,7 @@
 {-# LANGUAGE DataKinds #-}
 module Ghengin where
 
-import Apecs
+import Apecs.Linear
 import Ghengin.Core.Renderer.Kernel
 import {-# SOURCE #-} Ghengin.World (World)
 

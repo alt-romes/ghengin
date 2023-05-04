@@ -13,7 +13,7 @@
 {-# LANGUAGE QualifiedDo #-}
 module Ghengin.Component.Camera where
 
-import Apecs
+import Apecs.Linear
 import Data.Word (Word32)
 
 import Prelude.Linear (Ur(..), ($))
