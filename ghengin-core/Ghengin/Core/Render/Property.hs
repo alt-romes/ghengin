@@ -19,49 +19,58 @@ module Ghengin.Core.Render.Property
 import Data.Proxy
 
 import qualified Prelude
-import Prelude.Linear
+import Prelude.Linear hiding (IO)
+import System.IO.Linear as Linear
 import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
+import Data.Unrestricted.Linear
 -- TODO: Some special linear lenses to use propertyAt ... import Control.Lens ((^.), Lens', lens)
 -- ROMES:TODO: For the lens to be used as a getter, I think we will need this definition of functor rather than the control one.
-import GHC.TypeLits ( KnownNat, type (+), Nat, natVal )
+import GHC.TypeLits ( KnownNat, type (+), Nat )
 import Data.Kind ( Type, Constraint )
 
 import qualified Data.IntMap as IM
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 import qualified Unsafe.Linear
+import System.IO.Unsafe (unsafePerformIO)
+import Control.Exception (assert)
 
 import Foreign.Storable (Storable(sizeOf))
 
 import qualified Data.Counted as Counted
 
+import Ghengin.Core.Type.Utils (nat)
+import Ghengin.Core.Renderer.Texture
 import Ghengin.Core.Renderer
 
+-- ROMES: Can we avoid the Eq instance here? Depends on what we need the property binding eq instance for...
 data PropertyBinding α where
 
-  DynamicBinding :: ∀ α. (Storable α) -- Storable to write the buffers
-                 => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
+  DynamicBinding :: ∀ α. (Eq α, Storable α, Movable α) -- Storable to write the buffers
+                 => α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
                  -> PropertyBinding α
 
-  StaticBinding :: ∀ α. (Storable α) -- Storable to write the buffers
-                => α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
+  StaticBinding :: ∀ α. (Eq α, Storable α, Movable α) -- Storable to write the buffers
+                => α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
                 -> PropertyBinding α
 
-  -- ROMES:TODO: I think the texture needs to be linear and reference counted
-  -- ROMES:TODO:!!: Re-add textures!!! Texture2DBinding :: Texture2D -> PropertyBinding Texture2D
+  Texture2DBinding :: RefC Texture2D ⊸ PropertyBinding (RefC Texture2D)
 
-
-instance Eq α => Eq (PropertyBinding α) where
+instance Prelude.Eq α => Prelude.Eq (PropertyBinding (Ur α)) where
   (==) (DynamicBinding x) (DynamicBinding y) = x == y
   (==) (StaticBinding x)  (StaticBinding y)  = x == y
-  -- ROMES:TODO: (==) (Texture2DBinding x) (Texture2DBinding y) = x == y
-  (==) x y = Unsafe.Linear.toLinear2 (\_ _ -> False) x y
+  (==) x y = False
+
+instance Prelude.Eq (PropertyBinding Texture2D) where
+  (==) (Texture2DBinding x) (Texture2DBinding y) = False -- ROMES:TODO: Not False... what's this instance for again?
+  (==) x y = False
 
 type PropertyBindings α = GHList PropertyBinding α
 
 -- | Generic HList
 data GHList c xs where
     GHNil :: GHList c '[]
-    (:##) :: c a -> GHList c as -> GHList c (a ': as)
+    (:##) :: c a ⊸ GHList c as ⊸ GHList c (a ': as)
 infixr 6 :##
 
 {-
@@ -104,16 +113,20 @@ TODO: Mesh bindings at dset #2
 -- Additionally, update the reference counts of resources that are reference
 -- counted:
 --  * Texture2D
-makeResources :: ∀ α. PropertyBindings α ⊸ Renderer ResourceMap
-makeResources = foldM (\acc (i,x) -> go acc i x) IM.empty . Unsafe.Linear.toLinear2 Prelude.zip [0..] . Unsafe.Linear.coerce -- See Note [Coerce HList to List]
+makeResources :: ∀ α. PropertyBindings α ⊸ Renderer (ResourceMap, PropertyBindings α)
+makeResources =
+  foldMX (\(resources, pbinds) (i,x) ->
+            go x >>= \case (dres, pbind) -> pure (linInsert i dres resources, pbind :## pbinds)
+         )
+         (IM.empty, GHNil)
   where
-    go :: ∀ β. ResourceMap ⊸ Int ⊸ PropertyBinding β ⊸ Renderer ResourceMap
-    go resources i' pb = case pb of
+    go :: ∀ β. PropertyBinding β ⊸ Renderer (DescriptorResource, PropertyBinding β)
+    go pb = case pb of
       DynamicBinding x -> Linear.do
 
         -- Allocate the associated buffers
         mb <- createMappedBuffer (fromIntegral $ sizeOf x) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
-        pure $ linInsert i' (UniformResource mb) resources
+        pure (UniformResource mb, DynamicBinding x)
 
       StaticBinding x -> Linear.do
 
@@ -125,26 +138,30 @@ makeResources = foldM (\acc (i,x) -> go acc i x) IM.empty . Unsafe.Linear.toLine
 
         -- TODO: instead -> createDeviceLocalBuffer Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT x
 
-        pure $ linInsert i' (UniformResource mb') resources
+        pure (UniformResource mb', StaticBinding x)
         
-      -- ROMES:TODO:!!! TEXTURES!!
-      -- Texture2DBinding t -> Linear.do
+      Texture2DBinding t -> Linear.do
 
-      --   -- TODO: Use the linear reference counting library
-      --   Unsafe.Linear.toLinear incRefCount t
+        (t1, t2) <- Counted.share t
 
-      --   -- Image has already been allocated when the texture was created, we
-      --   -- simply pass add it to the resource map
-      --   pure $ linInsert i' (Texture2DResource t) resources
+        -- Image has already been allocated when the texture was created, we
+        -- simply share it to the resource map
+        pure (Texture2DResource t1, Texture2DBinding t2)
 
-    linInsert :: Int ⊸ a ⊸ IM.IntMap a ⊸ IM.IntMap a
-    linInsert = Unsafe.Linear.toLinear3 IM.insert
+    -- Special foldM for the needs of this function, adds indexes, handles type level lists, etc...
+    -- Big ouch, I know its correct but don't feel like proving it... let's get the engine back up first at least
+    foldMX :: ∀ b a x xs ys
+            . ((b,PropertyBindings xs) ⊸ (Int, PropertyBinding x) ⊸ Renderer (b,PropertyBindings (x:xs)))
+            ⊸ (b,PropertyBindings '[]) ⊸ PropertyBindings ys ⊸ Renderer (b,PropertyBindings ys)
+    foldMX f b as = Unsafe.Linear.coerce (foldM @Renderer) f b
+                           -- See Note [Coerce HList to List]
+                           (Unsafe.Linear.toLinear2 Prelude.zip [0..] (Unsafe.Linear.coerce as))
 
 -- | Write a property binding value to a mapped buffer.  Eventually we might
 -- want to associate the binding set and binding #number and get them directly
 -- from the mapped buffers
 --
--- (1) For each binding
+--  For each binding
 --    (1.1) If it's dynamic, write the buffer
 --    (1.2) If it's static, do nothing because the buffer is already written
 --    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
@@ -156,13 +173,11 @@ writeProperty buf = \case
     -- Already has been written to, we simply bind it together with the rest of
     -- the set at draw time and do nothing here.
     pure buf
-  -- ROMES:TODO:TEXTURES
-  -- Texture2DBinding  _ ->
+  Texture2DBinding  _ ->
   --   -- As above. Static bindings don't get written every frame.
-  --   pure buf
+    pure buf
   DynamicBinding (a :: α) ->
     -- Dynamic bindings are written every frame
-    -- writeMappedBuffer @α buf a
     writeMappedBuffer buf a
 {-# INLINE writeProperty #-}
 
@@ -176,9 +191,9 @@ writeProperty buf = \case
 -- Consider as an alternative to HasProperties a list-like type of properties
 -- with an χ parameter for the extra information at the list's end.
 class HasProperties φ where
-  properties    :: φ α ⊸ (Ur (PropertyBindings α), φ α)
+  properties    :: φ α ⊸ (PropertyBindings α, φ α)
   descriptors   :: φ α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, φ α)
-  puncons       :: φ (α:β) ⊸ (Ur (PropertyBinding α), φ β) -- ROMES:TODO: This is not gonna be Ur when we re-add textures
+  puncons       :: φ (α:β) ⊸ (PropertyBinding α, φ β) -- ROMES:TODO: This is not gonna be Ur when we re-add textures
   pcons         :: PropertyBinding α %p -> φ β ⊸ φ (α:β)
 
 -- | If we know that a type (φ α) has property of type (β) at binding (#n), we
@@ -259,7 +274,8 @@ class HasProperties φ => HasPropertyAt n β φ α where
   -- This is almost like a lens, but while the we use the linear control
   -- functor rather than the data one, we won't be able to use this lens as a
   -- getter
-  propertyAt :: ∀ γ ρ χ. Linear.Functor γ => (β %ρ -> γ (Renderer (Ur β))) %χ -> (φ α ⊸ γ (Renderer (φ α)))
+  -- ROMES:TODO: I suppose I no longer can have %p here instead of %1? Try thinking about it again...
+  propertyAt :: ∀ γ ρ χ. Linear.Functor γ => (β %1 -> γ (Renderer β)) %χ -> (φ α ⊸ γ (Renderer (φ α)))
 
 instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β φ α where
   propertyAt = propertyAt' @n @0 @φ @α @β
@@ -269,7 +285,7 @@ instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β �
 -- There is a default implementation for 'HasPropertyAt' and instances are only
 -- required for the 'HasProperties' class
 class HasPropertyAt' n m φ α β where
-  propertyAt' :: Linear.Functor f => (β %p -> f (Renderer (Ur β))) %x -> (φ α ⊸ f (Renderer (φ α)))
+  propertyAt' :: Linear.Functor f => (β %1 -> f (Renderer β)) %x -> (φ α ⊸ f (Renderer (φ α)))
 
 -- TODO: Instance with type error for "No available property with type X at position N"
 
@@ -281,18 +297,20 @@ instance {-# OVERLAPPING #-}
   ) => HasPropertyAt' n n φ (β:αs) β where
 
   -- propertyAt' :: MonadRenderer μ => Lens (φ (β:αs)) (μ (φ (β:αs))) β (μ (Ur β))
-  propertyAt' :: ∀ ρ χ γ. Linear.Functor γ => (β %ρ -> γ (Renderer (Ur β))) %χ -> (φ (β:αs) ⊸ γ (Renderer (φ (β:αs))))
-  propertyAt' afmub s   =
+  propertyAt' :: ∀ χ γ. Linear.Functor γ => (β %1 -> γ (Renderer β)) %χ -> (φ (β:αs) ⊸ γ (Renderer (φ (β:αs))))
+  propertyAt' afmub s =
     case puncons s of -- ft
       -- TODO: prop might have to be linear
-      (Ur prop, xs0)      ->
-        (\mub ->
-          descriptors xs0 >>= \case
-            (dset, resmap, xs1) -> edit prop dset resmap xs1 mub
-        ) Linear.<$> afmub (propertyValue prop)
+      (prop, xs0)      ->
+        case propertyValue prop of
+          (a, prop1) ->
+            (\mub ->
+              descriptors xs0 Linear.>>= \case
+                (dset, resmap, xs1) -> edit prop1 dset resmap xs1 mub
+            ) Linear.<$> afmub a
             -- (\b -> pcons <$> editProperty prop (const b) (fromIntegral (natVal $ Proxy @n)) (xs ^. descriptorSet) <*> pure xs)
    where
-    edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ Renderer (Ur β) ⊸ Renderer (φ (β:αs))
+    edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ Renderer β ⊸ Renderer (φ (β:αs))
     edit prop dset resmap xs mub = Linear.do
       -- Ur b <- mub
       -- TODO: Perhaps assert this isn't the last usage of dset and resmap,
@@ -304,14 +322,16 @@ instance {-# OVERLAPPING #-}
       freeResMap resmap''
       pure $ pcons updatedProp xs
 
-    propertyValue :: PropertyBinding α ⊸ α
+    propertyValue :: ∀ α. PropertyBinding α ⊸ (α, PropertyBinding α)
     propertyValue = \case
-      DynamicBinding x -> x
-      StaticBinding x -> x
-      -- Texture2DBinding x -> x
-
-nat :: ∀ m. KnownNat m => Int
-nat = fromIntegral (natVal $ Proxy @m)
+      DynamicBinding x -> (x, DynamicBinding x)
+      StaticBinding  x -> (x, StaticBinding x)
+      -- I can do unsafe perform IO since the atomic counter is atomically
+      -- updated, and otherwise the computation is pure. This allows the
+      -- propertyAt' not to require something such as a MonadIO constraint
+      Texture2DBinding x -> Unsafe.Linear.toLinear unsafePerformIO $ Unsafe.Linear.toLinear Linear.withLinearIO $ Linear.do
+        (x1, x2) <- Counted.share x
+        pure $ Unsafe.Linear.toLinear Ur (x1, Texture2DBinding x2)
 
 instance {-# OVERLAPPABLE #-}
   ( HasProperties φ
@@ -319,10 +339,10 @@ instance {-# OVERLAPPABLE #-}
   ) => HasPropertyAt' n m φ (α ': αs) β where
 
   -- propertyAt' :: MonadRenderer μ => Lens (φ (α:αs)) (μ (φ (α:αs))) β (μ (Ur β))
-  propertyAt' :: ∀ f p x. Linear.Functor f => (β %p -> f (Renderer (Ur β))) %x -> (φ (α:αs) ⊸ f (Renderer (φ (α:αs))))
+  propertyAt' :: ∀ f p x. Linear.Functor f => (β %1 -> f (Renderer β)) %x -> (φ (α:αs) ⊸ f (Renderer (φ (α:αs))))
   propertyAt' f x =
     case puncons x of
-      (Ur prop, xs) ->
+      (prop, xs) ->
         fmap (pcons prop) <$> propertyAt' @n @(m+1) @φ @αs @β f xs
     
 -- Does it make sense to have this?
@@ -336,7 +356,7 @@ instance {-# OVERLAPPABLE #-}
 -- See 'HasPropertyAt'.
 editProperty :: ∀ α p
               . PropertyBinding α    -- ^ Property to edit/update
-              ⊸ (α %p -> Renderer (Ur α))    -- ^ Update function
+              ⊸ (α %1 -> Renderer α)    -- ^ Update function
               ⊸ Int                  -- ^ Property index in descriptor set
              -> DescriptorSet   -- ^ The descriptor set with corresponding index and property resources
               ⊸ ResourceMap     -- ^ The descriptor set with corresponding index and property resources
@@ -344,7 +364,7 @@ editProperty :: ∀ α p
 editProperty prop update i dset resmap0 = Linear.do
   case prop of
     DynamicBinding x -> Linear.do
-      Ur ux <- update x
+      Ur ux <- move <$> update x
 
       (bufref, resmap1) <- getUniformBuffer resmap0 i
 
@@ -363,31 +383,28 @@ editProperty prop update i dset resmap0 = Linear.do
       pure (DynamicBinding ux, dset, resmap1)
 
     StaticBinding x -> Linear.do
-      Ur ux <- update x
+      Ur ux <- move <$> update x
 
       (bufref, resmap1) <- getUniformBuffer resmap0 i
 
-      -- (buf, freeBuf) <- Counted.get bufref
-
       writeStaticBinding bufref ux >>= Counted.forget
-
-      -- freeBuf mb -- Same as above, we aren't really "freeing", this is a bad name
 
       pure (StaticBinding ux, dset, resmap1)
 
-    -- ROMES:TODO: Textures!!!!!!!!!!
-    -- Texture2DBinding x -> Linear.do
-    --   Ur ux <- update x
+    Texture2DBinding xalias -> Linear.do
+      ux <- update xalias -- Update function is the one taking into account the
+                          -- previous texture as an aliased value. It might free it and return a new
+                          -- reference counted texture, for example.
 
-    --   updateTextureBinding dset ux
+      (ux1, ux2) <- Counted.share ux
 
-    --   -- We free the texture that was previously bound
-    --   freeTexture x
+      -- We don't need to do anything besides updating the texture binding with
+      -- the updated texture, regardless of what the update function did with
+      -- the reference counted value. Linearity guarantees it will handle it
+      -- correctly.
+      dset1 <- updateTextureBinding dset ux1
 
-    --   -- We increase the texture reference count that was just now bound
-    --   incRefCount ux
-
-    --   pure $ Texture2DBinding ux
+      pure $ (Texture2DBinding ux2, dset1, resmap0)
 
   where
     writeDynamicBinding :: Storable α => RefC MappedBuffer ⊸ α -> Renderer (RefC MappedBuffer)
@@ -403,8 +420,16 @@ editProperty prop update i dset resmap0 = Linear.do
     -- TODO: Is it OK to overwrite previously written descriptor sets at specific points?
     -- TODO: this one has the potential to be wrong, think about it carefully eventually
     -- ROMES:TODO: Textures!!!!
-    -- updateTextureBinding :: DescriptorSet ⊸ Texture2D -> μ (DescriptorSet, ResourceMap)
-    -- updateTextureBinding dset = updateDescriptorSet dset . IM.singleton i . Texture2DResource
+    updateTextureBinding :: DescriptorSet ⊸ RefC Texture2D ⊸ Renderer (DescriptorSet)
+    updateTextureBinding dset t
+      = updateDescriptorSet dset (linInsert i (Texture2DResource t) IM.empty) >>=
+        (\(dset, rmap) -> Linear.do
+          -- We can forget the single texture2D references in the resource map
+          -- since we only shared it to be able to update the resource map with it.
+          case Unsafe.Linear.toLinear IM.elems rmap of
+            [Texture2DResource tex] -> Counted.forget tex
+            x -> Unsafe.Linear.toLinear (\_ -> error "updateTextureBinding: not expecting any resource other than a single texture2d resource here.") x
+          pure dset)
 
 -- ROMES:TODO
 -- freeProperty :: MonadRenderer μ => PropertyBinding α -> μ ()
@@ -413,3 +438,7 @@ editProperty prop update i dset resmap0 = Linear.do
 --   StaticBinding _ -> pure ()
 --   Texture2DBinding x -> freeTexture x
 
+-- Utils
+
+linInsert :: Int ⊸ a ⊸ IM.IntMap a ⊸ IM.IntMap a
+linInsert = Unsafe.Linear.toLinear3 IM.insert

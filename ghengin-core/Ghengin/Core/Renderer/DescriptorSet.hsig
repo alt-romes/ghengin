@@ -7,6 +7,7 @@ import Ghengin.Core.Shader.Pipeline
 
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Buffer
+import Ghengin.Core.Renderer.Texture
 
 import Data.Counted as Counted
 
@@ -25,7 +26,7 @@ type ResourceMap = IntMap DescriptorResource
 
 data DescriptorResource where
   UniformResource   :: RefC MappedBuffer ⊸ DescriptorResource
-  -- ROMES:TODO:!: Texture2DResource :: T.Texture2D ⊸ DescriptorResource
+  Texture2DResource :: RefC Texture2D ⊸ DescriptorResource
 
 -- ROMES:TODO: These definitions need to be inlined... in the instancing modules?
 -- Shouldn't be too inefficient since the use case, ResourceMap, is usually small

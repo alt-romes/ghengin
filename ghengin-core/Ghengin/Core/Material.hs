@@ -65,8 +65,8 @@ data Material xs where
   Done :: (RefC DescriptorSet, RefC ResourceMap, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
 
   MaterialProperty :: ∀ α β
-                   .  PropertyBinding α -- ^ A dynamic binding is written (necessarily because of linearity) to a mapped buffer based on the value of the constructor
-                   -> Material β
+                   .  PropertyBinding α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
+                    ⊸ Material β
                     ⊸ Material (α:β)
 
 -- Did I need this?

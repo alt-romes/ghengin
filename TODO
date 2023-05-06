@@ -1,3 +1,8 @@
+[ ] Perhaps linear-apecs components should be dupable rather than unrestricted,
+    so something like a reference counted pipeline can be stored in apecs, and be
+    shared as many times as needed without it ever being unrestricted (of course,
+    in requiring Dupable people can still store Ur elements there, so it's less
+    restrictive than requiring Ur).
 [ ] Get rid of StateVar ?
 [ ] The World should really be an heterogenous list such that we can add and remove compontents at will, meaning the list of components we're using is more modular (we can add the transform animation components storage only if we're using animation). Though we can still have some built in ones.
 [ ] We could have an unrestricted Ghengin monad simply by wrapping the linear

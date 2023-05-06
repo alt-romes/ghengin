@@ -80,8 +80,8 @@ data RenderPipeline info tys where
 
   RenderProperty :: ∀ α β info
                   . PropertyBinding α
-                 -> RenderPipeline info β
-                 ⊸  RenderPipeline info (α : β)
+                  ⊸ RenderPipeline info β
+                  ⊸ RenderPipeline info (α : β)
 
 data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β) -- ROMES:TODO Can I not have Typeable here?
 

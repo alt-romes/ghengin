@@ -54,6 +54,7 @@ import Ghengin.Vulkan.Renderer.Kernel
 
 import Ghengin.Core.Shader.Pipeline
 
+import Ghengin.Vulkan.Renderer.Texture
 import Ghengin.Vulkan.Renderer.Pipeline (stageFlag)
 
 import Data.Counted as Counted
@@ -74,7 +75,7 @@ type ResourceMap = IntMap DescriptorResource
 
 data DescriptorResource where
   UniformResource   :: RefC MappedBuffer ⊸ DescriptorResource
-  -- ROMES:TODO:!: Texture2DResource :: T.Texture2D ⊸ DescriptorResource
+  Texture2DResource :: RefC Texture2D ⊸ DescriptorResource
 
 type Size = Word
 
@@ -353,23 +354,23 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> Li
                                     , texelBufferView = []
                                     }
         -- ROMES:TODO: IMPORTANT!!! TEXTURES!!
-        -- Texture2DResource (T.Texture2D vkimage sampler _) -> do
-        --   let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-        --                                          , imageView = vkimage._imageView
-        --                                          , sampler   = sampler.sampler
-        --                                          }
+        Texture2DResource talias -> useM talias $ Unsafe.toLinear $ \(T.Texture2D vkimage sampler)
+          let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                 , imageView = vkimage._imageView
+                                                 , sampler   = sampler.sampler
+                                                 }
 
-        --    in Vk.SomeStruct Vk.WriteDescriptorSet
-        --                             { next = ()
-        --                             , dstSet = dset -- the descriptor set to update with this write
-        --                             , dstBinding = fromIntegral i
-        --                             , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
-        --                             , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
-        --                             , descriptorCount = 1 -- Only one buffer in the array of buffers to update
-        --                             , bufferInfo = [] -- The one buffer info
-        --                             , imageInfo = [imageInfo]
-        --                             , texelBufferView = []
-        --                             }
+           in Vk.SomeStruct Vk.WriteDescriptorSet
+                                    { next = ()
+                                    , dstSet = dset -- the descriptor set to update with this write
+                                    , dstBinding = fromIntegral i
+                                    , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+                                    , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
+                                    , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+                                    , bufferInfo = [] -- The one buffer info
+                                    , imageInfo = [imageInfo]
+                                    , texelBufferView = []
+                                    }
 
   -- Only issue the call if we're actually updating something.
   -- TODO2:REMOVE THIS, we no longer update the dset with the dummy things,
