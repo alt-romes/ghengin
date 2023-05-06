@@ -3,7 +3,6 @@
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Render where
 
-import Apecs (Has, cfold)
 import Data.Maybe
 
 import Control.Monad.State
@@ -12,36 +11,39 @@ import qualified Data.Vector as V
 import qualified Vulkan as Vk
 import Geomancy.Mat4
 
-import qualified Apecs
+import Apecs.Linear (Has, cfold)
+import qualified Apecs.Linear as Apecs
+
 import Ghengin.Component.Camera
 import Ghengin.Component.Transform
-import Ghengin.Vulkan.Command
-import Ghengin.Vulkan.Buffer
-import Ghengin.Vulkan.Pipeline
-import Ghengin.Vulkan.DescriptorSet
-import Ghengin.Vulkan.RenderPass
+import Ghengin.Vulkan.Renderer.Command
+import Ghengin.Vulkan.Renderer.Buffer
+import Ghengin.Vulkan.Renderer.Pipeline
+import Ghengin.Vulkan.Renderer.DescriptorSet
+import Ghengin.Vulkan.Renderer.RenderPass
+import Ghengin.Vulkan.Renderer.Kernel
+
 import qualified Ghengin.DearImGui as IM
-import Ghengin.Vulkan
+
 import Ghengin.Scene.Graph
 import Ghengin.Core.Render.Packet
 import Ghengin.Render.Queue
 import Ghengin.Core.Mesh
-import Ghengin.Utils
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Material
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
 import Control.Lens ((^.))
 
-type RenderConstraints w = ( Has (World w) (Renderer ()) Transform
-                           , Has (World w) (Renderer ()) Camera
-                           , Has (World w) (Renderer ()) ModelMatrix
-                           , Has (World w) (Renderer ()) Parent
+type RenderConstraints w = ( Has (World w) Renderer Transform
+                           , Has (World w) Renderer Camera
+                           , Has (World w) Renderer ModelMatrix
+                           , Has (World w) Renderer Parent
 
                            -- Core render constraints
-                           , Apecs.Get (World w) (Renderer ()) RenderPacket
-                           , Apecs.Get (World w) (Renderer ()) SomePipeline
-                           , Apecs.Get (World w) (Renderer ()) SomeMaterial
+                           -- , Apecs.Get (World w) Renderer RenderPacket
+                           -- , Apecs.Get (World w) Renderer SomePipeline
+                           -- , Apecs.Get (World w) Renderer SomeMaterial
                            )
 
 
@@ -130,7 +132,7 @@ render i = do
         (\(SomePipelineRef (Ref pipeline_ref)) -> do
             SomePipeline pipeline <- lift $ Apecs.get pipeline_ref
 
-            logTrace "Binding pipeline"
+            -- logTrace "Binding pipeline"
 
             -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
             -- Bind the pipeline
@@ -139,7 +141,6 @@ render i = do
             setScissor  scissor
 
             case pipeline ^. descriptorSet of -- TODO: Fix frames in flight...
-              EmptyDescriptorSet -> pure () -- Bail out, we don't have to do anything on an empty descriptor set. This happens if there isn't a single binding in set #1
               ppDSet@DescriptorSet{} -> do
 
                 -- These render properties are necessarily compatible with this
@@ -158,10 +159,9 @@ render i = do
         (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> do
             SomeMaterial material <- lift $ Apecs.get material_ref
 
-            logTrace "Binding material"
+            -- logTrace "Binding material"
 
             case material ^. descriptorSet of
-              EmptyDescriptorSet -> pure () -- Bail out, we don't have to do anything on an empty descriptor set. This happens if there isn't a single binding in set #1
               matDSet@DescriptorSet{} -> do
 
                 -- These materials are necessarily compatible with this pipeline in
@@ -176,7 +176,7 @@ render i = do
           )
         (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> do
 
-            logTrace "Drawing mesh"
+            -- logTrace "Drawing mesh"
 
             -- TODO: Bind descriptor set #2
 

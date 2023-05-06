@@ -62,6 +62,7 @@ import qualified Data.V.Linear.Internal as VI
 
 import Control.Monad.Reader
 import qualified Control.Functor.Linear as Linear
+import qualified Data.Functor.Linear as Data.Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
 import Data.Word
 import Foreign.Storable
@@ -82,6 +83,13 @@ import qualified Unsafe.Linear as Unsafe
 -- better to define them in terms of RendererPipeline such that we can
 -- eventually create an hsig for Commands...
 -- To fix the module loop, we'd need an hs-boot file for the RendererPipeline definition
+
+-- Re-think interface for Commands, and how the underlying monad could be
+-- linear, and values threaded through instead of returned on the outside with
+-- the command. Then again, the current design isn't bad either I think. (Good
+-- to separate code submited to GPU from host)
+
+-- TODO: Make Commands dupable? Such that one could use them twice if desired? Achhh
 
 {-
 Note [Commands and RenderPassCmds]
@@ -129,15 +137,43 @@ type RenderPassCmd m = RenderPassCmdM m ()
 
 
 newtype CommandM m a = Command (ReaderT Vk.CommandBuffer m a)
-  deriving (Functor, Applicative, Monad, MonadIO, MonadTrans)
+  deriving (Data.Linear.Functor, Linear.Functor, Functor, Applicative, Monad, MonadIO, MonadTrans)
 
 newtype RenderPassCmdM m a = RenderPassCmd (ReaderT Vk.CommandBuffer m a)
-  deriving (Functor, Applicative, Monad, MonadIO, MonadTrans)
+  deriving (Data.Linear.Functor, Linear.Functor, Functor, Applicative, Monad, MonadIO, MonadTrans)
+
+-- This interface is safe because the only ways to record the command
+-- (recordCommand, recordCommandOneShot) guarantee the command buffer is
+-- returned, and command actions otherwise don't expose the command buffer,
+-- making it impossible to free it.
+--
+-- Therefore, we can instance linear Applicative and Monad for them
+instance Linear.Applicative m => Linear.Applicative (CommandM m) where
+  pure x = Command $ ReaderT $ Unsafe.toLinear \r -> Linear.pure x
+  Command (ReaderT fff) <*> Command (ReaderT ffa) = Command $ ReaderT $ Unsafe.toLinear \r -> fff r Linear.<*> ffa r
+
+instance Data.Linear.Applicative m => Data.Linear.Applicative (CommandM m) where
+  pure x = Command $ ReaderT $ Unsafe.toLinear \r -> Data.Linear.pure x
+  Command (ReaderT fff) <*> Command (ReaderT ffa) = Command $ ReaderT $ Unsafe.toLinear \r -> fff r Data.Linear.<*> ffa r
+
+instance Linear.Monad m => Linear.Monad (CommandM m) where
+  Command (ReaderT fma) >>= f = Command $ ReaderT $ Unsafe.toLinear \r -> fma r Linear.>>= (\case (Command (ReaderT m)) -> m r) Linear.. f
+
+instance Linear.Applicative m => Linear.Applicative (RenderPassCmdM m) where
+  pure x = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> Linear.pure x
+  RenderPassCmd (ReaderT fff) <*> RenderPassCmd (ReaderT ffa) = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> fff r Linear.<*> ffa r
+
+instance Data.Linear.Applicative m => Data.Linear.Applicative (RenderPassCmdM m) where
+  pure x = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> Data.Linear.pure x
+  RenderPassCmd (ReaderT fff) <*> RenderPassCmd (ReaderT ffa) = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> fff r Data.Linear.<*> ffa r
+
+instance Linear.Monad m => Linear.Monad (RenderPassCmdM m) where
+  RenderPassCmd (ReaderT fma) >>= f = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> fma r Linear.>>= (\case (RenderPassCmd (ReaderT m)) -> m r) Linear.. f
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
-recordCommand :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m -> m Vk.CommandBuffer
-recordCommand = Unsafe.toLinear $ \buf (Command cmds) -> Linear.do
+recordCommand :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m ⊸ m Vk.CommandBuffer
+recordCommand = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.zero
                                             , inheritanceInfo = Nothing }
 
@@ -153,8 +189,8 @@ recordCommand = Unsafe.toLinear $ \buf (Command cmds) -> Linear.do
   Linear.pure buf
 {-# INLINE recordCommand #-}
 
-recordCommandOneShot :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m -> m Vk.CommandBuffer
-recordCommandOneShot = Unsafe.toLinear \buf (Command cmds) -> Linear.do
+recordCommandOneShot :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m ⊸ m Vk.CommandBuffer
+recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, inheritanceInfo = Nothing }
   Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
   runReaderT cmds buf
@@ -219,9 +255,9 @@ drawIndexed :: Linear.MonadIO m => Word32 -> RenderPassCmd m
 drawIndexed ixCount = unsafeRenderPassCmd_ $ \buf -> Vk.cmdDrawIndexed buf ixCount 1 0 0 0
 {-# INLINE drawIndexed #-}
 
-copyFullBuffer :: Linear.MonadIO m => Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> (Ur (Command m), Vk.Buffer, Vk.Buffer)
+copyFullBuffer :: Linear.MonadIO m => Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> (Command m, Vk.Buffer, Vk.Buffer)
 copyFullBuffer src dst size = case unsafeCmd (src,dst) $ \buf (src',dst') -> Vk.cmdCopyBuffer buf src' dst' [Vk.BufferCopy 0 0 size] of
-                                (cmd, (src', dst')) -> (cmd, src', dst')
+                                (Ur cmd, (src', dst')) -> (cmd, src', dst')
 {-# INLINE copyFullBuffer #-}
 
 pushConstants :: ∀ a m. (Linear.MonadIO m, Storable a) => Vk.PipelineLayout ⊸ Vk.ShaderStageFlags -> a -> (RenderPassCmd m, Vk.PipelineLayout)
@@ -296,7 +332,7 @@ copyFullBufferToImage :: Linear.MonadIO μ
                       => Vk.Buffer -- ^ From
                        ⊸ Vk.Image  -- ^ To
                        ⊸ Vk.Extent3D
-                      -> (Ur (Command μ), Vk.Buffer, Vk.Image)
+                      -> (Command μ, Vk.Buffer, Vk.Image)
 copyFullBufferToImage buf img extent =
   let
       subresourceRange = Vk.ImageSubresourceLayers { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
@@ -313,7 +349,7 @@ copyFullBufferToImage buf img extent =
                                   , imageExtent = extent
                                   }
    in case unsafeCmd (buf,img) $ \cmdbuf (buf', img') -> Vk.cmdCopyBufferToImage cmdbuf buf' img' Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region] of
-        (cmd, (buf',img')) -> (cmd, buf', img')
+        (Ur cmd, (buf',img')) -> (cmd, buf', img')
 
 transitionImageLayout :: forall μ
                        . Linear.MonadIO μ

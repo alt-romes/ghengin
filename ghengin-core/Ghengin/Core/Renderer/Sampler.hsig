@@ -1,0 +1,15 @@
+{-# LANGUAGE LinearTypes #-}
+signature Ghengin.Core.Renderer.Sampler where
+
+-- TODO: Define isomporphic types and remove vulkan dependency
+import qualified Vulkan as Vk
+import Data.Counted
+
+import Ghengin.Core.Renderer.Kernel
+
+data Sampler
+instance Counted Sampler
+
+createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer (RefC Sampler)
+destroySampler :: Sampler ⊸ Renderer ()
+

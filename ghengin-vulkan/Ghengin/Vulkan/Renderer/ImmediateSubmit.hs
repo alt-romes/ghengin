@@ -58,7 +58,7 @@ immediateSubmit' :: MonadIO m
                 => VulkanDevice
                  ⊸ ImmediateSubmitCtx
                  ⊸ Command m
-                -> m (VulkanDevice, ImmediateSubmitCtx)
+                 ⊸ m (VulkanDevice, ImmediateSubmitCtx)
 -- Submit a command on a newly created buffer to the Graphics Queue
 immediateSubmit' device (ImmediateSubmitCtx fence pool buffer) cmd = Linear.do
 

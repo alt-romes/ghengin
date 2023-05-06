@@ -53,6 +53,12 @@ instance Linear.MonadIO Renderer where
 renderer :: (RendererEnv %1 -> System.IO.Linear.IO (a, RendererEnv)) %1 -> Renderer a
 renderer f = Renderer (StateT f)
 
+useVulkanDevice :: (VulkanDevice %1 -> System.IO.Linear.IO (a, VulkanDevice)) %1 -> Renderer a
+useVulkanDevice f = renderer $ \(REnv _i d _w _s _im) -> f d >>= \case (a, d') -> pure (a, REnv _i d' _w _s _im)
+
+useDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
+useDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
+
 -- | Unsafely run a Vulkan action on a linear MonadIO that requires a
 -- Vulkan.Device reference as a linear action on 'Renderer'.
 -- This action assumes the Vk.Device reference is unchanged! If your action,
@@ -81,7 +87,7 @@ unsafeUseDeviceAnd f = Unsafe.toLinear $ \x -> (,x) <$> unsafeUseDevice (f x)
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
-immediateSubmit :: Command System.IO.Linear.IO -> Renderer () -- ROMES: Command IO, is that OK? Can easily move to Command Renderer by unsafeUseDevice
+immediateSubmit :: Command System.IO.Linear.IO ⊸ Renderer () -- ROMES: Command IO, is that OK? Can easily move to Command Renderer by unsafeUseDevice
 immediateSubmit cmd = renderer $ \(REnv inst dev win swp imsctx) -> Linear.do
   (dev', imsctx') <- immediateSubmit' dev imsctx cmd
   pure ((), REnv inst dev' win swp imsctx')

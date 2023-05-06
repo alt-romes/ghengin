@@ -8,7 +8,7 @@ module Ghengin.Vulkan.Renderer.Sampler
   -- * Sampler
     Sampler(..)
   , createSampler
-  -- , destroySampler
+  , destroySampler
 
   -- * Filters
   , Vk.Filter

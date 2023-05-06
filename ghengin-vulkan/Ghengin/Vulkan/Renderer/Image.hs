@@ -1,20 +1,28 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE LinearTypes #-}
 module Ghengin.Vulkan.Renderer.Image where
 
+import Prelude.Linear (($))
+import Prelude hiding (($))
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
+--- TODO: Linear Types
+
 import Ghengin.Vulkan.Renderer.Device
+
+import Control.Monad.IO.Class.Linear
+import qualified Unsafe.Linear as Unsafe
 
 data VulkanImage = VulkanImage { _image :: Vk.Image
                                , _devMem :: Vk.DeviceMemory
                                , _imageView :: Vk.ImageView
                                }
 
-createImage :: VulkanDevice -> Vk.Format -> Vk.Extent3D -> Vk.MemoryPropertyFlags -> Vk.ImageUsageFlagBits -> Vk.ImageAspectFlags -> IO VulkanImage
-createImage device format extent properties usage aspect = do
+createImage :: MonadIO m => VulkanDevice ⊸ Vk.Format -> Vk.Extent3D -> Vk.MemoryPropertyFlags -> Vk.ImageUsageFlagBits -> Vk.ImageAspectFlags -> m (VulkanImage, VulkanDevice)
+createImage = Unsafe.toLinear $ \device format extent properties usage aspect -> liftSystemIO $ do
   let
       imageInfo = Vk.ImageCreateInfo { imageType = Vk.IMAGE_TYPE_2D
                                      , extent    = extent
@@ -50,7 +58,7 @@ createImage device format extent properties usage aspect = do
 
   imgView <- createImageView device._device format aspect img
 
-  pure $ VulkanImage img imgMem imgView
+  pure (VulkanImage img imgMem imgView, device)
 
 createImageView :: Vk.Device -> Vk.Format -> Vk.ImageAspectFlags -> Vk.Image -> IO Vk.ImageView
 createImageView dev format aspect img = do
@@ -77,13 +85,14 @@ createImageView dev format aspect img = do
                                                         }
           }
 
-destroyImageView :: Vk.Device -> Vk.ImageView -> IO ()
-destroyImageView d i = Vk.destroyImageView d i Nothing
+destroyImageView :: MonadIO m => Vk.ImageView ⊸ Vk.Device ⊸ m Vk.Device
+destroyImageView = Unsafe.toLinear2 $ \i d -> liftSystemIO (d <$ Vk.destroyImageView d i Nothing)
 
 -- TODO: Destroy Image isn't being called for the earlier images we were creating!?!
-destroyImage :: Vk.Device -> VulkanImage -> IO ()
-destroyImage d (VulkanImage im mem view) = do
+destroyImage :: MonadIO m => Vk.Device ⊸ VulkanImage ⊸ m Vk.Device
+destroyImage = Unsafe.toLinear2 $ \d (VulkanImage im mem view) -> liftSystemIO $ do
   Vk.destroyImage d im Nothing
   Vk.freeMemory d mem Nothing
   Vk.destroyImageView d view Nothing
+  pure d
 

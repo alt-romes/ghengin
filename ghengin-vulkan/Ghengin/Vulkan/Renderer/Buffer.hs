@@ -176,7 +176,7 @@ createBuffer size usage properties = Linear.do
 copyBuffer :: Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> Renderer (Vk.Buffer, Vk.Buffer)
 copyBuffer src dst size = Linear.do
   case Cmd.copyFullBuffer src dst size of
-    (Ur cmd, src', dst') -> Linear.do
+    (cmd, src', dst') -> Linear.do
       immediateSubmit cmd
       pure (src', dst')
 
@@ -184,7 +184,7 @@ copyBuffer src dst size = Linear.do
 -- typically copies the buffer data from the staging buffer to another one
 -- (e.g. creating device local buffers and copying textures to the device), and
 -- finally frees the staging buffer
-withStagingBuffer :: ∀ α ρ. SV.Storable α => SV.Vector α -> (Vk.Buffer ⊸ Vk.DeviceSize -> Renderer ρ) -> Renderer ρ
+withStagingBuffer :: ∀ α ρ. SV.Storable α => SV.Vector α -> (Vk.Buffer ⊸ Vk.DeviceSize -> Renderer ρ) ⊸ Renderer ρ
 -- ROMES:TODO: nevermind brackets for now, if we ever make this compile we can worry about linear bracket-ing then
 withStagingBuffer bufferData f = Linear.do
   -- Accquire staging buffer

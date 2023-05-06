@@ -61,19 +61,19 @@ initImGui = Unsafe.toLinear $ \renderPass' -> Linear.do
                   ]
 
       poolInfo = Vk.DescriptorPoolCreateInfo { flags = Vk.DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
-                                             , maxSets = fromIntegral $ 1000*length poolSizes
+                                             , maxSets = fromIntegral $ 1000*Prelude.length poolSizes
                                              , poolSizes = poolSizes
                                              , next = ()
                                              }
 
   -- Create descriptor pool
-  imGuiDPool <- unsafeUseDevice (\device -> Vk.createDescriptorPool device poolInfo Nothing)
+  Ur imGuiDPool <- unsafeUseDevice (\device -> Ur Prelude.<$> Vk.createDescriptorPool device poolInfo Nothing)
 
   -- Setup imgui context
   imCtx <- liftSystemIO IM.createContext
 
   -- Setup platform/renderer backends (glfw+vulkan)
-  Ur renv <- renderer $ Unsafe.toLinear $ \renv -> (Ur renv, renv)
+  Ur renv <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv, renv)
   Ur _booj <- liftSystemIOU $ IM.glfwInitForVulkan renv._vulkanWindow._window True
   let initInfo = IM.InitInfo { instance' = renv._instance
                              , physicalDevice = renv._vulkanDevice._physicalDevice
@@ -83,45 +83,45 @@ initImGui = Unsafe.toLinear $ \renderPass' -> Linear.do
                              , pipelineCache = Vk.zero
                              , descriptorPool = imGuiDPool
                              , subpass = 0
-                             , minImageCount = fromIntegral $ length renv._vulkanSwapChain._imageViews
-                             , imageCount = fromIntegral $ length renv._vulkanSwapChain._imageViews
+                             , minImageCount = fromIntegral $ Prelude.length renv._vulkanSwapChain._imageViews
+                             , imageCount    = fromIntegral $ Prelude.length renv._vulkanSwapChain._imageViews
                              , msaaSamples = Vk.SAMPLE_COUNT_1_BIT
                              , mbAllocator = Nothing
-                             , checkResult = \x -> Base.when (x /= Vk.SUCCESS) (Base.fail $ show x)
+                             , checkResult = \x -> Base.when (x Prelude./= Vk.SUCCESS) (Base.fail $ show x)
                              }
   
   initRes <- liftSystemIO $ IM.vulkanInit initInfo renderPass'
 
-  immediateSubmit $ withCmdBuffer ((() <$) . consume . liftSystemIOU . IM.vulkanCreateFontsTexture)
+  immediateSubmit $ withCmdBuffer (\x -> liftSystemIO $ () Prelude.<$ IM.vulkanCreateFontsTexture x)
 
-  IM.vulkanDestroyFontUploadObjects
+  liftSystemIO $ IM.vulkanDestroyFontUploadObjects
 
   pure (IMCtx imGuiDPool imCtx initRes, renderPass')
 
 destroyImCtx :: ImCtx ⊸ Renderer ()
 destroyImCtx = Unsafe.toLinear $ \(IMCtx pool imCtx initRes) -> Linear.do
-  IM.vulkanShutdown initRes
-  IM.destroyContext imCtx
+  liftSystemIO $ IM.vulkanShutdown initRes
+  liftSystemIO $ IM.destroyContext imCtx
   unsafeUseDevice (\device -> Vk.destroyDescriptorPool device pool Nothing)
 
 
 renderDrawData :: MonadIO m => IM.DrawData -> RenderPassCmd m
-renderDrawData dd = makeRenderPassCmd $ \b -> do
-  IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
+renderDrawData dd = makeRenderPassCmd $ \b ->
+  liftSystemIO $ IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
 
 
 -- | Returns a list of booleans indicating whether each component was changed
 -- in the previous frame
-pushWindow :: UIWindow w -> Ghengin w ()
-pushWindow (UIWindow wname act) = do
-  beginnt <- IM.begin wname
-  if beginnt then do
-    _ <- act
-    IM.end
+pushWindow :: Dupable w => UIWindow w -> Ghengin w ()
+pushWindow (UIWindow wname act) = Linear.do
+  Ur beginnt <- liftSystemIOU $ IM.begin wname
+  if beginnt then Linear.do
+    act
+    liftSystemIO IM.end
   else do
     -- Optimization, if window is closed we end the the window and avoid
     -- drawing the ui inside it.
-    IM.end
+    liftSystemIO IM.end
 
 
 -- | Returns a boolean indicating whether the component was changed in the previous frame

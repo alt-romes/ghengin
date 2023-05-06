@@ -119,6 +119,8 @@ library ghengin-core
                       Ghengin.Core.Renderer.Buffer,
                       Ghengin.Core.Renderer.Pipeline,
                       Ghengin.Core.Renderer.RenderPass,
+                      Ghengin.Core.Renderer.Texture,
+                      Ghengin.Core.Renderer.Sampler,
 
     hs-source-dirs:   ghengin-core
 
@@ -170,6 +172,7 @@ library ghengin-vulkan
                       Ghengin.Vulkan.Renderer.Buffer,
                       Ghengin.Vulkan.Renderer.Pipeline,
                       Ghengin.Vulkan.Renderer.RenderPass,
+                      Ghengin.Vulkan.Renderer.Texture,
 
                       -- To be an instance eventually
                       Ghengin.Vulkan.Renderer,
@@ -200,6 +203,9 @@ library ghengin-vulkan
                       ghengin:ghengin-core,
                       ghengin:ghengin-core-indep,
 
+                      -- For textures (consider adding to Core too)
+                      JuicyPixels,
+
                       containers,
                       bytestring,
                       mtl,
@@ -221,8 +227,6 @@ library
 
     -- Modules exported by the library.
     exposed-modules:  Ghengin,
-
-                      Ghengin.Asset.Texture,
 
                       Ghengin.Component.Camera,
                       Ghengin.Component.Mesh.Cube,
@@ -315,6 +319,8 @@ library
                                                     , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
                                                     , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
                                                     , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                                                    , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                                                    , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
                                                     )
 
     -- Directories containing source files.

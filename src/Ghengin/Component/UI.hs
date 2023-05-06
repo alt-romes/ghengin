@@ -30,11 +30,11 @@ import {-# SOURCE #-} Ghengin (Ghengin)
 import qualified DearImGui as IM
 
 
-data UIWindow w = forall a. UIWindow Text (Ghengin w a)
+data UIWindow w = UIWindow Text (Ghengin w ())
 
 -- TODO: UI in the Scene Graph?
 newEntityUI :: EntityConstraints w (UIWindow w)
-            => Text -> Ghengin w a -> SceneGraph w (Ur Entity)
+            => Text -> Ghengin w () -> SceneGraph w (Ur Entity)
 newEntityUI text act = newEntity (UIWindow text act)
 
 type UI w = Ghengin w Bool

@@ -1,0 +1,18 @@
+{-# LANGUAGE LinearTypes #-}
+signature Ghengin.Core.Renderer.Texture where
+
+import Data.Counted
+
+import Ghengin.Core.Renderer.Sampler
+import Ghengin.Core.Renderer.Kernel
+
+data Texture2D
+instance Counted Texture2D
+
+texture :: FilePath -> RefC Sampler ⊸ Renderer (RefC Texture2D)
+
+-- ROMES:TODO: Include dependency on JuicyPixels? I guess that would make sense
+-- textureFromImage :: DynamicImage
+--                  -> Sampler
+--                  -> Renderer Texture2D
+

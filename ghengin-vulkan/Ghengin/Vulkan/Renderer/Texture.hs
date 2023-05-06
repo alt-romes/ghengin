@@ -2,70 +2,65 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE RecordWildCards #-}
-module Ghengin.Asset.Texture
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
+module Ghengin.Vulkan.Renderer.Texture
   (
-    module Ghengin.Asset.Texture
+    module Ghengin.Vulkan.Renderer.Texture
 
   -- * Generating textures
   , generateImage
   , DynamicImage(..)
   ) where
 
-import Data.StateVar
-import Data.IORef
--- import System.Mem.Weak
-import Geomancy.Vec3
-import Control.Logger.Simple
-import Control.Monad.Reader
-import Codec.Picture
-
-import Foreign.Storable
-
+import qualified Prelude
+import qualified Unsafe.Linear as Unsafe
 import qualified Vulkan as Vk
-import Ghengin.Vulkan.Renderer.Kernel
-import Ghengin.Vulkan.Renderer.Sampler
+
+-- import System.Mem.Weak
+import Codec.Picture
+import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
+import Data.Bits
+import Data.Counted
+import Data.IORef (IORef)
+import Foreign.Storable
+import Ghengin.Vulkan.Renderer.Buffer
 import Ghengin.Vulkan.Renderer.Command
 import Ghengin.Vulkan.Renderer.Image
-import Ghengin.Vulkan.Renderer.Buffer
+import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Sampler
+import Prelude.Linear hiding (IO)
+import System.IO.Linear
 
 data Texture2D = Texture2D { image          :: VulkanImage
-                           , sampler        :: Sampler
-                           , referenceCount :: IORef Int
+                           , sampler        :: RefC Sampler
                            }
 
+instance Counted Texture2D where
+  countedFields (Texture2D _ s) = [SomeRefC s]
+
 -- TODO: This isntance sholuldn't exist. just temporary... if you find this here later try to remove it. it's currenty being used to instance hashable to create the render key...
-instance Eq Texture2D where
+instance Prelude.Eq Texture2D where
   (==) _ _ = False
 
-texture :: FilePath -> Sampler -> Renderer Texture2D
-texture fp sampler = do
-  liftIO (readImage fp) >>= \case
-    Left e -> liftIO (fail e)
-    Right dimage -> do
-      textureFromImage dimage sampler
+texture :: FilePath -> RefC Sampler ⊸ Renderer (RefC Texture2D)
+texture fp sampler = Linear.do
+  liftSystemIOU (readImage fp) >>= \case
+    Ur (Left e      ) -> Data.Counted.forget sampler >> liftSystemIO (Prelude.fail e)
+    Ur (Right dimage) -> textureFromImage dimage sampler
 
-freeTexture :: Texture2D -> Renderer ()
-freeTexture t@(Texture2D img sampler refs) = do
-
-  () <- decRefCount t
-
-  count <- get refs
-
-  when (count == 0) $ do
-    logDebug "Freeing texture..."
-    dev <- getDevice
-    liftIO $ destroyImage dev img
-    destroySampler sampler
-
-  -- TODO: Don't include this when built for production somehow
-  when (count < 0) $ do
-    logError "Destroying texture more times than the number of assignments..."
+freeTexture :: Texture2D ⊸ Renderer ()
+freeTexture = Unsafe.toLinear $ \t@(Texture2D img sampler) -> Linear.do
+  -- ROMES:tODO: fix Image.hs so that this definition doesn't need to be unsafe.
+  useDevice (\dev -> ((),) <$> (destroyImage dev img))
+  Data.Counted.forget sampler
 
 textureFromImage :: DynamicImage
-                 -> Sampler
-                 -> Renderer Texture2D
+                 -> RefC Sampler
+                  ⊸ Renderer (RefC Texture2D)
 -- (For now) we convert the image to RGBA8 at all costs, which is a bit of a hack
-textureFromImage (ImageRGBA8 . convertRGBA8 -> dimage) sampler =
+textureFromImage (ImageRGBA8 Prelude.. convertRGBA8 -> dimage) = \sampler' ->
   let wsb = case dimage of
               ImageY8     img -> withStagingBuffer (img.imageData)
               ImageY16    img -> withStagingBuffer (img.imageData)
@@ -82,44 +77,50 @@ textureFromImage (ImageRGBA8 . convertRGBA8 -> dimage) sampler =
               ImageCMYK8  img -> withStagingBuffer (img.imageData)
               ImageCMYK16 img -> withStagingBuffer (img.imageData)
 
-   in wsb $ \stagingBuffer _bufferSize -> do
+   in wsb $ \stagingBuffer _bufferSize -> Linear.do
 
-    device <- asks (._vulkanDevice)
-    image <- liftIO $ createImage device
+    (VulkanImage image devMem imgView)
+        <- useVulkanDevice (\device ->
+                  createImage device
                          (dynamicFormat dimage)
                          (dynamicExtent dimage)
                          Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- Where to allocate the memory
                          (Vk.IMAGE_USAGE_TRANSFER_DST_BIT .|. Vk.IMAGE_USAGE_SAMPLED_BIT) -- For the texture to be used in the shader, and to transfer data to it
-                         Vk.IMAGE_ASPECT_COLOR_BIT
+                         Vk.IMAGE_ASPECT_COLOR_BIT)
 
     -- The image starts with an undefined layout:
     --
     -- (1) we change to layout to transfer optimal,
     -- (2) we transfer from the staging buffer to the image
     -- (3) we change the layout to shader read-only optimal
-    immediateSubmit $ do
 
-      -- TODO: Make this the default setting in those functions, and move it there.
+    -- TODO: Make this the default setting in those functions, and move it there.
 
-      -- (1) 
-      transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+    -- (1) 
+    (cmd1, image) <- pure $ transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 
-      -- (2)
-      copyFullBufferToImage stagingBuffer image._image (dynamicExtent dimage)
+    -- (2)
+    (cmd2, stagingBuffer, image) <- pure $ copyFullBufferToImage stagingBuffer image (dynamicExtent dimage)
 
-      -- (3)
-      transitionImageLayout image._image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+    destroyBuffer stagingBuffer
+    
+    -- (3)
+    (cmd3, image) <- pure $ transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
+    -- TODO: Re-imagine Commands, and probably make it so that we can use the monad completely, not just over ()
+    -- then again it's also good to think about the submission as something executing on GPU not interleaved with CPU code?
+    -- Ach, think about this all, but not now.
+    -- Write thoughts on Command module.
+    immediateSubmit $ cmd1 >> cmd2 >> cmd3
 
-    liftIO $ incRefCount sampler
-    ref <- liftIO $ newIORef 0
-    pure $ Texture2D image sampler ref
+    Data.Counted.new freeTexture (Texture2D (VulkanImage image devMem imgView) sampler')
 
 
 -- | Convert a vec3 with values between 0-1 and convert it into a pixelrgb8
 -- with values between 0-255 
-normVec3ToRGB8 :: Vec3 -> PixelRGB8
-normVec3ToRGB8 (WithVec3 x y z) = PixelRGB8 (round $ x * 255) (round $ y * 255) (round $ z * 255)
+normVec3ToRGB8 :: (Float,Float,Float) -> PixelRGB8
+--   Geomancy: (WithVec3 x y z)
+normVec3ToRGB8 (x, y, z) = PixelRGB8 (round $ x Prelude.* 255) (round $ y Prelude.* 255) (round $ z Prelude.* 255)
 
 -- Not needed :(
 dynamicSize :: DynamicImage -> Int
@@ -159,8 +160,8 @@ dynamicFormat = \case
   ImageCMYK16 _ -> undefined
 
 dynamicExtent :: DynamicImage -> Vk.Extent3D
-dynamicExtent dimg = Vk.Extent3D { width = dynamicMap (fromIntegral . (.imageWidth)) dimg
-                                 , height = dynamicMap (fromIntegral . (.imageHeight)) dimg
+dynamicExtent dimg = Vk.Extent3D { width = dynamicMap (Prelude.fromIntegral Prelude.. (.imageWidth)) dimg
+                                 , height = dynamicMap (Prelude.fromIntegral Prelude.. (.imageHeight)) dimg
                                  , depth = 1
                                  }
 

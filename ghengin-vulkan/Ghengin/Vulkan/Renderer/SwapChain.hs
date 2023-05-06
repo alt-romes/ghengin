@@ -7,15 +7,19 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Vulkan.Renderer.SwapChain (VulkanSwapChain(..), createSwapChain, destroySwapChain) where
 
 import Prelude hiding (($))
-import Prelude.Linear (($))
+import Prelude.Linear (($), Ur(..))
 import Data.Ord
 import Data.Word
 import qualified Unsafe.Linear as Unsafe
+import qualified Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear (liftSystemIOU)
 import qualified Control.Monad.IO.Class.Linear as Linear
+import Data.Unrestricted.Linear (UrT(..),runUrT)
 
 import Data.Vector (Vector)
 import qualified Data.Vector as V
@@ -36,20 +40,20 @@ data VulkanSwapChain = VulkanSwapChain { _swapchain     :: !Vk.SwapchainKHR
                                        }
 
 createSwapChain :: Linear.MonadIO m => VulkanWindow ⊸ VulkanDevice ⊸ m (VulkanSwapChain, VulkanWindow, VulkanDevice)
-createSwapChain = Unsafe.toLinear2 \win device -> Linear.liftSystemIO $ do
+createSwapChain = Unsafe.toLinear2 \win device -> Linear.do
 
   let physicalDevice = device._physicalDevice
       surface        = win._surface
 
   -- Query Swapchain Support
-  surfaceCapabilities      <- Vk.getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
-  (_, surfaceFormats)      <- Vk.getPhysicalDeviceSurfaceFormatsKHR physicalDevice surface
-  (_, surfacePresentModes) <- Vk.getPhysicalDeviceSurfacePresentModesKHR physicalDevice surface
+  Ur surfaceCapabilities      <- liftSystemIOU $ Vk.getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
+  Ur (_, surfaceFormats)      <- liftSystemIOU $ Vk.getPhysicalDeviceSurfaceFormatsKHR physicalDevice surface
+  Ur (_, surfacePresentModes) <- liftSystemIOU $ Vk.getPhysicalDeviceSurfacePresentModesKHR physicalDevice surface
 
   let surfaceFormat = chooseSwapSurfaceFormat surfaceFormats
       presentMode   = chooseSwapPresentMode   surfacePresentModes
 
-  extent <- chooseSwapExtent win._window surfaceCapabilities
+  Ur extent <- liftSystemIOU $ chooseSwapExtent win._window surfaceCapabilities
 
   let desiredIC  = surfaceCapabilities.minImageCount + 1
       imageCount = if surfaceCapabilities.maxImageCount > 0            -- 0 indicates there is no maximum
@@ -77,28 +81,29 @@ createSwapChain = Unsafe.toLinear2 \win device -> Linear.liftSystemIO $ do
                                          , oldSwapchain = Vk.NULL_HANDLE
                                          }
 
-  swpc <- Vk.createSwapchainKHR device._device config Nothing
-  (_, swpchainImages) <- Vk.getSwapchainImagesKHR device._device swpc
-  swpchainImageViews  <- V.mapM (createImageView device._device surfaceFormat.format Vk.IMAGE_ASPECT_COLOR_BIT) swpchainImages
+  Ur swpc <- liftSystemIOU $ Vk.createSwapchainKHR device._device config Nothing
+  Ur (_, swpchainImages) <- liftSystemIOU $ Vk.getSwapchainImagesKHR device._device swpc
+  Ur swpchainImageViews  <- liftSystemIOU $ V.mapM (createImageView device._device surfaceFormat.format Vk.IMAGE_ASPECT_COLOR_BIT) swpchainImages
 
-  let
-    depthFormat = Vk.FORMAT_D32_SFLOAT -- We could query for supported formats and choose the best
+  let depthFormat = Vk.FORMAT_D32_SFLOAT -- We could query for supported formats and choose the best
 
-  depthImage <- createImage device depthFormat (Vk.Extent3D extent.width extent.height 1) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT Vk.IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT Vk.IMAGE_ASPECT_DEPTH_BIT
+  (depthImage, device') <- createImage device depthFormat (Vk.Extent3D extent.width extent.height 1) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT Vk.IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT Vk.IMAGE_ASPECT_DEPTH_BIT
 
-  pure (VulkanSwapChain swpc swpchainImageViews surfaceFormat extent depthImage, win, device)
+  Linear.pure (VulkanSwapChain swpc swpchainImageViews surfaceFormat extent depthImage, win, device')
 
 
 destroySwapChain :: Linear.MonadIO m => VulkanDevice ⊸ VulkanSwapChain ⊸ m VulkanDevice
-destroySwapChain = Unsafe.toLinear2 \d swpc -> Linear.liftSystemIO $ do
+destroySwapChain = Unsafe.toLinear2 \d swpc -> Linear.do
+  Linear.liftSystemIO $ do
 
-  Vk.destroyImageView d._device swpc._depthImage._imageView Nothing
-  Vk.destroyImage     d._device swpc._depthImage._image     Nothing
-  Vk.freeMemory       d._device swpc._depthImage._devMem    Nothing
+    Vk.destroyImageView d._device swpc._depthImage._imageView Nothing
+    Vk.destroyImage     d._device swpc._depthImage._image     Nothing
+    Vk.freeMemory       d._device swpc._depthImage._devMem    Nothing
 
-  mapM_ (destroyImageView d._device) swpc._imageViews
-  Vk.destroySwapchainKHR d._device swpc._swapchain Nothing
-  pure d
+  Ur vs <- runUrT $ mapM (\x -> UrT $ Unsafe.toLinear Ur Linear.<$> Unsafe.toLinear2 destroyImageView x d._device) swpc._imageViews
+  Linear.liftSystemIO $ Vk.destroySwapchainKHR d._device swpc._swapchain Nothing
+  Unsafe.toLinear (\_ -> Linear.pure ()) vs
+  Linear.pure d
 
 
 chooseSwapSurfaceFormat :: V.Vector Vk.SurfaceFormatKHR -> Vk.SurfaceFormatKHR
