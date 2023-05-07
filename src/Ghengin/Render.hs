@@ -1,11 +1,14 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 module Ghengin.Render where
 
-import Data.Maybe
-
-import Control.Monad.State
+import Prelude.Linear hiding (insert)
+import qualified Prelude
+import Control.Functor.Linear as Linear
+-- import Data.Maybe
 
 import qualified Data.Vector as V
 import qualified Vulkan as Vk
@@ -126,11 +129,12 @@ render i = do
         renderQueue
         -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
         (\(SomePipelineRef (Ref pp'_ref)) m -> do
-          SomePipeline pp' <- lift $ Apecs.get pp'_ref -- TODO: Share this with the next one
+          -- ROMES: This Ur can't really be right, perhaps it's just better to use normal apecs over unrestricted monad transformer.
+          Ur (SomePipeline pp') <- lift $ Apecs.get (Apecs.Entity pp'_ref) -- TODO: Share this with the next one
           renderPassCmd (pp' ^. renderPass)._renderPass ((pp' ^. renderPass)._framebuffers V.! currentImage) extent m
         )
         (\(SomePipelineRef (Ref pipeline_ref)) -> do
-            SomePipeline pipeline <- lift $ Apecs.get pipeline_ref
+            Ur (SomePipeline pipeline) <- lift $ Apecs.get pipeline_ref
 
             -- logTrace "Binding pipeline"
 
@@ -157,7 +161,7 @@ render i = do
             pure $ SomePipeline pipeline
           )
         (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> do
-            SomeMaterial material <- lift $ Apecs.get material_ref
+            Ur (SomeMaterial material) <- lift $ Apecs.get material_ref
 
             -- logTrace "Binding material"
 
@@ -185,7 +189,7 @@ render i = do
           )
         (do
           -- Draw UI (TODO: Special render pass...?)
-          IM.renderDrawData =<< IM.getDrawData
+          IM.getDrawData >>= IM.renderDrawData
         )
 
   pure ()

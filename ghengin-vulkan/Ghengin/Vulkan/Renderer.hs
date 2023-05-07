@@ -34,6 +34,7 @@ import GHC.Ptr
 import Data.ByteString (ByteString)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.V.Linear.Internal as VI
 import qualified Data.List as L
 
 import qualified Vulkan.Extensions
@@ -50,12 +51,6 @@ import Ghengin.Vulkan.Renderer.GLFW.Window
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Kernel
 import qualified System.IO.Linear as Linear
-
-type MAX_FRAMES_IN_FLIGHT_T :: Nat
-type MAX_FRAMES_IN_FLIGHT_T = 2
-
-pattern MAX_FRAMES_IN_FLIGHT :: Word32
-pattern MAX_FRAMES_IN_FLIGHT = 2 -- We want to work on multiple frames but we don't want the CPU to get too far ahead of the GPU
 
 -- ROMES: Eventually thikn about bracketing again, but for linear types to work simply get rid of it
 -- ROMES:TODO: Make runRenderer an hsig in Ghengin.Core.Renderer
@@ -89,17 +84,17 @@ runRenderer r = Linear.do
 
   -- Run renderer
   ---------------
-  (a, REnv inst device win swapchain imsCtx)
-    <- runStateT (unRenderer r) (REnv inst device win swapchain imsCtx)
+  (a, REnv inst device win swapchain commandPool' frames' imsCtx)
+    <- runStateT (unRenderer r) (REnv inst device win swapchain commandPool frames imsCtx)
 
   -- Terminate
   ------------
   -- logDebug "[Start] Clean up"
 
-  (vunit, device) <- runStateT (Data.Linear.mapM (\f -> StateT (fmap ((),) . destroyVulkanFrameData f)) frames) device
+  (vunit, device) <- runStateT (Data.Linear.mapM (\f -> StateT (fmap ((),) . destroyVulkanFrameData f)) frames') device
   pure $ consumeUnits vunit
 
-  device <- destroyCommandPool device commandPool
+  device <- destroyCommandPool device commandPool'
 
   device <- destroyImmediateSubmitCtx device imsCtx
   device <- destroySwapChain device swapchain
@@ -133,45 +128,50 @@ runRenderer r = Linear.do
 -- N is 'MAX_FRAMES_IN_FLIGHT'
 --
 -- TODO: Figure out mismatch between current image index and current image frame.
--- Ouch, lots of deletion
--- withCurrentFramePresent :: (MonadTrans t, MonadIO (t (Renderer)))
---                         -- => ( ∀ α. Renderer α -> t (Renderer ext) α ) -- ^ A lift function
---                         => ( Vk.CommandBuffer
---                              -> Int -- ^ Current image index
---                              -> Int -- ^ Current frame index
---                              -> t (Renderer) a
---                            )
---                         -> t (Renderer) a
--- withCurrentFramePresent action = do
+withCurrentFramePresent :: (MonadTrans t, MonadIO (t (Renderer)))
+                        -- => ( ∀ α. Renderer α -> t (Renderer ext) α ) -- ^ A lift function
+                        => Int -- ^ Current frame index
+                        -> ( Vk.CommandBuffer
+                              ⊸ Int -- ^ Current image index
+                             -> t (Renderer) (a, Vk.CommandBuffer)
+                           )
+                        -> t (Renderer) a
+withCurrentFramePresent currentFrameIndex action = Linear.do
 
---   currentFrameIndex <- lift $ asks (._frameInFlight) >>= liftIO . readIORef
---   currentFrame <- lift $ advanceCurrentFrame
---   let
---       cmdBuffer = currentFrame._commandBuffer
---       inFlightFence = currentFrame._renderFence
---       imageAvailableSem = currentFrame._renderSemaphore
---       renderFinishedSem = currentFrame._presentSemaphore
+  Ur unsafeCurrentFrame <- lift $ renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)
+  -- These are all unsafe too
+  let
+      cmdBuffer         = unsafeCurrentFrame._commandBuffer
+      inFlightFence     = unsafeCurrentFrame._renderFence
+      imageAvailableSem = unsafeCurrentFrame._renderSemaphore
+      renderFinishedSem = unsafeCurrentFrame._presentSemaphore
 
---   -- Wait for the previous frame to finish
---   -- Acquire an image from the swap chain
---   -- Record a command buffer which draws the scene onto that image
---   -- Submit the recorded command buffer
---   -- Present the swap chain image 
---   _ <- Vk.waitForFences device [inFlightFence] True maxBound
---   Vk.resetFences device [inFlightFence]
+  -- Wait for the previous frame to finish
+  -- Acquire an image from the swap chain
+  -- Record a command buffer which draws the scene onto that image
+  -- Submit the recorded command buffer
+  -- Present the swap chain image 
+  lift $ unsafeUseDevice (\device -> do
+    Vk.waitForFences device [inFlightFence] True maxBound
+    Vk.resetFences device [inFlightFence]
+                  )
 
---   i <- lift $ acquireNextImage imageAvailableSem
+  (Ur i, imageAvailableSem') <- lift $ acquireNextImage imageAvailableSem
 
---   Vk.resetCommandBuffer cmdBuffer zero
+  liftSystemIO $ Vk.resetCommandBuffer cmdBuffer zero
 
---   a <- action cmdBuffer i currentFrameIndex
+  (a, cmdBuffer') <- action cmdBuffer i
 
---   -- Finally, submit and present
---   lift $ submitGraphicsQueue cmdBuffer imageAvailableSem renderFinishedSem inFlightFence
+  -- Finally, submit and present
+  (cmdBuffer'',imageAvailableSem'', renderFinishedSem', inFlightFence')
+    <- lift $ submitGraphicsQueue cmdBuffer' imageAvailableSem' renderFinishedSem inFlightFence
 
---   lift $ presentPresentQueue renderFinishedSem i
+  renderFinishedSem'' <- lift $ presentPresentQueue renderFinishedSem' i
 
---   pure a
+  -- Forget these as they're in the renderer environment still, remember we got them unsafely in the first place...
+  Unsafe.toLinearN @4 (\_ _ _ _ -> pure ()) cmdBuffer'' imageAvailableSem'' renderFinishedSem'' inFlightFence'
+
+  pure a
 
 
 -- | Get the current frame and increase the frame index (i.e. the next call to 'advanceCurrentFrame' will return the next frame)
@@ -182,10 +182,10 @@ runRenderer r = Linear.do
 --   liftIO $ modifyIORef' nref (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT)
 --   asks ((V.! n) . (._frames))
 
-acquireNextImage :: Vk.Semaphore ⊸ Renderer (Int, Vk.Semaphore)
+acquireNextImage :: Vk.Semaphore ⊸ Renderer (Ur Int, Vk.Semaphore)
 acquireNextImage = Unsafe.toLinear $ \sem -> Linear.do
   Ur renv <- renderer (Unsafe.toLinear $ \renv -> pure (Ur renv, renv))
-  i <- liftSystemIO $ Prelude.fromIntegral Prelude.. Prelude.snd Prelude.<$> Vk.acquireNextImageKHR renv._vulkanDevice._device renv._vulkanSwapChain._swapchain maxBound sem Vk.NULL_HANDLE
+  i <- liftSystemIOU $ Prelude.fromIntegral Prelude.. Prelude.snd Prelude.<$> Vk.acquireNextImageKHR renv._vulkanDevice._device renv._vulkanSwapChain._swapchain maxBound sem Vk.NULL_HANDLE
   pure (i, sem)
 
 submitGraphicsQueue :: Vk.CommandBuffer ⊸ Vk.Semaphore ⊸ Vk.Semaphore ⊸ Vk.Fence ⊸ Renderer (Vk.CommandBuffer, Vk.Semaphore, Vk.Semaphore, Vk.Fence)

@@ -5,7 +5,6 @@ module Ghengin.World where
 import Prelude.Linear
 import qualified Prelude
 import Control.Functor.Linear as Linear
-import Data.Unrestricted.Linear
 import Apecs.Linear
 import Ghengin.Core.Render.Packet (RenderPacket)
 import Ghengin.Core.Render.Pipeline (SomePipeline)
