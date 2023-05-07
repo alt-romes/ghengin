@@ -1,3 +1,4 @@
+[ ] Exchange reference counted instances to Generic based instances to avoid bugs
 [ ] Perhaps linear-apecs components should be dupable rather than unrestricted,
     so something like a reference counted pipeline can be stored in apecs, and be
     shared as many times as needed without it ever being unrestricted (of course,

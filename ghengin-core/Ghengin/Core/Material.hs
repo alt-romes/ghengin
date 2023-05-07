@@ -78,12 +78,13 @@ data Material xs where
 
 instance HasProperties Material where
 
-  properties :: Material α ⊸ (Ur (PropertyBindings α), Material α)
-  properties = Unsafe.toLinear $ \m -> (unsafeGo m, m) where
-    unsafeGo :: Material α -> Ur (PropertyBindings α)
-    unsafeGo = \case
-      Done {} -> Ur GHNil
-      MaterialProperty x xs -> case unsafeGo xs of Ur xs' -> Ur (x :## xs')
+  -- With textures this becomes quite unsafe! We can't just duplicate the property binding
+  -- properties :: Material α ⊸ (PropertyBindings α, Material α)
+  -- properties = Unsafe.toLinear $ \m -> (unsafeGo m, m) where
+  --   unsafeGo :: Material α -> (PropertyBindings α)
+  --   unsafeGo = \case
+  --     Done {} -> GHNil
+  --     MaterialProperty x xs -> case unsafeGo xs of xs' -> (x :## xs')
 
   descriptors   :: MonadIO m
                 => Material α
@@ -103,8 +104,8 @@ instance HasProperties Material where
       -- TODO: This will possibly have to become linear
       MaterialProperty _ xs -> unsafeGo xs
 
-  puncons :: Material (α:β) ⊸ (Ur (PropertyBinding α), Material β)
-  puncons (MaterialProperty p xs) = (Ur p, xs)
+  puncons :: Material (α:β) ⊸ (PropertyBinding α, Material β)
+  puncons (MaterialProperty p xs) = (p, xs)
 
   pcons :: PropertyBinding α %p -> Material β ⊸ Material (α:β)
   pcons = Unsafe.toLinear MaterialProperty
@@ -119,9 +120,9 @@ data SomeMaterial = ∀ α. SomeMaterial (Material α)
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
 material :: ∀ α β π. (CompatibleMaterial' α π)
-         => (Material '[] ⊸ Material α) -> RenderPipeline π β ⊸ Renderer (Material α, RenderPipeline π β)
-material matf (RenderProperty pr rps) = material matf rps >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-material matf (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Linear.do
+         => PropertyBindings α -> RenderPipeline π β ⊸ Renderer (Material α, RenderPipeline π β)
+material props0 (RenderProperty pr rps) = material props0 rps >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
+material props0 (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Linear.do
 
   -- Make the unique identifier for this material
   Ur uniq <- liftSystemIOU newUnique
@@ -136,19 +137,9 @@ material matf (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Linear
   --   Nothing -> pure (matf (Done (EmptyDescriptorSet, uniq)))
   --   Just _  -> do
 
-  -- We create a dummy material.
-  -- descriptor set and writes all the resources to their bindings. If we
-  -- pass an empty map of resources, nothing is written. So we create an
-  -- empty resource map to create a dummy descriptor set to create a dummy
-  -- material so we can inspect its structure and allocate the required
-  -- resources that haven't yet been allocated. When we finish doing so,
-  -- we'll have constructed the actual resource map, and can then create a
-  -- final material.
-  let dummyMat :: Material α = matf $ Done undefined
-
   -- Make the resource map for this material
   -- Will also count texture references
-  resources0 <- makeResources (case properties @_ @α dummyMat of (Ur pbs, _) -> pbs)
+  (resources0, props1) <- makeResources props0
 
   -- Create the descriptor set with the written descriptors based on the
   -- created resource map
@@ -160,10 +151,14 @@ material matf (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Linear
   -- Create the material which stores the final descriptor set with the
   -- updated information.
   pure
-    ( matf $ Done (dset2, resources2, Ur uniq)
+    ( mkMat (Done (dset2, resources2, Ur uniq)) props1
     , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders
     )
-  -- TODO: Apecs.newEntity (SomeMaterial mat)
+  -- TODO: Apecs.newEntity (SomeMaterial mat)?
+  where
+    mkMat :: ∀ b. Material '[] ⊸ PropertyBindings b ⊸ Material b
+    mkMat x GHNil = x
+    mkMat x (p :## pl) = MaterialProperty p (mkMat x pl)
 
 materialUID :: Material α ⊸ (Ur Unique, Material α)
 materialUID = Unsafe.toLinear $ \x -> (unsafeGo x, x) where

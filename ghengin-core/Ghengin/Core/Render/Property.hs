@@ -191,7 +191,8 @@ writeProperty buf = \case
 -- Consider as an alternative to HasProperties a list-like type of properties
 -- with an χ parameter for the extra information at the list's end.
 class HasProperties φ where
-  properties    :: φ α ⊸ (PropertyBindings α, φ α)
+  -- ROMES:TODO: Re-think which of these I do need? I might be able to delete at least properties, probably
+  -- properties    :: φ α ⊸ (PropertyBindings α, φ α)
   descriptors   :: φ α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, φ α)
   puncons       :: φ (α:β) ⊸ (PropertyBinding α, φ β) -- ROMES:TODO: This is not gonna be Ur when we re-add textures
   pcons         :: PropertyBinding α %p -> φ β ⊸ φ (α:β)
@@ -275,7 +276,8 @@ class HasProperties φ => HasPropertyAt n β φ α where
   -- functor rather than the data one, we won't be able to use this lens as a
   -- getter
   -- ROMES:TODO: I suppose I no longer can have %p here instead of %1? Try thinking about it again...
-  propertyAt :: ∀ γ ρ χ. Linear.Functor γ => (β %1 -> γ (Renderer β)) %χ -> (φ α ⊸ γ (Renderer (φ α)))
+  -- propertyAt :: ∀ γ ρ χ. Linear.Functor γ => (β %ρ -> γ (Renderer β)) %χ -> (φ α ⊸ γ (Renderer (φ α)))
+  propertyAt :: ∀ χ. (β ⊸ Renderer β) %χ -> (φ α ⊸ Renderer (φ α))
 
 instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β φ α where
   propertyAt = propertyAt' @n @0 @φ @α @β
@@ -285,7 +287,8 @@ instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β �
 -- There is a default implementation for 'HasPropertyAt' and instances are only
 -- required for the 'HasProperties' class
 class HasPropertyAt' n m φ α β where
-  propertyAt' :: Linear.Functor f => (β %1 -> f (Renderer β)) %x -> (φ α ⊸ f (Renderer (φ α)))
+  -- propertyAt' :: Linear.Functor f => (β %p -> f (Renderer β)) %x -> (φ α ⊸ f (Renderer (φ α)))
+  propertyAt' :: (β ⊸ Renderer β) %x -> (φ α ⊸ Renderer (φ α))
 
 -- TODO: Instance with type error for "No available property with type X at position N"
 
@@ -297,41 +300,55 @@ instance {-# OVERLAPPING #-}
   ) => HasPropertyAt' n n φ (β:αs) β where
 
   -- propertyAt' :: MonadRenderer μ => Lens (φ (β:αs)) (μ (φ (β:αs))) β (μ (Ur β))
-  propertyAt' :: ∀ χ γ. Linear.Functor γ => (β %1 -> γ (Renderer β)) %χ -> (φ (β:αs) ⊸ γ (Renderer (φ (β:αs))))
+  -- propertyAt' :: ∀ χ γ. Linear.Functor γ => (β %1 -> γ (Renderer β)) %χ -> (φ (β:αs) ⊸ γ (Renderer (φ (β:αs))))
+  -- propertyAt' :: ∀ χ. (β ⊸ Renderer β) %χ -> (φ (β:αs) ⊸ Renderer (φ (β:αs)))
+  -- lens version:
+  -- propertyAt' afmub s =
+  --   case puncons s of -- ft
+  --     -- TODO: prop might have to be linear
+  --     (prop, xs0)      ->
+  --       case propertyValue prop of
+  --         (a, prop1) ->
+  --           (\mub ->
+  --             descriptors xs0 Linear.>>= \case
+  --               (dset, resmap, xs1) -> edit prop1 dset resmap xs1 mub
+  --           ) Linear.<$> afmub a
+  propertyAt' :: ∀ χ. (β ⊸ Renderer β) %χ -> (φ (β:αs) ⊸ Renderer (φ (β:αs)))
   propertyAt' afmub s =
     case puncons s of -- ft
       -- TODO: prop might have to be linear
       (prop, xs0)      ->
-        case propertyValue prop of
-          (a, prop1) ->
-            (\mub ->
+        -- case propertyValue prop of
+        --   (a, prop1) ->
               descriptors xs0 Linear.>>= \case
-                (dset, resmap, xs1) -> edit prop1 dset resmap xs1 mub
-            ) Linear.<$> afmub a
-            -- (\b -> pcons <$> editProperty prop (const b) (fromIntegral (natVal $ Proxy @n)) (xs ^. descriptorSet) <*> pure xs)
+                (dset, resmap, xs1) -> edit prop dset resmap xs1 afmub
+            -- (\mub ->
+            --   descriptors xs0 Linear.>>= \case
+            --     (dset, resmap, xs1) -> edit prop1 dset resmap xs1 afmub
+            -- ) Linear.<$> afmub a
    where
-    edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ Renderer β ⊸ Renderer (φ (β:αs))
-    edit prop dset resmap xs mub = Linear.do
+    edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ (β ⊸ Renderer β) ⊸ Renderer (φ (β:αs))
+    edit prop dset resmap xs fmub = Linear.do
       -- Ur b <- mub
       -- TODO: Perhaps assert this isn't the last usage of dset and resmap,
       -- though I imagine it would be quite hard to get into that situation.
       (dset'  , freeDSet)   <- Counted.get dset
       (resmap', freeResMap) <- Counted.get resmap
-      (updatedProp, dset'', resmap'') <- editProperty prop (const mub) (nat @n) dset' resmap'
+      (updatedProp, dset'', resmap'') <- editProperty prop fmub (nat @n) dset' resmap'
       freeDSet dset''
       freeResMap resmap''
       pure $ pcons updatedProp xs
 
-    propertyValue :: ∀ α. PropertyBinding α ⊸ (α, PropertyBinding α)
-    propertyValue = \case
-      DynamicBinding x -> (x, DynamicBinding x)
-      StaticBinding  x -> (x, StaticBinding x)
-      -- I can do unsafe perform IO since the atomic counter is atomically
-      -- updated, and otherwise the computation is pure. This allows the
-      -- propertyAt' not to require something such as a MonadIO constraint
-      Texture2DBinding x -> Unsafe.Linear.toLinear unsafePerformIO $ Unsafe.Linear.toLinear Linear.withLinearIO $ Linear.do
-        (x1, x2) <- Counted.share x
-        pure $ Unsafe.Linear.toLinear Ur (x1, Texture2DBinding x2)
+    -- propertyValue :: ∀ α. PropertyBinding α ⊸ (α, PropertyBinding α)
+    -- propertyValue = \case
+    --   DynamicBinding x -> (x, DynamicBinding x)
+    --   StaticBinding  x -> (x, StaticBinding x)
+    --   -- I can do unsafe perform IO since the atomic counter is atomically
+    --   -- updated, and otherwise the computation is pure. This allows the
+    --   -- propertyAt' not to require something such as a MonadIO constraint
+    --   Texture2DBinding x -> Unsafe.Linear.toLinear unsafePerformIO $ Unsafe.Linear.toLinear Linear.withLinearIO $ Linear.do
+    --     (x1, x2) <- Counted.share x
+    --     pure $ Unsafe.Linear.toLinear Ur (x1, Texture2DBinding x2)
 
 instance {-# OVERLAPPABLE #-}
   ( HasProperties φ
@@ -339,11 +356,13 @@ instance {-# OVERLAPPABLE #-}
   ) => HasPropertyAt' n m φ (α ': αs) β where
 
   -- propertyAt' :: MonadRenderer μ => Lens (φ (α:αs)) (μ (φ (α:αs))) β (μ (Ur β))
-  propertyAt' :: ∀ f p x. Linear.Functor f => (β %1 -> f (Renderer β)) %x -> (φ (α:αs) ⊸ f (Renderer (φ (α:αs))))
+  -- propertyAt' :: ∀ f p x. Linear.Functor f => (β %1 -> f (Renderer β)) %x -> (φ (α:αs) ⊸ f (Renderer (φ (α:αs))))
+  propertyAt' :: ∀ x. (β ⊸ Renderer β) %x -> (φ (α:αs) ⊸ Renderer (φ (α:αs)))
   propertyAt' f x =
     case puncons x of
       (prop, xs) ->
-        fmap (pcons prop) <$> propertyAt' @n @(m+1) @φ @αs @β f xs
+        -- fmap (pcons prop) <$> propertyAt' @n @(m+1) @φ @αs @β f xs
+        pcons prop <$> propertyAt' @n @(m+1) @φ @αs @β f xs
     
 -- Does it make sense to have this?
 -- instance
@@ -404,7 +423,7 @@ editProperty prop update i dset resmap0 = Linear.do
       -- correctly.
       dset1 <- updateTextureBinding dset ux1
 
-      pure $ (Texture2DBinding ux2, dset1, resmap0)
+      pure (Texture2DBinding ux2, dset1, resmap0)
 
   where
     writeDynamicBinding :: Storable α => RefC MappedBuffer ⊸ α -> Renderer (RefC MappedBuffer)
@@ -420,7 +439,7 @@ editProperty prop update i dset resmap0 = Linear.do
     -- TODO: Is it OK to overwrite previously written descriptor sets at specific points?
     -- TODO: this one has the potential to be wrong, think about it carefully eventually
     -- ROMES:TODO: Textures!!!!
-    updateTextureBinding :: DescriptorSet ⊸ RefC Texture2D ⊸ Renderer (DescriptorSet)
+    updateTextureBinding :: DescriptorSet ⊸ RefC Texture2D ⊸ Renderer DescriptorSet
     updateTextureBinding dset t
       = updateDescriptorSet dset (linInsert i (Texture2DResource t) IM.empty) >>=
         (\(dset, rmap) -> Linear.do

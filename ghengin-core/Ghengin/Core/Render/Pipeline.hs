@@ -17,6 +17,7 @@ import qualified Unsafe.Linear as Unsafe
 
 import Data.Typeable
 import Data.Kind
+import Data.Type.List (type (:++:))
 import Control.Monad ( forM_ )
 import Data.List.NonEmpty
 import Foreign.Storable ( Storable(sizeOf) )
@@ -106,9 +107,9 @@ newtype PushConstantData = PushConstantData { pos_offset :: () -- Mat4
 makeRenderPipeline :: forall τ info tops descs strides
                     . ( PipelineConstraints info tops descs strides )
                    => ShaderPipeline info
-                   -> (RenderPipeline info '[] ⊸ RenderPipeline info τ)
-                   -> Renderer (RenderPipeline info τ)
-makeRenderPipeline shaderPipeline mkRP = Linear.do
+                   -> PropertyBindings τ
+                    ⊸ Renderer (RenderPipeline info τ)
+makeRenderPipeline shaderPipeline props0 = Linear.do
 
   simpleRenderPass <- createSimpleRenderPass
 
@@ -140,11 +141,8 @@ makeRenderPipeline shaderPipeline mkRP = Linear.do
   -- a resource map must be used with 'updateDescriptorSet' to be complete.
   (dset0, dpool1) <- allocateEmptyDescriptorSet 0 dpool0
 
-  -- We need a dummy pipeline to analyse the structure and generate the resources to fill the actually pipeline
-  let dummyRP :: RenderPipeline info τ = mkRP $ RenderPipeline undefined undefined undefined shaderPipeline -- (do i need empty dset?)
-
   -- Make the resource map for this render pipeline using the dummyRP
-  resources0 <- makeResources (case properties @(RenderPipeline info) @τ dummyRP of (Ur pbs, _) -> pbs)
+  (resources0, props1) <- makeResources props0
 
   -- Bind resources to descriptor set
   (dset1, resources1) <- updateDescriptorSet dset0 resources0
@@ -158,15 +156,20 @@ makeRenderPipeline shaderPipeline mkRP = Linear.do
   resources2 <- Counted.new freeResourceMap resources1
   simpleRenderPass3 <- Counted.new destroyRenderPass simpleRenderPass2
 
-  pure $ mkRP $ RenderPipeline pipeline simpleRenderPass3 (dset2, resources2, dpool2) shaderPipeline
+  pure $ mkRP (RenderPipeline pipeline simpleRenderPass3 (dset2, resources2, dpool2) shaderPipeline) props1
+    where
+      mkRP :: ∀ info (b :: [Type]). RenderPipeline info '[] ⊸ PropertyBindings b ⊸ RenderPipeline info b
+      mkRP x GHNil = x
+      mkRP x (p :## pl) = RenderProperty p (mkRP x pl)
 
 instance HasProperties (RenderPipeline π) where
-  properties :: RenderPipeline π τ ⊸ (Ur (PropertyBindings τ), RenderPipeline π τ)
-  properties = Unsafe.toLinear $ \rp -> (unsafeGo rp, rp) where
-    unsafeGo :: RenderPipeline π τ -> Ur (PropertyBindings τ)
-    unsafeGo = \case
-      RenderPipeline {} -> Ur GHNil
-      RenderProperty x xs -> case unsafeGo xs of Ur xs' -> Ur (x :## xs')
+  -- With textures this becomes quite unsafe! We can't just duplicate the property binding
+  -- properties :: RenderPipeline π τ ⊸ (PropertyBindings τ, RenderPipeline π τ)
+  -- properties = Unsafe.toLinear $ \rp -> (unsafeGo rp, rp) where
+  --   unsafeGo :: RenderPipeline π τ ⊸ (PropertyBindings τ)
+  --   unsafeGo = \case
+  --     RenderPipeline {} -> GHNil
+  --     RenderProperty x xs -> case unsafeGo xs of xs' -> (x :## xs')
 
   descriptors :: RenderPipeline π α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, RenderPipeline π α)
   descriptors = Unsafe.toLinear (\rp -> unsafeGo rp >>= \case
@@ -184,7 +187,7 @@ instance HasProperties (RenderPipeline π) where
       -- TODO: This will possibly have to become linear
       RenderProperty _ xs -> unsafeGo xs
 
-  puncons (RenderProperty p xs) = (Ur p, xs)
+  puncons (RenderProperty p xs) = (p, xs)
   pcons = Unsafe.toLinear RenderProperty
 
 

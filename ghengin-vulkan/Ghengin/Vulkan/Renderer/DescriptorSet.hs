@@ -353,30 +353,26 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> Li
                                     , imageInfo = []
                                     , texelBufferView = []
                                     }
-        -- ROMES:TODO: IMPORTANT!!! TEXTURES!!
-        Texture2DResource talias -> useM talias $ Unsafe.toLinear $ \(T.Texture2D vkimage sampler)
+
+                                    -- snd is safe bc despite ignoring talias here, we return it unchanged in the resources list
+        Texture2DResource talias -> Unsafe.toLinear snd $ use talias $ Unsafe.toLinear $ \(Texture2D vkimage sampler) ->
           let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                                  , imageView = vkimage._imageView
-                                                 , sampler   = sampler.sampler
+                                                 , sampler   = Unsafe.toLinear snd $ use sampler $ Unsafe.toLinear $ \s -> (s, s.sampler) -- same unsafe as above
                                                  }
-
-           in Vk.SomeStruct Vk.WriteDescriptorSet
-                                    { next = ()
-                                    , dstSet = dset -- the descriptor set to update with this write
-                                    , dstBinding = fromIntegral i
-                                    , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
-                                    , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
-                                    , descriptorCount = 1 -- Only one buffer in the array of buffers to update
-                                    , bufferInfo = [] -- The one buffer info
-                                    , imageInfo = [imageInfo]
-                                    , texelBufferView = []
-                                    }
-
-  -- Only issue the call if we're actually updating something.
-  -- TODO2:REMOVE THIS, we no longer update the dset with the dummy things,
-  -- simply allocate an empty one and write it explicitly
-  -- This allows us to use the dummy resources trick in 'material'
-  -- when (IM.size resources > 0) $
+           in ( Texture2D vkimage sampler
+              , Vk.SomeStruct Vk.WriteDescriptorSet
+                { next = ()
+                , dstSet = dset -- the descriptor set to update with this write
+                , dstBinding = fromIntegral i
+                , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+                , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
+                , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+                , bufferInfo = [] -- The one buffer info
+                , imageInfo = [imageInfo]
+                , texelBufferView = []
+                }
+              )
 
   unsafeUseDevice (\dev -> Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeDescriptorWrite resources) [])
   pure (DescriptorSet uix dset, resources)
