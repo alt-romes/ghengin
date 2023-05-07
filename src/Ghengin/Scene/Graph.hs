@@ -123,7 +123,7 @@ import {-# SOURCE #-} Ghengin.World
 import {-# SOURCE #-} Ghengin (Ghengin)
 
 import Ghengin.Core.Render.Packet
-import Ghengin.Core.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Component.Transform
 import Ghengin.Component.Camera
 import Ghengin.Component.Orphans
@@ -146,7 +146,8 @@ newtype Parent = Parent Entity
 -- | The integer identifies the instance in which this model matrix was computed
 --
 -- It could be important that the matrix field is lazy... (not yet i think)... if we were to try to cache something
-data ModelMatrix = ModelMatrix Mat4 {-# UNPACK #-} !Int
+data ModelMatrix where
+  ModelMatrix :: Mat4 -> {-# UNPACK #-} !Int -> ModelMatrix
 
 sceneGraph :: SceneGraph w a ⊸ Ghengin w a
 sceneGraph = flip runReaderT (Ur Nothing)

@@ -15,6 +15,7 @@ module Ghengin.Component.Transform
   , makeTransform
   ) where
 
+import qualified Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
 
 import Geomancy hiding (Transform)
@@ -43,10 +44,11 @@ noTransform = Transform (vec3 0 0 0) (vec3 1 1 1) (vec3 0 0 0)
 instance Component Transform where
   type Storage Transform = Map Transform
 
-applyTransform :: MonadIO m => RendererPipeline t ⊸ Transform -> (RenderPassCmd m, RendererPipeline t)
+applyTransform :: MonadIO m => RendererPipeline t ⊸ Transform -> RenderPassCmdM m (RendererPipeline t)
 applyTransform = Unsafe.toLinear \pipeline tr ->
-  let (rpcm, vkplayout) = pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform tr)
-   in (rpcm, Unsafe.toLinear (\_lyout -> pipeline) vkplayout)
+  Unsafe.toLinear (\_lyout -> pipeline) Linear.<$>
+    pushConstants pipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT (makeTransform tr)
+   
 
 -- Make a Matrix 4 by applying translate * R(y) * R(x) * R(z) * scale transformation
 makeTransform :: Transform -> Mat4

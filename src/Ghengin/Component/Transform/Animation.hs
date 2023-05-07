@@ -14,7 +14,7 @@ import Apecs.Linear
 import Ghengin.Component.Transform
 
 import Geomancy.Vec3
-import Ghengin.Core.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Kernel -- See Todo on this being Core.Renderer...
 
 import {-# SOURCE #-} Ghengin.World (World)
 

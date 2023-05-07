@@ -1,6 +1,7 @@
 {-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.Kernel where
 
+import GHC.TypeNats
 import Prelude.Linear
 import Control.Functor.Linear        as Linear
 import Control.Monad.IO.Class.Linear as Linear
@@ -23,6 +24,10 @@ instance Linear.Functor Renderer
 instance Linear.Applicative Renderer
 instance Linear.Monad Renderer
 instance Linear.MonadIO Renderer
+
+-- Not export this from hsig?
+type MAX_FRAMES_IN_FLIGHT_T :: Nat
+type MAX_FRAMES_IN_FLIGHT_T = 2
 
 -- Inlined in instancing module... (make GHC support hsig definitions!)
 -- We need this for Apecs (it requires an instance of Base's MonadIO!)

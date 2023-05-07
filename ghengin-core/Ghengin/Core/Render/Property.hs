@@ -12,6 +12,8 @@ module Ghengin.Core.Render.Property
   -- , freeProperty
   , writeProperty
 
+  , forgetPropertyBindings
+
   -- * Utils
   , GHList(..)
   ) where
@@ -167,18 +169,19 @@ makeResources =
 --    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
 --
 -- The property bindings function should be created from a compatible pipeline
-writeProperty :: RefC MappedBuffer ⊸ PropertyBinding α -> Renderer (RefC MappedBuffer)
+writeProperty :: RefC MappedBuffer ⊸ PropertyBinding α ⊸ Renderer (RefC MappedBuffer, PropertyBinding α)
 writeProperty buf = \case
-  StaticBinding  _ ->
+  StaticBinding  x ->
     -- Already has been written to, we simply bind it together with the rest of
     -- the set at draw time and do nothing here.
-    pure buf
-  Texture2DBinding  _ ->
+    pure (buf, StaticBinding x)
+  Texture2DBinding  t ->
   --   -- As above. Static bindings don't get written every frame.
-    pure buf
-  DynamicBinding (a :: α) ->
+    pure (buf, Texture2DBinding t)
+  DynamicBinding (a :: α) -> Linear.do
     -- Dynamic bindings are written every frame
-    writeMappedBuffer buf a
+    buf' <- writeMappedBuffer buf a
+    pure (buf', DynamicBinding a)
 {-# INLINE writeProperty #-}
 
 
@@ -191,10 +194,10 @@ writeProperty buf = \case
 -- Consider as an alternative to HasProperties a list-like type of properties
 -- with an χ parameter for the extra information at the list's end.
 class HasProperties φ where
-  -- ROMES:TODO: Re-think which of these I do need? I might be able to delete at least properties, probably
-  -- properties    :: φ α ⊸ (PropertyBindings α, φ α)
+  -- Re-think these...
+  properties    :: φ α ⊸ (PropertyBindings α, φ α)
   descriptors   :: φ α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, φ α)
-  puncons       :: φ (α:β) ⊸ (PropertyBinding α, φ β) -- ROMES:TODO: This is not gonna be Ur when we re-add textures
+  puncons       :: φ (α:β) ⊸ (PropertyBinding α, φ β)
   pcons         :: PropertyBinding α %p -> φ β ⊸ φ (α:β)
 
 -- | If we know that a type (φ α) has property of type (β) at binding (#n), we
@@ -461,3 +464,13 @@ editProperty prop update i dset resmap0 = Linear.do
 
 linInsert :: Int ⊸ a ⊸ IM.IntMap a ⊸ IM.IntMap a
 linInsert = Unsafe.Linear.toLinear3 IM.insert
+
+forgetPropertyBindings :: PropertyBindings α ⊸ Renderer ()
+forgetPropertyBindings GHNil = pure ()
+forgetPropertyBindings (b :## bs)
+  = case b of
+      DynamicBinding _ -> forgetPropertyBindings bs
+      StaticBinding  _ -> forgetPropertyBindings bs
+      Texture2DBinding t -> Counted.forget t >> forgetPropertyBindings bs
+
+  

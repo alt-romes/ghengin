@@ -135,7 +135,7 @@ withCurrentFramePresent :: (MonadTrans t, MonadIO (t (Renderer)))
                               ⊸ Int -- ^ Current image index
                              -> t (Renderer) (a, Vk.CommandBuffer)
                            )
-                        -> t (Renderer) a
+                         ⊸ t (Renderer) a
 withCurrentFramePresent currentFrameIndex action = Linear.do
 
   Ur unsafeCurrentFrame <- lift $ renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)

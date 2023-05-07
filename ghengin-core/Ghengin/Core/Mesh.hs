@@ -75,7 +75,9 @@ data Mesh ts = SimpleMesh { vertexBuffer       :: !VertexBuffer -- a vector of v
 data SomeMesh = forall ts. SomeMesh (Mesh ts)
 
 -- Render a mesh command
+--
 -- ROMES:TODO: Certainly must get back to this
+-- For now, moved out of here. Not sure if it belongs here anyway.
 -- renderMesh :: MonadIO m => Mesh a -> RenderPassCmd m
 -- renderMesh = \case
 --   SimpleMesh buf _ nverts _ -> do

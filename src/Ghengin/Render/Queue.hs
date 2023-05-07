@@ -1,6 +1,8 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE QualifiedDo #-}
+{-# LANGUAGE LinearTypes #-}
 {-|
 Note [Render Queue]
 ~~~~~~~~~~~~~~~~~~~
@@ -26,6 +28,11 @@ See Note [Render Packet Key] and [Material Key]
 -}
 module Ghengin.Render.Queue where
 
+import qualified Prelude
+import Prelude.Linear hiding (insert)
+import Data.Unrestricted.Linear as Linear
+import Control.Functor.Linear as Linear
+import qualified Unsafe.Linear as Unsafe
 import Data.Unique
 import Data.Typeable
 import Data.Map (Map)
@@ -37,28 +44,28 @@ import Ghengin.Core.Mesh
 import Ghengin.Core.Material hiding (material)
 
 newtype RenderQueue a = RenderQueue (Map TypeRep (SomePipelineRef, Map Unique (SomeMaterialRef, [(SomeMesh, a)])))
-  deriving (Functor)
+  deriving (Prelude.Functor)
 
 data SomePipelineRef = ∀ π α. SomePipelineRef (Ref (RenderPipeline π α))
 data SomeMaterialRef = ∀ α. SomeMaterialRef (Ref (Material α))
 
-instance Semigroup (RenderQueue α) where
+instance Prelude.Semigroup (RenderQueue α) where
   (<>) (RenderQueue q) (RenderQueue q') =
     RenderQueue $
       M.mergeWithKey
         (\_ (p1, im1) (_p2, im2) -> -- (p1 should be the same as p2)
-          pure
+          Prelude.pure
             (p1, M.mergeWithKey
                 (\_ (m1,meshes1) (_m2, meshes2) -> -- (m1 should be the same as m2)
-                  pure (m1, meshes1 <> meshes2)
+                  Prelude.pure (m1, meshes1 Prelude.<> meshes2)
                 ) id id im1 im2)
         ) id id q q'
 
-instance Monoid (RenderQueue α) where
-  mempty = RenderQueue mempty
+instance Prelude.Monoid (RenderQueue α) where
+  mempty = RenderQueue Prelude.mempty
 
 fromList :: [(RenderPacket, a)] -> RenderQueue a
-fromList = foldr (uncurry insert) mempty
+fromList = Prelude.foldr (Prelude.uncurry insert) Prelude.mempty
 -- fromList = foldr ((<>) . (`insert` mempty)) mempty :)
 {-# INLINE fromList #-}
 
@@ -70,10 +77,10 @@ insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue
         (\(p1, im1) (_p2, im2) -> -- (p1 should be the same as p2)
             (p1, M.mergeWithKey
                 (\_ (m1,meshes1) (_m2, meshes2) -> -- (m1 should be the same as m2)
-                  pure (m1, meshes1 <> meshes2)
+                  Prelude.pure (m1, meshes1 Prelude.<> meshes2)
                 ) id id im1 im2))
         pkey
-        (SomePipelineRef pipeline, M.insert mkey (SomeMaterialRef material, [(SomeMesh mesh, x)]) mempty)
+        (SomePipelineRef pipeline, M.insert mkey (SomeMaterialRef material, [(SomeMesh mesh, x)]) Prelude.mempty)
         q
 
 -- | Traverse the render queue with a function for each different occasion:
@@ -84,21 +91,24 @@ insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue
 -- * New mesh for the render packet using the previously seen material
 --
 --- It's this generic because used for drawing and for freeing all the meshes :)
-traverseRenderQueue :: (Monad μ, Monad μ')
+traverseRenderQueue :: (Linear.Monad μ, Linear.Monad μ')
                     => RenderQueue α -- ^ The render queue
                     -> (SomePipelineRef -> μ' () -> μ ()) -- ^ The initial context lifting from m to m' for the inner functions
                     -> (SomePipelineRef -> μ' SomePipeline) -- ^ The pipeline changed (nothing should be rendered) (return the pipeline fetched)
-                    -> (SomePipeline -> SomeMaterialRef -> μ' ξ) -- ^ The material changed (nothing should be rendered)
-                    -> (SomePipeline -> SomeMesh -> α -> μ' δ) -- ^ The mesh to render
+                    -> (SomePipeline -> SomeMaterialRef -> μ' ()) -- ^ The material changed (nothing should be rendered)
+                    -> (SomePipeline -> SomeMesh %1 -> α %1 -> μ' ()) -- ^ The mesh to render
                     -> μ' () -- ^ A command at the end of each render pass
                     -> μ ()
 traverseRenderQueue (RenderQueue q) ini f g h finally =
-  () <$ traverse (\(pp,mts) ->
-    ini pp $ do -- init the context
-      smpp <- f pp
-      _ <- traverse (\(mt,meshes) ->
-        g smpp mt <* traverse (uncurry (h smpp)) meshes) mts
+  () <$ runUrT (Prelude.traverse (\(pp,mts) -> UrT $
+    move <$> ini pp Linear.do -- init the context
+      Ur smpp <- Unsafe.toLinear Ur <$> f pp -- ach unsafe, the ghengin side of linear things is pretty bad.
+      Ur xs <- runUrT $ Prelude.traverse (\(mt,meshes) -> UrT $
+        move <$> g smpp mt <* runUrT (Prelude.traverse (\(a,b) -> UrT $ move <$> h smpp a b) meshes)) mts
       finally -- run at the end of the context
-        ) q
+        ) q)
 {-# INLINE traverseRenderQueue #-}
+
+instance Consumable (Map Unique ()) where
+  consume = Unsafe.toLinear $ \_ -> ()
 

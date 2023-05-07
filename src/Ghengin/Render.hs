@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE QualifiedDo #-}
@@ -8,6 +9,7 @@ module Ghengin.Render where
 import Prelude.Linear hiding (insert)
 import qualified Prelude
 import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
 -- import Data.Maybe
 
 import qualified Data.Vector as V
@@ -25,18 +27,27 @@ import Ghengin.Vulkan.Renderer.Pipeline
 import Ghengin.Vulkan.Renderer.DescriptorSet
 import Ghengin.Vulkan.Renderer.RenderPass
 import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer
+import Ghengin.Core.Renderer
+
+import Ghengin.Core.Render.Packet
+import Ghengin.Core.Mesh
+import Ghengin.Core.Render.Property
+import Ghengin.Core.Material
+
+import Ghengin.Core.Type.Utils (nat)
 
 import qualified Ghengin.DearImGui as IM
 
 import Ghengin.Scene.Graph
-import Ghengin.Core.Render.Packet
 import Ghengin.Render.Queue
-import Ghengin.Core.Mesh
-import Ghengin.Core.Render.Property
-import Ghengin.Core.Material
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
-import Control.Lens ((^.))
+import Control.Lens ((^.), Lens', lens)
+
+import Data.Counted
+import qualified Data.Counted.Unsafe as Unsafe
+import qualified Unsafe.Linear as Unsafe
 
 type RenderConstraints w = ( Has (World w) Renderer Transform
                            , Has (World w) Renderer Camera
@@ -47,6 +58,7 @@ type RenderConstraints w = ( Has (World w) Renderer Transform
                            -- , Apecs.Get (World w) Renderer RenderPacket
                            -- , Apecs.Get (World w) Renderer SomePipeline
                            -- , Apecs.Get (World w) Renderer SomeMaterial
+                           , Dupable w
                            )
 
 
@@ -70,12 +82,18 @@ each renderable entity.
 --  * Note [Scene Graph]
 --  * Note [Renderable entities]
 render :: RenderConstraints w
-       => Int -- frame identifier
+       => Int -- frame identifier (frame count)
        -> Ghengin w ()
-render i = do
+render i = Linear.do
+
+  -- ROMES:TODO: This might cause flickering once every frame overflow due to ... overflows?
+  -- Need to consider what happens if it overflows. For now, good enough, it's
+  -- unlikely the frame count overflows, with 60 frames per second the game
+  -- would have to run for years to overflow a 64 bit integer
+  let frameIndex = i `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
 
   -- Some required variables
-  extent <- lift getRenderExtent
+  Ur extent <- lift getRenderExtent
   let viewport = viewport' extent
       scissor  = scissor' extent
 
@@ -85,7 +103,7 @@ render i = do
 
 
   -- Get all the 'RenderPacket's to create the 'RenderQueue' ahead
-  renderQueue <- cfold (flip $ \(p :: RenderPacket, fromMaybe (ModelMatrix identity 0) -> mm) -> insert p mm) mempty
+  Ur renderQueue <- cfold (flip $ \(p :: RenderPacket, fromMaybe (ModelMatrix identity 0) -> mm) -> insert p mm) Prelude.mempty
 
 
   {-
@@ -118,9 +136,9 @@ render i = do
       iteration will actually look a bit like the described above
    -}
 
-  _ <- withCurrentFramePresent $ \cmdBuffer currentImage currentFrame -> do
+  withCurrentFramePresent frameIndex $ \cmdBuffer currentImage -> Linear.do
 
-    recordCommand cmdBuffer $ do
+    cmdBuffer' <- recordCommand cmdBuffer $ Linear.do
 
       -- Now, render the renderable entities from the render queue in the given order.
       -- If everything works as expected, if we blindly bind the descriptor sets as
@@ -128,71 +146,107 @@ render i = do
       traverseRenderQueue
         renderQueue
         -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
-        (\(SomePipelineRef (Ref pp'_ref)) m -> do
+        (\(SomePipelineRef (Ref pp'_ref)) m -> Linear.do
           -- ROMES: This Ur can't really be right, perhaps it's just better to use normal apecs over unrestricted monad transformer.
           Ur (SomePipeline pp') <- lift $ Apecs.get (Apecs.Entity pp'_ref) -- TODO: Share this with the next one
-          renderPassCmd (pp' ^. renderPass)._renderPass ((pp' ^. renderPass)._framebuffers V.! currentImage) extent m
+          (rp, _pp') <- getRenderPass pp'
+          (rp', ()) <- useM rp $ Unsafe.toLinear $ \rp' -> Linear.do
+            renderPassCmd rp'._renderPass (rp'._framebuffers V.! currentImage) extent m -- nice and unsafe
+            pure (rp', ())
+
+          lift $ lift $ Data.Counted.forget rp'
+
+          Unsafe.toLinear (\_ -> pure ()) _pp' -- forget pipeline??
         )
-        (\(SomePipelineRef (Ref pipeline_ref)) -> do
-            Ur (SomePipeline pipeline) <- lift $ Apecs.get pipeline_ref
+        (\(SomePipelineRef (Ref pipeline_ref)) -> Linear.do
+            Ur (SomePipeline pipeline) <- lift $ Apecs.get (Apecs.Entity pipeline_ref)
 
             -- logTrace "Binding pipeline"
+            Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
 
             -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
             -- Bind the pipeline
-            bindGraphicsPipeline ((pipeline^.graphicsPipeline)._pipeline)
+            gppp' <- bindGraphicsPipeline (graphicsPipeline._pipeline)
             setViewport viewport
             setScissor  scissor
 
-            case pipeline ^. descriptorSet of -- TODO: Fix frames in flight...
-              ppDSet@DescriptorSet{} -> do
+            lift (lift (descriptors pipeline)) >>= \case-- TODO: Fix frames in flight... here it migth be crrect actylly, descriptor sets are shared, only one frame is being drawn at the time despite the double buffering
+              (dset, rmap, pipeline') -> Linear.do
 
                 -- These render properties are necessarily compatible with this
                 -- pipeline in the set #0, so the 'descriptorSetBinding' buffer
                 -- will always be valid to write with the corresponding
                 -- material binding
-                --
-                -- getUniformBuffer is partially applied to matDSet so it can be used to fetch each material descriptor
-                lift $ writePropertiesToResources (getUniformBuffer ppDSet) pipeline
+                (rmap', pipeline'') <- lift $ useM rmap (\rmap' -> writePropertiesToResources rmap' pipeline')
                 
                 -- Bind descriptor set #0
-                bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout 0 ppDSet._descriptorSet
+                (dset', pLayout) <- useM dset (Unsafe.toLinear $ \dset' -> Linear.do
+                  (pLayout', vkdset) <-
+                    bindGraphicsDescriptorSet graphicsPipeline._pipelineLayout 0 dset'._descriptorSet
+                  pure (Unsafe.toLinear (\_ -> dset') vkdset, pLayout') --forget vulkan dset
+                                              )
+
+                -- Dangerous!! Could be forgetting values that need to be
+                -- reference-counted forgotten, or otherwise references become
+                -- obsolete. These values are probably shared before being
+                -- returned from 'descriptors' T_T.
+                -- OK, I made it less bad, now I'm only forgetting stuff I got unsafely...
+                -- And the pipeline T_T
+                Unsafe.toLinearN @3 (\_ _ _ -> pure ()) pipeline'' pLayout gppp' -- The pipeline is still in the Apecs store. Really, these functions should have no Unsafes and in that case all would be right (e.g. the resource passed to this function would have to be freed in this function, guaranteeing that it is reference counted or something?....
+
+                lift $ lift $ Linear.do
+                  Data.Counted.forget dset'
+                  Data.Counted.forget rmap'
 
             pure $ SomePipeline pipeline
           )
-        (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> do
-            Ur (SomeMaterial material) <- lift $ Apecs.get material_ref
+        (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> Linear.do
+            Ur (SomeMaterial material) <- lift $ Apecs.get (Apecs.Entity material_ref)
 
             -- logTrace "Binding material"
+            Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
 
-            case material ^. descriptorSet of
-              matDSet@DescriptorSet{} -> do
+            lift (lift (descriptors material)) >>= \case
+              (dset,rmap,material') -> Linear.do
 
                 -- These materials are necessarily compatible with this pipeline in
                 -- the set #1, so the 'descriptorSetBinding' buffer will always be
                 -- valid to write with the corresponding material binding
-                lift $ writePropertiesToResources (getUniformBuffer matDSet) material
+                (rmap', material'') <- lift $ useM rmap (\rmap' -> writePropertiesToResources rmap' material')
                 
                 -- static bindings will have to choose a different dset
                 -- Bind descriptor set #1
-                bindGraphicsDescriptorSet (pipeline^.graphicsPipeline)._pipelineLayout 1 matDSet._descriptorSet
+                (dset', pLayout) <- useM dset (Unsafe.toLinear $ \dset' -> Linear.do
+                  (pLayout', vkdset) <-
+                    bindGraphicsDescriptorSet graphicsPipeline._pipelineLayout 1 (dset'._descriptorSet)
+                  pure (Unsafe.toLinear (\_ -> dset') vkdset, pLayout') --forget vulkan dset
+                                              )
+
+                Unsafe.toLinearN @2 (\_ _ -> pure ()) material'' pLayout -- The material still in the Apecs store. Really, these functions should have no Unsafes and in that case all would be right (e.g. the resource passed to this function would have to be freed in this function, guaranteeing that it is reference counted or something?....
+
+                lift $ lift $ Linear.do
+                  Data.Counted.forget dset'
+                  Data.Counted.forget rmap'
 
           )
-        (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> do
+        (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> Linear.do
 
             -- logTrace "Drawing mesh"
+            Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
 
             -- TODO: Bind descriptor set #2
 
-            pushConstants (pipeline^.graphicsPipeline)._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
-            renderMesh mesh
+            pLayout <- pushConstants graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
+            mesh' <- renderMesh mesh
+
+            Unsafe.toLinearN @2 (\_ _ -> pure ()) pLayout mesh' -- forget mesh, it's in the Apecs store... ouch
           )
-        (do
+        (
           -- Draw UI (TODO: Special render pass...?)
-          IM.getDrawData >>= IM.renderDrawData
+          liftSystemIO IM.getDrawData >>= IM.renderDrawData
         )
 
-  pure ()
+    pure ((), cmdBuffer')
     
  where
   -- The region of the framebuffer that the output will be rendered to. We
@@ -219,14 +273,69 @@ render i = do
 --
 -- (2) The written resource must be updated in the corresponding descriptor set which must be bound (This is done in the render function)
 --
+-- The important logic is done by 'writeProperty', this function simply iterates over the properties to write them
+--
 -- The render property bindings function should be created from a compatible pipeline
-writePropertiesToResources :: ∀ φ α ω. HasProperties φ => (Int -> MappedBuffer) -> φ α -> Ghengin ω ()
-writePropertiesToResources propertyBinding = go 0 . properties where
+writePropertiesToResources :: ∀ φ α ω. (HasProperties φ, Dupable ω) => ResourceMap ⊸ φ α ⊸ Ghengin ω (ResourceMap, φ α)
+writePropertiesToResources rmap' fi
+  = case properties fi of
+      (pbs, fi') -> Linear.do
+        (rmap', pbs') <- go rmap' 0 pbs
+        lift $ forgetPropertyBindings pbs'
+        pure (rmap', fi')
 
-  go :: ∀ β. Int -> PropertyBindings β -> Ghengin ω ()
-  go n = \case
-    GHNil -> pure ()
-    binding :## as -> do
-      lift $ writeProperty (propertyBinding n) binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
-      go (n+1) as
+  where
+    go :: ∀ β. ResourceMap ⊸ Int -> PropertyBindings β ⊸ Ghengin ω (ResourceMap, PropertyBindings β)
+    go rmap n = \case
+      GHNil -> pure (rmap, GHNil)
+      binding :## as -> Linear.do
+        (mappedB, rmap') <- lift $ getUniformBuffer rmap n
+        (mappedB', binding') <- lift $ writeProperty mappedB binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
+        lift $ Data.Counted.forget mappedB' -- gotten from rmap, def. not the last ref
+        (rmap'', bs) <- go rmap' (n+1) as
+        pure (rmap'', binding':##bs)
+
+-- ROMES:TODO: move all this unwrapping device buffers to the Command module
+renderMesh :: MonadIO m => Mesh a ⊸ RenderPassCmdM m (Mesh a)
+renderMesh = \case
+  SimpleMesh (VertexBuffer (DeviceLocalBuffer buf mem) nverts) -> Linear.do
+      buffers <- pure $ Unsafe.toLinear V.singleton buf
+      let offsets = [0]
+      buffers' <- bindVertexBuffers 0 buffers offsets
+      draw nverts
+      pure (SimpleMesh (VertexBuffer (DeviceLocalBuffer (Unsafe.toLinear V.unsafeHead buffers') mem) nverts))
+  IndexedMesh (VertexBuffer (DeviceLocalBuffer vbuf mem) nverts) (Index32Buffer (DeviceLocalBuffer ibuf imem) nixs) -> Linear.do
+      buffers <- pure $ Unsafe.toLinear V.singleton vbuf -- while we don't have linear lets...
+      let offsets = [0]
+      buffers' <- bindVertexBuffers 0 buffers offsets
+      ibuf'    <- bindIndex32Buffer ibuf 0
+      drawIndexed nixs
+      pure (IndexedMesh (VertexBuffer (DeviceLocalBuffer (Unsafe.toLinear V.unsafeHead buffers') mem) nverts)
+                        (Index32Buffer (DeviceLocalBuffer ibuf' imem) nixs)
+           )
+
+-- Utils
+-- These being used really go to show how broken the ghengin side of things
+-- (outside of core) seem to be wrt linearity.
+
+getRenderPass :: ∀ m α info. MonadIO m => RenderPipeline info α ⊸ m (RefC RenderPass, RenderPipeline info α)
+getRenderPass = Unsafe.toLinear $ \x -> (,x) <$> get' x  -- Safe since we increment the reference count of the thing we return
+  where
+    get' :: ∀ b. RenderPipeline info b -> m (RefC RenderPass)
+    get' (RenderPipeline _ rp _ _) = Unsafe.inc rp
+    get' (RenderProperty _ rp) = get' rp
+
+unsafeGraphicsPipeline :: ∀ α info. RenderPipeline info α ⊸ Ur (RendererPipeline Graphics, RenderPipeline info α)
+unsafeGraphicsPipeline = Unsafe.toLinear $ \x -> Ur (get' x,x)  -- just unsafe...
+  where
+    get' :: ∀ b. RenderPipeline info b -> (RendererPipeline Graphics)
+    get' (RenderPipeline rpg _ _ _) = rpg
+    get' (RenderProperty _ rp) = get' rp
+
+getResourceMap :: ∀ m α info. MonadIO m => RenderPipeline info α ⊸ m (RefC ResourceMap, RenderPipeline info α)
+getResourceMap = Unsafe.toLinear $ \x -> (,x) <$> get' x  -- Safe since we increment the reference count of the thing we return
+  where
+    get' :: ∀ b. RenderPipeline info b -> m (RefC ResourceMap)
+    get' (RenderPipeline _ _ (_, rmap, _) _) = Unsafe.inc rmap
+    get' (RenderProperty _ rp) = get' rp
 

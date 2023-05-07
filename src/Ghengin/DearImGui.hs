@@ -105,8 +105,8 @@ destroyImCtx = Unsafe.toLinear $ \(IMCtx pool imCtx initRes) -> Linear.do
   unsafeUseDevice (\device -> Vk.destroyDescriptorPool device pool Nothing)
 
 
-renderDrawData :: MonadIO m => IM.DrawData -> RenderPassCmd m
-renderDrawData dd = makeRenderPassCmd $ \b ->
+renderDrawData :: MonadIO m => IM.DrawData %p -> RenderPassCmd m
+renderDrawData = Unsafe.toLinear $ \dd -> makeRenderPassCmd $ \b ->
   liftSystemIO $ IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
 
 

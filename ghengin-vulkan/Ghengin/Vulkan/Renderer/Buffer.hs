@@ -14,6 +14,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Vulkan.Renderer.Buffer where
 
+import Data.Word (Word32)
 import qualified Prelude
 import Prelude.Linear hiding (zero)
 import Control.Functor.Linear as Linear
@@ -49,19 +50,25 @@ import qualified Ghengin.Vulkan.Renderer.Command as Cmd
 -- Inlined definitions from Ghengin Core
 data Index32Buffer where
   Index32Buffer :: !DeviceLocalBuffer
-                 ⊸ Word
-                %p -> Index32Buffer
+                 ⊸ Word32
+                -> Index32Buffer
 
 createIndex32Buffer :: SV.Vector Int32 -> Renderer Index32Buffer
-createIndex32Buffer vv = Index32Buffer <$> createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT vv <*> pure (fromIntegral $ SV.length vv)
+createIndex32Buffer vv = index32buffer <$> createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT vv <*> pure (Ur $ fromIntegral $ SV.length vv)
+  where
+    index32buffer :: DeviceLocalBuffer %1 -> Ur Word32 %1 -> Index32Buffer
+    index32buffer d (Ur w) = Index32Buffer d w
 
 data VertexBuffer where
   VertexBuffer :: !DeviceLocalBuffer
-                ⊸ Word
-                %p -> VertexBuffer
+                ⊸ Word32
+               -> VertexBuffer
 
 createVertexBuffer :: ∀ αs. SV.Storable (Vertex αs) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
-createVertexBuffer vv = VertexBuffer <$> createDeviceLocalBuffer @(Vertex αs) Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT vv <*> pure (fromIntegral $ SV.length vv) -- use Locations for vertex buffers
+createVertexBuffer vv = vertexBuffer <$> createDeviceLocalBuffer @(Vertex αs) Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT vv <*> pure (Ur $ fromIntegral $ SV.length vv) -- use Locations for vertex buffers
+  where
+    vertexBuffer :: DeviceLocalBuffer %1 -> Ur Word32 %1 -> VertexBuffer
+    vertexBuffer d (Ur w) = VertexBuffer d w
 
 -------- Device-local buffer -----------
 

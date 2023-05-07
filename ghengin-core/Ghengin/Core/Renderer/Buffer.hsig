@@ -1,6 +1,7 @@
 {-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.Buffer where
 
+import Data.Word (Word32)
 import Data.Int (Int32)
 import qualified Data.Vector.Storable as SV
 -- TODO:Exchange Vk specific types to renderer agnostic enumerations
@@ -35,16 +36,16 @@ In Vulkan at least. For some renderers this distinction might not exist...
 
 data Index32Buffer where
   Index32Buffer :: !DeviceLocalBuffer
-                 ⊸ Word                 -- ^ N indices
-                %p -> Index32Buffer
+                 ⊸ Word32                 -- ^ N indices
+                -> Index32Buffer
 
 createIndex32Buffer :: SV.Vector Int32 -- ^ Indices
                     -> Renderer Index32Buffer
 
 data VertexBuffer where
   VertexBuffer :: !DeviceLocalBuffer
-                ⊸ Word               -- ^ N vertices
-                %p -> VertexBuffer
+                ⊸ Word32               -- ^ N vertices
+               -> VertexBuffer
 
 createVertexBuffer :: ∀ αs. SV.Storable (Vertex αs)
                    => SV.Vector (Vertex αs) -- ^ Vertices

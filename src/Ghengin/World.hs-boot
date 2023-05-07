@@ -8,7 +8,7 @@ import Apecs.Core
 import Data.Unrestricted.Linear (Dupable, Consumable)
 import Data.Kind
 
-import Ghengin.Core.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Kernel -- See Todo on making Ghengin modules not depending directly on Vulkan too.
 import Ghengin.Core.Render.Packet (RenderPacket)
 import Ghengin.Core.Render.Pipeline (SomePipeline)
 import Ghengin.Core.Material (SomeMaterial)
