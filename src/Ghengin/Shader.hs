@@ -1,13 +1,13 @@
 module Ghengin.Shader
   ( VertexShaderModule, FragmentShaderModule
-  , module Ghengin.Shader.Pipeline
+  , module Ghengin.Core.Shader.Pipeline
 
   -- * Shader Byte Code for internal use
   , ShaderByteCode(..), compileFIRShader
   ) where
 
-import Ghengin.Shader.Canonical
-import Ghengin.Shader.Pipeline
+import Ghengin.Core.Shader.Canonical
+import Ghengin.Core.Shader.Pipeline
 import Ghengin.Shader.Syntactic ()
 import qualified Data.ByteString.Lazy as BS
 import qualified FIR

@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Ghengin.Component.Orphans where
 
 import Ghengin.Core.Renderer.Kernel (Renderer)
@@ -11,8 +12,16 @@ import Apecs.Linear
 -- place to do it? Perhaps here isn't so bad.
 
 -- Core data types Storage instances
+-- BIG:TODO: Caches around these storages in generall...
 
 -- | BIG:TODO: Cache around this Map storage
 instance Component RenderPacket where
   type Storage RenderPacket = Map RenderPacket
 
+instance Component SomePipeline where
+  type Storage SomePipeline = Map SomePipeline
+  -- {-# DEPRECATED makeRenderPipeline "Storage should be a cache" #-}
+
+instance Component SomeMaterial where
+  type Storage SomeMaterial = Map SomeMaterial
+  -- {-# DEPRECATED material "TODO: Material storage should be a cache" #-}

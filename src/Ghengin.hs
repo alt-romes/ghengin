@@ -46,7 +46,7 @@ import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Render.Property
 -- End re-exports
 
-import Apecs
+import Apecs.Linear
 import Control.Logger.Simple
 import Control.Monad.Reader
 import Data.IORef

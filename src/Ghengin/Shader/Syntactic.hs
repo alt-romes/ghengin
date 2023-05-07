@@ -4,7 +4,7 @@
 -- This module exports orphan definitions for engine types instancing Syntactic.
 module Ghengin.Shader.Syntactic where
 
-import qualified Ghengin.Asset.Texture as Tex
+import qualified Ghengin.Core.Renderer.Texture as Tex
 import Geomancy.Vec3
 import FIR
 import qualified FIR.Prim.Image as FIR

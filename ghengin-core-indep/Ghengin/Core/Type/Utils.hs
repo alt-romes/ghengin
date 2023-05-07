@@ -1,6 +1,12 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-module Ghengin.Core.Type.Utils where
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE GADTs #-}
+module Ghengin.Core.Type.Utils
+  ( module Ghengin.Core.Type.Utils
+  -- , module Data.Type.Map
+  -- , module Data.Type.List
+  ) where
 
 import GHC.TypeLits
 import Data.Proxy
@@ -10,6 +16,7 @@ import Math.Linear (V(..), M(..))
 import FIR.Prim.Struct
 import qualified SPIRV.Image as SPIRV
 import Data.Type.Map
+-- import Data.Type.List hiding (Zip)
 
 type (:<|>:) :: Maybe a -> Maybe a -> Maybe a
 type family (:<|>:) mx my where
@@ -58,6 +65,13 @@ instance Sized ('SPIRV.ImageFormat c ((x ': xs) :: [Nat])) where
   type SizeOf ('SPIRV.ImageFormat c (x ': xs)) = (x `Div` 8) + SizeOf ('SPIRV.ImageFormat c xs)
   -- Division by 8 because image format size is in bits
 
+nat :: ∀ m. KnownNat m => Int
+nat = fromIntegral (natVal (Proxy @m))
+
 w32 :: ∀ n. KnownNat n => Word32
 w32 = fromInteger (natVal (Proxy @n))
+
+data Some f where
+  Some :: f a %p -> Some f
+
 

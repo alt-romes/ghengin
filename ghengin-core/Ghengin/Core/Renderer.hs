@@ -24,6 +24,7 @@ import qualified Data.Counted.Unsafe as Unsafe.Counted
 
 instance Counted DescriptorResource where
   countedFields (UniformResource x) = [SomeRefC x]
+  countedFields (Texture2DResource x) = [SomeRefC x]
 
 getUniformBuffer :: ResourceMap ⊸ Int -> Renderer (RefC MappedBuffer, ResourceMap)
 getUniformBuffer = Unsafe.toLinear $ \resourcemap i ->
