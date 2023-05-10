@@ -1,3 +1,23 @@
+[ ] Include API design (and namespace design) in architecture design/refactor document
+[ ] World as a modular thing, perhaps like an HList to which we can add as many components as we want, while still defining type predicates
+[ ] Unrestricted wrappers on Ghengin for all functions users might need from the Renderer
+[ ] Diagrams of the architecture, how do subsystems connect, what's concurrent?
+[ ] ARCHITECTURE.md;
+[ ] Revert linear Ghengin interface. Keep linear Core.
+[ ] Compile with "incorrect semantics linear-apecs" linear Ghengin, then do the task above
+[ ] I Don't think I'm going to keep a linear interface to Ghengin, but rather
+    use UrT to wrap the linear Renderer and Core Ghengin. This would allow us
+    to use normal Apecs, without the linear performance regressions and
+    incorrect semantics (I could probably fix the semantics with dupable, but
+    then incur in even more performance regressions).
+[ ] Hot reloading textures
+[ ] It's currently a very unsafe frankenstein, but really make it compile again before improving it, as a hobby, I can take as many time as I need refactoring everything just for the sake of a more beautiful program
+[ ] First worry about correctness, then about the performance regressions of using linear types
+[ ] More on WebGPU https://cohost.org/mcc/post/1406157-i-want-to-talk-about-webgpu
+[ ] Performance of linear-apecs is much worse than normal apecs. Probably we need to revert to using it...?
+[ ] Write a backend for the new WebGPU! Make games for the web?
+[ ] Better abstract graphics API? https://wickedengine.net/2021/05/06/graphics-api-abstraction/
+[ ] Again, deferred rendering https://lettier.github.io/3d-game-shaders-for-beginners/deferred-rendering.html
 [ ] Use linear constraints with 9.8
 [ ] Ghengin should not mention vulkan anywhere outside of the cabal file that
     instances Core.Renderer with Vulkan.Renderer. For now, though, we use Vulkan

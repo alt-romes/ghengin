@@ -95,6 +95,11 @@ createDeviceLocalBuffer flags bufferData =
 
     pure $ DeviceLocalBuffer devBuffer' devMem
 
+destroyDeviceLocalBuffer :: DeviceLocalBuffer ⊸ Renderer ()
+destroyDeviceLocalBuffer (DeviceLocalBuffer b dm) = Linear.do
+  destroyBuffer b
+  freeMemory dm
+
 -------- Mapped Buffer -----------------
 
 -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@

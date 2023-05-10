@@ -6,8 +6,17 @@ module Ghengin.Component.Mesh.Sphere where
 import Control.Monad
 
 import Ghengin
-import Ghengin.Vulkan
+import Ghengin.Vulkan.Renderer
+import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Core.Mesh
+
+import qualified Data.Vector.Storable as SV
+import qualified Data.IntMap as IM
+import qualified Data.Map as M
+
+import Data.Foldable (foldl')
+import Data.List (sort)
+import Data.List.Split (chunksOf)
 
 data UnitFace = UF { positions :: [Vec3]
                    , indices   :: [Int]
@@ -65,3 +74,24 @@ newSphereMesh res color =
   let UnitSphere vs is = newUnitSphere res color
    in createMeshWithIxs vs is
 
+-- TODO: These were inlined from Core.Mesh. Make them a better home and remove occurrences there.
+
+calculateSmoothNormals :: [Int] -> [Vec3] -> [Vec3]
+calculateSmoothNormals ixs pos =
+
+  let fns = calculateFlatNormals ixs pos
+
+      smoothNormalsMap = foldl' (\acc (p,n) -> M.insertWith (\(na, i) (nb, j) -> (na + nb, i + j)) p (n,1) acc) mempty (zip pos fns)
+
+   in map (\p -> case smoothNormalsMap M.! p of (n,b) -> n^/b) pos
+
+calculateFlatNormals :: [Int] -> [Vec3] -> [Vec3]
+calculateFlatNormals ixs (SV.fromList -> pos) =
+
+  let m = foldl' (\acc [a,b,c] ->
+            let vab = (pos SV.! b) - (pos SV.! a)
+                vbc = (pos SV.! c) - (pos SV.! b)
+                n = normalize $ cross vbc vab -- vbc X vab gives the normal facing up for clockwise faces
+             in IM.insertWith const a n $ IM.insertWith const b n $ IM.insertWith const c n acc) mempty (chunksOf 3 ixs)
+
+   in map snd $ sort (IM.toList m)

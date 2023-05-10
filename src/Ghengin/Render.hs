@@ -43,7 +43,6 @@ import Ghengin.Scene.Graph
 import Ghengin.Render.Queue
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
-import Control.Lens ((^.), Lens', lens)
 
 import Data.Counted
 import qualified Data.Counted.Unsafe as Unsafe
@@ -201,18 +200,18 @@ render i = Linear.do
             pure $ SomePipeline pipeline
           )
         (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> Linear.do
-            Ur (SomeMaterial material) <- lift $ Apecs.get (Apecs.Entity material_ref)
+            Ur (SomeMaterial material') <- lift $ Apecs.get (Apecs.Entity material_ref)
 
             -- logTrace "Binding material"
             Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
 
-            lift (lift (descriptors material)) >>= \case
-              (dset,rmap,material') -> Linear.do
+            lift (lift (descriptors material')) >>= \case
+              (dset,rmap,material'') -> Linear.do
 
                 -- These materials are necessarily compatible with this pipeline in
                 -- the set #1, so the 'descriptorSetBinding' buffer will always be
                 -- valid to write with the corresponding material binding
-                (rmap', material'') <- lift $ useM rmap (\rmap' -> writePropertiesToResources rmap' material')
+                (rmap', material''') <- lift $ useM rmap (\rmap' -> writePropertiesToResources rmap' material'')
                 
                 -- static bindings will have to choose a different dset
                 -- Bind descriptor set #1
@@ -222,7 +221,7 @@ render i = Linear.do
                   pure (Unsafe.toLinear (\_ -> dset') vkdset, pLayout') --forget vulkan dset
                                               )
 
-                Unsafe.toLinearN @2 (\_ _ -> pure ()) material'' pLayout -- The material still in the Apecs store. Really, these functions should have no Unsafes and in that case all would be right (e.g. the resource passed to this function would have to be freed in this function, guaranteeing that it is reference counted or something?....
+                Unsafe.toLinearN @2 (\_ _ -> pure ()) material''' pLayout -- The material still in the Apecs store. Really, these functions should have no Unsafes and in that case all would be right (e.g. the resource passed to this function would have to be freed in this function, guaranteeing that it is reference counted or something?....
 
                 lift $ lift $ Linear.do
                   Data.Counted.forget dset'
@@ -280,20 +279,20 @@ writePropertiesToResources :: ∀ φ α ω. (HasProperties φ, Dupable ω) => Re
 writePropertiesToResources rmap' fi
   = case properties fi of
       (pbs, fi') -> Linear.do
-        (rmap', pbs') <- go rmap' 0 pbs
+        (rmap'', pbs') <- go rmap' 0 pbs
         lift $ forgetPropertyBindings pbs'
-        pure (rmap', fi')
+        pure (rmap'', fi')
 
   where
     go :: ∀ β. ResourceMap ⊸ Int -> PropertyBindings β ⊸ Ghengin ω (ResourceMap, PropertyBindings β)
     go rmap n = \case
       GHNil -> pure (rmap, GHNil)
       binding :## as -> Linear.do
-        (mappedB, rmap') <- lift $ getUniformBuffer rmap n
+        (mappedB, rmap'') <- lift $ getUniformBuffer rmap n
         (mappedB', binding') <- lift $ writeProperty mappedB binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
         lift $ Data.Counted.forget mappedB' -- gotten from rmap, def. not the last ref
-        (rmap'', bs) <- go rmap' (n+1) as
-        pure (rmap'', binding':##bs)
+        (rmap''', bs) <- go rmap'' (n+1) as
+        pure (rmap''', binding':##bs)
 
 -- ROMES:TODO: move all this unwrapping device buffers to the Command module
 renderMesh :: MonadIO m => Mesh a ⊸ RenderPassCmdM m (Mesh a)

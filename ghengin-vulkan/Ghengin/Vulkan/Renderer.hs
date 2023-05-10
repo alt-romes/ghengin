@@ -54,7 +54,7 @@ import qualified System.IO.Linear as Linear
 
 -- ROMES: Eventually thikn about bracketing again, but for linear types to work simply get rid of it
 -- ROMES:TODO: Make runRenderer an hsig in Ghengin.Core.Renderer
-runRenderer :: Renderer a -> IO a
+runRenderer :: Renderer a -> Linear.IO a
 runRenderer r = Linear.do
 
   -- Initialisation
@@ -80,7 +80,7 @@ runRenderer r = Linear.do
   (frames, device) <- runStateT (Data.Linear.mapM (StateT . initVulkanFrameData) cmdBuffers) device
 
   -- Can we get rid of these and the other IO refs in the game loop?
-  Ur frameInFlight <- newIORef 0 
+  Ur frameInFlight <- newIORef (0 :: Int)
 
   -- Run renderer
   ---------------

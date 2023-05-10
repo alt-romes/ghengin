@@ -18,15 +18,18 @@ import Ghengin.Scene.Graph (ModelMatrix, Parent)
 import qualified Unsafe.Linear as Unsafe
 
 data World w =
-  World { renderPackets   :: !(Storage RenderPacket)
-        , renderPipelines :: !(Storage SomePipeline)
-        , materials       :: !(Storage SomeMaterial)
-        , transforms      :: !(Storage Transform)
-        , cameras         :: !(Storage Camera)
-        , uiwindows       :: !(Storage (UIWindow w))
-        , modelMatrices   :: !(Storage ModelMatrix)
-        , entityParents   :: !(Storage Parent)
-        , entityCounter   :: !(Storage EntityCounter)
+  -- IT seems really bad that these are unrestricted. Big ouch. Makes this
+  -- linearity pretty much invalid in Ghengin (outside of Core).
+  -- Perhaps we can still make a safe linear API around this?
+  World { renderPackets   :: !(Ur (Storage RenderPacket))
+        , renderPipelines :: !(Ur (Storage SomePipeline))
+        , materials       :: !(Ur (Storage SomeMaterial))
+        , transforms      :: !(Ur (Storage Transform))
+        , cameras         :: !(Ur (Storage Camera))
+        , uiwindows       :: !(Ur (Storage (UIWindow w)))
+        , modelMatrices   :: !(Ur (Storage ModelMatrix))
+        , entityParents   :: !(Ur (Storage Parent))
+        , entityCounter   :: !(Ur (Storage EntityCounter))
         , world           :: !w
         }
 
@@ -51,31 +54,31 @@ instance Dupable w => Dupable (World w) where
 -- Also consider getting rid of linearity altogether from the Renderer upwards
 
 instance Monad m => Has (World w) m RenderPacket where
-  getStore = SystemT (asks (Unsafe.toLinear $ Ur Prelude.. renderPackets))
+  getStore = SystemT (asks (Unsafe.toLinear renderPackets))
 
 instance Monad m => Has (World w) m SomePipeline where
-  getStore = SystemT (asks (Unsafe.toLinear $ Ur Prelude.. renderPipelines))
+  getStore = SystemT (asks (Unsafe.toLinear renderPipelines))
 
 instance Monad m => Has (World w) m SomeMaterial where
-  getStore = SystemT (asks (Unsafe.toLinear $ Ur Prelude.. materials))
+  getStore = SystemT (asks (Unsafe.toLinear materials))
 
 instance Monad m => Has (World w) m Transform where
-  getStore = SystemT (asks (Unsafe.toLinear $ Ur Prelude.. transforms))
+  getStore = SystemT (asks (Unsafe.toLinear transforms))
 
 instance Monad m => Has (World w) m ModelMatrix where
-  getStore = SystemT (asks (Unsafe.toLinear $ Ur Prelude.. modelMatrices))
+  getStore = SystemT (asks (Unsafe.toLinear modelMatrices))
 
 instance Monad m => Has (World w) m Camera where
-  getStore = SystemT (asks (Unsafe.toLinear $ Ur Prelude.. cameras))
+  getStore = SystemT (asks (Unsafe.toLinear cameras))
 
 instance Monad m => Has (World w) m (UIWindow w) where
-  getStore = SystemT (asks (Unsafe.toLinear $ Ur Prelude.. uiwindows))
+  getStore = SystemT (asks (Unsafe.toLinear uiwindows))
 
 instance Monad m => Has (World w) m Parent where
-  getStore = SystemT (asks (Unsafe.toLinear $ Ur Prelude.. entityParents))
+  getStore = SystemT (asks (Unsafe.toLinear entityParents))
 
 instance Monad m => Has (World w) m EntityCounter where
-  getStore = SystemT (asks (Unsafe.toLinear $ Ur Prelude.. entityCounter))
+  getStore = SystemT (asks (Unsafe.toLinear entityCounter))
 
 instance (Dupable w, Monad m, Has w m (TransformAnimation w)) => Has (World w) m (TransformAnimation w) where
   getStore = SystemT $ Linear.do

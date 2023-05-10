@@ -4,7 +4,7 @@ module Ghengin.World where
 import qualified Prelude
 import Control.Functor.Linear
 import Apecs.Linear
-import Apecs.Core
+import Apecs.Linear.Core
 import Data.Unrestricted.Linear (Dupable, Consumable)
 import Data.Kind
 

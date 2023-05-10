@@ -116,7 +116,7 @@ import Data.Maybe.Linear
 import Geomancy.Mat4
 
 import Apecs.Linear (Entity, Set, Get, EntityCounter, Storage, Has, Component, Map, set, get, cmapM)
-import Apecs.Core (ExplSet)
+import Apecs.Linear.Core (ExplSet)
 import qualified Apecs.Linear as Apecs
 
 import {-# SOURCE #-} Ghengin.World

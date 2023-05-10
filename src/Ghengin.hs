@@ -10,12 +10,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE QualifiedDo #-}
+{-# LANGUAGE LinearTypes #-}
 module Ghengin
   ( module Ghengin
 
   -- * Meshes
   , Mesh, createMesh, createMeshWithIxs
-  , module Ghengin.Component.Mesh.Vertex
+  , module Ghengin.Core.Mesh.Vertex
 
   -- * Materials
   , Material(..)
@@ -40,15 +42,21 @@ module Ghengin
   , lift, liftIO
   ) where
 
+import Prelude.Linear hiding (IO)
+import qualified Prelude
+import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear
+
+import System.IO.Linear
+
 -- Re-exports
 import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Render.Property
 -- End re-exports
 
-import Apecs.Linear
-import Control.Logger.Simple
-import Control.Monad.Reader
+import Apecs.Linear as Apecs
+-- import Control.Logger.Simple
 import Data.IORef
 import Data.Maybe
 import Data.String
@@ -60,16 +68,22 @@ import Ghengin.Core.Mesh
 import Ghengin.Component.UI
 import Ghengin.Render
 import Ghengin.Core.Render.Packet
-import Ghengin.Core.Renderer.Kernel
-import Ghengin.Vulkan.GLFW.Window
-import Ghengin.Vulkan.RenderPass
+import Ghengin.Vulkan.Renderer.Kernel -- ROMES:TODO: One day we won't need to depend on Vulkan here
+import Ghengin.Vulkan.Renderer.GLFW.Window
+import Ghengin.Vulkan.Renderer.RenderPass
+import Ghengin.Vulkan.Renderer.Kernel (unsafeUseDevice)
+import Ghengin.Vulkan.Renderer
+
 import Ghengin.World
 import Type.Reflection
 import qualified Ghengin.DearImGui as IM
 import qualified Ghengin.Render.Queue as RQ
 import qualified Vulkan as Vk
 import Control.Lens ((^.), (.~), (%~), Lens, Lens', (&))
-import Ghengin.Utils (Ref(..))
+import Data.Counted
+import qualified Data.Counted.Unsafe
+
+import qualified Unsafe.Linear as Unsafe
 
 -- TODO: Somehow systems that want to delete entities should call a special
 -- destructor function that gets rid of resources stuck in components such as
@@ -77,72 +91,124 @@ import Ghengin.Utils (Ref(..))
 
 type Ghengin w = SystemT (World w) Renderer
 
-windowLoop :: Ghengin w Bool -> Ghengin w ()
-windowLoop action = do
-  win <- lift (asks (._vulkanWindow._window))
-  loopUntilClosedOr win action
+windowLoop :: Dupable w => Ur s ⊸ (Ur s ⊸ Ghengin w (Bool, Ur s)) -> Ghengin w (Ur s)
+windowLoop s action = Linear.do
+  Ur win <- lift (renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv._vulkanWindow._window, renv))
+  (win', s) <- loopUntilClosedOr win s action
+  Unsafe.toLinear (\_ -> pure s) win'
 
 type DeltaTime = Float -- Converted from NominalDiffTime
 
-initWorld :: MonadIO m => w -> m (World w)
-initWorld w = World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> pure w
+initWorld :: MonadIO m => w -> m (Ur (World w))
+initWorld w = Linear.do
+  world <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> pure w
+  pure (Unsafe.toLinear Ur world) -- worry about it later, this won't stay like this for long since the whole linear apecs interface is quite broken
 
-ghengin :: Typeable w
+ghengin :: ∀ w a b c
+         . Typeable w
+        => Dupable w
         => w           -- ^ World
-        -> Ghengin w a -- ^ Init
+        -> Ghengin w (Ur a) -- ^ Init
         -> Ghengin w b -- ^ Run every simulation step (currently ignored)
         -> (a -> DeltaTime -> Ghengin w Bool) -- ^ Run every game
                                                           -- loop? iteration.
                                                           -- The returned Bool indicates whether we should exit the gameloop
         -- -> Ghengin w c -- ^ Run every draw step?
-        -> (a -> Ghengin w c) -- ^ Run once the game is quit (for now that is when the window closed)
+        -> (a -> Ghengin w ()) -- ^ Run once the game is quit (for now that is when the window closed)
         -> IO ()
                                                                                    -- (Just "log.ghengin.log")
-ghengin world initialize _simstep loopstep finalize = do
+-- this bit of the code can still be linear (just wrap with withLinearIO the
+-- whole thing), but the interface to Ghengin should be reverted to be unrestricted
+ghengin world initialize _simstep loopstep finalize = Linear.do
 
-  world' <- initWorld world
+  Ur world' <- initWorld world
 
-  withGlobalLogging (LogConfig Nothing True) . runVulkanRenderer () . (`runSystem` world') $ do
+  -- withGlobalLogging (LogConfig Nothing True)
+  runRenderer $ (`runSystem` world') $ Linear.do
 
-    logDebug "Started Ghengin"
+    -- logDebug "Started Ghengin"
 
-    a <- initialize
+    Ur a <- initialize
 
-    -- TODO: Use linear types. Can I make the monad stack over a multiplicity polymorphic monad?
+    -- TODO: Use linear types (was this was meant for `a`?). Can I make the monad stack over a multiplicity polymorphic monad? (Yes, you could, past me!)
 
     -- Init ImGui for this render pass (should eventually be tied to the UI render pass)
     -- BIG:TODO: Don't hardcode the renderpass from the first renderpacket...
-    rps <- cfoldM (\acc (RenderPacket _ _ (Ref pp_ref) _) ->
-                    Apecs.get pp_ref >>= \(SomePipeline pp) -> pure ((pp ^. renderPass)._renderPass:acc)) []
-    imCtx <- case listToMaybe rps of
-               Nothing -> pure Nothing
-               Just x  -> Just <$> lift (IM.initImGui x)
+    Ur rps <- cfoldM (\acc (RenderPacket _ _ (Ref pp_ref) _) ->
+                    Apecs.get (Entity pp_ref) >>= \(Ur (SomePipeline pp)) -> Linear.do
+                      Ur (rrp,pp') <- Unsafe.toLinear Ur <$> getRenderPass pp
+                      Ur rp <- Unsafe.toLinear Ur <$> Data.Counted.Unsafe.dec rrp
+                      pure (Ur (rp._renderPass:acc))
+                           ) []
+    -- Very unsafe imCtx... won't matter when we revert linear types from the frontend
+    Ur imCtx <- case listToMaybe rps of
+                 Nothing -> pure (Ur Nothing)
+                 Just x  -> Linear.do
+                   Ur (imct, _uns) <- Unsafe.toLinear Ur <$> lift (IM.initImGui x)
+                   pure (Ur (Just imct))
 
-    currentTime <- liftIO (getCurrentTime >>= newIORef)
-    lastFPSTime <- liftIO (getCurrentTime >>= newIORef)
-    frameCounter <- liftIO (newIORef (0 :: Int))
+    Ur currentTime <- liftSystemIOU getCurrentTime
+    -- Ur lastFPSTime <- liftSystemIOU getCurrentTime
+    let frameCounter = 0 :: Int
 
-    windowLoop $ do
+    Ur _ <- windowLoop (Ur (currentTime,frameCounter)) (ghengin_loop a imCtx)
 
-      logTrace "New frame"
+    lift (unsafeUseDevice Vk.deviceWaitIdle)
 
-      newTime <- liftIO getCurrentTime
+    case imCtx of
+      Nothing -> pure ()
+      Just x  -> lift $ IM.destroyImCtx x
 
-      -- FPS Counter
-      lastFPS <- liftIO (readIORef lastFPSTime)
-      liftIO (modifyIORef' frameCounter (+1))
-      when (diffUTCTime newTime lastFPS > 1) (liftIO $ do
-        frames <- readIORef frameCounter
-        logInfo $ "FPS: " <> fromString (show frames)
-        writeIORef frameCounter 0
-        writeIORef lastFPSTime newTime
+    -- Destroy all render packets
+    -- We can't do it by traversing the existing render packets because pipelines are shared across them.
+    -- We instead create a last render queue and free it top-down
+    Ur rq <- cfold (flip $ \p -> RQ.insert p ()) Prelude.mempty
+    RQ.traverseRenderQueue rq
+      (const id)
+      (\(RQ.SomePipelineRef (Ref p_ref)) -> Linear.do
+        Ur (SomePipeline p) <- Apecs.get (Entity p_ref)
+        -- lift $ destroyRenderPipeline p -- ROMES:TODO:
+        pure $ SomePipeline p
         )
+      (\_ (RQ.SomeMaterialRef (Ref m_ref)) -> Linear.do
+        Ur (SomeMaterial m) <- Apecs.get (Entity m_ref)
+        -- lift $ freeMaterial m -- ROMES:TODO:
+        pure ()
+        )
+      (\_ (SomeMesh m) () -> Linear.do
+        pure ()
+        -- liftIO $ print =<< readIORef (m.referenceCount)
+        lift $ freeMesh m -- ROMES:TODO:
+      )
+      (pure ())
+
+    finalize a
+
+    pure ()
+  where
+    ghengin_loop :: a -> Maybe IM.ImCtx ⊸ LoopState ⊸ Ghengin w (Bool, LoopState)
+    ghengin_loop a imCtx (Ur (currentTime, frameCounter)) = Linear.do
+
+      -- logTrace "New frame"
+
+      Ur newTime <- liftSystemIOU getCurrentTime
+
+      -- lastFPS <- liftIO (readIORef lastFPSTime)
+
+      -- What's this? I don't think I need it anymore.
+      -- Delete. It would need A LOT of years for an integer counting frames to overflow
+      --
+      -- when (diffUTCTime newTime lastFPS > 1) (liftIO $ do
+      --   frames <- readIORef frameCounter
+      --   -- logInfo $ "FPS: " <> fromString (show frames)
+      --   writeIORef frameCounter 0
+      --   writeIORef lastFPSTime newTime
+      --   )
 
       -- Fix Your Timestep: A Very Hard Thing To Get Right. For now, the simplest approach:
-      frameTime <- diffUTCTime newTime <$> liftIO(readIORef currentTime)
-      liftIO(writeIORef currentTime newTime)
+      let frameTime = diffUTCTime newTime currentTime
 
-      logTrace "Drawing UI"
+      -- logTrace "Drawing UI"
 
       -- DearImGui frame
       -- TODO: Draw UI (define all UI components in the frame)
@@ -152,64 +218,41 @@ ghengin world initialize _simstep loopstep finalize = do
       -- tODO: better way to create imCtx).
       drawUI imCtx
 
-      logTrace "Simulating a step"
+      -- logTrace "Simulating a step"
 
-      -- TODO: We're currently drawing two equal frames in a row... we probably want all of this to be done on each frame
+      -- BIG:TODO: We're currently drawing two equal frames in a row... we probably want all of this to be done on each frame
 
       -- Game loop step
-      b <- loopstep a (min MAX_FRAME_TIME $ realToFrac frameTime)
+      b <- loopstep a (Prelude.min MAX_FRAME_TIME $ realToFrac frameTime)
 
-      logTrace "Rendering"
+      -- logTrace "Rendering"
 
       -- Currently render is called here because it traverses the scene graph and
       -- populates the render queue, and renders!
-      render =<< liftIO (readIORef frameCounter)
+      render frameCounter
 
-      logTrace "Done frame"
+      -- logTrace "Done frame"
 
-      pure b
+      pure (b, Ur (newTime, frameCounter+1))
 
-    Vk.deviceWaitIdle =<< lift getDevice
+type LoopState = Ur (UTCTime, Int)
 
-    case imCtx of
-      Nothing -> pure ()
-      Just x  -> lift $ IM.destroyImCtx x
 
-    -- Destroy all render packets
-    -- We can't do it by traversing the existing render packets because pipelines are shared across them.
-    -- We instead create a last render queue and free it top-down
-    rq <- cfold (flip $ \p -> RQ.insert p ()) mempty
-    RQ.traverseRenderQueue rq
-      (const id)
-      (\(RQ.SomePipelineRef (Ref p_ref)) -> do
-        SomePipeline p <- Apecs.get p_ref
-        lift $ destroyRenderPipeline p
-        pure $ SomePipeline p
-        )
-      (\_ (RQ.SomeMaterialRef (Ref m_ref)) -> do
-        SomeMaterial m <- Apecs.get m_ref
-        lift $ freeMaterial m)
-      (\_ (SomeMesh m) _ -> do
-        -- liftIO $ print =<< readIORef (m.referenceCount)
-        lift $ freeMesh m
-      )
-      (pure ())
-
-    _ <- finalize a
-
-    pure ()
-
-drawUI :: ∀ w. Typeable w => Maybe IM.ImCtx -> Ghengin w ()
+-- Unsafe, doesn't matter, we'll rework this all
+drawUI :: ∀ w. (Typeable w, Dupable w) => Maybe IM.ImCtx -> Ghengin w ()
 drawUI Nothing = pure ()
-drawUI (Just _ctx) = do
-    IM.vulkanNewFrame
-    IM.glfwNewFrame
-    IM.newFrame
+drawUI (Just _ctx) = Linear.do
+    liftSystemIO $ do
+      IM.vulkanNewFrame
+      IM.glfwNewFrame
+      IM.newFrame
 
-    cmapM $ \(uiw :: UIWindow w) -> IM.pushWindow uiw
-    IM.showDemoWindow
+    cmapM $ \(uiw :: UIWindow w) -> move <$> IM.pushWindow uiw
 
-    IM.render
+    liftSystemIO $ do
+      IM.showDemoWindow
+
+      IM.render
 
 pattern MAX_FRAME_TIME :: Float
 pattern MAX_FRAME_TIME = 0.5

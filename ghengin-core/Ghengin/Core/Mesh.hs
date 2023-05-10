@@ -19,7 +19,7 @@ module Ghengin.Core.Mesh
   -- , calculateFlatNormals
   -- , calculateSmoothNormals
   -- , renderMesh
-  -- , freeMesh
+  , freeMesh
   -- , chunksOf
   ) where
 
@@ -118,21 +118,21 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = Linear.do
 
 
 -- ROMES:TODO
--- freeMesh :: Mesh ts -> Renderer ()
--- freeMesh mesh = do
---   () <- decRefCount mesh
---   count <- get mesh.referenceCount
+freeMesh :: Mesh ts -> Renderer ()
+freeMesh mesh = do
+  -- () <- decRefCount mesh
+  -- count <- get mesh.referenceCount
 
---   when (count == 0) $ do
---     logDebug "Freeing mesh..."
---     case mesh of
---       SimpleMesh a b _ _ -> destroyBuffer a b
---       IndexedMesh a b c d _ _ -> destroyBuffer a b >> destroyBuffer c d
+  -- when (count == 0) $ do
+  --   logDebug "Freeing mesh..."
+  case mesh of
+    SimpleMesh (VertexBuffer vb _) -> destroyDeviceLocalBuffer vb
+    IndexedMesh (VertexBuffer vb _) (Index32Buffer ib _) -> destroyDeviceLocalBuffer vb >> destroyDeviceLocalBuffer ib
 
---   -- TODO: Don't include this when built for production somehow
---   -- ROMES: Make assertion instead of when
---   when (count < 0) $ do
---     logError "Destroying mesh more times than the number of assignments..."
+  -- TODO: Don't include this when built for production somehow
+  -- ROMES: Make assertion instead of when
+  -- when (count < 0) $ do
+  --   logError "Destroying mesh more times than the number of assignments..."
 
 
 -- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)
@@ -157,6 +157,8 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = Linear.do
 -- position in the input positions, in the same order
 --
 -- TODO: Take into consideration the angles or provide alternative that does
+--
+-- MOVE TO GHENGIN Component/Mesh or something. For now, inlined in Component.Mesh.Sphere.
 -- calculateSmoothNormals :: [Int] -> [Vec3] -> [Vec3]
 -- calculateSmoothNormals ixs pos =
 

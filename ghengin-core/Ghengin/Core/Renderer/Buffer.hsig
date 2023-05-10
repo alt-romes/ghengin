@@ -57,6 +57,8 @@ data DeviceLocalBuffer
 
 createDeviceLocalBuffer :: ∀ α. SV.Storable α => Vk.BufferUsageFlags -> SV.Vector α -> Renderer DeviceLocalBuffer
 
+destroyDeviceLocalBuffer :: DeviceLocalBuffer ⊸ Renderer ()
+
 -------- Mapped Buffer -----------------
 
 -- | A mapped (uniform) buffer. See Note [Mapped vs Device-local Buffers]

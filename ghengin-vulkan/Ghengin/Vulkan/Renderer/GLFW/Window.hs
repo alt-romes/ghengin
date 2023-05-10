@@ -81,21 +81,21 @@ destroySurface :: Linear.MonadIO m => Vk.Instance ⊸ Vk.SurfaceKHR ⊸ m Vk.Ins
 destroySurface = Unsafe.toLinear2 \i s -> liftSystemIO $ i Prelude.<$ Vk.destroySurfaceKHR i s Nothing
 {-# INLINE destroySurface #-}
 
--- -- | Run an IO action many many times until the window is closed by a normal
--- -- window-closing event.
-loopUntilClosedOr :: ∀ m. Linear.MonadIO m => GLFW.Window ⊸ m Bool -> m GLFW.Window
+-- | Run an IO action many many times until the window is closed by a normal
+-- window-closing event.
+loopUntilClosedOr :: ∀ m s. Linear.MonadIO m => GLFW.Window ⊸ Ur s ⊸ (Ur s ⊸ m (Bool, Ur s)) -> m (GLFW.Window, Ur s)
 loopUntilClosedOr = loopUntilClosedOr' False
   where
-  loopUntilClosedOr' :: Linear.MonadIO m => Bool ⊸ GLFW.Window ⊸ m Bool -> m GLFW.Window
-  loopUntilClosedOr' shouldClose win action =
-    if shouldClose then pure win
+  loopUntilClosedOr' :: Linear.MonadIO m => Bool ⊸ GLFW.Window ⊸ Ur s ⊸ (Ur s ⊸ m (Bool, Ur s)) -> m (GLFW.Window, Ur s)
+  loopUntilClosedOr' shouldClose win (Ur s) action =
+    if shouldClose then pure (win,Ur s)
     else Linear.do
       windowShouldClose win >>= \case
-        (True , win') -> pure win'
+        (True , win') -> pure (win', Ur s)
         (False, win') -> Linear.do
-          liftSystemIO $ GLFW.pollEvents
-          shouldClose' <- action
-          loopUntilClosedOr' shouldClose' win' action
+          liftSystemIO GLFW.pollEvents
+          (shouldClose',Ur s') <- action (Ur s)
+          loopUntilClosedOr' shouldClose' win' (Ur s') action
       where
         windowShouldClose :: GLFW.Window ⊸ m (Bool, GLFW.Window)
         windowShouldClose = Unsafe.toLinear \w -> (,w) <$> liftSystemIO (GLFW.windowShouldClose w)
