@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Ghengin.Component.Orphans where
 
-import Ghengin.Core.Renderer.Kernel (Renderer)
+import Ghengin.Vulkan.Renderer.Kernel (Renderer)
 import Ghengin.Core.Render.Packet (RenderPacket)
 import Ghengin.Core.Render.Pipeline (SomePipeline)
 import Ghengin.Core.Material (SomeMaterial)

@@ -200,7 +200,7 @@ library ghengin-vulkan
                       GLFW-b,
                       linear-base,
                       reference-counting,
-                      ghengin:ghengin-core,
+                      -- ghengin:ghengin-core,
                       ghengin:ghengin-core-indep,
 
                       -- For textures (consider adding to Core too)
@@ -259,6 +259,14 @@ library
                       Ghengin.Utils,
                       Ghengin.World,
 
+    -- reexported-modules: Ghengin.Vulkan.Renderer.Kernel,
+    --                     Ghengin.Vulkan.Renderer.DescriptorSet,
+    --                     Ghengin.Vulkan.Renderer.Buffer,
+    --                     Ghengin.Vulkan.Renderer.Pipeline,
+    --                     Ghengin.Vulkan.Renderer.RenderPass,
+    --                     Ghengin.Vulkan.Renderer.Texture,
+    --                     Ghengin.Vulkan.Renderer.Sampler
+
     -- Modules included in this library but not exported.
     -- other-modules:
 
@@ -314,79 +322,82 @@ library
                       -- algebraic-graphs
 
     -- ROMES: To reproduce error message bug with backpack, comment out some of the requires lines below:
-    mixins:           ghengin:ghengin-core requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
-                                                    , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
-                                                    , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
-                                                    , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
-                                                    , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
-                                                    , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
-                                                    , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
-                                                    )
+    mixins:           ghengin:ghengin-core
+                      requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                               , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                               , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                               , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                               , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                               , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                               , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                               )
 
     -- Directories containing source files.
     hs-source-dirs:   src
 
 
+test-suite ghengin-test
+    -- Import common warning flags.
+    import:           common-flags
 
--- test-suite ghengin-test
---     -- Import common warning flags.
---     import:           common-flags
+    -- Base language which the package is written in.
+    default-language: GHC2021
 
---     -- Base language which the package is written in.
---     default-language: GHC2021
+    -- Modules included in this executable, other than Main.
+    -- other-modules:    Main.Apecs
 
---     -- Modules included in this executable, other than Main.
---     -- other-modules:    Main.Apecs
+    -- LANGUAGE extensions used by modules in this package.
+    default-extensions: UnicodeSyntax
 
---     -- LANGUAGE extensions used by modules in this package.
---     default-extensions: UnicodeSyntax
+    -- The interface type and version of the test suite.
+    type:             exitcode-stdio-1.0
 
---     -- The interface type and version of the test suite.
---     type:             exitcode-stdio-1.0
+    -- Directories containing source files.
+    hs-source-dirs:   test
 
---     -- Directories containing source files.
---     hs-source-dirs:   test
+    -- The entrypoint to the test suite.
+    main-is:          Main.hs
 
---     -- The entrypoint to the test suite.
---     main-is:          Main.hs
+    -- Test dependencies.
+    build-depends:
+        base ^>=4.17.0.0,
+        ghengin
 
---     -- Test dependencies.
---     build-depends:
---         base ^>=4.17.0.0,
---         ghengin
+executable planets
+    -- .hs or .lhs file containing the Main module.
+    main-is:          Main.hs
 
--- executable planets
---     -- .hs or .lhs file containing the Main module.
---     main-is:          Main.hs
+    -- Modules included in this executable, other than Main.
+    other-modules: Planet, Noise, Shader
 
---     -- Modules included in this executable, other than Main.
---     other-modules: Planet, Noise, Shader
+    -- LANGUAGE extensions used by modules in this package.
+    default-extensions: UnicodeSyntax
 
---     -- LANGUAGE extensions used by modules in this package.
---     default-extensions: UnicodeSyntax
+    -- Other library packages from which modules are imported.
+    build-depends:
+        base ^>=4.17.0.0,
+        ghengin,
+        -- ghengin:ghengin-core,
+        -- ghengin:ghengin-vulkan,
+        mtl, vector, hsnoise, containers, random
 
---     -- Other library packages from which modules are imported.
---     build-depends:
---         base ^>=4.17.0.0,
---         ghengin, mtl, vector, hsnoise, containers, random
+    -- ghc-options: -ddump-simpl
+                 -- -ddump-to-file
+                 -- -dsuppress-ticks
+                 -- -dsuppress-stg-exts
+                 -- -dsuppress-coercions
+                 -- -dsuppress-idinfo
+                 -- -dsuppress-unfoldings
+                 -- -dsuppress-module-prefixes
+                 -- -dsuppress-timestamps
+                 -- -dsuppress-uniques
+                 -- -dsuppress-var-kinds
 
---     -- ghc-options: -ddump-simpl
---                  -- -ddump-to-file
---                  -- -dsuppress-ticks
---                  -- -dsuppress-stg-exts
---                  -- -dsuppress-coercions
---                  -- -dsuppress-idinfo
---                  -- -dsuppress-unfoldings
---                  -- -dsuppress-module-prefixes
---                  -- -dsuppress-timestamps
---                  -- -dsuppress-uniques
---                  -- -dsuppress-var-kinds
+    -- Directories containing source files.
+    hs-source-dirs:   planets
 
---     -- Directories containing source files.
---     hs-source-dirs:   planets
-
---     -- Base language which the package is written in.
---     default-language: GHC2021
+    -- Base language which the package is written in.
+    default-language: GHC2021
 
 -- executable ocean
 --     -- .hs or .lhs file containing the Main module.
