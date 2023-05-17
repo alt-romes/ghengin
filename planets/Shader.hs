@@ -22,7 +22,7 @@ import Ghengin (Mat4, Vec3)
 import Ghengin.Utils (GStorable)
 
 data CameraProperty = CameraProperty !Mat4 !Mat4 !Vec3
-  deriving Generic
+  deriving (Generic)
 
 instance Syntactic CameraProperty where
   type Internal CameraProperty = Val ( Struct '[ "view" ':-> M 4 4 Float

@@ -210,7 +210,7 @@ textureFromGradient grad = Linear.do
 
 
 newPlanet :: ∀ p w. (Dupable w, Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p)
-          => PlanetSettings -> RenderPipeline p '[CameraProperty] -> Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
+          => PlanetSettings -> RenderPipeline p '[CameraProperty] ⊸ Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = Linear.do
   (mesh,Ur minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad
