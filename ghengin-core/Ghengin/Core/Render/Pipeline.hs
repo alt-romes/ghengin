@@ -163,13 +163,16 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
       mkRP x (p :## pl) = RenderProperty p (mkRP x pl)
 
 instance HasProperties (RenderPipeline π) where
-  -- With textures this becomes quite unsafe! We can't just duplicate the property binding
-  -- properties :: RenderPipeline π τ ⊸ (PropertyBindings τ, RenderPipeline π τ)
-  -- properties = Unsafe.toLinear $ \rp -> (unsafeGo rp, rp) where
-  --   unsafeGo :: RenderPipeline π τ ⊸ (PropertyBindings τ)
-  --   unsafeGo = \case
-  --     RenderPipeline {} -> GHNil
-  --     RenderProperty x xs -> case unsafeGo xs of xs' -> (x :## xs')
+  properties :: RenderPipeline π τ ⊸ Renderer (PropertyBindings τ, RenderPipeline π τ)
+  properties = Unsafe.toLinear $ \m -> (, m) <$> unsafeGo m where
+    unsafeGo :: RenderPipeline π τ ⊸ Renderer (PropertyBindings τ)
+    unsafeGo = \case
+      RenderPipeline {} -> pure GHNil
+      RenderProperty (Texture2DBinding refc) xs -> Linear.do
+        x' <- Unsafe.Counted.inc refc
+        xs' <- unsafeGo xs
+        pure (Texture2DBinding x' :## xs')
+      RenderProperty x xs -> (x :##) <$> unsafeGo xs
 
   descriptors :: RenderPipeline π α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, RenderPipeline π α)
   descriptors = Unsafe.toLinear (\rp -> unsafeGo rp >>= \case

@@ -51,15 +51,29 @@ import Data.Type.Equality
 -- ROMES: Can we avoid the Eq instance here? Depends on what we need the property binding eq instance for...
 data PropertyBinding α where
 
-  DynamicBinding :: ∀ α. (Eq α, Storable α, Movable α, PBInv α ~ Ur α) -- Storable to write the buffers
+  DynamicBinding :: ∀ α. (Eq α, Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
                  => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
                  -> PropertyBinding α
 
-  StaticBinding :: ∀ α. (Eq α, Storable α, Movable α, PBInv α ~ Ur α) -- Storable to write the buffers
+  StaticBinding :: ∀ α. (Eq α, Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
                 => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
                 -> PropertyBinding α
 
   Texture2DBinding :: RefC Texture2D ⊸ PropertyBinding Texture2D
+
+-- ROMES:TODO: Try to instance Dupable on RefC, but won't work because needs bounding monad to consume.
+-- Need ConsumableM and DupableM defined on reference-counting
+-- instance Consumable (PropertyBinding α) where
+--   consume = \case
+--     DynamicBinding (Ur _) -> ()
+--     StaticBinding  (Ur _) -> ()
+--     Texture2DBinding refc -> consume refc
+
+-- instance Dupable (PropertyBinding α) where
+--   dup2 = \case
+--     DynamicBinding (Ur x) -> (DynamicBinding (Ur x), DynamicBinding (Ur x))
+--     StaticBinding  (Ur x) -> (StaticBinding (Ur x), StaticBinding (Ur x))
+--     Texture2DBinding refc -> dup2 refc
 
 -- | A 'PropertyBinding' actual value. Useful when we want to define functions
 -- over the value bound when constructing the PropertyBinding rather than the
@@ -207,7 +221,7 @@ writeProperty buf = \case
 -- with an χ parameter for the extra information at the list's end.
 class HasProperties φ where
   -- Re-think these...
-  properties    :: φ α ⊸ (PropertyBindings α, φ α)
+  properties    :: φ α ⊸ Renderer (PropertyBindings α, φ α)
   descriptors   :: φ α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, φ α)
   puncons       :: φ (α:β) ⊸ (PropertyBinding α, φ β)
   pcons         :: PropertyBinding α %p -> φ β ⊸ φ (α:β)

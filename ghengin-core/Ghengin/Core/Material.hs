@@ -78,13 +78,16 @@ data Material xs where
 
 instance HasProperties Material where
 
-  -- With textures this becomes quite unsafe! We can't just duplicate the property binding
-  -- properties :: Material α ⊸ (PropertyBindings α, Material α)
-  -- properties = Unsafe.toLinear $ \m -> (unsafeGo m, m) where
-  --   unsafeGo :: Material α -> (PropertyBindings α)
-  --   unsafeGo = \case
-  --     Done {} -> GHNil
-  --     MaterialProperty x xs -> case unsafeGo xs of xs' -> (x :## xs')
+  properties :: Material α ⊸ Renderer (PropertyBindings α, Material α)
+  properties = Unsafe.toLinear $ \m -> (, m) <$> unsafeGo m where
+    unsafeGo :: Material α -> Renderer (PropertyBindings α)
+    unsafeGo = \case
+      Done {} -> pure GHNil
+      MaterialProperty (Texture2DBinding refc) xs -> Linear.do
+        x' <- Unsafe.Counted.inc refc
+        xs' <- unsafeGo xs
+        pure (Texture2DBinding x' :## xs')
+      MaterialProperty x xs -> (x :##) <$> unsafeGo xs
 
   descriptors   :: MonadIO m
                 => Material α
@@ -111,7 +114,7 @@ instance HasProperties Material where
   pcons = Unsafe.toLinear MaterialProperty
 
 data SomeMaterial = ∀ α. SomeMaterial (Material α)
--- ROMES:TODO: InSTANCE OUTSIDE OF CORE!!!!!
+-- ROMES:TODO: InSTANCE OUTSIDE OF CORE!
 -- instance Apecs.Component SomeMaterial where
 --   type Storage SomeMaterial = Apecs.Map SomeMaterial
 -- {-# DEPRECATED material "TODO: Material storage should be a cache" #-}
