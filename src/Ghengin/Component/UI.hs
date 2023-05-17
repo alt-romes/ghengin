@@ -37,14 +37,17 @@ newEntityUI :: EntityConstraints w (UIWindow w)
             => Text -> Ghengin w () -> SceneGraph w (Ur Entity)
 newEntityUI text act = newEntity (UIWindow text act)
 
-type UI w = Ghengin w Bool
+type UI w = Ghengin w (Ur Bool)
 
-data IOSelectRef a = IOSelectRef (Ur (IORef a)) (Ur (IORef Int))
-newIOSelectRef :: MonadIO m => a -> m (IOSelectRef a)
-newIOSelectRef x = liftIO $ IOSelectRef <$> newIORef x <*> newIORef 0
+data IOSelectRef a = IOSelectRef (IORef a) (IORef Int)
+newIOSelectRef :: MonadIO m => a -> m (Ur (IOSelectRef a))
+newIOSelectRef x = liftIO $ Linear.do
+  Ur x' <- newIORef x
+  Ur y' <- newIORef 0
+  pure $ Ur $ IOSelectRef x' y'
 
 readIOSelectRef :: MonadIO m => IOSelectRef a -> m (Ur a)
-readIOSelectRef (IOSelectRef (Ur r) _) = liftIO $ readIORef r
+readIOSelectRef (IOSelectRef r _) = liftIO $ readIORef r
 
 -- instance HasGetter (IOSelectRef a) a where
 --   get x = Linear.do
@@ -55,13 +58,13 @@ readIOSelectRef (IOSelectRef (Ur r) _) = liftIO $ readIORef r
 
 
 colorPicker :: Dupable w => Text -> IORef Vec3 -> UI w
-colorPicker t ref = liftSystemIO $ IM.colorPicker3 t (unsafeCoerce ref :: IORef IM.ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
+colorPicker t ref = liftSystemIOU $ IM.colorPicker3 t (unsafeCoerce ref :: IORef IM.ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
 
 sliderFloat :: Dupable w => Text -> IORef Float -> Float -> Float -> UI w
-sliderFloat a b c d = liftSystemIO $ IM.sliderFloat a b c d
+sliderFloat a b c d = liftSystemIOU $ IM.sliderFloat a b c d
 
 sliderInt :: Dupable w => Text -> IORef Int -> Int -> Int -> UI w
-sliderInt a b c d = liftSystemIO $ IM.sliderInt a b c d
+sliderInt a b c d = liftSystemIOU $ IM.sliderInt a b c d
 
 sliderVec3 :: Dupable w => Text -> IORef Vec3 -> Float -> Float -> UI w
 sliderVec3 t ref f1 f2 = liftIO $ Linear.do
@@ -71,13 +74,13 @@ sliderVec3 t ref f1 f2 = liftIO $ Linear.do
     Ur b <- liftSystemIOU $ IM.sliderFloat3 t tmpR f1 f2
     Ur (x',y',z') <- readIORef tmpR
     writeIORef ref (vec3 x' y' z')
-    pure b
+    pure (Ur b)
 
 dragFloat :: Dupable w => Text -> IORef Float -> Float -> Float -> UI w
-dragFloat t ref f1 f2 = liftSystemIO $ IM.dragFloat t ref 0.05 f1 f2
+dragFloat t ref f1 f2 = liftSystemIOU $ IM.dragFloat t ref 0.05 f1 f2
 
 checkBox :: Dupable w => Text -> IORef Bool -> UI w
-checkBox a b = liftSystemIO $ IM.checkbox a b
+checkBox a b = liftSystemIOU $ IM.checkbox a b
 
     -- get ref >>= \case
     --   WithVec3 x y z -> do
@@ -98,14 +101,14 @@ withTree t act = Linear.do
     pure ()
 
 button :: Dupable w => Text -> UI w
-button x = liftSystemIO $ IM.button x
+button x = liftSystemIOU $ IM.button x
 
 withCombo :: (Show a, Dupable w)
           => Text      -- ^ Combo label
           -> IOSelectRef a   -- ^ Reference to current item
           -> NonEmpty a -- ^ List of possible items
           -> UI w
-withCombo t (IOSelectRef (Ur ref) (Ur currIx)) (opt:|opts) = Linear.do
+withCombo t (IOSelectRef ref currIx) (opt:|opts) = Linear.do
 
   Ur currSelected <- liftIO $ readIORef currIx
 
@@ -122,10 +125,10 @@ withCombo t (IOSelectRef (Ur ref) (Ur currIx)) (opt:|opts) = Linear.do
     currIx' <- get currIx
     ref $= ((opt:opts) Prelude.!! currIx')
     IM.endCombo
-    Prelude.pure $ or bs
+    Prelude.pure $ move $ or bs
 
   else
-    pure False
+    pure (Ur False)
 
 
 instance Component (UIWindow w) where
@@ -152,7 +155,7 @@ class UISettings a where
   type ReactivityConstraints a w :: Constraint
   type ReactivityConstraints _ _ = ()
 
-  makeSettings   :: IO a
+  makeSettings   :: IO (Ur a)
 
   -- | Makes the UI components for these UI settings. Returns true if the settings were modified.
   makeComponents :: ReactivityConstraints a w

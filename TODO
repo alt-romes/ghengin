@@ -1,3 +1,11 @@
+[ ] consumeM and dupM in reference-counting library, such that we can duplicate
+    things in the monad, and eventually instance ConsumableM and DupableM on
+    PropertyBinding.
+    Wrong, for a couple of reasons (see unsafePerformIO documetntaiotn, side effect is too observable):
+    Interestingly, we could have a dupable instance on aliased
+    values, just not a consumable one, since we can unsafePerformIO the atomic
+    counter increment. I suppose we just inline its definition for now
+[x] Re-export things like apecs from Ghengin so that it needn't be depended upon
 [ ] Include API design (and namespace design) in architecture design/refactor document
 [ ] World as a modular thing, perhaps like an HList to which we can add as many components as we want, while still defining type predicates
 [ ] Unrestricted wrappers on Ghengin for all functions users might need from the Renderer

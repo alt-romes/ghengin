@@ -3,13 +3,18 @@
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE QualifiedDo #-}
 module Noise where
 
+import Prelude.Linear (Ur(Ur), Dupable(..), ($))
+import Prelude hiding (($))
 import Data.List (foldl')
 import GHC.Float
 
 import Data.IORef
-import Control.Monad.IO.Class
+import qualified Control.Functor.Linear as Linear
+import qualified Control.Monad.IO.Class.Linear as Linear
+import qualified System.IO.Linear as Linear
 import Ghengin hiding (get)
 import Ghengin.Utils
 import Ghengin.Component.UI
@@ -35,39 +40,40 @@ data NoiseSettings = NoiseSettings { numLayers :: !(IORef Int)
 instance UISettings NoiseSettings where
   type ReactivityInput NoiseSettings = ()
   type ReactivityOutput NoiseSettings = ()
+  type ReactivityConstraints _ w = Dupable w
 
-  makeSettings = do
-    numLayersR  <- newIORef 1
-    strengthR  <- newIORef 1
-    baseRoughnessR <- newIORef 1
-    roughnessR <- newIORef 2
-    persistenceR <- newIORef 0.5
-    centerR    <- newIORef (vec3 0 0 0)
-    minValR <- newIORef 0
-    enabledR <- newIORef True
-    ntR <- newIOSelectRef SimpleNoise
-    pure $ NoiseSettings numLayersR strengthR roughnessR baseRoughnessR persistenceR centerR minValR enabledR ntR
+  makeSettings = Linear.do
+    Ur numLayersR     <- Linear.newIORef 1
+    Ur strengthR      <- Linear.newIORef 1
+    Ur baseRoughnessR <- Linear.newIORef 1
+    Ur roughnessR     <- Linear.newIORef 2
+    Ur persistenceR   <- Linear.newIORef 0.5
+    Ur centerR        <- Linear.newIORef (vec3 0 0 0)
+    Ur minValR        <- Linear.newIORef 0
+    Ur enabledR       <- Linear.newIORef True
+    Ur ntR            <- newIOSelectRef SimpleNoise
+    Linear.pure $ Ur $ NoiseSettings numLayersR strengthR roughnessR baseRoughnessR persistenceR centerR minValR enabledR ntR
 
-  makeComponents (NoiseSettings nl st ro br ps ce mv cb nt) () = do
+  makeComponents (NoiseSettings nl st ro br ps ce mv cb nt) () = Linear.do
 
-    b1 <- checkBox "Enabled" cb
-    b2 <- withCombo "Type" nt [SimpleNoise, RigidNoise]
-    b3 <- sliderInt "Num Layers" nl 1 8
-    b4 <- sliderFloat "Strength" st 0 2
-    b5 <- sliderFloat "Roughness" ro 0 5
-    b6 <- sliderFloat "Base Roughn" br 0 5
-    b7 <- sliderFloat "Persistence" ps 0 2
-    b8 <- sliderVec3  "Center" ce 0 5
-    b9 <- sliderFloat "Minval" mv 0 5
+    Ur b1 <- checkBox "Enabled" cb
+    Ur b2 <- withCombo "Type" nt [SimpleNoise, RigidNoise]
+    Ur b3 <- sliderInt "Num Layers" nl 1 8
+    Ur b4 <- sliderFloat "Strength" st 0 2
+    Ur b5 <- sliderFloat "Roughness" ro 0 5
+    Ur b6 <- sliderFloat "Base Roughn" br 0 5
+    Ur b7 <- sliderFloat "Persistence" ps 0 2
+    Ur b8 <- sliderVec3  "Center" ce 0 5
+    Ur b9 <- sliderFloat "Minval" mv 0 5
 
     -- pure $ or ([b1,b2,b3,b4,b5,b6,b7,b8,b9] :: [Bool])
-    pure ()
+    Linear.pure ()
 
-evalNoise :: MonadIO m => NoiseSettings -> Vec3 -> m Float
+evalNoise :: Linear.MonadIO m => NoiseSettings -> Vec3 -> m (Ur Float)
 evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p =
-  readIOSelectRef nt >>= \case
-    SimpleNoise -> evalSimpleNoise <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p
-    RigidNoise  -> evalRigidNoise  <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p
+  readIOSelectRef nt Linear.>>= \case
+    Ur SimpleNoise -> Linear.liftSystemIOU $ evalSimpleNoise <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p
+    Ur RigidNoise  -> Linear.liftSystemIOU $ evalRigidNoise  <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p
   where
 
     evalSimpleNoise nlayers stren rough baseRoughness (float2Double -> persi) cent minVal enabled point =

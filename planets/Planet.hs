@@ -10,42 +10,52 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
 module Planet where
 
+import Apecs.Linear (Entity(..), cmapM)
+import Data.Unrestricted.Linear (liftUrT, runUrT)
+import qualified Control.Monad as M
+import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear as Linear
+import qualified Data.Counted as Counted
+import Data.IORef (IORef)
+import Data.List (foldl')
+import Data.String
 import Data.Typeable
-import Ghengin.DearImGui.Gradient
-import GHC.TypeLits
+import Foreign.Ptr
+import Foreign.Storable.Generic
+import GHC.Float
 import GHC.Generics
 import GHC.Records
-import System.Random
-import Control.Monad.Trans
-import qualified Data.List.NonEmpty as NE
-import Data.String
-import Data.List (foldl')
-import GHC.Float
-import Data.IORef
-import Control.Monad
-import Ghengin.Vulkan.Sampler
-
-import qualified Foreign.Storable as S
-
+import GHC.TypeLits
 import Ghengin hiding (get)
-import Ghengin.Asset.Texture
-import Ghengin.Utils
-import Ghengin.Vulkan
-import Ghengin.Vulkan.DescriptorSet
-import Ghengin.Component (Entity, cmapM)
-import qualified Ghengin.Component as C
 import Ghengin.Component.Mesh.Sphere
-import Ghengin.Component.Mesh
-import Ghengin.Component.Mesh.Vertex
 import Ghengin.Component.UI
-import Foreign.Ptr
-import Ghengin.Core.Render.Packet
 import Ghengin.Core.Material
+import Ghengin.Core.Mesh
+import Ghengin.Core.Mesh.Vertex
+import Ghengin.Core.Render.Packet
+import Ghengin.Core.Render.Property
+import Ghengin.Core.Type.Utils (Sized(..))
+import Ghengin.DearImGui.Gradient
 import Ghengin.Shader.FIR as FIR ((:->)(..), Struct, Syntactic(..))
-import qualified Ghengin.Shader.FIR as FIR
+import Ghengin.Vulkan.Renderer
+import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.DescriptorSet
+import Ghengin.Vulkan.Renderer.Sampler
+import Ghengin.Vulkan.Renderer.Texture
+import Prelude.Linear hiding (All, IO, get)
+import System.IO.Linear
+import System.Random
 import Unsafe.Coerce
+import qualified Unsafe.Linear as Unsafe
+import qualified Apecs.Linear as C
+import qualified Data.List.NonEmpty as NE
+import qualified Foreign.Storable as S
+import qualified Ghengin.Shader.FIR as FIR
+import qualified Prelude
 
 import Noise
 import Shader (CameraProperty)
@@ -54,8 +64,8 @@ import qualified Shader
 type Planet = RenderPacket
 type PlanetProps = '[MinMax,Texture2D]
 
-data MinMax = MinMax Float Float
-  deriving (Eq, Generic, Show)
+data MinMax = MinMax !Float !Float
+  deriving (Prelude.Eq, Generic, Show)
 
 instance Syntactic MinMax where
   type Internal MinMax = FIR.Val (Struct '[ "min" ':-> Float, "max" ':-> Float ])
@@ -68,8 +78,8 @@ instance GStorable MinMax
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
-planetMaterial :: MinMax -> Texture2D -> Material '[] -> Material PlanetProps
-planetMaterial mm t = MaterialProperty (StaticBinding mm) . MaterialProperty (Texture2DBinding t)
+planetMaterial :: MinMax -> RefC Texture2D -> Material '[] -> Material PlanetProps
+planetMaterial mm t = MaterialProperty (StaticBinding (Ur mm)) . MaterialProperty (Texture2DBinding t)
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
@@ -88,22 +98,22 @@ instance UISettings PlanetSettings where
   type ReactivityOutput PlanetSettings = ()
   type ReactivityConstraints PlanetSettings w = ()
 
-  makeSettings = do
-    resR   <- newIORef 5
-    radR   <- newIORef 1
-    colorR <- newIORef (vec3 1 0 0)
-    boolR  <- newIORef False
-    ns1    <- makeSettings @NoiseSettings
-    ns2    <- makeSettings @NoiseSettings
-    _ns3    <- makeSettings @NoiseSettings
-    df     <- newIOSelectRef All
-    grad <- newGradient (vec3 0 0 0) (vec3 1 1 1)
-    pure $ PlanetSettings resR radR colorR boolR [ns1, ns2] df grad
+  makeSettings = Linear.do
+    Ur resR   <- newIORef 5
+    Ur radR   <- newIORef 1
+    Ur colorR <- newIORef (vec3 1 0 0)
+    Ur boolR  <- newIORef False
+    Ur ns1    <- makeSettings @NoiseSettings
+    Ur ns2    <- makeSettings @NoiseSettings
+    Ur _ns3    <- makeSettings @NoiseSettings
+    Ur df     <- newIOSelectRef All
+    Ur grad <- liftSystemIOU $ newGradient (vec3 0 0 0) (vec3 1 1 1)
+    pure $ Ur $ PlanetSettings resR radR colorR boolR [ns1, ns2] df grad
 
-  makeComponents ps@(PlanetSettings re ra co bo nss df grad) planetEntity = do
+  makeComponents ps@(PlanetSettings re ra co bo nss df grad) planetEntity = Linear.do
 
-    (RenderPacket (oldMesh :: Mesh ms) (Ref mat_ref :: Ref (Material mt)) pp _) <- C.get planetEntity
-    SomeMaterial (unsafeCoerce -> mat :: Material mt) <- C.get mat_ref
+    Ur (RenderPacket (oldMesh :: Mesh ms) (Ref mat_ref :: Ref (Material mt)) pp _) <- C.get planetEntity
+    Ur (SomeMaterial (unsafeCoerce -> mat :: Material mt)) <- C.get (Entity mat_ref)
       -- BIG:TODO: Move unsafe coerce to definition of "get_material" that may
       -- from a statically known reference extract a statically known material
       -- safely
@@ -117,14 +127,15 @@ instance UISettings PlanetSettings where
     --
     -- TODO: Some nice workaround to avoid this?
     () <- case (eqT @mt @PlanetProps, eqT @ms @[Vec3, Vec3, Vec3]) of
-      (Just Refl, Just Refl) -> do
+      (Just Refl, Just Refl) -> Linear.do
 
-        withTree "Planet" do
-          _b1 <- sliderInt "Resolution" re 2 200
-          _b2 <- sliderFloat "Radius" ra 0 3
+        withTree "Planet" Linear.do
+          Ur _b1 <- sliderInt "Resolution" re 2 200
+          Ur _b2 <- sliderFloat "Radius" ra 0 3
 
-          gradientButton grad
-          whenM (gradientEditor grad) $ do
+          Ur gb <- liftSystemIOU $ gradientButton grad
+          Ur ge <- liftSystemIOU $ gradientEditor grad
+          if ge then Linear.do
 
             -- Because we introduced the equality constraint we can now edit
             -- the material AND we still keep the 'Compatible' instance because
@@ -132,8 +143,8 @@ instance UISettings PlanetSettings where
             -- didn't remove the original compatibility between the existential
             -- material and pipeline
             newTex <- textureFromGradient grad
-            newMat <- lift $ mat & propertyAt @1 .~ pure newTex
-            C.set mat_ref (SomeMaterial newMat) -- TODO: wrap calls to C.set
+            newMat <- lift $ mat & propertyAt @1 (\oldtex -> Counted.forget oldtex >> pure newTex) -- linearity makes us forget the reference counted previous texture
+            Unsafe.toLinear2 C.set (Entity mat_ref) (SomeMaterial newMat) -- TODO: wrap calls to C.set -- ROMES:TODO: Unsafe set, just to maek this work. The whole linear apecs thing is kind of broken.
 -- TODO: For now we have to do this manually since re-using the same mesh but
 -- building a new render packet will make the reference count of the same mesh
 -- be incorrectly increased. Perhaps we could have a similar function which takes some parameters.
@@ -151,76 +162,86 @@ instance UISettings PlanetSettings where
             -- updated through medit
 
             pure ()
+          else pure ()
 
-          _b4 <- checkBox "Mask" bo
-          _b5 <- withCombo "Faces" df [All, FaceUp, FaceRight]
+          Ur _b4 <- checkBox "Mask" bo
+          Ur _b5 <- withCombo "Faces" df [All, FaceUp, FaceRight]
           pure ()
 
-        mapM (\(ns, i) ->
+        consume <$> M.mapM (\(ns, i) ->
           withTree ("Layer " <> fromString (show i)) $ makeComponents ns ()) (NE.zip nss [1..])
 
-        whenM (button "Generate") $ do
+        whenM (unur <$> button "Generate") $ do
 
            (newMesh,newMinMax) <- newPlanetMesh ps
 
+            -- We can enforce this by ensuring oldMesh is brought linearly into scope
            lift $ freeMesh oldMesh -- Can we hide/enforce this somehow?
                                    -- Meshes aren't automatically freed when switched! We should make "switching" explicit?
                                    -- ^ Perhaps pattern matching on a mesh pattern synonym of the mesh would free it
 
            -- Edit multiple material properties at the same time
            -- newMaterial <- lift $ medits @[0,1] @PlanetProps mat $ (\_oldMinMax -> newMinMax) :-# pure :+# HFNil
-           newMaterial <- lift $ mat & propertyAt @0 .~ pure newMinMax
-           C.set mat_ref (SomeMaterial newMaterial)
+           newMaterial <- lift $ mat & propertyAt @0 (\(Ur oldMinMax) -> pure newMinMax)
+           C.set (Entity mat_ref) (SomeMaterial newMaterial)
 
            -- Here we have to recreate the packet because a mesh is currently not a ref
-           C.set planetEntity =<< renderPacket @_ @_ @mt @_ newMesh (Ref mat_ref) pp
+           renderPacket @_ @_ @mt @_ newMesh (Ref mat_ref) pp >>= Unsafe.toLinear2 C.set planetEntity -- ignore linearity wrt apecs, it's all broken needs fix
       _ -> error "Not a planet material nor mesh BOOM"
 
     pure ()
 
-textureFromGradient :: ImGradient -> Ghengin w Texture2D
-textureFromGradient grad = do
+textureFromGradient :: ImGradient -> Ghengin w (RefC Texture2D)
+textureFromGradient grad = Linear.do
   let img = generateImage (\x _y -> normVec3ToRGB8 $ colorAt grad (fromIntegral x/(50-1))) 50 1
   sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   lift $ textureFromImage (ImageRGB8 img) sampler
 
 
 newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p) => PlanetSettings -> RenderPipeline p '[CameraProperty] -> Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
-newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = do
-  (mesh,minmax) <- newPlanetMesh ps
+newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = Linear.do
+  (mesh,Ur minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad
-  mat <- C.newEntity . SomeMaterial =<< lift (material (planetMaterial minmax tex) pipeline)
+  mat <- lift (material (minmax :## tex :## GHNil) pipeline) >>= C.newEntity . SomeMaterial
   renderPacket @p @_ @PlanetProps mesh (Ref mat) pipelineRef
 
-newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], MinMax)
-newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ do
-  re' <- get re
-  ra' <- get ra
-  co' <- get co
-  df' <- get df
-  enableMask <- get bo
+newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
+newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do
+  Ur re' <- liftIO $ readIORef re
+  Ur ra' <- liftIO $ readIORef ra
+  Ur co' <- liftIO $ readIORef co
+  Ur df' <- liftIO $ readIOSelectRef df
+  Ur enableMask <- liftIO $ readIORef bo
 
   let (vs, is) = case df' of
                    All -> let UnitSphere v i = newUnitSphere re' (Just co') in (v, i)
                    FaceUp -> let UF v i = newUnitFace re' (vec3 0 (-1) 0)
-                              in (zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (repeat co'),i)
+                              in (Prelude.zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (repeat co'),i)
                    FaceRight -> let UF v i = newUnitFace re' (vec3 1 0 0)
-                              in (zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (repeat co'),i)
+                              in (Prelude.zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (repeat co'),i)
 
-  (ps', elevations) <- unzip <$> forM vs \(p :& _) -> do
+  Ur (ps', elevations) <- runUrT $ Prelude.unzip Prelude.<$> M.forM vs \(p :& _) ->
     case nss of
       ns NE.:| nss' -> do
         initialElevation <- evalNoise ns p
         let mask = if enableMask then initialElevation else 1
-        noiseElevation <- foldM (\acc ns' -> (+acc) . (*mask) <$> evalNoise ns' p) initialElevation nss'
+        Ur noiseElevation <- M.foldM (\acc ns' -> (+acc) . (*mask) Prelude.<$> liftUrT (evalNoise ns' p)) initialElevation nss'
         let elevation = ra' * (1 + noiseElevation)
-        pure (p ^* elevation, elevation)
+        Prelude.pure (p ^* elevation, elevation)
 
   let
       ns' = calculateSmoothNormals is ps'
-      cs  = map (\(_ :& _ :&: c) -> c) vs
-      vs'' = zipWith3 (\a b c -> a :& b :&: c) ps' ns' cs
+      cs  = Prelude.map (\(_ :& _ :&: c) -> c) vs
+      vs'' = Prelude.zipWith3 (\a b c -> a :& b :&: c) ps' ns' cs
 
-      minmax = MinMax (minimum elevations) (maximum elevations)
-   in (,minmax) <$> createMeshWithIxs vs'' is
+      minmax = MinMax (Prelude.minimum elevations) (Prelude.maximum elevations)
+   in (,Ur minmax) <$> createMeshWithIxs vs'' is
+
+-- Utilities
+
+whenM :: Monad m => m Bool -> m () -> m ()
+whenM c t = do
+  b <- c
+  if b then t
+       else pure ()
 

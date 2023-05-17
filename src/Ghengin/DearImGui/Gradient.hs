@@ -97,7 +97,7 @@ woodGradient = liftIO do
 
 colorAt :: ImGradient
         -> Float -- ^ Position from 0 to 1
-        -> Vec3  -- ^ Normalised vec3
+        -> (Float,Float,Float)  -- ^ Normalised vec3
 colorAt (ImGradient ptr _ _) (CFloat -> pos) = unsafePerformIO do
   withArray [0,0,0] \(colorPtr :: Ptr CFloat) -> do
 
@@ -105,7 +105,7 @@ colorAt (ImGradient ptr _ _) (CFloat -> pos) = unsafePerformIO do
 
     [x, y, z] <- peekArray 3 colorPtr
 
-    return (vec3 (realToFrac x) (realToFrac y) (realToFrac z))
+    return (realToFrac x, realToFrac y, realToFrac z)
 
 -- | ImGui gradient button: Must be defined in a UI window (or otherwise the imgui context won't be set)
 gradientButton :: MonadIO m => ImGradient -> m Bool

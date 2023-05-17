@@ -200,7 +200,7 @@ library ghengin-vulkan
                       GLFW-b,
                       linear-base,
                       reference-counting,
-                      -- ghengin:ghengin-core,
+                      -- ghengin:ghengin-core MISTAKE!,
                       ghengin:ghengin-core-indep,
 
                       -- For textures (consider adding to Core too)
@@ -259,6 +259,12 @@ library
                       Ghengin.Utils,
                       Ghengin.World,
 
+    -- Provide all the batteries
+    reexported-modules:
+        -- apecs
+        Apecs.Linear,
+        -- reference-counting
+        Data.Counted
     -- reexported-modules: Ghengin.Vulkan.Renderer.Kernel,
     --                     Ghengin.Vulkan.Renderer.DescriptorSet,
     --                     Ghengin.Vulkan.Renderer.Buffer,
@@ -377,9 +383,12 @@ executable planets
     build-depends:
         base ^>=4.17.0.0,
         ghengin,
-        -- ghengin:ghengin-core,
-        -- ghengin:ghengin-vulkan,
-        mtl, vector, hsnoise, containers, random
+        -- Can't depend on this without instancing it because of backpack
+        ghengin:ghengin-core,
+        ghengin:ghengin-vulkan,
+        ghengin:ghengin-core-indep,
+        mtl, vector, hsnoise, containers, random, linear-base,
+        derive-storable
 
     -- ghc-options: -ddump-simpl
                  -- -ddump-to-file
@@ -395,6 +404,15 @@ executable planets
 
     -- Directories containing source files.
     hs-source-dirs:   planets
+    mixins:           ghengin:ghengin-core
+                      requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                               , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                               , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                               , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                               , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                               , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                               , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                               )
 
     -- Base language which the package is written in.
     default-language: GHC2021

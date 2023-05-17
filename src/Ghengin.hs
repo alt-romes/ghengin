@@ -33,13 +33,9 @@ module Ghengin
   -- * Compatible
   , Compatible
 
-  -- | TODO: Export Vecs from other module
+  -- | TODO: Export Vecs from other module (Ghengin.Prelude)
   , module Geomancy.Vec3
   , module Geomancy.Mat4
-
-  , module Control.Lens
-
-  , lift, liftIO
   ) where
 
 import Prelude.Linear hiding (IO)

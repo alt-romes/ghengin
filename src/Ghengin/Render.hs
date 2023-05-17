@@ -277,11 +277,10 @@ render i = Linear.do
 -- The render property bindings function should be created from a compatible pipeline
 writePropertiesToResources :: ∀ φ α ω. (HasProperties φ, Dupable ω) => ResourceMap ⊸ φ α ⊸ Ghengin ω (ResourceMap, φ α)
 writePropertiesToResources rmap' fi
-  = case properties fi of
-      (pbs, fi') -> Linear.do
-        (rmap'', pbs') <- go rmap' 0 pbs
-        lift $ forgetPropertyBindings pbs'
-        pure (rmap'', fi')
+  = Linear.do (pbs, fi')     <- lift $ properties fi
+              (rmap'', pbs') <- go rmap' 0 pbs
+              lift $ forgetPropertyBindings pbs'
+              pure (rmap'', fi')
 
   where
     go :: ∀ β. ResourceMap ⊸ Int -> PropertyBindings β ⊸ Ghengin ω (ResourceMap, PropertyBindings β)
