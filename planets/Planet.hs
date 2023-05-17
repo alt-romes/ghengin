@@ -15,7 +15,7 @@
 module Planet where
 
 import Apecs.Linear (Entity(..), cmapM)
-import Data.Unrestricted.Linear (liftUrT, runUrT)
+import Data.Unrestricted.Linear (liftUrT, runUrT, UrT(..))
 import qualified Control.Monad as M
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
@@ -38,6 +38,7 @@ import Ghengin.Core.Mesh
 import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Render.Packet
 import Ghengin.Core.Render.Property
+import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Type.Utils (Sized(..))
 import Ghengin.DearImGui.Gradient
 import Ghengin.Shader.FIR as FIR ((:->)(..), Struct, Syntactic(..))
@@ -46,7 +47,8 @@ import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.DescriptorSet
 import Ghengin.Vulkan.Renderer.Sampler
 import Ghengin.Vulkan.Renderer.Texture
-import Prelude.Linear hiding (All, IO, get)
+import Prelude ((*), (+), (-), (/))
+import Prelude.Linear hiding (All, IO, get, (*), (+), (-), (/))
 import System.IO.Linear
 import System.Random
 import Unsafe.Coerce
@@ -60,6 +62,15 @@ import qualified Prelude
 import Noise
 import Shader (CameraProperty)
 import qualified Shader
+
+-- MOVE SOMEWHERE USEFUL
+-- is the Unsafe.toLinear worse for performance than doing this right? It might block some optimizations
+instance Consumable Vec3 where
+  consume = Unsafe.toLinear \x -> ()
+instance Dupable Vec3 where
+  dup2 = Unsafe.toLinear \x -> (x,x)
+instance Movable Vec3 where
+  move = Unsafe.toLinear \x -> Ur x
 
 type Planet = RenderPacket
 type PlanetProps = '[MinMax,Texture2D]
@@ -78,8 +89,8 @@ instance GStorable MinMax
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
-planetMaterial :: MinMax -> RefC Texture2D -> Material '[] -> Material PlanetProps
-planetMaterial mm t = MaterialProperty (StaticBinding (Ur mm)) . MaterialProperty (Texture2DBinding t)
+planetPBS :: MinMax -> RefC Texture2D ⊸ PropertyBindings PlanetProps
+planetPBS mm t = StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
                                      , radius     :: !(IORef Float)
@@ -96,7 +107,7 @@ instance UISettings PlanetSettings where
 
   type ReactivityInput PlanetSettings = Entity
   type ReactivityOutput PlanetSettings = ()
-  type ReactivityConstraints PlanetSettings w = ()
+  type ReactivityConstraints PlanetSettings w = Dupable w
 
   makeSettings = Linear.do
     Ur resR   <- newIORef 5
@@ -168,10 +179,10 @@ instance UISettings PlanetSettings where
           Ur _b5 <- withCombo "Faces" df [All, FaceUp, FaceRight]
           pure ()
 
-        consume <$> M.mapM (\(ns, i) ->
-          withTree ("Layer " <> fromString (show i)) $ makeComponents ns ()) (NE.zip nss [1..])
+        consume <$> runUrT (M.mapM (\(ns, i) -> liftUrT $
+          withTree ("Layer " Prelude.<> fromString (show i)) $ makeComponents ns ()) (NE.zip nss [1..]))
 
-        whenM (unur <$> button "Generate") $ do
+        whenM (unur <$> button "Generate") $ Linear.do
 
            (newMesh,newMinMax) <- newPlanetMesh ps
 
@@ -183,7 +194,7 @@ instance UISettings PlanetSettings where
            -- Edit multiple material properties at the same time
            -- newMaterial <- lift $ medits @[0,1] @PlanetProps mat $ (\_oldMinMax -> newMinMax) :-# pure :+# HFNil
            newMaterial <- lift $ mat & propertyAt @0 (\(Ur oldMinMax) -> pure newMinMax)
-           C.set (Entity mat_ref) (SomeMaterial newMaterial)
+           Unsafe.toLinear2 C.set (Entity mat_ref) (SomeMaterial newMaterial) -- ROMES:TODO: Linearity broken on surface+apecs... rewrite whole frontend
 
            -- Here we have to recreate the packet because a mesh is currently not a ref
            renderPacket @_ @_ @mt @_ newMesh (Ref mat_ref) pp >>= Unsafe.toLinear2 C.set planetEntity -- ignore linearity wrt apecs, it's all broken needs fix
@@ -191,21 +202,24 @@ instance UISettings PlanetSettings where
 
     pure ()
 
-textureFromGradient :: ImGradient -> Ghengin w (RefC Texture2D)
+textureFromGradient :: Dupable w => ImGradient -> Ghengin w (RefC Texture2D)
 textureFromGradient grad = Linear.do
   let img = generateImage (\x _y -> normVec3ToRGB8 $ colorAt grad (fromIntegral x/(50-1))) 50 1
   sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   lift $ textureFromImage (ImageRGB8 img) sampler
 
 
-newPlanet :: ∀ p w. (Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p) => PlanetSettings -> RenderPipeline p '[CameraProperty] -> Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
+newPlanet :: ∀ p w. (Dupable w, Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p)
+          => PlanetSettings -> RenderPipeline p '[CameraProperty] -> Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = Linear.do
   (mesh,Ur minmax) <- newPlanetMesh ps
   tex <- textureFromGradient grad
-  mat <- lift (material (minmax :## tex :## GHNil) pipeline) >>= C.newEntity . SomeMaterial
-  renderPacket @p @_ @PlanetProps mesh (Ref mat) pipelineRef
+  (mat, pipeline') <- lift (material @PlanetProps @p (planetPBS minmax tex) pipeline)
+  Ur (Entity matref) <- Unsafe.toLinear C.newEntity (SomeMaterial mat) -- ROMES:TODO: Apecs linearity is broken.
+  Unsafe.toLinear (\_ -> pure ()) pipeline' -- rOMES:TODO: surface level linearity is broken
+  renderPacket @p @_ @PlanetProps mesh (Ref matref) pipelineRef
 
-newPlanetMesh :: PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
+newPlanetMesh :: Dupable w => PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
 newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do
   Ur re' <- liftIO $ readIORef re
   Ur ra' <- liftIO $ readIORef ra
@@ -216,18 +230,18 @@ newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do
   let (vs, is) = case df' of
                    All -> let UnitSphere v i = newUnitSphere re' (Just co') in (v, i)
                    FaceUp -> let UF v i = newUnitFace re' (vec3 0 (-1) 0)
-                              in (Prelude.zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (repeat co'),i)
+                              in (Prelude.zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (Prelude.repeat co'),i)
                    FaceRight -> let UF v i = newUnitFace re' (vec3 1 0 0)
                               in (Prelude.zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (repeat co'),i)
 
-  Ur (ps', elevations) <- runUrT $ Prelude.unzip Prelude.<$> M.forM vs \(p :& _) ->
+  Ur (ps', elevations) <- runUrT $ Prelude.unzip Prelude.<$> M.forM vs \(p :& _) -> liftUrT $
     case nss of
-      ns NE.:| nss' -> do
-        initialElevation <- evalNoise ns p
+      ns NE.:| nss' -> Linear.do
+        Ur initialElevation <- liftIO $ runUrT $ evalNoise ns p
         let mask = if enableMask then initialElevation else 1
-        Ur noiseElevation <- M.foldM (\acc ns' -> (+acc) . (*mask) Prelude.<$> liftUrT (evalNoise ns' p)) initialElevation nss'
+        Ur noiseElevation <- liftIO $ runUrT $ M.foldM (\acc ns' -> (\x -> acc+x*mask) Prelude.<$> evalNoise ns' p) initialElevation nss'
         let elevation = ra' * (1 + noiseElevation)
-        Prelude.pure (p ^* elevation, elevation)
+        pure (p ^* elevation, elevation)
 
   let
       ns' = calculateSmoothNormals is ps'
@@ -240,7 +254,7 @@ newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do
 -- Utilities
 
 whenM :: Monad m => m Bool -> m () -> m ()
-whenM c t = do
+whenM c t = Linear.do
   b <- c
   if b then t
        else pure ()

@@ -13,6 +13,7 @@ import GHC.Float
 
 import Data.IORef
 import qualified Control.Functor.Linear as Linear
+import qualified Data.Unrestricted.Linear as Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
 import qualified System.IO.Linear as Linear
 import Ghengin hiding (get)
@@ -69,8 +70,8 @@ instance UISettings NoiseSettings where
     -- pure $ or ([b1,b2,b3,b4,b5,b6,b7,b8,b9] :: [Bool])
     Linear.pure ()
 
-evalNoise :: Linear.MonadIO m => NoiseSettings -> Vec3 -> m (Ur Float)
-evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p =
+evalNoise :: Linear.MonadIO m => NoiseSettings -> Vec3 -> Linear.UrT m Float
+evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p = Linear.UrT $
   readIOSelectRef nt Linear.>>= \case
     Ur SimpleNoise -> Linear.liftSystemIOU $ evalSimpleNoise <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p
     Ur RigidNoise  -> Linear.liftSystemIOU $ evalRigidNoise  <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p

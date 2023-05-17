@@ -51,11 +51,11 @@ import Data.Type.Equality
 -- ROMES: Can we avoid the Eq instance here? Depends on what we need the property binding eq instance for...
 data PropertyBinding α where
 
-  DynamicBinding :: ∀ α. (Eq α, Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
+  DynamicBinding :: ∀ α. (Prelude.Eq α, Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
                  => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
                  -> PropertyBinding α
 
-  StaticBinding :: ∀ α. (Eq α, Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
+  StaticBinding :: ∀ α. (Prelude.Eq α, Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
                 => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
                 -> PropertyBinding α
 
