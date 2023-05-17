@@ -3,6 +3,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE ExplicitNamespaces #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 module Ghengin.Core.Render.Property
   ( PropertyBinding(..)
   , PropertyBindings
@@ -45,22 +46,33 @@ import Ghengin.Core.Type.Utils (nat)
 import Ghengin.Core.Renderer.Texture
 import Ghengin.Core.Renderer
 
+import Data.Type.Equality
+
 -- ROMES: Can we avoid the Eq instance here? Depends on what we need the property binding eq instance for...
 data PropertyBinding α where
 
-  DynamicBinding :: ∀ α. (Eq α, Storable α, Movable α) -- Storable to write the buffers
-                 => α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
+  DynamicBinding :: ∀ α. (Eq α, Storable α, Movable α, PBInv α ~ Ur α) -- Storable to write the buffers
+                 => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
                  -> PropertyBinding α
 
-  StaticBinding :: ∀ α. (Eq α, Storable α, Movable α) -- Storable to write the buffers
-                => α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
+  StaticBinding :: ∀ α. (Eq α, Storable α, Movable α, PBInv α ~ Ur α) -- Storable to write the buffers
+                => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
                 -> PropertyBinding α
 
-  Texture2DBinding :: RefC Texture2D ⊸ PropertyBinding (RefC Texture2D)
+  Texture2DBinding :: RefC Texture2D ⊸ PropertyBinding Texture2D
+
+-- | A 'PropertyBinding' actual value. Useful when we want to define functions
+-- over the value bound when constructing the PropertyBinding rather than the
+-- type that shows up in the typelist.
+--
+-- For all intents and purposes, this is the inverse of 'PropertyBinding'. To use, require the constraint (a 
+type family PBInv α = r | r -> α where
+  PBInv Texture2D = RefC Texture2D
+  PBInv x         = Ur x
 
 instance Prelude.Eq α => Prelude.Eq (PropertyBinding (Ur α)) where
-  (==) (DynamicBinding x) (DynamicBinding y) = x == y
-  (==) (StaticBinding x)  (StaticBinding y)  = x == y
+  (==) (DynamicBinding (Ur x)) (DynamicBinding (Ur y)) = x == y
+  (==) (StaticBinding (Ur x))  (StaticBinding (Ur y))  = x == y
   (==) x y = False
 
 instance Prelude.Eq (PropertyBinding Texture2D) where
@@ -124,13 +136,13 @@ makeResources =
   where
     go :: ∀ β. PropertyBinding β ⊸ Renderer (DescriptorResource, PropertyBinding β)
     go pb = case pb of
-      DynamicBinding x -> Linear.do
+      DynamicBinding (Ur x) -> Linear.do
 
         -- Allocate the associated buffers
         mb <- createMappedBuffer (fromIntegral $ sizeOf x) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
-        pure (UniformResource mb, DynamicBinding x)
+        pure (UniformResource mb, DynamicBinding (Ur x))
 
-      StaticBinding x -> Linear.do
+      StaticBinding (Ur x) -> Linear.do
 
         -- Allocate the associated buffers
         mb <- createMappedBuffer (fromIntegral $ sizeOf x) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -- TODO: Should this be a deviceLocalBuffer?
@@ -140,7 +152,7 @@ makeResources =
 
         -- TODO: instead -> createDeviceLocalBuffer Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT x
 
-        pure (UniformResource mb', StaticBinding x)
+        pure (UniformResource mb', StaticBinding (Ur x))
         
       Texture2DBinding t -> Linear.do
 
@@ -178,10 +190,10 @@ writeProperty buf = \case
   Texture2DBinding  t ->
   --   -- As above. Static bindings don't get written every frame.
     pure (buf, Texture2DBinding t)
-  DynamicBinding (a :: α) -> Linear.do
+  DynamicBinding (Ur (a :: α)) -> Linear.do
     -- Dynamic bindings are written every frame
     buf' <- writeMappedBuffer buf a
-    pure (buf', DynamicBinding a)
+    pure (buf', DynamicBinding (Ur a))
 {-# INLINE writeProperty #-}
 
 
@@ -280,7 +292,8 @@ class HasProperties φ => HasPropertyAt n β φ α where
   -- getter
   -- ROMES:TODO: I suppose I no longer can have %p here instead of %1? Try thinking about it again...
   -- propertyAt :: ∀ γ ρ χ. Linear.Functor γ => (β %ρ -> γ (Renderer β)) %χ -> (φ α ⊸ γ (Renderer (φ α)))
-  propertyAt :: ∀ χ. (β ⊸ Renderer β) %χ -> (φ α ⊸ Renderer (φ α))
+  propertyAt :: ∀ χ β'. (β' ~ PBInv β) => (β' ⊸ Renderer β') %χ -> (φ α ⊸ Renderer (φ α))
+                     -- ^ linearity here enforces correct freeing of linear property!
 
 instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β φ α where
   propertyAt = propertyAt' @n @0 @φ @α @β
@@ -291,7 +304,7 @@ instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β �
 -- required for the 'HasProperties' class
 class HasPropertyAt' n m φ α β where
   -- propertyAt' :: Linear.Functor f => (β %p -> f (Renderer β)) %x -> (φ α ⊸ f (Renderer (φ α)))
-  propertyAt' :: (β ⊸ Renderer β) %x -> (φ α ⊸ Renderer (φ α))
+  propertyAt' :: (β' ~ PBInv β) => (β' ⊸ Renderer β') %x -> (φ α ⊸ Renderer (φ α))
 
 -- TODO: Instance with type error for "No available property with type X at position N"
 
@@ -316,7 +329,7 @@ instance {-# OVERLAPPING #-}
   --             descriptors xs0 Linear.>>= \case
   --               (dset, resmap, xs1) -> edit prop1 dset resmap xs1 mub
   --           ) Linear.<$> afmub a
-  propertyAt' :: ∀ χ. (β ⊸ Renderer β) %χ -> (φ (β:αs) ⊸ Renderer (φ (β:αs)))
+  propertyAt' :: ∀ χ β'. (β' ~ PBInv β) => (β' ⊸ Renderer β') %χ -> (φ (β:αs) ⊸ Renderer (φ (β:αs)))
   propertyAt' afmub s =
     case puncons s of -- ft
       -- TODO: prop might have to be linear
@@ -330,7 +343,7 @@ instance {-# OVERLAPPING #-}
             --     (dset, resmap, xs1) -> edit prop1 dset resmap xs1 afmub
             -- ) Linear.<$> afmub a
    where
-    edit :: PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ (β ⊸ Renderer β) ⊸ Renderer (φ (β:αs))
+    edit :: (β' ~ PBInv β) => PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ (β' ⊸ Renderer β') ⊸ Renderer (φ (β:αs))
     edit prop dset resmap xs fmub = Linear.do
       -- Ur b <- mub
       -- TODO: Perhaps assert this isn't the last usage of dset and resmap,
@@ -360,7 +373,7 @@ instance {-# OVERLAPPABLE #-}
 
   -- propertyAt' :: MonadRenderer μ => Lens (φ (α:αs)) (μ (φ (α:αs))) β (μ (Ur β))
   -- propertyAt' :: ∀ f p x. Linear.Functor f => (β %1 -> f (Renderer β)) %x -> (φ (α:αs) ⊸ f (Renderer (φ (α:αs))))
-  propertyAt' :: ∀ x. (β ⊸ Renderer β) %x -> (φ (α:αs) ⊸ Renderer (φ (α:αs)))
+  propertyAt' :: ∀ x β'. (β' ~ PBInv β) => (β' ⊸ Renderer β') %x -> (φ (α:αs) ⊸ Renderer (φ (α:αs)))
   propertyAt' f x =
     case puncons x of
       (prop, xs) ->
@@ -378,15 +391,15 @@ instance {-# OVERLAPPABLE #-}
 -- See 'HasPropertyAt'.
 editProperty :: ∀ α p
               . PropertyBinding α    -- ^ Property to edit/update
-              ⊸ (α %1 -> Renderer α)    -- ^ Update function
+              ⊸ (PBInv α %1 -> Renderer (PBInv α))    -- ^ Update function
               ⊸ Int                  -- ^ Property index in descriptor set
              -> DescriptorSet   -- ^ The descriptor set with corresponding index and property resources
               ⊸ ResourceMap     -- ^ The descriptor set with corresponding index and property resources
               ⊸ Renderer (PropertyBinding α, DescriptorSet, ResourceMap) -- ^ Returns the updated property binding
 editProperty prop update i dset resmap0 = Linear.do
   case prop of
-    DynamicBinding x -> Linear.do
-      Ur ux <- move <$> update x
+    DynamicBinding (x :: Ur α) -> Linear.do
+      Ur ux <- update x
 
       (bufref, resmap1) <- getUniformBuffer resmap0 i
 
@@ -402,16 +415,16 @@ editProperty prop update i dset resmap0 = Linear.do
       --           -- ROMES:Note: the 'free' name is a bit counter intuitive, we will never really free it here...
       --           -- TODO: Give it a better name
 
-      pure (DynamicBinding ux, dset, resmap1)
+      pure (DynamicBinding (Ur ux), dset, resmap1)
 
     StaticBinding x -> Linear.do
-      Ur ux <- move <$> update x
+      Ur ux <- update x
 
       (bufref, resmap1) <- getUniformBuffer resmap0 i
 
       writeStaticBinding bufref ux >>= Counted.forget
 
-      pure (StaticBinding ux, dset, resmap1)
+      pure (StaticBinding (Ur ux), dset, resmap1)
 
     Texture2DBinding xalias -> Linear.do
       ux <- update xalias -- Update function is the one taking into account the
