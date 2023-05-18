@@ -6,6 +6,7 @@
 {-# LANGUAGE QualifiedDo #-}
 module Ghengin.Render where
 
+import Ghengin.Core.Log
 import Prelude.Linear hiding (insert)
 import qualified Prelude
 import Control.Functor.Linear as Linear
@@ -160,7 +161,7 @@ render i = Linear.do
         (\(SomePipelineRef (Ref pipeline_ref)) -> Linear.do
             Ur (SomePipeline pipeline) <- lift $ Apecs.get (Apecs.Entity pipeline_ref)
 
-            -- logTrace "Binding pipeline"
+            logT "Binding pipeline"
             Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
 
             -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
@@ -202,7 +203,7 @@ render i = Linear.do
         (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> Linear.do
             Ur (SomeMaterial material') <- lift $ Apecs.get (Apecs.Entity material_ref)
 
-            -- logTrace "Binding material"
+            logT "Binding material"
             Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
 
             lift (lift (descriptors material')) >>= \case
@@ -230,7 +231,7 @@ render i = Linear.do
           )
         (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> Linear.do
 
-            -- logTrace "Drawing mesh"
+            logT "Drawing mesh"
             Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
 
             -- TODO: Bind descriptor set #2

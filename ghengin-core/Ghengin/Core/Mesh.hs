@@ -117,22 +117,12 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = Linear.do
   pure (IndexedMesh vertexBuffer indexBuffer)
 
 
--- ROMES:TODO
 freeMesh :: Mesh ts -> Renderer ()
 freeMesh mesh = do
-  -- () <- decRefCount mesh
-  -- count <- get mesh.referenceCount
-
-  -- when (count == 0) $ do
-  --   logDebug "Freeing mesh..."
+  -- logD "Freeing mesh..."
   case mesh of
     SimpleMesh (VertexBuffer vb _) -> destroyDeviceLocalBuffer vb
     IndexedMesh (VertexBuffer vb _) (Index32Buffer ib _) -> destroyDeviceLocalBuffer vb >> destroyDeviceLocalBuffer ib
-
-  -- TODO: Don't include this when built for production somehow
-  -- ROMES: Make assertion instead of when
-  -- when (count < 0) $ do
-  --   logError "Destroying mesh more times than the number of assignments..."
 
 
 -- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)

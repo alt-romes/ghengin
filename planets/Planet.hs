@@ -15,6 +15,7 @@
 module Planet where
 
 import Apecs.Linear (Entity(..), cmapM)
+import Ghengin.Core.Log
 import Data.Unrestricted.Linear (liftUrT, runUrT, UrT(..))
 import qualified Control.Monad as M
 import Control.Functor.Linear as Linear
@@ -212,12 +213,18 @@ textureFromGradient grad = Linear.do
 newPlanet :: ∀ p w. (Dupable w, Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p)
           => PlanetSettings -> RenderPipeline p '[CameraProperty] ⊸ Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = Linear.do
+  logT "Making mesh"
   (mesh,Ur minmax) <- newPlanetMesh ps
+  logT "Making gradient"
   tex <- textureFromGradient grad
+  logT "Making material"
   (mat, pipeline') <- lift (material @PlanetProps @p (planetPBS minmax tex) pipeline)
   Ur (Entity matref) <- Unsafe.toLinear C.newEntity (SomeMaterial mat) -- ROMES:TODO: Apecs linearity is broken.
   Unsafe.toLinear (\_ -> pure ()) pipeline' -- rOMES:TODO: surface level linearity is broken
-  renderPacket @p @_ @PlanetProps mesh (Ref matref) pipelineRef
+  logT "Making render packet"
+  rp <- renderPacket @p @_ @PlanetProps mesh (Ref matref) pipelineRef
+  logT "Done"
+  pure rp
 
 newPlanetMesh :: Dupable w => PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
 newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do

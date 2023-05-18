@@ -67,8 +67,8 @@ common common-flags
 
   if flag(dev)
     ghc-options: -Wall -O0
-    cc-options: -O0 -DDEBUG
-    cpp-options: -DDEBUG
+    cc-options: -O0 -DDEBUG -DDEBUG_TRACE
+    cpp-options: -DDEBUG -DDEBUG_TRACE
   else
     ghc-options: -Wall -O2 -dcore-lint
     -- -fexpose-all-unfoldings -fspecialize-aggressively

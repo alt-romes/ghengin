@@ -89,6 +89,12 @@ import qualified Unsafe.Linear as Unsafe
 -- meshes
 
 type Ghengin w = SystemT (World w) Renderer
+instance Dupable w => HasLogger (Ghengin w) where
+  -- Unsafe, whateverrrrr, it's easier. This is bad...
+  getLogger = SystemT $ ReaderT $ Unsafe.toLinear $ \World{..} -> Linear.do
+    case logger of
+      Ur (log,clean) ->
+        pure (Ur log)
 
 windowLoop :: Dupable w => Ur s ⊸ (Ur s ⊸ Ghengin w (Bool, Ur s)) -> Ghengin w (Ur s)
 windowLoop s action = Linear.do
@@ -122,12 +128,13 @@ ghengin world initialize _simstep loopstep finalize = Linear.do
 
   Ur world' <- initWorld world
 
-  -- withGlobalLogging (LogConfig Nothing True)
   runRenderer $ (`runSystem` world') $ Linear.do
 
-    -- logDebug "Started Ghengin"
+    logD "Started Ghengin"
 
     Ur a <- initialize
+
+    logT "Initialized"
 
     -- TODO: Use linear types (was this was meant for `a`?). Can I make the monad stack over a multiplicity polymorphic monad? (Yes, you could, past me!)
 
@@ -139,12 +146,15 @@ ghengin world initialize _simstep loopstep finalize = Linear.do
                       Ur rp <- Unsafe.toLinear Ur <$> Data.Counted.Unsafe.dec rrp
                       pure (Ur (rp._renderPass:acc))
                            ) []
+    logT "Got renderpass from first packet"
+
     -- Very unsafe imCtx... won't matter when we revert linear types from the frontend
     Ur imCtx <- case listToMaybe rps of
                  Nothing -> pure (Ur Nothing)
                  Just x  -> Linear.do
                    Ur (imct, _uns) <- Unsafe.toLinear Ur <$> lift (IM.initImGui x)
                    pure (Ur (Just imct))
+    logT "Got imCtx"
 
     Ur currentTime <- liftSystemIOU getCurrentTime
     -- Ur lastFPSTime <- liftSystemIOU getCurrentTime
@@ -188,26 +198,14 @@ ghengin world initialize _simstep loopstep finalize = Linear.do
     ghengin_loop :: a -> Maybe IM.ImCtx ⊸ LoopState ⊸ Ghengin w (Bool, LoopState)
     ghengin_loop a imCtx (Ur (currentTime, frameCounter)) = Linear.do
 
-      -- logTrace "New frame"
+      logT "New frame"
 
       Ur newTime <- liftSystemIOU getCurrentTime
-
-      -- lastFPS <- liftIO (readIORef lastFPSTime)
-
-      -- What's this? I don't think I need it anymore.
-      -- Delete. It would need A LOT of years for an integer counting frames to overflow
-      --
-      -- when (diffUTCTime newTime lastFPS > 1) (liftIO $ do
-      --   frames <- readIORef frameCounter
-      --   -- logInfo $ "FPS: " <> fromString (show frames)
-      --   writeIORef frameCounter 0
-      --   writeIORef lastFPSTime newTime
-      --   )
 
       -- Fix Your Timestep: A Very Hard Thing To Get Right. For now, the simplest approach:
       let frameTime = diffUTCTime newTime currentTime
 
-      -- logTrace "Drawing UI"
+      logT "Drawing UI"
 
       -- DearImGui frame
       -- TODO: Draw UI (define all UI components in the frame)
@@ -217,20 +215,20 @@ ghengin world initialize _simstep loopstep finalize = Linear.do
       -- tODO: better way to create imCtx).
       drawUI imCtx
 
-      -- logTrace "Simulating a step"
+      logT "Simulating a step"
 
       -- BIG:TODO: We're currently drawing two equal frames in a row... we probably want all of this to be done on each frame
 
       -- Game loop step
       b <- loopstep a (Prelude.min MAX_FRAME_TIME $ realToFrac frameTime)
 
-      -- logTrace "Rendering"
+      logT "Rendering"
 
       -- Currently render is called here because it traverses the scene graph and
       -- populates the render queue, and renders!
       render frameCounter
 
-      -- logTrace "Done frame"
+      logT "Done frame"
 
       pure (b, Ur (newTime, frameCounter+1))
 

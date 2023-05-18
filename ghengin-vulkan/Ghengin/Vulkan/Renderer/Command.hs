@@ -76,6 +76,7 @@ import qualified Vulkan      as Vk
 import Ghengin.Vulkan.Renderer.Device
 
 import Ghengin.Core.Type.Utils (w32)
+import Ghengin.Core.Log
 
 import qualified Unsafe.Linear as Unsafe
 
@@ -181,6 +182,12 @@ instance Linear.MonadIO m => Linear.MonadIO (CommandM m) where
 
 instance Linear.MonadIO m => Linear.MonadIO (RenderPassCmdM m) where
   liftIO x = RenderPassCmd $ ReaderT $ Unsafe.toLinear $ \r -> Linear.liftIO x
+
+instance HasLogger m => HasLogger (CommandM m) where
+  getLogger = Command $ ReaderT $ Unsafe.toLinear $ \r -> getLogger
+
+instance HasLogger m => HasLogger (RenderPassCmdM m) where
+  getLogger = RenderPassCmd $ ReaderT $ Unsafe.toLinear $ \r -> getLogger
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.

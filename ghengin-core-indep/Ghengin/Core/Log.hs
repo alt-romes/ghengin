@@ -17,13 +17,23 @@ newLogger = liftSystemIOU (second (liftSystemIO) Prelude.<$> newFastLogger (LogS
 -- | Unconditionally log a message to the default logger
 log :: (ToLogStr msg, HasLogger m) => msg -> m ()
 log msg = getLogger >>= \(Ur logger) -> G.do
-  liftSystemIO $ logger (toLogStr msg)
+  liftSystemIO $ logger (toLogStr msg <> toLogStr "\n")
 {-# INLINE log #-}
 
 -- | Log if debug level is set
-logD :: (ToLogStr msg, HasLogger m) => msg -> m ()
+logD :: HasLogger m => LogStr -> m ()
 #ifdef DEBUG
 logD = log
 #else
 logD = const (pure ())
 #endif
+{-# INLINE logD #-}
+
+-- | Log if trace level is set
+logT :: HasLogger m => LogStr -> m ()
+#ifdef DEBUG_TRACE
+logT = log
+#else
+logT = const (pure ())
+#endif
+{-# INLINE logT #-}
