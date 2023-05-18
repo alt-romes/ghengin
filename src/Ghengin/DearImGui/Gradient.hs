@@ -7,6 +7,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.DearImGui.Gradient where
 
+import Prelude
 import Geomancy.Vec3
 import System.IO.Unsafe
 -- import Data.StateVar

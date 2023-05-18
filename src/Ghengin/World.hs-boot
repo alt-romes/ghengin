@@ -1,12 +1,14 @@
 {-# LANGUAGE RoleAnnotations #-}
 module Ghengin.World where
 
+import GHC.Records
 import qualified Prelude
 import Control.Functor.Linear
 import Apecs.Linear
 import Apecs.Linear.Core
 import Data.Unrestricted.Linear (Dupable, Consumable)
 import Data.Kind
+import System.Log.FastLogger
 
 import Ghengin.Vulkan.Renderer.Kernel -- See Todo on making Ghengin modules not depending directly on Vulkan too.
 import Ghengin.Core.Render.Packet (RenderPacket)
@@ -22,6 +24,7 @@ instance Dupable w => Dupable (World w)
 instance Monad m => Has (World w) m RenderPacket where
 instance Monad m => Has (World w) m SomePipeline where
 instance Monad m => Has (World w) m SomeMaterial where
+
 
 -- instance Has (World w) Renderer RenderPacket
 -- instance Has (World w) Renderer SomePipeline

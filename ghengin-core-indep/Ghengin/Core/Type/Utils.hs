@@ -1,13 +1,12 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE LinearTypes #-}
-{-# LANGUAGE GADTs #-}
 module Ghengin.Core.Type.Utils
   ( module Ghengin.Core.Type.Utils
   -- , module Data.Type.Map
   -- , module Data.Type.List
   ) where
 
+import Prelude
 import GHC.TypeLits
 import Data.Proxy
 

@@ -6,6 +6,7 @@ module Ghengin.Shader
   , ShaderByteCode(..), compileFIRShader
   ) where
 
+import Prelude
 import Ghengin.Core.Shader.Canonical
 import Ghengin.Core.Shader.Pipeline
 import Ghengin.Shader.Syntactic ()

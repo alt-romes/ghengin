@@ -1,12 +1,4 @@
 {-# OPTIONS_GHC -Wno-orphans #-} -- Transform instances
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE LinearTypes #-}
-{-# LANGUAGE QualifiedDo #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Component.Transform
   ( Transform(..)
@@ -15,6 +7,7 @@ module Ghengin.Component.Transform
   , makeTransform
   ) where
 
+import Prelude
 import qualified Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
 

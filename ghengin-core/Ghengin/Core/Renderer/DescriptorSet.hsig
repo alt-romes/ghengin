@@ -1,6 +1,7 @@
 {-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.DescriptorSet where
 
+import Prelude (Int)
 import Data.IntMap (IntMap)
 
 import Ghengin.Core.Shader.Pipeline

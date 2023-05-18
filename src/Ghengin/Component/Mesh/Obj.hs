@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Component.Mesh.Obj where
 
+import Prelude
 import qualified Prelude.Linear as Linear
 import Control.Monad
 

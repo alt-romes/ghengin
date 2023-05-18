@@ -67,7 +67,8 @@ common common-flags
 
   if flag(dev)
     ghc-options: -Wall -O0
-    cc-options: -O0
+    cc-options: -O0 -DDEBUG
+    cpp-options: -DDEBUG
   else
     ghc-options: -Wall -O2 -dcore-lint
     -- -fexpose-all-unfoldings -fspecialize-aggressively
@@ -75,16 +76,25 @@ common common-flags
     cc-options: -O2
 
   default-extensions: UnicodeSyntax,
+                      MultiParamTypeClasses,
                       NoStarIsType,
                       DataKinds,
                       GADTs,
                       ViewPatterns,
                       TypeApplications,
                       TypeFamilies,
+                      ExplicitNamespaces,
+                      TypeOperators,
                       LambdaCase,
+                      BlockArguments,
+                      RecordWildCards,
                       UnboxedTuples,
                       PatternSynonyms,
-                      DisambiguateRecordFields
+                      DisambiguateRecordFields,
+                      LinearTypes,
+                      QualifiedDo,
+                      -- Use Ghengin.Prelude!
+                      NoImplicitPrelude
 
 
   -- Base language which the package is written in.
@@ -150,6 +160,10 @@ library ghengin-core-indep
                       Ghengin.Core.Shader.Pipeline,
                       Ghengin.Core.Shader.Canonical,
 
+                      -- New modules
+                      Ghengin.Core.Prelude,
+                      Ghengin.Core.Log,
+
     hs-source-dirs:   ghengin-core-indep
 
     build-depends:    base,
@@ -160,7 +174,9 @@ library ghengin-core-indep
                       reference-counting,
 
                       containers,
-                      vector
+                      vector,
+
+                      fast-logger,
 
 library ghengin-vulkan
     import:           common-flags
@@ -261,6 +277,7 @@ library
 
     -- Provide all the batteries
     reexported-modules:
+
         -- apecs
         Apecs.Linear,
         -- reference-counting
@@ -309,7 +326,7 @@ library
                       derive-storable,
                       random,
                       ghc-typelits-natnormalise,
-                      simple-logger,
+                      fast-logger,
                       JuicyPixels,
                       inline-c-cpp,
                       primitive,
@@ -366,7 +383,7 @@ test-suite ghengin-test
 
     -- Test dependencies.
     build-depends:
-        base ^>=4.17.0.0,
+        base >=4.17.0.0,
         ghengin
 
 executable planets
@@ -381,7 +398,7 @@ executable planets
 
     -- Other library packages from which modules are imported.
     build-depends:
-        base ^>=4.17.0.0,
+        base >=4.17.0.0,
         ghengin,
         -- Can't depend on this without instancing it because of backpack
         ghengin:ghengin-core,

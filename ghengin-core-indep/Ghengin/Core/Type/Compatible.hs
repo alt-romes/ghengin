@@ -1,5 +1,4 @@
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ExplicitNamespaces #-}
 {-|
    TODO: Document the 'Compatible' type constraint
  -}
@@ -10,6 +9,7 @@ module Ghengin.Core.Type.Compatible
   , CompatibleRender'
   ) where
 
+import Prelude
 import Data.Kind ( Type, Constraint )
 import Data.Type.List ( Join, Length )
 import Data.Type.Maybe ( FromMaybe )

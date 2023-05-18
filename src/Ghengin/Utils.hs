@@ -17,16 +17,15 @@ module Ghengin.Utils
   , module Data.StateVar
   , module Foreign.Storable
   , module Foreign.Storable.Generic
-  , module Control.Logger.Simple
   , module Control.Monad.Trans
   , (.|.)
   , Proxy(..)
   ) where
 
+import Prelude
 import GHC.TypeLits
 import Control.Monad
 import Control.Monad.Trans
-import Control.Logger.Simple
 import Data.Kind
 import Geomancy.Vec3
 import Data.StateVar

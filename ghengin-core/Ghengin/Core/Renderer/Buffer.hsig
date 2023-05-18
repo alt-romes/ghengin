@@ -1,7 +1,7 @@
 {-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.Buffer where
 
-import Data.Word (Word32)
+import Data.Word (Word, Word32)
 import Data.Int (Int32)
 import qualified Data.Vector.Storable as SV
 -- TODO:Exchange Vk specific types to renderer agnostic enumerations

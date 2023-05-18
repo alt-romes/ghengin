@@ -1,8 +1,8 @@
-{-# LANGUAGE PatternSynonyms #-}
 module Ghengin.Core.Mesh.Vertex
   ( Vertex(Sin,(:&),(:&:))
   ) where
 
+import Prelude
 import Foreign.Ptr
 import Foreign.Storable
 

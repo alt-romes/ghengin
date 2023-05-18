@@ -1,6 +1,6 @@
-{-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.Texture where
 
+import Prelude (FilePath)
 import Data.Counted
 
 import Ghengin.Core.Renderer.Sampler

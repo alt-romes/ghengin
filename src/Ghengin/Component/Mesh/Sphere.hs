@@ -3,6 +3,7 @@
 {-# LANGUAGE BlockArguments #-}
 module Ghengin.Component.Mesh.Sphere where
 
+import Prelude
 import Control.Monad
 
 import Ghengin

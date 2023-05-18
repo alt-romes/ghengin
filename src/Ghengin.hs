@@ -38,10 +38,13 @@ module Ghengin
   , module Geomancy.Mat4
   ) where
 
+import System.Log.FastLogger
+import Ghengin.Core.Log
 import Prelude.Linear hiding (IO)
 import qualified Prelude
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
+
 
 import System.IO.Linear
 
@@ -97,7 +100,7 @@ type DeltaTime = Float -- Converted from NominalDiffTime
 
 initWorld :: MonadIO m => w -> m (Ur (World w))
 initWorld w = Linear.do
-  world <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> pure w
+  world <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> pure w <*> newLogger
   pure (Unsafe.toLinear Ur world) -- worry about it later, this won't stay like this for long since the whole linear apecs interface is quite broken
 
 ghengin :: ∀ w a b c

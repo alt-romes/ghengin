@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE QualifiedDo #-}
 module Ghengin.World where
 
+import GHC.Records
 import Prelude.Linear
 import qualified Prelude
 import Control.Functor.Linear as Linear
@@ -14,6 +14,8 @@ import Ghengin.Component.Transform.Animation (TransformAnimation)
 import Ghengin.Component.Camera (Camera)
 import Ghengin.Component.UI (UIWindow)
 import Ghengin.Scene.Graph (ModelMatrix, Parent)
+import System.Log.FastLogger
+import qualified System.IO.Linear as Linear
 
 import qualified Unsafe.Linear as Unsafe
 
@@ -31,6 +33,8 @@ data World w =
         , entityParents   :: !(Ur (Storage Parent))
         , entityCounter   :: !(Ur (Storage EntityCounter))
         , world           :: !w
+        , logger          :: !(Ur (FastLogger, Linear.IO ())) -- Logger and its cleanup action
+                              -- worry about performance later, correctness first
         }
 
 instance Consumable w => Consumable (World w) where
@@ -90,4 +94,6 @@ instance (Dupable w, Monad m, Has w m (TransformAnimation w)) => Has (World w) m
 --   getStore = SystemT $ do
 --     w <- asks (.world)
 --     withReaderT (const w) $ unSystem getStore
+
+-- instance HasField "logger" (World w) (FastLogger, Prelude.IO ())
 

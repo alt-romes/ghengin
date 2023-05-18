@@ -1,5 +1,6 @@
 module Ghengin.Component.Mesh.Hex where
 
+import Prelude
 import Geomancy.Vec3
 
 -- | Hex face: the vertices and indices to form a face
