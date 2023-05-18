@@ -6,6 +6,7 @@
 {-# LANGUAGE QualifiedDo #-}
 module Noise where
 
+import Ghengin.Core.Log
 import Prelude.Linear (Ur(Ur), Dupable(..), ($))
 import Prelude hiding (($))
 import Data.List (foldl')
@@ -70,11 +71,21 @@ instance UISettings NoiseSettings where
     -- pure $ or ([b1,b2,b3,b4,b5,b6,b7,b8,b9] :: [Bool])
     Linear.pure ()
 
-evalNoise :: Linear.MonadIO m => NoiseSettings -> Vec3 -> Linear.UrT m Float
-evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p = Linear.UrT $
+evalNoise :: HasLogger m => NoiseSettings -> Vec3 -> Linear.UrT m Float
+evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p = Linear.UrT $ Linear.do
+  logT "Eval noise"
   readIOSelectRef nt Linear.>>= \case
-    Ur SimpleNoise -> Linear.liftSystemIOU $ evalSimpleNoise <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p
-    Ur RigidNoise  -> Linear.liftSystemIOU $ evalRigidNoise  <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p
+    Ur SimpleNoise -> Linear.do
+      logT "Simple noise"
+      (Ur !x) <- Linear.liftSystemIOU $ evalSimpleNoise <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p
+      logT "Done"
+      logT ("Made: " <> toLogStr (show x))
+      Linear.pure (Ur x)
+    Ur RigidNoise  -> Linear.do
+      logT "Rigid noise"
+      !x <- Linear.liftSystemIOU $ evalRigidNoise  <$> get nl <*> get st <*> get ro <*> get br <*> get ps <*> get ce <*> get mv <*> get en <*> pure p
+      logT "Done"
+      Linear.pure x
   where
 
     evalSimpleNoise nlayers stren rough baseRoughness (float2Double -> persi) cent minVal enabled point =

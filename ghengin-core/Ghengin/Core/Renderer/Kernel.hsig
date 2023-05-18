@@ -10,6 +10,8 @@ import qualified System.IO.Linear
 import qualified Prelude as Base
 import qualified Control.Monad.IO.Class as Base
 
+import Ghengin.Core.Log
+
 import Data.Counted
 
 import qualified Vulkan as Vk -- Remove occurrences by duplicating vulkan types into standalone ones.
@@ -24,6 +26,8 @@ instance Linear.Functor Renderer
 instance Linear.Applicative Renderer
 instance Linear.Monad Renderer
 instance Linear.MonadIO Renderer
+
+instance HasLogger Renderer
 
 -- Not export this from hsig?
 type MAX_FRAMES_IN_FLIGHT_T :: Nat

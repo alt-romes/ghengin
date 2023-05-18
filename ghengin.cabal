@@ -67,10 +67,17 @@ common common-flags
 
   if flag(dev)
     ghc-options: -Wall -O0
+                 -- -dno-typeable-binds
+                 -- -dcore-lint
+                 -- -dlint
+                 -dasm-lint
+                 -dcmm-lint
+                 -dstg-lint
+                 -- -falignment-sanitisation
     cc-options: -O0 -DDEBUG -DDEBUG_TRACE
-    cpp-options: -DDEBUG -DDEBUG_TRACE
+    cpp-options: -DDEBUG
   else
-    ghc-options: -Wall -O2 -dcore-lint
+    ghc-options: -Wall -O2
     -- -fexpose-all-unfoldings -fspecialize-aggressively
     -- -fllvm
     cc-options: -O2
@@ -306,10 +313,10 @@ library
       cpp-options: -DDEVELOPMENT
 
     -- Other library packages from which modules are imported.
-    build-depends:    base ^>=4.17,
+    build-depends:    base >=4.17,
                       vulkan >=3.23,
-                      GLFW-b ^>=3.3,
-                      vector ^>=0.13,
+                      GLFW-b >=3.3,
+                      vector >=0.13,
                       vector-sized >=1.4,
                       fir     >=0.1,
                       bytestring,
@@ -325,7 +332,7 @@ library
                       StateVar,
                       derive-storable,
                       random,
-                      ghc-typelits-natnormalise,
+                      -- ghc-typelits-natnormalise,
                       fast-logger,
                       JuicyPixels,
                       inline-c-cpp,

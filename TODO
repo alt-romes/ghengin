@@ -1,3 +1,4 @@
+[ ] Use HEAD fir when change is upstreamed
 [ ] newtype Ur instead of data Ur, otherwise we're creating indirections everywhere... For now, correctness > performance
 [ ] It would have been useful to create utilities along the way, instead of relying on hacky "faster" temporary solutions
     Now I have to that on a second pass. Starting with a logging module ....

@@ -214,7 +214,7 @@ newPlanet :: ∀ p w. (Dupable w, Typeable p, Compatible '[Vec3,Vec3,Vec3] Plane
           => PlanetSettings -> RenderPipeline p '[CameraProperty] ⊸ Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
 newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = Linear.do
   logT "Making mesh"
-  (mesh,Ur minmax) <- newPlanetMesh ps
+  (!mesh,Ur !minmax) <- newPlanetMesh ps
   logT "Making gradient"
   tex <- textureFromGradient grad
   logT "Making material"
@@ -228,11 +228,14 @@ newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = Lin
 
 newPlanetMesh :: Dupable w => PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
 newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do
-  Ur re' <- liftIO $ readIORef re
-  Ur ra' <- liftIO $ readIORef ra
-  Ur co' <- liftIO $ readIORef co
-  Ur df' <- liftIO $ readIOSelectRef df
-  Ur enableMask <- liftIO $ readIORef bo
+  logT "Reading references"
+  Ur !re' <- liftIO $ readIORef re
+  Ur !ra' <- liftIO $ readIORef ra
+  Ur !co' <- liftIO $ readIORef co
+  logT "Reading ioselectref"
+  Ur !df' <- liftIO $ readIOSelectRef df
+  Ur !enableMask <- liftIO $ readIORef bo
+  logT "read things"
 
   let (vs, is) = case df' of
                    All -> let UnitSphere v i = newUnitSphere re' (Just co') in (v, i)
@@ -244,9 +247,12 @@ newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do
   Ur (ps', elevations) <- runUrT $ Prelude.unzip Prelude.<$> M.forM vs \(p :& _) -> liftUrT $
     case nss of
       ns NE.:| nss' -> Linear.do
-        Ur initialElevation <- liftIO $ runUrT $ evalNoise ns p
+        Ur !initialElevation <- runUrT $ evalNoise ns p
+        logT ("Computed initial elevation: " Prelude.<> toLogStr initialElevation)
         let mask = if enableMask then initialElevation else 1
-        Ur noiseElevation <- liftIO $ runUrT $ M.foldM (\acc ns' -> (\x -> acc+x*mask) Prelude.<$> evalNoise ns' p) initialElevation nss'
+        logT ("Computing noise from list of length: " Prelude.<> toLogStr (Prelude.length nss'))
+        Ur !noiseElevation <- runUrT $ M.foldM (\acc ns' -> (\x -> acc+x*mask) Prelude.<$> evalNoise ns' p) initialElevation nss'
+        logT ("Read noise: " Prelude.<> toLogStr noiseElevation)
         let elevation = ra' * (1 + noiseElevation)
         pure (p ^* elevation, elevation)
 

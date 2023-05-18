@@ -65,6 +65,7 @@ import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Pipeline
 import Ghengin.Core.Renderer.RenderPass
 import Ghengin.Core.Renderer.DescriptorSet
+import Ghengin.Core.Log
 
 
 -- | A render pipeline consists of the descriptor sets and a graphics pipeline

@@ -42,6 +42,7 @@ import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan as Vk
 import Vulkan.Zero (zero)
 
+import Ghengin.Core.Log
 import Ghengin.Vulkan.Renderer.Device.Instance
 import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Vulkan.Renderer.SwapChain
@@ -82,14 +83,16 @@ runRenderer r = Linear.do
   -- Can we get rid of these and the other IO refs in the game loop?
   Ur frameInFlight <- newIORef (0 :: Int)
 
+  (Ur logger,cleanupLogger)  <- newLogger
+
   -- Run renderer
   ---------------
-  (a, REnv inst device win swapchain commandPool' frames' imsCtx)
-    <- runStateT (unRenderer r) (REnv inst device win swapchain commandPool frames imsCtx)
+  (a, REnv inst device win swapchain commandPool' frames' imsCtx (Ur logger))
+    <- runStateT (unRenderer r) (REnv inst device win swapchain commandPool frames imsCtx (Ur logger))
 
   -- Terminate
   ------------
-  -- logDebug "[Start] Clean up"
+  liftSystemIO $ logger "[Start] Clean up"
 
   (vunit, device) <- runStateT (Data.Linear.mapM (\f -> StateT (fmap ((),) . destroyVulkanFrameData f)) frames') device
   pure $ consumeUnits vunit
@@ -104,9 +107,12 @@ runRenderer r = Linear.do
 
   terminateGLFW glfwtoken
 
+  liftSystemIO $ logger "[Done] Clean up"
+
+  cleanupLogger
+
   pure a
 
-  -- logDebug "[Done] Clean up"
 
 
 -- | Run a 'Renderer' action that depends on a command buffer and the current

@@ -33,8 +33,6 @@ data World w =
         , entityParents   :: !(Ur (Storage Parent))
         , entityCounter   :: !(Ur (Storage EntityCounter))
         , world           :: !w
-        , logger          :: !(Ur (FastLogger, Linear.IO ())) -- Logger and its cleanup action
-                              -- worry about performance later, correctness first
         }
 
 instance Consumable w => Consumable (World w) where

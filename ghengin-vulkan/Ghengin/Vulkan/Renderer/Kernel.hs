@@ -22,6 +22,7 @@ import Ghengin.Vulkan.Renderer.Frame
 import Ghengin.Vulkan.Renderer.GLFW.Window
 
 import qualified Vulkan as Vk
+import Ghengin.Core.Log
 
 import Data.Counted
 import qualified Unsafe.Linear as Unsafe
@@ -37,6 +38,8 @@ data RendererEnv =
        , _frames          :: !(V.V 2 VulkanFrameData)
        -- , _frameInFlight   :: !(IORef Int)
        , _immediateSubmit :: !ImmediateSubmitCtx
+       , _logger :: !(Ur FastLogger) -- Logger and its cleanup action
+                              -- worry about performance later, correctness first
        }
 -- ROMES: Worried linear StateT might reduce performance, hope not
 newtype Renderer a = Renderer { unRenderer :: Linear.StateT RendererEnv System.IO.Linear.IO a }
@@ -50,6 +53,9 @@ deriving instance Linear.Monad Renderer
 instance Linear.MonadIO Renderer where
   liftIO io = Renderer (StateT (\s -> (,s) <$> io))
 
+instance HasLogger Renderer where
+  getLogger = Renderer (StateT (\REnv{_logger=Ur logger,..} -> pure (Ur logger,REnv{_logger=Ur logger,..})))
+
 type MAX_FRAMES_IN_FLIGHT_T :: Nat
 type MAX_FRAMES_IN_FLIGHT_T = 2 -- We want to work on multiple frames but we don't want the CPU to get too far ahead of the GPU
 
@@ -62,7 +68,7 @@ renderer :: (RendererEnv %1 -> System.IO.Linear.IO (a, RendererEnv)) %1 -> Rende
 renderer f = Renderer (StateT f)
 
 useVulkanDevice :: (VulkanDevice %1 -> System.IO.Linear.IO (a, VulkanDevice)) %1 -> Renderer a
-useVulkanDevice f = renderer $ \(REnv _i d _w _s _c _f _im) -> f d >>= \case (a, d') -> pure (a, REnv _i d' _w _s _c _f _im)
+useVulkanDevice f = renderer $ \(REnv _i d _w _s _c _f _im _lg) -> f d >>= \case (a, d') -> pure (a, REnv _i d' _w _s _c _f _im _lg)
 
 useDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
 useDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
@@ -75,13 +81,13 @@ useDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._devic
 -- Note, this is quite unsafe really, but makes usage of non-linear vulkan much easier
 unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b)
                    -> Renderer b
-unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _swp _cp _frames _isctx) -> Linear.do
+unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _swp _cp _frames _isctx _lg) -> Linear.do
   b <- liftSystemIO $ f (device._device)
   pure $ (b, renv)
 
 unsafeUseVulkanDevice :: (VulkanDevice -> Unrestricted.IO b)
                    -> Renderer b
-unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _swp _cp _frames _isctx) -> Linear.do
+unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _swp _cp _frames _isctx _lg) -> Linear.do
   b <- liftSystemIO $ f (device)
   pure $ (b, renv)
 
@@ -96,9 +102,9 @@ unsafeUseDeviceAnd f = Unsafe.toLinear $ \x -> (,x) <$> unsafeUseDevice (f x)
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
 immediateSubmit :: Command System.IO.Linear.IO ⊸ Renderer () -- ROMES: Command IO, is that OK? Can easily move to Command Renderer by unsafeUseDevice
-immediateSubmit cmd = renderer $ \(REnv inst dev win swp cp frames imsctx) -> Linear.do
+immediateSubmit cmd = renderer $ \(REnv inst dev win swp cp frames imsctx lg) -> Linear.do
   (dev', imsctx') <- immediateSubmit' dev imsctx cmd
-  pure ((), REnv inst dev' win swp cp frames imsctx')
+  pure ((), REnv inst dev' win swp cp frames imsctx' lg)
 
 -- | Get the extent of the images in the swapchain?
 getRenderExtent :: Renderer (Ur Vk.Extent2D)

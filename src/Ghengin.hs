@@ -91,10 +91,7 @@ import qualified Unsafe.Linear as Unsafe
 type Ghengin w = SystemT (World w) Renderer
 instance Dupable w => HasLogger (Ghengin w) where
   -- Unsafe, whateverrrrr, it's easier. This is bad...
-  getLogger = SystemT $ ReaderT $ Unsafe.toLinear $ \World{..} -> Linear.do
-    case logger of
-      Ur (log,clean) ->
-        pure (Ur log)
+  getLogger = SystemT $ ReaderT $ Unsafe.toLinear $ \w -> getLogger
 
 windowLoop :: Dupable w => Ur s ⊸ (Ur s ⊸ Ghengin w (Bool, Ur s)) -> Ghengin w (Ur s)
 windowLoop s action = Linear.do
@@ -106,7 +103,7 @@ type DeltaTime = Float -- Converted from NominalDiffTime
 
 initWorld :: MonadIO m => w -> m (Ur (World w))
 initWorld w = Linear.do
-  world <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> pure w <*> newLogger
+  world <- World <$> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> explInit <*> pure w
   pure (Unsafe.toLinear Ur world) -- worry about it later, this won't stay like this for long since the whole linear apecs interface is quite broken
 
 ghengin :: ∀ w a b c

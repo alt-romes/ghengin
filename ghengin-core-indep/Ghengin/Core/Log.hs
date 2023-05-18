@@ -1,5 +1,8 @@
 {-# LANGUAGE CPP #-}
-module Ghengin.Core.Log where
+module Ghengin.Core.Log
+  ( module Ghengin.Core.Log
+  , FastLogger, toLogStr
+  ) where
 
 import Data.Bifunctor
 import Ghengin.Core.Prelude as G
@@ -11,8 +14,10 @@ class MonadIO m => HasLogger m where
   getLogger :: m (Ur FastLogger)
 
 -- | Returns a new logger and an IO cleanup action
-newLogger :: MonadIO m => m (Ur (FastLogger, IO ()))
-newLogger = liftSystemIOU (second (liftSystemIO) Prelude.<$> newFastLogger (LogStdout defaultBufSize))
+newLogger :: MonadIO m => m (Ur FastLogger, IO ())
+newLogger = G.do
+  Ur (logger,clean) <- liftSystemIOU (second (liftSystemIO) Prelude.<$> newFastLogger (LogStdout defaultBufSize))
+  pure (Ur logger, clean)
 
 -- | Unconditionally log a message to the default logger
 log :: (ToLogStr msg, HasLogger m) => msg -> m ()

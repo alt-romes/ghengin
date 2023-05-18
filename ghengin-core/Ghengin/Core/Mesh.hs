@@ -43,6 +43,8 @@ import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Buffer
 
+import Ghengin.Core.Log
+
 {-
 Note [Meshes]
 ~~~~~~~~~~~~~
@@ -112,7 +114,10 @@ createMesh (SV.fromList -> vs) = Linear.do
 
 createMeshWithIxs :: Storable (Vertex ts) => [Vertex ts] -> [Int] -> Renderer (Mesh ts)
 createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = Linear.do
+  logT "Creating Mesh with Ixs:"
+  logT "  Creating Vertex Buffer"
   vertexBuffer <- createVertexBuffer vertices
+  logT "  Creating Index Buffer"
   indexBuffer  <- createIndex32Buffer (SV.map fromIntegral ixs)
   pure (IndexedMesh vertexBuffer indexBuffer)
 
