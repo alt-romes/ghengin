@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE DataKinds #-}
@@ -15,6 +16,7 @@
 module Ghengin.Vulkan.Renderer.Buffer where
 
 import Data.Word (Word32)
+import Ghengin.Core.Log
 import qualified Prelude
 import Prelude.Linear hiding (zero)
 import Control.Functor.Linear as Linear
@@ -213,7 +215,9 @@ withStagingBuffer bufferData f = Linear.do
     -- ROMES:TODO: Do I need to free data'ptr? I think not, it's host memory deallocated automatically somehow
 
   -- Unmap memory (doesn't free, just unmaps)
+  logT "UNMAPPING MEMORY"
   stagingMem2 <- unmapMemory stagingMem1
+  logT "UNMAPPED MEMORY"
 
   -- Use staging buffer
   -- ------------------
@@ -248,6 +252,7 @@ withStagingBuffer bufferData f = Linear.do
 
 destroyMappedBuffer :: MappedBuffer ⊸ Renderer ()
 destroyMappedBuffer (UniformBuffer b dm (Ur _hostMemory) (Ur _size)) = Linear.do
+  logT "DESTROYING MAPPED BUFFER"
   dm' <- unmapMemory dm
   freeMemory dm'
   destroyBuffer b
@@ -265,7 +270,9 @@ mapMemory = Unsafe.toLinear $ \mem offset size flgs -> (mem,) <$> (unsafeUseDevi
 -- | Linear wrapper for Vk.unmapMemory
 unmapMemory :: Vk.DeviceMemory ⊸ Renderer Vk.DeviceMemory
 unmapMemory = Unsafe.toLinear $ \stgMem -> Linear.do
+  logT "unmapMemory:DO"
   unsafeUseDevice $ \device -> Vk.unmapMemory device stgMem 
+  logT "unmapMemory:OK"
   pure stgMem
 
 -- -- | Linear wrapper for Vk.freeMemory

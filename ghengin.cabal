@@ -67,15 +67,23 @@ common common-flags
 
   if flag(dev)
     ghc-options: -Wall -O0
-                 -- -dno-typeable-binds
+
+                 -- Debugging symbols
+                 --------------------
+                 -g2
+
+                 -- Linting
+                 ----------
+                 -- -falignment-sanitisation
                  -- -dcore-lint
                  -- -dlint
                  -dasm-lint
                  -dcmm-lint
                  -dstg-lint
-                 -- -falignment-sanitisation
-    cc-options: -O0 -DDEBUG -DDEBUG_TRACE
-    cpp-options: -DDEBUG
+                 -- -fcmm-thread-sanitizer
+
+    cc-options: -O0 -DDEBUG
+    cpp-options: -DDEBUG -DDEBUG_TRACE
   else
     ghc-options: -Wall -O2
     -- -fexpose-all-unfoldings -fspecialize-aggressively
@@ -413,6 +421,9 @@ executable planets
         ghengin:ghengin-core-indep,
         mtl, vector, hsnoise, containers, random, linear-base,
         derive-storable
+
+    ghc-options: -dcmm-lint -dstg-lint -dasm-lint -g2 -rtsopts
+    cpp-options: -DDEBUG -DDEBUG_TRACE
 
     -- ghc-options: -ddump-simpl
                  -- -ddump-to-file

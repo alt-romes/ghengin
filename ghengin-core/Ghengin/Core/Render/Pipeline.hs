@@ -1,6 +1,7 @@
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Core.Render.Pipeline where
 
@@ -112,7 +113,8 @@ makeRenderPipeline :: forall τ info tops descs strides
                     ⊸ Renderer (RenderPipeline info τ)
 makeRenderPipeline shaderPipeline props0 = Linear.do
 
-  simpleRenderPass <- createSimpleRenderPass
+  logT "Making render pass"
+  !simpleRenderPass <- createSimpleRenderPass
 
   -- Create the descriptor sets and graphics pipeline based on the shader
   -- pipeline
@@ -133,6 +135,7 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
   -- The pipeline should only allocate a descriptor set #0 to be used by render
   -- properties
 
+  logT "Creating descriptor pool"
   dpool0 <- createDescriptorPool shaderPipeline
 
   -- Allocate descriptor set #0 to be used by this render pipeline's
@@ -140,19 +143,24 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
   --
   -- The allocation returns a descriptor set to which no resources were written,
   -- a resource map must be used with 'updateDescriptorSet' to be complete.
+  logT "Allocating descriptor set"
   (dset0, dpool1) <- allocateEmptyDescriptorSet 0 dpool0
 
   -- Make the resource map for this render pipeline using the dummyRP
+  logT "Making resources"
   (resources0, props1) <- makeResources props0
 
   -- Bind resources to descriptor set
+  logT "Updating descriptor set"
   (dset1, resources1) <- updateDescriptorSet dset0 resources0
 
   -- Create the graphics pipeline
+  logT "Creating graphics pipeline"
   (pipeline, simpleRenderPass2, dpool2) <- createGraphicsPipeline
                                      shaderPipeline simpleRenderPass dpool1
                                      [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
+  logT "Creating reference counted"
   dset2 <- Counted.new freeDescriptorSet dset1
   resources2 <- Counted.new freeResourceMap resources1
   simpleRenderPass3 <- Counted.new destroyRenderPass simpleRenderPass2

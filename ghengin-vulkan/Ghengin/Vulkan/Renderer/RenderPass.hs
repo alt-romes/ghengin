@@ -14,6 +14,7 @@ module Ghengin.Vulkan.Renderer.RenderPass where
 
 -- TODO: DSL
 
+import Ghengin.Core.Log
 import Data.Proxy
 import GHC.TypeNats
 
@@ -61,6 +62,7 @@ instance Counted RenderPass where
 
 createSimpleRenderPass :: Renderer RenderPass
 createSimpleRenderPass = Linear.do
+  logT "Creating render pass"
   renderPass <- renderer $ Unsafe.toLinear $ \renv -> Linear.do
 
     let colorAttachment = Vk.AttachmentDescription {..} where
@@ -123,6 +125,8 @@ createSimpleRenderPass = Linear.do
                                                  }
 
     (,renv) <$> liftSystemIO (Vk.createRenderPass renv._vulkanDevice._device renderPassInfo Nothing)
+
+  logT "Done"
 
   Ur unsafeRenv <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv, renv)
 

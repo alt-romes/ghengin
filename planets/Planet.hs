@@ -228,14 +228,11 @@ newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = Lin
 
 newPlanetMesh :: Dupable w => PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
 newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do
-  logT "Reading references"
   Ur !re' <- liftIO $ readIORef re
   Ur !ra' <- liftIO $ readIORef ra
   Ur !co' <- liftIO $ readIORef co
-  logT "Reading ioselectref"
   Ur !df' <- liftIO $ readIOSelectRef df
   Ur !enableMask <- liftIO $ readIORef bo
-  logT "read things"
 
   let (vs, is) = case df' of
                    All -> let UnitSphere v i = newUnitSphere re' (Just co') in (v, i)
@@ -248,11 +245,8 @@ newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do
     case nss of
       ns NE.:| nss' -> Linear.do
         Ur !initialElevation <- runUrT $ evalNoise ns p
-        logT ("Computed initial elevation: " Prelude.<> toLogStr initialElevation)
         let mask = if enableMask then initialElevation else 1
-        logT ("Computing noise from list of length: " Prelude.<> toLogStr (Prelude.length nss'))
         Ur !noiseElevation <- runUrT $ M.foldM (\acc ns' -> (\x -> acc+x*mask) Prelude.<$> evalNoise ns' p) initialElevation nss'
-        logT ("Read noise: " Prelude.<> toLogStr noiseElevation)
         let elevation = ra' * (1 + noiseElevation)
         pure (p ^* elevation, elevation)
 

@@ -18,6 +18,7 @@
 module Ghengin.Vulkan.Renderer.Pipeline where
 
 import qualified Prelude
+import Ghengin.Core.Log
 import Prelude.Linear hiding (zero, fromMaybe, IO)
 import Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data.Linear
@@ -127,7 +128,9 @@ createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstan
         Unsafe.toLinear (\_ -> pure ()) dev' -- forget dev' alias
         pipelineShaders ( (knownValue @shader, vksm) : acc) info
 
-  shaders <- liftIO $ pipelineShaders [] ppstages
+  logT "Make pipeline shaders"
+  !shaders <- liftIO $ pipelineShaders [] ppstages
+  logT "Done"
   (Ur shaderStageInfos, shaderModules) <- pure $ first (Unsafe.toLinear Ur . map (\case (Ur x) -> x)) $ -- [Ur x] to Ur [x]
                                                  unzip $ map (uncurry shaderInfo) shaders :: Renderer (Ur [Vk.PipelineShaderStageCreateInfo '[]], [Vk.ShaderModule])
 
@@ -254,7 +257,9 @@ createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstan
                          , pushConstantRanges = pushConstantRanges
                          }
 
+  logT "Create pipeline layout"
   Ur unsafePipelineLayout <- liftSystemIOU $ Vk.createPipelineLayout dev pipelineLayoutInfo Nothing
+  logT "Done"
 
   let 
     pipelineInfo = Vk.GraphicsPipelineCreateInfo { next = ()
@@ -277,10 +282,12 @@ createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstan
                                                  , basePipelineIndex = -1
                                                  }
 
+  logT "Create actual graphics pipeline"
   Ur (_, pipelines) <- liftSystemIOU $ Vk.createGraphicsPipelines dev Vk.NULL_HANDLE [VkC.SomeStruct pipelineInfo] Nothing
   pipeline <- pure $ assert (V.length pipelines == 1) $ V.unsafeHead pipelines
 
   -- ROMES:TODO: Free shader modules
+  logT "Free shader modules"
   devs <- Data.Linear.traverse (liftIO . destroyShaderModule dev) shaderModules -- destroy shader modules after creating the pipeline
   Unsafe.toLinear (\_ -> pure ()) devs -- forget dev aliases
 
@@ -303,7 +310,11 @@ createShaderModule = Unsafe.toLinear $ \dev sbc ->
                  , flags = zero
                  , code = BS.toStrict $ coerce sbc
                  }
-   in liftSystemIO $ (,dev) Prelude.<$> Vk.createShaderModule dev createInfo Nothing
+   in liftSystemIO $ do
+     putStrLn "Creating shader module inner"
+     x <- (,dev) Prelude.<$> Vk.createShaderModule dev createInfo Nothing
+     putStrLn "Worked"
+     Prelude.pure x
 
 newtype ShaderByteCode = SBC LBS.ByteString
 
