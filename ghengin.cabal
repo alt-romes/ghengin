@@ -74,6 +74,7 @@ common common-flags
 
                  -- Linting
                  ----------
+                 -debug
                  -- -falignment-sanitisation
                  -- -dcore-lint
                  -- -dlint
@@ -83,7 +84,7 @@ common common-flags
                  -- -fcmm-thread-sanitizer
 
     cc-options: -O0 -DDEBUG
-    cpp-options: -DDEBUG -DDEBUG_TRACE
+    cpp-options: -DDEBUG -DDEBUG_TRACE -DTHINGS_ARE_GOING_THAT_BAD
   else
     ghc-options: -Wall -O2
     -- -fexpose-all-unfoldings -fspecialize-aggressively
@@ -190,6 +191,7 @@ library ghengin-core-indep
 
                       containers,
                       vector,
+                      bytestring,
 
                       fast-logger,
 
@@ -422,7 +424,7 @@ executable planets
         mtl, vector, hsnoise, containers, random, linear-base,
         derive-storable
 
-    ghc-options: -dcmm-lint -dstg-lint -dasm-lint -g2 -rtsopts
+    ghc-options: -dcmm-lint -dstg-lint -dasm-lint -g2 -rtsopts -debug
     cpp-options: -DDEBUG -DDEBUG_TRACE
 
     -- ghc-options: -ddump-simpl

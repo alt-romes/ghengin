@@ -61,7 +61,7 @@ instance Counted RenderPass where
 -- withSimpleRenderPass f = rendererBracket createSimpleRenderPass destroyRenderPass f
 
 createSimpleRenderPass :: Renderer RenderPass
-createSimpleRenderPass = Linear.do
+createSimpleRenderPass = enterD "createSimpleRenderPass" $ Linear.do
   logT "Creating render pass"
   renderPass <- renderer $ Unsafe.toLinear $ \renv -> Linear.do
 
@@ -126,10 +126,9 @@ createSimpleRenderPass = Linear.do
 
     (,renv) <$> liftSystemIO (Vk.createRenderPass renv._vulkanDevice._device renderPassInfo Nothing)
 
-  logT "Done"
-
   Ur unsafeRenv <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv, renv)
 
+  logT "Creating framebuffers"
   case someNatVal (fromIntegral $ Vector.length unsafeRenv._vulkanSwapChain._imageViews) of
     SomeNat (Proxy @n) -> Linear.do
       ((VI.V framebuffers, imageViews'), (renderPass', depthImage'))
@@ -140,7 +139,7 @@ createSimpleRenderPass = Linear.do
       pure $ (VulkanRenderPass renderPass' framebuffers)
 
 destroyRenderPass :: RenderPass ⊸ Renderer ()
-destroyRenderPass = Unsafe.toLinear $ \(VulkanRenderPass rp framebuffers) -> Linear.do
+destroyRenderPass = Unsafe.toLinear $ \(VulkanRenderPass rp framebuffers) -> enterD "destroyRenderPass" $ Linear.do
   Ur dev <- unsafeGetDevice
   dev'   <- case someNatVal (fromIntegral $ Vector.length framebuffers) of
               SomeNat (Proxy @n) -> destroyFramebuffers dev (VI.V @n framebuffers)

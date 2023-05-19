@@ -36,6 +36,17 @@ General dependencies:
 cabal build -j --ghc-options=-fwrite-ide-info
 calligraphy Ghengin.Core.* --exports-only --collapse-data --collapse-classes --output-stdout | dot -T svg -o img.svg -Kfdp
 ```
+Debugging segfaults:
+
+Compile with ghc-options: `-rtsopts` and use `+RTS -C0` to disable timer clock
+something garbage collection (look the flag up).
+Also, use flag +dev when developing
+```sh
+# try
+$(cabal list-bin planets) +RTS -C0
+# also, if planets is compiled with -g
+lldb -- $(cabal list-bin planets) +RTS -C0
+```
 
 More resources:
 * https://developer.nvidia.com/blog/vulkan-dos-donts/

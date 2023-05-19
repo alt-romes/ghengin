@@ -112,7 +112,7 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                          ⊸ DescriptorPool
                          ⊸ V.Vector Vk.PushConstantRange
                         -> Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
-createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstantRanges -> Linear.do
+createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstantRanges -> enterD "createGraphicsPipeline" $ Linear.do
   Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ Prelude.fmap (Prelude.fst) (IM.elems dpool._set_bindings)
 
   Ur dev <- unsafeGetDevice
@@ -310,11 +310,7 @@ createShaderModule = Unsafe.toLinear $ \dev sbc ->
                  , flags = zero
                  , code = BS.toStrict $ coerce sbc
                  }
-   in liftSystemIO $ do
-     putStrLn "Creating shader module inner"
-     x <- (,dev) Prelude.<$> Vk.createShaderModule dev createInfo Nothing
-     putStrLn "Worked"
-     Prelude.pure x
+   in liftSystemIO $ (,dev) Prelude.<$> Vk.createShaderModule dev createInfo Nothing
 
 newtype ShaderByteCode = SBC LBS.ByteString
 

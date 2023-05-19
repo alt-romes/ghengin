@@ -87,12 +87,12 @@ runRenderer r = Linear.do
 
   -- Run renderer
   ---------------
-  (a, REnv inst device win swapchain commandPool' frames' imsCtx (Ur logger))
-    <- runStateT (unRenderer r) (REnv inst device win swapchain commandPool frames imsCtx (Ur logger))
+  (a, REnv inst device win swapchain commandPool' frames' imsCtx)
+    <- runRenderer' logger (REnv inst device win swapchain commandPool frames imsCtx) r
 
   -- Terminate
   ------------
-  liftSystemIO $ logger "[Start] Clean up"
+  liftSystemIO $ logger._log "[Start] Clean up"
 
   (vunit, device) <- runStateT (Data.Linear.mapM (\f -> StateT (fmap ((),) . destroyVulkanFrameData f)) frames') device
   pure $ consumeUnits vunit
@@ -107,7 +107,7 @@ runRenderer r = Linear.do
 
   terminateGLFW glfwtoken
 
-  liftSystemIO $ logger "[Done] Clean up"
+  liftSystemIO $ logger._log "[Done] Clean up"
 
   cleanupLogger
 

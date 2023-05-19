@@ -152,42 +152,63 @@ newtype RenderPassCmdM m a = RenderPassCmd (ReaderT Vk.CommandBuffer m a)
 instance Linear.Applicative m => Linear.Applicative (CommandM m) where
   pure x = Command $ ReaderT $ Unsafe.toLinear \r -> Linear.pure x
   Command (ReaderT fff) <*> Command (ReaderT ffa) = Command $ ReaderT $ Unsafe.toLinear \r -> fff r Linear.<*> ffa r
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Data.Linear.Applicative m => Data.Linear.Applicative (CommandM m) where
   pure x = Command $ ReaderT $ Unsafe.toLinear \r -> Data.Linear.pure x
   Command (ReaderT fff) <*> Command (ReaderT ffa) = Command $ ReaderT $ Unsafe.toLinear \r -> fff r Data.Linear.<*> ffa r
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Linear.Monad m => Linear.Monad (CommandM m) where
   Command (ReaderT fma) >>= f = Command $ ReaderT $ Unsafe.toLinear \r -> fma r Linear.>>= (\case (Command (ReaderT m)) -> m r) Linear.. f
+  {-# INLINE (>>=) #-}
 
 instance Linear.Applicative m => Linear.Applicative (RenderPassCmdM m) where
   pure x = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> Linear.pure x
   RenderPassCmd (ReaderT fff) <*> RenderPassCmd (ReaderT ffa) = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> fff r Linear.<*> ffa r
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Data.Linear.Applicative m => Data.Linear.Applicative (RenderPassCmdM m) where
   pure x = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> Data.Linear.pure x
   RenderPassCmd (ReaderT fff) <*> RenderPassCmd (ReaderT ffa) = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> fff r Data.Linear.<*> ffa r
+  {-# INLINE pure #-}
+  {-# INLINE (<*>) #-}
 
 instance Linear.Monad m => Linear.Monad (RenderPassCmdM m) where
   RenderPassCmd (ReaderT fma) >>= f = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> fma r Linear.>>= (\case (RenderPassCmd (ReaderT m)) -> m r) Linear.. f
+  {-# INLINE (>>=) #-}
 
 instance Linear.MonadTrans CommandM where
   lift x = Command $ ReaderT $ Unsafe.toLinear $ \r -> x
+  {-# INLINE lift #-}
 
 instance Linear.MonadTrans RenderPassCmdM where
   lift x = RenderPassCmd $ ReaderT $ Unsafe.toLinear $ \r -> x
+  {-# INLINE lift #-}
 
 instance Linear.MonadIO m => Linear.MonadIO (CommandM m) where
   liftIO x = Command $ ReaderT $ Unsafe.toLinear $ \r -> Linear.liftIO x
+  {-# INLINE liftIO #-}
 
 instance Linear.MonadIO m => Linear.MonadIO (RenderPassCmdM m) where
   liftIO x = RenderPassCmd $ ReaderT $ Unsafe.toLinear $ \r -> Linear.liftIO x
+  {-# INLINE liftIO #-}
 
 instance HasLogger m => HasLogger (CommandM m) where
   getLogger = Command $ ReaderT $ Unsafe.toLinear $ \r -> getLogger
+  withLevelUp (Command (ReaderT fma)) = Command $ ReaderT \r -> withLevelUp (fma r)
+  {-# INLINE getLogger #-}
+  {-# INLINE withLevelUp #-}
 
+-- Perhaps we can instance this generically for MonadTrans
 instance HasLogger m => HasLogger (RenderPassCmdM m) where
   getLogger = RenderPassCmd $ ReaderT $ Unsafe.toLinear $ \r -> getLogger
+  withLevelUp (RenderPassCmd (ReaderT fma)) = RenderPassCmd $ ReaderT \r -> withLevelUp (fma r)
+  {-# INLINE getLogger #-}
+  {-# INLINE withLevelUp #-}
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.

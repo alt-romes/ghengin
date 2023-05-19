@@ -212,7 +212,7 @@ textureFromGradient grad = Linear.do
 
 newPlanet :: ∀ p w. (Dupable w, Typeable p, Compatible '[Vec3,Vec3,Vec3] PlanetProps '[CameraProperty] p)
           => PlanetSettings -> RenderPipeline p '[CameraProperty] ⊸ Ref (RenderPipeline p '[CameraProperty]) -> Ghengin w Planet
-newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = Linear.do
+newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = enterD "newPlanet" $ Linear.do
   logT "Making mesh"
   (!mesh,Ur !minmax) <- newPlanetMesh ps
   logT "Making gradient"
@@ -222,12 +222,10 @@ newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = Lin
   Ur (Entity matref) <- Unsafe.toLinear C.newEntity (SomeMaterial mat) -- ROMES:TODO: Apecs linearity is broken.
   Unsafe.toLinear (\_ -> pure ()) pipeline' -- rOMES:TODO: surface level linearity is broken
   logT "Making render packet"
-  rp <- renderPacket @p @_ @PlanetProps mesh (Ref matref) pipelineRef
-  logT "Done"
-  pure rp
+  renderPacket @p @_ @PlanetProps mesh (Ref matref) pipelineRef
 
 newPlanetMesh :: Dupable w => PlanetSettings -> Ghengin w (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
-newPlanetMesh (PlanetSettings re ra co bo nss df grad) = lift $ Linear.do
+newPlanetMesh (PlanetSettings re ra co bo nss df grad) = enterD "newPlanetMesh" $ lift $ Linear.do
   Ur !re' <- liftIO $ readIORef re
   Ur !ra' <- liftIO $ readIORef ra
   Ur !co' <- liftIO $ readIORef co

@@ -402,11 +402,12 @@ freeResourceMap resmap = consume_empty_IntMap <$> Data.Linear.traverse freeDescr
 
 freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
 freeDescriptorResource = \case
+  -- ROMES:TODO: Should I be ensuring this is the last reference here?
+  -- ROMES:TODO: assertLast won't work bc of the flags reference counting is
+  -- being compiled with; make predicate on reference counting and only assert
+  -- it here
   UniformResource u -> assertLast u >>= Counted.forget
-  -- ROMES:TODO: It really should be refcounted, right?... should I ensure this is the last reference?
-  --  -> destroyMappedBuffer u
-  -- ROMES:TODO: What will be of this? I guess Texture2D will be RefCounted field of DescriptorResource!
-  -- u@(Texture2DResource _) -> pure () -- The resources are being freed on the freeMaterial function, but this should probably be rethought
+  Texture2DResource r -> Counted.forget r
 
 -- Util
 consume_empty_IntMap :: IntMap () ⊸ ()

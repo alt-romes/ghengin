@@ -17,7 +17,9 @@ import Data.Counted
 import qualified Vulkan as Vk -- Remove occurrences by duplicating vulkan types into standalone ones.
 
 data RendererEnv
-newtype Renderer a = Renderer { unRenderer :: Linear.StateT RendererEnv System.IO.Linear.IO a }
+data RendererReaderEnv
+newtype Renderer a
+  = Renderer { unRenderer :: Linear.ReaderT (Ur RendererReaderEnv) (Linear.StateT RendererEnv System.IO.Linear.IO) a }
 
 type RefC = RefC' Renderer
 

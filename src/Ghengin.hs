@@ -92,6 +92,9 @@ type Ghengin w = SystemT (World w) Renderer
 instance Dupable w => HasLogger (Ghengin w) where
   -- Unsafe, whateverrrrr, it's easier. This is bad...
   getLogger = SystemT $ ReaderT $ Unsafe.toLinear $ \w -> getLogger
+  {-# INLINE getLogger #-}
+  withLevelUp (SystemT (ReaderT fma)) = SystemT $ ReaderT \w -> withLevelUp (fma w)
+  {-# INLINE withLevelUp #-}
 
 windowLoop :: Dupable w => Ur s ⊸ (Ur s ⊸ Ghengin w (Bool, Ur s)) -> Ghengin w (Ur s)
 windowLoop s action = Linear.do

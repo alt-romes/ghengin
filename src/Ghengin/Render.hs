@@ -84,7 +84,7 @@ each renderable entity.
 render :: RenderConstraints w
        => Int -- frame identifier (frame count)
        -> Ghengin w ()
-render i = Linear.do
+render i = enterD "render" $ Linear.do
 
   -- ROMES:TODO: This might cause flickering once every frame overflow due to ... overflows?
   -- Need to consider what happens if it overflows. For now, good enough, it's
@@ -99,6 +99,7 @@ render i = Linear.do
 
   -- Traverse all nodes in the scene graph updating the model matrices
   -- TODO: Currently called traverseSceneGraph, but the name should reflect that the model matrices are updated
+  logT "Update all model matrices"
   traverseSceneGraph i (const . const $ pure ())
 
 
@@ -136,7 +137,7 @@ render i = Linear.do
       iteration will actually look a bit like the described above
    -}
 
-  withCurrentFramePresent frameIndex $ \cmdBuffer currentImage -> Linear.do
+  withCurrentFramePresent frameIndex $ \cmdBuffer currentImage -> enterD "closure passed to withCurrentFramePresent" $ Linear.do
 
     cmdBuffer' <- recordCommand cmdBuffer $ Linear.do
 
@@ -146,7 +147,7 @@ render i = Linear.do
       traverseRenderQueue
         renderQueue
         -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
-        (\(SomePipelineRef (Ref pp'_ref)) m -> Linear.do
+        (\(SomePipelineRef (Ref pp'_ref)) m -> enterD "Lifting things" Linear.do
           -- ROMES: This Ur can't really be right, perhaps it's just better to use normal apecs over unrestricted monad transformer.
           Ur (SomePipeline pp') <- lift $ Apecs.get (Apecs.Entity pp'_ref) -- TODO: Share this with the next one
           (rp, _pp') <- getRenderPass pp'
@@ -158,7 +159,7 @@ render i = Linear.do
 
           Unsafe.toLinear (\_ -> pure ()) _pp' -- forget pipeline??
         )
-        (\(SomePipelineRef (Ref pipeline_ref)) -> Linear.do
+        (\(SomePipelineRef (Ref pipeline_ref)) -> enterD "Pipeline changed" Linear.do
             Ur (SomePipeline pipeline) <- lift $ Apecs.get (Apecs.Entity pipeline_ref)
 
             logT "Binding pipeline"
@@ -200,10 +201,10 @@ render i = Linear.do
 
             pure $ SomePipeline pipeline
           )
-        (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> Linear.do
+        (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> enterD "Material changed" Linear.do
             Ur (SomeMaterial material') <- lift $ Apecs.get (Apecs.Entity material_ref)
 
-            logT "Binding material"
+            logT "Binding material..."
             Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
 
             lift (lift (descriptors material')) >>= \case
@@ -229,7 +230,7 @@ render i = Linear.do
                   Data.Counted.forget rmap'
 
           )
-        (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> Linear.do
+        (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> enterD "Mesh changed" Linear.do
 
             logT "Drawing mesh"
             Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
@@ -278,8 +279,11 @@ render i = Linear.do
 -- The render property bindings function should be created from a compatible pipeline
 writePropertiesToResources :: ∀ φ α ω. (HasProperties φ, Dupable ω) => ResourceMap ⊸ φ α ⊸ Ghengin ω (ResourceMap, φ α)
 writePropertiesToResources rmap' fi
-  = Linear.do (pbs, fi')     <- lift $ properties fi
+  = enterD "writePropertiesToResources"
+    Linear.do (pbs, fi')     <- lift $ properties fi
+              logT "Going on rmap'"
               (rmap'', pbs') <- go rmap' 0 pbs
+              logT "Forgetting property bindings"
               lift $ forgetPropertyBindings pbs'
               pure (rmap'', fi')
 
@@ -288,9 +292,13 @@ writePropertiesToResources rmap' fi
     go rmap n = \case
       GHNil -> pure (rmap, GHNil)
       binding :## as -> Linear.do
+        logT "Getting uniform buffer"
         (mappedB, rmap'') <- lift $ getUniformBuffer rmap n
+        logT "Writing property"
         (mappedB', binding') <- lift $ writeProperty mappedB binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
+        logT "Forgetting mappedB'"
         lift $ Data.Counted.forget mappedB' -- gotten from rmap, def. not the last ref
+        logT "Recursing..."
         (rmap''', bs) <- go rmap'' (n+1) as
         pure (rmap''', binding':##bs)
 

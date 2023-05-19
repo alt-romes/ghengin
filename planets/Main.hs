@@ -51,12 +51,10 @@ import Ghengin.Core.Log
 
 -- | A better program:
 initG :: Ghengin () ()
-initG = Linear.do
+initG = enterD "initG" $ Linear.do
 
-  logT "Make settings"
   Ur ps  <- liftIO $ makeSettings @PlanetSettings
   Ur ps2 <- liftIO $ makeSettings @PlanetSettings
-  logT "Done"
 
   -- sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   -- tex <- lift $ texture "assets/planet_gradient.png" sampler
@@ -65,12 +63,10 @@ initG = Linear.do
   planetPipeline :: RenderPipeline p a <- lift (makeRenderPipeline Shader.shaderPipeline (DynamicBinding (Ur $ Shader.CameraProperty identity identity (vec3 0 0 0)) :## GHNil))
   (Ur planetPipeline') <- pure $ Unsafe.toLinear (\x -> Ur x) planetPipeline -- Unsafe, we need to fix or drop linearity at the surface level
   Ur (Entity pipelineRef) <- Unsafe.toLinear C.newEntity (SomePipeline planetPipeline')
-  logT "Done"
 
   logT "New planet"
   p1 <- newPlanet ps  planetPipeline' (Ref pipelineRef)
   p2 <- newPlanet ps2 planetPipeline' (Ref pipelineRef)
-  logT "Done"
 
   sceneGraph Linear.do
 

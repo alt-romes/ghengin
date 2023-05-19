@@ -38,11 +38,15 @@ data RendererEnv =
        , _frames          :: !(V.V 2 VulkanFrameData)
        -- , _frameInFlight   :: !(IORef Int)
        , _immediateSubmit :: !ImmediateSubmitCtx
-       , _logger :: !(Ur FastLogger) -- Logger and its cleanup action
-                              -- worry about performance later, correctness first
        }
+newtype RendererReaderEnv
+  = RREnv { _logger :: Logger 
+          -- ^ Logger and its cleanup action worry about performance later,
+          -- correctness first
+          }
 -- ROMES: Worried linear StateT might reduce performance, hope not
-newtype Renderer a = Renderer { unRenderer :: Linear.StateT RendererEnv System.IO.Linear.IO a }
+newtype Renderer a
+  = Renderer { unRenderer :: Linear.ReaderT (Ur RendererReaderEnv) (Linear.StateT RendererEnv System.IO.Linear.IO) a }
 
 deriving instance Data.Linear.Functor Renderer
 deriving instance Data.Linear.Applicative Renderer
@@ -51,10 +55,13 @@ deriving instance Linear.Applicative Renderer
 deriving instance Linear.Monad Renderer
 
 instance Linear.MonadIO Renderer where
-  liftIO io = Renderer (StateT (\s -> (,s) <$> io))
+  liftIO io = Renderer $ ReaderT \(Ur w) -> StateT \s -> (,s) <$> io
 
 instance HasLogger Renderer where
-  getLogger = Renderer (StateT (\REnv{_logger=Ur logger,..} -> pure (Ur logger,REnv{_logger=Ur logger,..})))
+  getLogger = Renderer $ ReaderT \(Ur w) -> StateT \renv -> pure (Ur w._logger,renv)
+  {-# INLINE getLogger #-}
+  withLevelUp (Renderer (ReaderT r)) = Renderer $ ReaderT \(Ur RREnv{_logger=Logger l d,..}) -> r (Ur RREnv{_logger=Logger l (d+1),..})
+  {-# INLINE withLevelUp #-}
 
 type MAX_FRAMES_IN_FLIGHT_T :: Nat
 type MAX_FRAMES_IN_FLIGHT_T = 2 -- We want to work on multiple frames but we don't want the CPU to get too far ahead of the GPU
@@ -65,10 +72,13 @@ type MAX_FRAMES_IN_FLIGHT_T = 2 -- We want to work on multiple frames but we don
 -- | Make a renderer computation from a linear IO action that linearly uses a
 -- 'RendererEnv'
 renderer :: (RendererEnv %1 -> System.IO.Linear.IO (a, RendererEnv)) %1 -> Renderer a
-renderer f = Renderer (StateT f)
+renderer f = Renderer $ ReaderT \(Ur w) -> StateT f
+
+runRenderer' :: Logger -> RendererEnv ⊸ Renderer a ⊸ System.IO.Linear.IO (a, RendererEnv)
+runRenderer' l renv (Renderer rend) = runStateT (runReaderT rend (Ur (RREnv l))) renv
 
 useVulkanDevice :: (VulkanDevice %1 -> System.IO.Linear.IO (a, VulkanDevice)) %1 -> Renderer a
-useVulkanDevice f = renderer $ \(REnv _i d _w _s _c _f _im _lg) -> f d >>= \case (a, d') -> pure (a, REnv _i d' _w _s _c _f _im _lg)
+useVulkanDevice f = renderer $ \(REnv{..}) -> f _vulkanDevice >>= \case (a, d') -> pure (a, REnv{_vulkanDevice=d',..})
 
 useDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
 useDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
@@ -81,14 +91,14 @@ useDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._devic
 -- Note, this is quite unsafe really, but makes usage of non-linear vulkan much easier
 unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b)
                    -> Renderer b
-unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _swp _cp _frames _isctx _lg) -> Linear.do
-  b <- liftSystemIO $ f (device._device)
+unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+  b <- liftSystemIO $ f (_vulkanDevice._device)
   pure $ (b, renv)
 
 unsafeUseVulkanDevice :: (VulkanDevice -> Unrestricted.IO b)
                    -> Renderer b
-unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv _inst device _win _swp _cp _frames _isctx _lg) -> Linear.do
-  b <- liftSystemIO $ f (device)
+unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+  b <- liftSystemIO $ f _vulkanDevice
   pure $ (b, renv)
 
 unsafeGetDevice :: Renderer (Ur Vk.Device)
@@ -102,9 +112,9 @@ unsafeUseDeviceAnd f = Unsafe.toLinear $ \x -> (,x) <$> unsafeUseDevice (f x)
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
 immediateSubmit :: Command System.IO.Linear.IO ⊸ Renderer () -- ROMES: Command IO, is that OK? Can easily move to Command Renderer by unsafeUseDevice
-immediateSubmit cmd = renderer $ \(REnv inst dev win swp cp frames imsctx lg) -> Linear.do
-  (dev', imsctx') <- immediateSubmit' dev imsctx cmd
-  pure ((), REnv inst dev' win swp cp frames imsctx' lg)
+immediateSubmit cmd = renderer $ \(REnv{..}) -> Linear.do
+  (dev', imsctx') <- immediateSubmit' _vulkanDevice _immediateSubmit cmd
+  pure ((), REnv{_vulkanDevice=dev',_immediateSubmit=imsctx',..})
 
 -- | Get the extent of the images in the swapchain?
 getRenderExtent :: Renderer (Ur Vk.Extent2D)

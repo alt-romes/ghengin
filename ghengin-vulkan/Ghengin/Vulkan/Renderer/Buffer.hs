@@ -151,7 +151,7 @@ createMappedBuffer size descriptorType = Linear.do
 -- | Note how the storable must be the same as the storable of the uniform buffer so that the sizes match (ROMES:it seems I dropped the type parameter on the buffer, why?)
 writeMappedBuffer :: ∀ α. (SV.Storable α) => (RefC MappedBuffer) ⊸ α -> Renderer (RefC MappedBuffer)
 -- writeMappedBuffer (UniformBuffer _ _ (castPtr -> ptr) s) x = assert (fromIntegral (sizeOf @α undefined) <= s) $ liftIO $ poke @α ptr x -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
-writeMappedBuffer refcbuf x = Linear.do
+writeMappedBuffer refcbuf x = enterD "writeMappedBuffer" Linear.do
   (ub, ()) <- useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (Ur ptr) (Ur s)) ->
     Unsafe.toLinear2 assert (fromIntegral (sizeOf @α undefined) Prelude.<= s) $ -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
       Linear.do liftSystemIO $ poke @α (castPtr ptr) x
@@ -200,7 +200,7 @@ copyBuffer src dst size = Linear.do
 -- finally frees the staging buffer
 withStagingBuffer :: ∀ α ρ. SV.Storable α => SV.Vector α -> (Vk.Buffer ⊸ Vk.DeviceSize -> Renderer ρ) ⊸ Renderer ρ
 -- ROMES:TODO: nevermind brackets for now, if we ever make this compile we can worry about linear bracket-ing then
-withStagingBuffer bufferData f = Linear.do
+withStagingBuffer bufferData f = enterD "withStagingBuffer" $ Linear.do
   -- Accquire staging buffer
   -- -----------------------
   let l          = SV.length bufferData
@@ -215,9 +215,7 @@ withStagingBuffer bufferData f = Linear.do
     -- ROMES:TODO: Do I need to free data'ptr? I think not, it's host memory deallocated automatically somehow
 
   -- Unmap memory (doesn't free, just unmaps)
-  logT "UNMAPPING MEMORY"
   stagingMem2 <- unmapMemory stagingMem1
-  logT "UNMAPPED MEMORY"
 
   -- Use staging buffer
   -- ------------------
@@ -251,8 +249,7 @@ withStagingBuffer bufferData f = Linear.do
 
 
 destroyMappedBuffer :: MappedBuffer ⊸ Renderer ()
-destroyMappedBuffer (UniformBuffer b dm (Ur _hostMemory) (Ur _size)) = Linear.do
-  logT "DESTROYING MAPPED BUFFER"
+destroyMappedBuffer (UniformBuffer b dm (Ur _hostMemory) (Ur _size)) = enterD "destroyMappedBuffer" $ Linear.do
   dm' <- unmapMemory dm
   freeMemory dm'
   destroyBuffer b
@@ -269,10 +266,8 @@ mapMemory = Unsafe.toLinear $ \mem offset size flgs -> (mem,) <$> (unsafeUseDevi
 
 -- | Linear wrapper for Vk.unmapMemory
 unmapMemory :: Vk.DeviceMemory ⊸ Renderer Vk.DeviceMemory
-unmapMemory = Unsafe.toLinear $ \stgMem -> Linear.do
-  logT "unmapMemory:DO"
+unmapMemory = Unsafe.toLinear $ \stgMem -> enterD "unmapMemory" $ Linear.do
   unsafeUseDevice $ \device -> Vk.unmapMemory device stgMem 
-  logT "unmapMemory:OK"
   pure stgMem
 
 -- -- | Linear wrapper for Vk.freeMemory
