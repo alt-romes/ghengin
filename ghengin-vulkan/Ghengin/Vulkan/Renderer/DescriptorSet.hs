@@ -156,7 +156,12 @@ descriptorType = \case
   SPIRV.PointerTy SPIRV.Storage.UniformConstant (SPIRV.SampledImage _) -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
   x -> error $ "Unexpected/unsupported descriptor set #1 descriptor type: " <> show x
 
-
+-- | Forget a descriptor resource. This might free the resource if it's the last reference to it
+-- (A DescriptorResource wraps a Reference Counted value)
+forgetDescriptorResource :: DescriptorResource ⊸ Renderer ()
+forgetDescriptorResource = \case
+  UniformResource x -> Counted.forget x
+  Texture2DResource x -> Counted.forget x
 
 ---------------------
 --- : | Pools | : ---

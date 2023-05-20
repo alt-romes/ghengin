@@ -47,6 +47,7 @@ import Ghengin.Core.Renderer.Texture
 import Ghengin.Core.Renderer
 
 import Data.Type.Equality
+import qualified Unsafe.Linear as Unsafe
 
 -- ROMES: Can we avoid the Eq instance here? Depends on what we need the property binding eq instance for...
 -- We were able to avoid it. Why did we previously need it? !!!
@@ -196,19 +197,22 @@ makeResources =
 --    (1.3) If it's a texture, do nothing because the texture is written only once and has already been bound
 --
 -- The property bindings function should be created from a compatible pipeline
-writeProperty :: RefC MappedBuffer ⊸ PropertyBinding α ⊸ Renderer (RefC MappedBuffer, PropertyBinding α)
-writeProperty buf = \case
-  StaticBinding  x ->
+writeProperty :: DescriptorResource ⊸ PropertyBinding α ⊸ Renderer (DescriptorResource, PropertyBinding α)
+writeProperty dr pb = case pb of
+  StaticBinding x ->
     -- Already has been written to, we simply bind it together with the rest of
     -- the set at draw time and do nothing here.
-    pure (buf, StaticBinding x)
-  Texture2DBinding  t ->
+    pure (dr, StaticBinding x)
+  Texture2DBinding t ->
   --   -- As above. Static bindings don't get written every frame.
-    pure (buf, Texture2DBinding t)
-  DynamicBinding (Ur (a :: α)) -> Linear.do
-    -- Dynamic bindings are written every frame
-    buf' <- writeMappedBuffer buf a
-    pure (buf', DynamicBinding (Ur a))
+    pure (dr, Texture2DBinding t)
+  DynamicBinding (Ur (a :: α)) ->
+    case dr of
+      UniformResource buf -> Linear.do
+        -- Dynamic bindings are written every frame
+        buf' <- writeMappedBuffer buf a
+        pure (UniformResource buf', DynamicBinding (Ur a))
+      e -> case Unsafe.toLinear (\_ -> ()) e of () -> error "writeProperty: one can't write a dynamic binding into a non-mapped-buffer resource"
 {-# INLINE writeProperty #-}
 
 
@@ -416,26 +420,16 @@ editProperty prop update i dset resmap0 = Linear.do
     DynamicBinding (x :: Ur α) -> Linear.do
       Ur ux <- update x
 
-      (bufref, resmap1) <- getUniformBuffer resmap0 i
-
-      -- TODO: Move this logic inside writeMappedBuffer and make its type RefC MappedBuffer ⊸ a -> lm (RefC MappedBuffer)
-      -- (buf, freeBuf) <- Counted.get bufref
+      (UniformResource bufref, resmap1) <- getDescriptorResource resmap0 i
 
       writeDynamicBinding bufref ux >>= Counted.forget
-
-      --freeBuf mb -- We know here there will be more than one reference since we also return the resource map
-      --           -- but does it matter? if this really were the last reference to the mapped buffer it should indeed be freed.
-      --           -- if it so happens that this is not the last reference but we actually free it here then our unsafe bits of reference counting are wrong
-      --           --
-      --           -- ROMES:Note: the 'free' name is a bit counter intuitive, we will never really free it here...
-      --           -- TODO: Give it a better name
 
       pure (DynamicBinding (Ur ux), dset, resmap1)
 
     StaticBinding x -> Linear.do
       Ur ux <- update x
 
-      (bufref, resmap1) <- getUniformBuffer resmap0 i
+      (UniformResource bufref, resmap1) <- getDescriptorResource resmap0 i
 
       writeStaticBinding bufref ux >>= Counted.forget
 

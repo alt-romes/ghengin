@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Core.Renderer
   ( module Ghengin.Core.Renderer.DescriptorSet
@@ -9,6 +10,7 @@ module Ghengin.Core.Renderer
   ) where
 
 import qualified Data.IntMap as IM
+import Ghengin.Core.Log
 import Prelude.Linear
 
 import Control.Functor.Linear
@@ -26,14 +28,14 @@ instance Counted DescriptorResource where
   countedFields (UniformResource x) = [SomeRefC x]
   countedFields (Texture2DResource x) = [SomeRefC x]
 
-getUniformBuffer :: ResourceMap ⊸ Int -> Renderer (RefC MappedBuffer, ResourceMap)
-getUniformBuffer = Unsafe.toLinear $ \resourcemap i ->
+getDescriptorResource :: ResourceMap ⊸ Int -> Renderer (DescriptorResource, ResourceMap)
+getDescriptorResource = Unsafe.toLinear $ \resourcemap i -> enterD "getUniformBuffer" $
   case IM.lookup i resourcemap of
     -- We *unsafely* increment the reference because we also return
     -- `resourcemap` which retains one reference, which makes it *all work out safely*
     -- This is also why resourcemap is used twice (and hence is unsafe).
     --
     -- In short, we unsafely increment a linear resource for one we unsafely keep
-    Just (UniformResource b) -> (,resourcemap) <$> Unsafe.Counted.inc b
+    Just (UniformResource b) -> (,resourcemap) . UniformResource <$> Unsafe.Counted.inc b
+    Just (Texture2DResource t) -> (,resourcemap) . Texture2DResource <$> Unsafe.Counted.inc t
     Nothing -> error $ "Expecting a uniform descriptor resource at binding " <> show i <> " but found nothing!"
-    _ -> error $ "Expecting the descriptor resource at binding " <> show i <> " to be a uniform!"

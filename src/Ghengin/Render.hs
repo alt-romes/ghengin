@@ -292,13 +292,9 @@ writePropertiesToResources rmap' fi
     go rmap n = \case
       GHNil -> pure (rmap, GHNil)
       binding :## as -> Linear.do
-        logT "Getting uniform buffer"
-        (mappedB, rmap'') <- lift $ getUniformBuffer rmap n
-        logT "Writing property"
-        (mappedB', binding') <- lift $ writeProperty mappedB binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
-        logT "Forgetting mappedB'"
-        lift $ Data.Counted.forget mappedB' -- gotten from rmap, def. not the last ref
-        logT "Recursing..."
+        (res, rmap'') <- lift $ getDescriptorResource rmap n
+        (res', binding') <- lift $ writeProperty res binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
+        lift $ forgetDescriptorResource res' -- gotten from rmap, def. not the last ref
         (rmap''', bs) <- go rmap'' (n+1) as
         pure (rmap''', binding':##bs)
 

@@ -5,6 +5,7 @@ module Ghengin.Vulkan.Renderer.Kernel where
 import GHC.TypeNats
 import qualified Prelude as Unrestricted
 import Prelude.Linear
+import qualified Prelude
 import qualified Control.Monad.IO.Class as Unrestricted
 import qualified System.IO.Linear
 import qualified Data.Functor.Linear as Data.Linear
@@ -56,6 +57,10 @@ deriving instance Linear.Monad Renderer
 
 instance Linear.MonadIO Renderer where
   liftIO io = Renderer $ ReaderT \(Ur w) -> StateT \s -> (,s) <$> io
+  {-# INLINE liftIO #-}
+
+instance Linear.MonadFail Renderer where
+  fail str = Renderer $ ReaderT \(Ur w) -> StateT \s -> (,s) <$> liftSystemIO (Prelude.fail str)
 
 instance HasLogger Renderer where
   getLogger = Renderer $ ReaderT \(Ur w) -> StateT \renv -> pure (Ur w._logger,renv)

@@ -28,6 +28,7 @@ instance Linear.Functor Renderer
 instance Linear.Applicative Renderer
 instance Linear.Monad Renderer
 instance Linear.MonadIO Renderer
+instance Linear.MonadFail Renderer
 
 instance HasLogger Renderer
 
