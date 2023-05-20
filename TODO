@@ -1,3 +1,6 @@
+[ ] Picking up a previous idea, we should automatically make imgui editors for
+    every game object that instances X, and enable said windows on keydown when
+    compiled in Debug mode
 [ ] Use LinearConstraints when those are available...!
 [ ] Use HEAD fir when change is upstreamed
 [ ] newtype Ur instead of data Ur, otherwise we're creating indirections everywhere... For now, correctness > performance

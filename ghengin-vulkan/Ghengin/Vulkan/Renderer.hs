@@ -83,7 +83,8 @@ runRenderer r = Linear.do
   -- Can we get rid of these and the other IO refs in the game loop?
   Ur frameInFlight <- newIORef (0 :: Int)
 
-  (Ur logger,cleanupLogger)  <- newLogger
+  -- (Ur logger,cleanupLogger)  <- newLogger (LogFileNoRotate "log.ghengin.log" defaultBufSize)
+  (Ur logger,cleanupLogger)  <- newLogger (LogStdout defaultBufSize)
 
   -- Run renderer
   ---------------
@@ -92,7 +93,7 @@ runRenderer r = Linear.do
 
   -- Terminate
   ------------
-  liftSystemIO $ logger._log "[Start] Clean up"
+  liftSystemIO $ logger._log "[Start] Clean up\n"
 
   (vunit, device) <- runStateT (Data.Linear.mapM (\f -> StateT (fmap ((),) . destroyVulkanFrameData f)) frames') device
   pure $ consumeUnits vunit
@@ -107,7 +108,7 @@ runRenderer r = Linear.do
 
   terminateGLFW glfwtoken
 
-  liftSystemIO $ logger._log "[Done] Clean up"
+  liftSystemIO $ logger._log "[Done] Clean up\n"
 
   cleanupLogger
 

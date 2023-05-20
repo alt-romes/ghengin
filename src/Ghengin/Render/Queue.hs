@@ -91,6 +91,10 @@ insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue
 -- * New mesh for the render packet using the previously seen material
 --
 --- It's this generic because used for drawing and for freeing all the meshes :)
+--
+-- This could be possibly much simpler if we didn't need to access it from
+-- Ghengin i.e. we can't have the references to things like pipelines and
+-- materials in Apecs, but we should have them rather elsewhere (TODO).
 traverseRenderQueue :: (Linear.Monad μ, Linear.Monad μ')
                     => RenderQueue α -- ^ The render queue
                     -> (SomePipelineRef -> μ' () -> μ ()) -- ^ The initial context lifting from m to m' for the inner functions
