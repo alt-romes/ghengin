@@ -10,17 +10,12 @@ module Ghengin.Core.Render.Pipeline where
 -- import Geomancy.Mat4 ( Mat4 )
 -- import Control.Lens (Lens', lens)
 
-import qualified Prelude
 import Prelude.Linear
 import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear
 import qualified Unsafe.Linear as Unsafe
 
 import Data.Typeable
 import Data.Kind
-import Data.Type.List (type (:++:))
-import Control.Monad ( forM_ )
-import Data.List.NonEmpty
 import Foreign.Storable ( Storable(sizeOf) )
 
 import Ghengin.Core.Type.Compatible ( CompatiblePipeline )
@@ -48,8 +43,6 @@ import Ghengin.Core.Type.Compatible ( CompatiblePipeline )
 --       destroyRenderPass,
 --       VulkanRenderPass(_renderPass) )
 
-import qualified Data.IntMap as IM
-import qualified Data.Vector as V
 import qualified FIR.Pipeline
 
 import qualified Vulkan as Vk

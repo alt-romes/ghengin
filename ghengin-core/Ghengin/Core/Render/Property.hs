@@ -19,35 +19,23 @@ module Ghengin.Core.Render.Property
   , GHList(..)
   ) where
 
-import Data.Proxy
-
-import qualified Prelude
-import Prelude.Linear hiding (IO)
-import System.IO.Linear as Linear
-import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear
-import Data.Unrestricted.Linear
 -- TODO: Some special linear lenses to use propertyAt ... import Control.Lens ((^.), Lens', lens)
 -- ROMES:TODO: For the lens to be used as a getter, I think we will need this definition of functor rather than the control one.
-import GHC.TypeLits ( KnownNat, type (+), Nat )
+import Control.Functor.Linear as Linear
 import Data.Kind ( Type, Constraint )
-
-import qualified Data.IntMap as IM
-import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
-import qualified Unsafe.Linear
-import System.IO.Unsafe (unsafePerformIO)
-import Control.Exception (assert)
-
 import Foreign.Storable (Storable(sizeOf))
-
-import qualified Data.Counted as Counted
-
-import Ghengin.Core.Type.Utils (nat)
-import Ghengin.Core.Renderer.Texture
+import GHC.TypeLits ( KnownNat, type (+), Nat )
 import Ghengin.Core.Renderer
+import Ghengin.Core.Renderer.Texture
+import Ghengin.Core.Type.Utils (nat)
+import Prelude.Linear hiding (IO)
+import qualified Data.Counted as Counted
+import qualified Data.IntMap as IM
+import qualified Prelude
+import qualified Unsafe.Linear
 
-import Data.Type.Equality
 import qualified Unsafe.Linear as Unsafe
+import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 
 -- ROMES: Can we avoid the Eq instance here? Depends on what we need the property binding eq instance for...
 -- We were able to avoid it. Why did we previously need it? !!!
@@ -93,7 +81,6 @@ instance Prelude.Eq α => Prelude.Eq (PropertyBinding (Ur α)) where
 
 instance Prelude.Eq (PropertyBinding Texture2D) where
   (==) (Texture2DBinding x) (Texture2DBinding y) = False -- ROMES:TODO: Not False... what's this instance for again?
-  (==) x y = False
 
 type PropertyBindings α = GHList PropertyBinding α
 
@@ -180,7 +167,7 @@ makeResources =
 
     -- Special foldM for the needs of this function, adds indexes, handles type level lists, etc...
     -- Big ouch, I know its correct but don't feel like proving it... let's get the engine back up first at least
-    foldMX :: ∀ b a x xs ys
+    foldMX :: ∀ b x xs ys
             . ((b,PropertyBindings xs) ⊸ (Int, PropertyBinding x) ⊸ Renderer (b,PropertyBindings (x:xs)))
             ⊸ (b,PropertyBindings '[]) ⊸ PropertyBindings ys ⊸ Renderer (b,PropertyBindings ys)
     foldMX f b as = Unsafe.Linear.coerce (foldM @Renderer) f b

@@ -1,25 +1,29 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedRecordDot #-}
+{-|
+   Ghengin logging capabilities.
+-}
 module Ghengin.Core.Log
   ( module Ghengin.Core.Log
+
+  -- * Fast-logger re-exports
   , FastLogger, toLogStr, LogType'(..), defaultBufSize
   ) where
 
 import Data.Bifunctor
 import Ghengin.Core.Prelude as G
 import System.Log.FastLogger
-import qualified Prelude
+import qualified Prelude (take)
 
 #ifdef THINGS_ARE_GOING_THAT_BAD
--- In that case we log directly to stdout
+-- In that case we always flush and use BS.putStr
 import qualified Data.ByteString as BS
 import qualified System.IO
 #endif
 
 data Logger
   = Logger { _log :: FastLogger
-           , _depth :: Int
-           }
+           , _depth :: Int }
 
 class MonadIO m => HasLogger m where
   -- | Get a logger. Don't forget to add an inline pragma!
@@ -30,57 +34,53 @@ class MonadIO m => HasLogger m where
 
 -- | Returns a new logger and an IO cleanup action
 newLogger :: MonadIO m => LogType -> m (Ur Logger, IO ())
+{-# INLINE newLogger #-}
 newLogger logt = G.do
-  Ur (logger,clean) <- liftSystemIOU (second liftSystemIO Prelude.<$> newFastLogger logt)
+  Ur (logger,clean) <- liftSystemIOU (second liftSystemIO <$$> newFastLogger logt)
   pure (Ur (Logger logger 0), clean)
 
 -- | Unconditionally log a message to the default logger
 log :: (ToLogStr msg, HasLogger m) => msg -> m ()
-log msg = getLogger >>= \(Ur logger) -> G.do
-  let
-      -- To log with preceeding whitespace:
-      -- (TODO: Have runtime configuration options for these sort of things)
-      -- white = replicate (logger._depth*2) ' '
-      -- full_msg = toLogStr white <> toLogStr msg <> toLogStr "\n"
-      -- To log with preceeding unicode symbols
-      leading_syms = cycle ['│',' ']
-      full_msg = toLogStr (Prelude.take (logger._depth*2) leading_syms) <> toLogStr msg <> toLogStr "\n"
-  liftSystemIO $
-#ifdef THINGS_ARE_GOING_THAT_BAD
-    do BS.putStr (fromLogStr full_msg); System.IO.hFlush System.IO.stdout
-#else
-    logger._log full_msg
-#endif
 {-# INLINE log #-}
+log msg = getLogger >>= \(Ur logger) -> G.do
+  let -- Log with preceeding unicode symbols
+      leading_syms = Prelude.take (logger._depth*2) (cycle ['│',' '])
+      full_msg = toLogStr leading_syms <> toLogStr msg <> toLogStr "\n"
+  liftSystemIO $
+#ifndef THINGS_ARE_GOING_THAT_BAD
+    logger._log full_msg
+#else
+    do BS.putStr (fromLogStr full_msg); System.IO.hFlush System.IO.stdout
+#endif
 
--- | Log if debug level is set
+-- | Log if debug level (@-DDEBUG@) is set
 logD :: HasLogger m => LogStr -> m ()
+{-# INLINE logD #-}
 #ifdef DEBUG
 logD = log
 #else
 logD = const (pure ())
 #endif
-{-# INLINE logD #-}
 
--- | Log and enter if debug level is set
+-- | Log and increase logging depth until action is left if debug level
+-- (@-DDEBUG@) is set
 enterD :: HasLogger m => LogStr -> m a ⊸ m a
+{-# INLINE enterD #-}
 #ifdef DEBUG
 enterD msg ma = G.do
   log (toLogStr "Entering: " <> msg)
   a <- withLevelUp ma
   log "Done."
   pure a
-
 #else
 enterD _ = pure ()
 #endif
-{-# INLINE enterD #-}
 
--- | Log if trace level is set
+-- | Log if trace level (@-DDEBUG_TRACE@) is set
 logT :: HasLogger m => LogStr -> m ()
+{-# INLINE logT #-}
 #ifdef DEBUG_TRACE
 logT = log
 #else
 logT = const (pure ())
 #endif
-{-# INLINE logT #-}

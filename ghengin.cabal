@@ -173,6 +173,7 @@ library ghengin-core-indep
     exposed-modules:  Ghengin.Core.Mesh.Vertex,
 
                       Ghengin.Core.Type.Compatible,
+                      Ghengin.Core.Type.Sized,
                       Ghengin.Core.Type.Utils,
 
                       Ghengin.Core.Shader.Pipeline,

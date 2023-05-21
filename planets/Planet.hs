@@ -40,7 +40,7 @@ import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Render.Packet
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Type.Compatible
-import Ghengin.Core.Type.Utils (Sized(..))
+import Ghengin.Core.Type.Sized (Sized(..))
 import Ghengin.DearImGui.Gradient
 import Ghengin.Shader.FIR as FIR ((:->)(..), Struct, Syntactic(..))
 import Ghengin.Vulkan.Renderer

@@ -1,6 +1,11 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-|
-   TODO: Document the 'Compatible' type constraint
+The @CompatibleX@ type constraint validates that a group of properties of @X@
+are compatible with a given shader pipeline info, where @X@ can be @'Vertex'@,
+@'Mesh'@ @'Material'@ and @'RenderPipeline'@.
+
+@'Compatible'@ validates the vertices types, the material properties, and the
+render pipeline properties are compatible with the shader pipeline.
  -}
 module Ghengin.Core.Type.Compatible
   ( Compatible
@@ -11,9 +16,6 @@ module Ghengin.Core.Type.Compatible
 
 import Prelude
 import Data.Kind ( Type, Constraint )
-import Data.Type.List ( Join, Length )
-import Data.Type.Maybe ( FromMaybe )
-import Data.Type.Map (Values, (:->)(..), Lookup)
 import FIR.Pipeline
     ( BindingStrides,
       PipelineInfo(..),
@@ -27,16 +29,9 @@ import GHC.TypeLits
     ( TypeError, type (+), Nat, ErrorMessage((:<>:), ShowType, Text) )
 import SPIRV.Decoration (Decoration(..))
 import qualified SPIRV.Image as SPIRV
--- TODO: Remove dependency on Ghengin non-core
 
 import Ghengin.Core.Type.Utils
-
-{-
-Note [The Compatible constraint]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-TODO
--}
+import Ghengin.Core.Type.Sized
 
 ------- Compatible ---------------------------------
 
@@ -63,7 +58,8 @@ type family Compatible αs βs ξs π where
       , CompatiblePipeline cs p
       )
 
-
+-- | 'CompatibleVertex' validates the vertices types against the vertices the
+-- shader pipeline expects.
 type CompatibleVertex as p = CompatibleVertex' (Zip (NumbersFromTo 0 (Length as)) as) p
 type CompatibleVertex' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleVertex' as p where
@@ -77,6 +73,8 @@ type family CompatibleVertex' as p where
       , CompatibleVertex' xs p
       )
 
+-- | 'CompatibleMaterial' validates the material properties againsts the
+-- properties expected in the descriptor set #1 by the shader pipeline.
 type CompatibleMaterial bs p = CompatibleMaterial' (Zip (NumbersFromTo 0 (Length bs)) bs) p
 type CompatibleMaterial' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleMaterial' as p where
@@ -89,6 +87,8 @@ type family CompatibleMaterial' as p where
       , CompatibleMaterial' xs p
       )
 
+-- | 'CompatiblePipeline' validates the render pipeline properties againsts the
+-- properties expected in the descriptor set #0 by the shader pipeline.
 type CompatiblePipeline cs p = CompatiblePipeline' (Zip (NumbersFromTo 0 (Length cs)) cs) p
 type CompatiblePipeline' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatiblePipeline' as p where
@@ -135,7 +135,7 @@ type family DSetBindings'' set info i x where
 
 -- | Find descriptor set #set and binding #binding in any of the pipeline stages inputs
 --
--- TODO: This assumes this order as the only valid one. At least say it so in the error message.
+-- This assumes this order as the only valid one. Perhaps it should say so in the error message (TODO).
 type family DSetBinding (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Maybe Type where
   DSetBinding set binding (VertexInputInfo _ _ _) = 'Nothing
   DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) =
@@ -171,6 +171,4 @@ type InputByLocation' :: Nat -> PipelineInfo -> SPIRV.ImageFormat Nat
 type family InputByLocation' loc info where
   InputByLocation' loc info = FromMaybe (Lookup loc (InputLocations info)) (TypeError (Text "Input [Location #" :<>: ShowType loc :<>: Text "] not found in " :<>: ShowType info))
 
-
 ----------------------------------------------------
-

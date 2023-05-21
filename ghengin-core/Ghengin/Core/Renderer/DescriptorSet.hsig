@@ -12,8 +12,6 @@ import Ghengin.Core.Renderer.Texture
 
 import Data.Counted as Counted
 
-import qualified Unsafe.Linear as Unsafe
-
 
 -------- Resources ----------------
 -- Resources are a part of the descriptor set module since these resources are
