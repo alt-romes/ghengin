@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedRecordDot, LinearTypes, QualifiedDo, NoImplicitPrelude #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Core.Material where
 
 import Prelude.Linear

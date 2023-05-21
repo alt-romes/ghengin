@@ -23,4 +23,9 @@ import qualified Prelude
 (<$$>) = (Prelude.<$>)
 
 
+-- -- | Generic HList
+-- data GHList c xs where
+--     GHNil :: GHList c '[]
+--     (:##) :: c a ⊸ GHList c as ⊸ GHList c (a ': as)
+-- infixr 6 :##
 

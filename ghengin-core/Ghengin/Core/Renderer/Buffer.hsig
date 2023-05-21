@@ -1,4 +1,3 @@
-{-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.Buffer where
 
 import Data.Word (Word, Word32)

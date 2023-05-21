@@ -1,3 +1,4 @@
+[ ] Separate things like Mesh, Material and Pipeline references from Apecs. These should be kept in a renderer data structure really.
 [ ] Picking up a previous idea, we should automatically make imgui editors for
     every game object that instances X, and enable said windows on keydown when
     compiled in Debug mode

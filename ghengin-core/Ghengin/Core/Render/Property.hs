@@ -1,9 +1,5 @@
-{-# LANGUAGE QualifiedDo #-}
-{-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE ExplicitNamespaces #-}
-{-# LANGUAGE TypeFamilyDependencies #-}
 module Ghengin.Core.Render.Property
   ( PropertyBinding(..)
   , PropertyBindings
@@ -21,6 +17,10 @@ module Ghengin.Core.Render.Property
 
 -- TODO: Some special linear lenses to use propertyAt ... import Control.Lens ((^.), Lens', lens)
 -- ROMES:TODO: For the lens to be used as a getter, I think we will need this definition of functor rather than the control one.
+-- Otherwise, I think we can assume the lens is always over something which is
+-- Consumable, (we only ever deal with properties which are consumable, btut I
+-- suppose we could have properties which aren't, and are always updated).
+-- Perhaps just the setter lens could be over the thing if it is Consumable
 import Control.Functor.Linear as Linear
 import Data.Kind ( Type, Constraint )
 import Foreign.Storable (Storable(sizeOf))
@@ -69,7 +69,7 @@ data PropertyBinding α where
 -- over the value bound when constructing the PropertyBinding rather than the
 -- type that shows up in the typelist.
 --
--- For all intents and purposes, this is the inverse of 'PropertyBinding'. To use, require the constraint (a 
+-- For all intents and purposes, this is the inverse of 'PropertyBinding'.
 type family PBInv α = r | r -> α where
   PBInv Texture2D = RefC Texture2D
   PBInv x         = Ur x

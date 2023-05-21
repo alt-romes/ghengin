@@ -1,7 +1,5 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
-{-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Core.Renderer
   ( module Ghengin.Core.Renderer.DescriptorSet
   , module Ghengin.Core.Renderer.Buffer

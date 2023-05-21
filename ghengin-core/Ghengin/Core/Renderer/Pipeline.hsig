@@ -1,4 +1,3 @@
-{-# LANGUAGE LinearTypes #-}
 signature Ghengin.Core.Renderer.Pipeline where
 
 import GHC.TypeNats

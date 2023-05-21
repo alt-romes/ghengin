@@ -98,11 +98,13 @@ common common-flags
                       NoStarIsType,
                       RankNTypes,
                       DataKinds,
+                      PolyKinds,
                       GADTs,
                       ViewPatterns,
                       TypeApplications,
                       TypeFamilies,
                       ExplicitNamespaces,
+                      TypeFamilyDependencies,
                       TypeOperators,
                       LambdaCase,
                       BlockArguments,
@@ -112,7 +114,7 @@ common common-flags
                       DisambiguateRecordFields,
                       LinearTypes,
                       QualifiedDo,
-                      -- Use Ghengin.Prelude!
+                      -- Use Ghengin.Core.Prelude!
                       NoImplicitPrelude
 
 

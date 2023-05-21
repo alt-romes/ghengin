@@ -1,5 +1,3 @@
-{-# LANGUAGE LinearTypes #-}
-{-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -77,13 +75,7 @@ data RenderPipeline info tys where
                   ⊸ RenderPipeline info β
                   ⊸ RenderPipeline info (α : β)
 
-data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β) -- ROMES:TODO Can I not have Typeable here?
-
--- ROMES:TODO: Apecs instances should be provided out of Core, despite being
--- for these types -- they'll exist as orphan instances in Ghengin...
--- instance Apecs.Component SomePipeline where
---   type Storage SomePipeline = Apecs.Map SomePipeline
--- {-# DEPRECATED makeRenderPipeline "Storage should be a cache" #-}
+data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β) -- ROMES:TODO Can I not have Typeable here? I think we need it to make comparisons on the type of the SomePipelineRef
 
 -- TODO: PushConstants must also be inferred from the shader code
 -- Add them as possible alternative to descritpor set #2?
@@ -91,9 +83,9 @@ data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β
 newtype PushConstantData = PushConstantData { pos_offset :: () -- Mat4
                                             } deriving Storable
 
--- TODO: Ensure mesh type matches vertex input
--- TODO: Shader pipeline and buffers should only be created once and reused
--- across render packets that use the same one
+-- Shader pipeline and buffers are only be created once and reused across
+-- render packets that use the same one (Note that render packets store
+-- references to these things).
 -- TODO: Currently we assume all our descriptor sets are Uniform buffers and
 -- our buffers too but eventually Uniform will be just a constructor of a more
 -- general Buffer and we should select the correct type of buffer individually.

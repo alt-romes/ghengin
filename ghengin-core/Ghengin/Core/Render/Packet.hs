@@ -1,15 +1,4 @@
--- {-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
-{-# LANGUAGE LinearTypes #-}
-{-# LANGUAGE QualifiedDo #-}
-{-# LANGUAGE NoStarIsType #-}
-{-# LANGUAGE PolyKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Core.Render.Packet
   ( module Ghengin.Core.Render.Packet
@@ -90,7 +79,7 @@ data RenderPacket where
                 ⊸ Ref (Material β)
                 ⊸ Ref (RenderPipeline π ξ)
                 ⊸ RenderKey
-                -> RenderPacket
+               -> RenderPacket
 
 -- newtype Ref α = Ref { unRef :: Apecs.Entity } -- iso to Int
 -- | For now we inline the definition of Ref, but this should probably be made to a signature or something
@@ -142,6 +131,7 @@ renderPacket mesh material pipeline = Linear.do
 
 -- TODO: I think before I can get to this module I will need to handle both
 -- Meshes and References(Apecs-based)!
+-- References should be kept outside of apecs, really!
 
 {-
 Note [Render Packet Key]
