@@ -4,9 +4,9 @@
  -}
 module Ghengin.Core.Type.Compatible
   ( Compatible
-  , CompatibleVertex'
-  , CompatibleMaterial'
-  , CompatibleRender'
+  , CompatibleVertex
+  , CompatibleMaterial
+  , CompatiblePipeline
   ) where
 
 import Prelude
@@ -58,47 +58,47 @@ type family Compatible αs βs ξs π where
       , MatchPropertiesSize (Length cs) (Length (DSetBindings 0 p))
                             (Text " render properties in render pipeline properties " :<>: ShowType cs)
                             (Text " descriptors in descriptor set #0.")
-      , CompatibleVertex'   as p
-      , CompatibleMaterial' bs p
-      , CompatibleRender'   cs p
+      , CompatibleVertex   as p
+      , CompatibleMaterial bs p
+      , CompatiblePipeline cs p
       )
 
 
-type CompatibleVertex' as p = CompatibleVertex (Zip (NumbersFromTo 0 (Length as)) as) p
-type CompatibleVertex :: [(Nat,Type)] -> PipelineInfo -> Constraint
-type family CompatibleVertex as p where
-  CompatibleVertex '[] _ = ()
-  CompatibleVertex ('(n,x) ': xs) p
+type CompatibleVertex as p = CompatibleVertex' (Zip (NumbersFromTo 0 (Length as)) as) p
+type CompatibleVertex' :: [(Nat,Type)] -> PipelineInfo -> Constraint
+type family CompatibleVertex' as p where
+  CompatibleVertex' '[] _ = ()
+  CompatibleVertex' ('(n,x) ': xs) p
     = ( Syntactic x
       , Match (SizeOf (InternalType x)) (SizeOf (InputByLocation' n p))
                         (Text "Vertex property #" :<>: ShowType n :<>: TypeAndInternalType x
                           :<>: Text " whose internal type is " :<>: ShowType (InternalType x)
                           :<>: Text " isn't compatible with the shader vertex property #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (InputByLocation' n p))
-      , CompatibleVertex xs p
+      , CompatibleVertex' xs p
       )
 
-type CompatibleMaterial' bs p = CompatibleMaterial (Zip (NumbersFromTo 0 (Length bs)) bs) p
-type CompatibleMaterial :: [(Nat,Type)] -> PipelineInfo -> Constraint
-type family CompatibleMaterial as p where
-  CompatibleMaterial '[] _ = ()
-  CompatibleMaterial ('(n,x) ': xs) p
+type CompatibleMaterial bs p = CompatibleMaterial' (Zip (NumbersFromTo 0 (Length bs)) bs) p
+type CompatibleMaterial' :: [(Nat,Type)] -> PipelineInfo -> Constraint
+type family CompatibleMaterial' as p where
+  CompatibleMaterial' '[] _ = ()
+  CompatibleMaterial' ('(n,x) ': xs) p
     = ( Syntactic x
       , Match (InternalType x) (DSetBinding' 1 n p)
               (Text "Material binding #" :<>: ShowType n :<>: TypeAndInternalType x
                :<>: Text " isn't compatible with the descriptor binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (DSetBinding' 1 n p))
-      , CompatibleMaterial xs p
+      , CompatibleMaterial' xs p
       )
 
-type CompatibleRender' cs p = CompatibleRender (Zip (NumbersFromTo 0 (Length cs)) cs) p
-type CompatibleRender :: [(Nat,Type)] -> PipelineInfo -> Constraint
-type family CompatibleRender as p where
-  CompatibleRender '[] p = ()
-  CompatibleRender ('(n,x) ': xs) p
+type CompatiblePipeline cs p = CompatiblePipeline' (Zip (NumbersFromTo 0 (Length cs)) cs) p
+type CompatiblePipeline' :: [(Nat,Type)] -> PipelineInfo -> Constraint
+type family CompatiblePipeline' as p where
+  CompatiblePipeline' '[] p = ()
+  CompatiblePipeline' ('(n,x) ': xs) p
     = ( Syntactic x
       , Match (InternalType x) (DSetBinding' 0 n p)
               (Text "Render property binding #" :<>: ShowType n :<>: TypeAndInternalType x
                 :<>: Text " isn't compatible with the descriptor binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (DSetBinding' 0 n p))
-      , CompatibleRender xs p
+      , CompatiblePipeline' xs p
       )
 
 type TypeAndInternalType :: Type -> ErrorMessage

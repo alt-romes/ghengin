@@ -8,7 +8,7 @@ import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
 
 import Ghengin.Core.Render.Property
-import Ghengin.Core.Type.Compatible ( CompatibleMaterial' )
+import Ghengin.Core.Type.Compatible ( CompatibleMaterial )
 import Ghengin.Core.Render.Pipeline ( RenderPipeline(..) )
 
 import Ghengin.Core.Renderer.Kernel
@@ -122,7 +122,7 @@ data SomeMaterial = ∀ α. SomeMaterial (Material α)
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
-material :: ∀ α π β. (CompatibleMaterial' α π)
+material :: ∀ α π β. (CompatibleMaterial α π)
          => PropertyBindings α ⊸ RenderPipeline π β ⊸ Renderer (Material α, RenderPipeline π β)
 material props0 (RenderProperty pr rps) = material props0 rps >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
 material props0 (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Linear.do

@@ -23,10 +23,8 @@ import Control.Monad ( forM_ )
 import Data.List.NonEmpty
 import Foreign.Storable ( Storable(sizeOf) )
 
--- TODO: Remove dependency on Vulkan somehow?
--- ROMES:TODO: What are we importing from here?
--- import Ghengin.Vulkan
---
+import Ghengin.Core.Type.Compatible ( CompatiblePipeline )
+
 -- What I really want to do with the methods below is create hsigs for each of
 -- them individually.  We will not need the freeing/destruction functions
 -- anymore since most things will be reference counted in the linear IO monad,
@@ -107,7 +105,9 @@ newtype PushConstantData = PushConstantData { pos_offset :: () -- Mat4
 -- our buffers too but eventually Uniform will be just a constructor of a more
 -- general Buffer and we should select the correct type of buffer individually.
 makeRenderPipeline :: forall τ info tops descs strides
-                    . ( PipelineConstraints info tops descs strides )
+                    . ( PipelineConstraints info tops descs strides
+                      , CompatiblePipeline τ info
+                      )
                    => ShaderPipeline info
                    -> PropertyBindings τ
                     ⊸ Renderer (RenderPipeline info τ)
