@@ -13,7 +13,8 @@ import System.Log.FastLogger
 import Ghengin.Vulkan.Renderer.Kernel -- See Todo on making Ghengin modules not depending directly on Vulkan too.
 import Ghengin.Core.Render.Packet (RenderPacket)
 import Ghengin.Core.Render.Pipeline (SomePipeline)
-import Ghengin.Core.Material (SomeMaterial)
+import Ghengin.Core.Material (Material)
+import Ghengin.Core.Type.Utils (Some)
 
 data World :: Type -> Type
 type role World nominal
@@ -23,7 +24,7 @@ instance Dupable w => Dupable (World w)
 
 instance Monad m => Has (World w) m RenderPacket where
 instance Monad m => Has (World w) m SomePipeline where
-instance Monad m => Has (World w) m SomeMaterial where
+instance Monad m => Has (World w) m (Some Material) where
 
 
 -- instance Has (World w) Renderer RenderPacket

@@ -96,6 +96,7 @@ common common-flags
   default-extensions: UnicodeSyntax,
                       MultiParamTypeClasses,
                       NoStarIsType,
+                      RankNTypes,
                       DataKinds,
                       GADTs,
                       ViewPatterns,

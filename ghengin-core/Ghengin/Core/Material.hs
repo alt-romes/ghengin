@@ -113,12 +113,6 @@ instance HasProperties Material where
   pcons :: PropertyBinding α %p -> Material β ⊸ Material (α:β)
   pcons = Unsafe.toLinear MaterialProperty
 
-data SomeMaterial = ∀ α. SomeMaterial (Material α)
--- ROMES:TODO: InSTANCE OUTSIDE OF CORE!
--- instance Apecs.Component SomeMaterial where
---   type Storage SomeMaterial = Apecs.Map SomeMaterial
--- {-# DEPRECATED material "TODO: Material storage should be a cache" #-}
-
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.

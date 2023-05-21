@@ -3,8 +3,9 @@ module Ghengin.Component.Orphans where
 
 import Ghengin.Vulkan.Renderer.Kernel (Renderer)
 import Ghengin.Core.Render.Packet (RenderPacket)
-import Ghengin.Core.Render.Pipeline (SomePipeline)
-import Ghengin.Core.Material (SomeMaterial)
+import Ghengin.Core.Render.Pipeline (SomePipeline, RenderPipeline)
+import Ghengin.Core.Material (Material)
+import Ghengin.Core.Type.Utils (Some(..))
 
 import Apecs.Linear
 
@@ -18,10 +19,10 @@ import Apecs.Linear
 instance Component RenderPacket where
   type Storage RenderPacket = Map RenderPacket
 
-instance Component SomePipeline where
-  type Storage SomePipeline = Map SomePipeline
+instance Component (SomePipeline) where
+  type Storage (SomePipeline) = Map (SomePipeline)
   -- {-# DEPRECATED makeRenderPipeline "Storage should be a cache" #-}
 
-instance Component SomeMaterial where
-  type Storage SomeMaterial = Map SomeMaterial
+instance Component (Some Material) where
+  type Storage (Some Material) = Map (Some Material)
   -- {-# DEPRECATED material "TODO: Material storage should be a cache" #-}

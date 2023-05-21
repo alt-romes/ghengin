@@ -16,7 +16,6 @@ module Ghengin.Core.Render.Packet
   , module Ghengin.Core.Render.Pipeline
   ) where
 
--- import Apecs (Component, Storage, Map)
 import Debug.Trace ( trace )
 import Type.Reflection ()
 import Data.Typeable ( Typeable, Proxy(Proxy), typeRep, TypeRep )
@@ -25,7 +24,6 @@ import Ghengin.Core.Material ( Material )
 import Ghengin.Core.Mesh ( Mesh )
 import Ghengin.Core.Type.Compatible ( Compatible )
 import Ghengin.Core.Render.Pipeline
--- import Ghengin.Utils ( Ref, MonadIO(..), incRefCount ) -- TODO: Get rid of import altogether
 
 import qualified Prelude
 import Prelude.Linear

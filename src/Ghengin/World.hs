@@ -8,7 +8,8 @@ import Control.Functor.Linear as Linear
 import Apecs.Linear
 import Ghengin.Core.Render.Packet (RenderPacket)
 import Ghengin.Core.Render.Pipeline (SomePipeline)
-import Ghengin.Core.Material (SomeMaterial)
+import Ghengin.Core.Material (Material)
+import Ghengin.Core.Type.Utils (Some)
 import Ghengin.Component.Transform (Transform)
 import Ghengin.Component.Transform.Animation (TransformAnimation)
 import Ghengin.Component.Camera (Camera)
@@ -25,7 +26,7 @@ data World w =
   -- Perhaps we can still make a safe linear API around this?
   World { renderPackets   :: !(Ur (Storage RenderPacket))
         , renderPipelines :: !(Ur (Storage SomePipeline))
-        , materials       :: !(Ur (Storage SomeMaterial))
+        , materials       :: !(Ur (Storage (Some Material)))
         , transforms      :: !(Ur (Storage Transform))
         , cameras         :: !(Ur (Storage Camera))
         , uiwindows       :: !(Ur (Storage (UIWindow w)))
@@ -61,7 +62,7 @@ instance Monad m => Has (World w) m RenderPacket where
 instance Monad m => Has (World w) m SomePipeline where
   getStore = SystemT (asks (Unsafe.toLinear renderPipelines))
 
-instance Monad m => Has (World w) m SomeMaterial where
+instance Monad m => Has (World w) m (Some Material) where
   getStore = SystemT (asks (Unsafe.toLinear materials))
 
 instance Monad m => Has (World w) m Transform where

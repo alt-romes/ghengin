@@ -77,6 +77,13 @@ newSphereMesh res color =
 
 -- TODO: These were inlined from Core.Mesh. Make them a better home and remove occurrences there.
 
+-- | Calculate smooth normals of vertices given vertex positions and the
+-- indices that describe the faces The returned list has a normal for each
+-- position in the input positions, in the same order
+--
+-- TODO: Take into consideration the angles or provide alternative that does
+--
+-- MOVE TO GHENGIN Component/Mesh or something. For now, inlined in Component.Mesh.Sphere.
 calculateSmoothNormals :: [Int] -> [Vec3] -> [Vec3]
 calculateSmoothNormals ixs pos =
 
@@ -86,6 +93,8 @@ calculateSmoothNormals ixs pos =
 
    in map (\p -> case smoothNormalsMap M.! p of (n,b) -> n^/b) pos
 
+-- | Calculate normals of vertices given vertex positions and the indices that describe the faces
+-- The returned list has a normal for each position in the input positions, in the same order
 calculateFlatNormals :: [Int] -> [Vec3] -> [Vec3]
 calculateFlatNormals ixs (SV.fromList -> pos) =
 

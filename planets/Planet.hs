@@ -125,7 +125,7 @@ instance UISettings PlanetSettings where
   makeComponents ps@(PlanetSettings re ra co bo nss df grad) planetEntity = Linear.do
 
     Ur (RenderPacket (oldMesh :: Mesh ms) (Ref mat_ref :: Ref (Material mt)) pp _) <- C.get planetEntity
-    Ur (SomeMaterial (unsafeCoerce -> mat :: Material mt)) <- C.get (Entity mat_ref)
+    Ur (Some @Material (unsafeCoerce -> mat :: Material mt)) <- C.get (Entity mat_ref)
       -- BIG:TODO: Move unsafe coerce to definition of "get_material" that may
       -- from a statically known reference extract a statically known material
       -- safely
@@ -156,7 +156,7 @@ instance UISettings PlanetSettings where
             -- material and pipeline
             newTex <- textureFromGradient grad
             newMat <- lift $ mat & propertyAt @1 (\oldtex -> Counted.forget oldtex >> pure newTex) -- linearity makes us forget the reference counted previous texture
-            Unsafe.toLinear2 C.set (Entity mat_ref) (SomeMaterial newMat) -- TODO: wrap calls to C.set -- ROMES:TODO: Unsafe set, just to maek this work. The whole linear apecs thing is kind of broken.
+            Unsafe.toLinear2 C.set (Entity mat_ref) (Some newMat) -- TODO: wrap calls to C.set -- ROMES:TODO: Unsafe set, just to maek this work. The whole linear apecs thing is kind of broken.
 -- TODO: For now we have to do this manually since re-using the same mesh but
 -- building a new render packet will make the reference count of the same mesh
 -- be incorrectly increased. Perhaps we could have a similar function which takes some parameters.
@@ -195,7 +195,7 @@ instance UISettings PlanetSettings where
            -- Edit multiple material properties at the same time
            -- newMaterial <- lift $ medits @[0,1] @PlanetProps mat $ (\_oldMinMax -> newMinMax) :-# pure :+# HFNil
            newMaterial <- lift $ mat & propertyAt @0 (\(Ur oldMinMax) -> pure newMinMax)
-           Unsafe.toLinear2 C.set (Entity mat_ref) (SomeMaterial newMaterial) -- ROMES:TODO: Linearity broken on surface+apecs... rewrite whole frontend
+           Unsafe.toLinear2 C.set (Entity mat_ref) (Some newMaterial) -- ROMES:TODO: Linearity broken on surface+apecs... rewrite whole frontend
 
            -- Here we have to recreate the packet because a mesh is currently not a ref
            renderPacket @_ @_ @mt @_ newMesh (Ref mat_ref) pp >>= Unsafe.toLinear2 C.set planetEntity -- ignore linearity wrt apecs, it's all broken needs fix
@@ -219,7 +219,7 @@ newPlanet ps@(PlanetSettings re ra co bo nss df grad) pipeline pipelineRef = ent
   tex <- textureFromGradient grad
   logT "Making material"
   (mat, pipeline') <- lift (material @PlanetProps @p (planetPBS minmax tex) pipeline)
-  Ur (Entity matref) <- Unsafe.toLinear C.newEntity (SomeMaterial mat) -- ROMES:TODO: Apecs linearity is broken.
+  Ur (Entity matref) <- Unsafe.toLinear C.newEntity (Some mat) -- ROMES:TODO: Apecs linearity is broken.
   Unsafe.toLinear (\_ -> pure ()) pipeline' -- rOMES:TODO: surface level linearity is broken
   logT "Making render packet"
   renderPacket @p @_ @PlanetProps mesh (Ref matref) pipelineRef

@@ -202,7 +202,7 @@ render i = enterD "render" $ Linear.do
             pure $ SomePipeline pipeline
           )
         (\(SomePipeline pipeline) (SomeMaterialRef (Ref material_ref)) -> enterD "Material changed" Linear.do
-            Ur (SomeMaterial material') <- lift $ Apecs.get (Apecs.Entity material_ref)
+            Ur (Some @Material material') <- lift $ Apecs.get (Apecs.Entity material_ref)
 
             logT "Binding material..."
             Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline
@@ -230,7 +230,7 @@ render i = enterD "render" $ Linear.do
                   Data.Counted.forget rmap'
 
           )
-        (\(SomePipeline pipeline) (SomeMesh mesh) (ModelMatrix mm _) -> enterD "Mesh changed" Linear.do
+        (\(SomePipeline pipeline) (Some mesh) (ModelMatrix mm _) -> enterD "Mesh changed" Linear.do
 
             logT "Drawing mesh"
             Ur (graphicsPipeline, _p) <- pure $ unsafeGraphicsPipeline pipeline

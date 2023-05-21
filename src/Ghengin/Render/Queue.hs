@@ -43,7 +43,7 @@ import Ghengin.Core.Mesh
 -- import Ghengin.Utils
 import Ghengin.Core.Material hiding (material)
 
-newtype RenderQueue a = RenderQueue (Map TypeRep (SomePipelineRef, Map Unique (SomeMaterialRef, [(SomeMesh, a)])))
+newtype RenderQueue a = RenderQueue (Map TypeRep (SomePipelineRef, Map Unique (SomeMaterialRef, [(Some Mesh, a)])))
   deriving (Prelude.Functor)
 
 data SomePipelineRef = ∀ π α. SomePipelineRef (Ref (RenderPipeline π α))
@@ -80,7 +80,7 @@ insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue
                   Prelude.pure (m1, meshes1 Prelude.<> meshes2)
                 ) id id im1 im2))
         pkey
-        (SomePipelineRef pipeline, M.insert mkey (SomeMaterialRef material, [(SomeMesh mesh, x)]) Prelude.mempty)
+        (SomePipelineRef pipeline, M.insert mkey (SomeMaterialRef material, [(Some mesh, x)]) Prelude.mempty)
         q
 
 -- | Traverse the render queue with a function for each different occasion:
@@ -100,7 +100,7 @@ traverseRenderQueue :: (Linear.Monad μ, Linear.Monad μ')
                     -> (SomePipelineRef -> μ' () -> μ ()) -- ^ The initial context lifting from m to m' for the inner functions
                     -> (SomePipelineRef -> μ' SomePipeline) -- ^ The pipeline changed (nothing should be rendered) (return the pipeline fetched)
                     -> (SomePipeline -> SomeMaterialRef -> μ' ()) -- ^ The material changed (nothing should be rendered)
-                    -> (SomePipeline -> SomeMesh %1 -> α %1 -> μ' ()) -- ^ The mesh to render
+                    -> (SomePipeline -> Some Mesh %1 -> α %1 -> μ' ()) -- ^ The mesh to render
                     -> μ' () -- ^ A command at the end of each render pass
                     -> μ ()
 traverseRenderQueue (RenderQueue q) ini f g h finally =

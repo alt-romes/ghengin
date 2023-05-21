@@ -33,13 +33,12 @@ type family NumbersFromTo from to where
   NumbersFromTo to to = '[]
   NumbersFromTo from to = from ': NumbersFromTo (from+1) to
 
+data Some f where
+  Some :: f a %p -> Some f
+
 nat :: ∀ m. KnownNat m => Int
 nat = fromIntegral (natVal (Proxy @m))
 
 w32 :: ∀ n. KnownNat n => Word32
 w32 = fromInteger (natVal (Proxy @n))
-
-data Some f where
-  Some :: f a %p -> Some f
-
 

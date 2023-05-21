@@ -180,11 +180,11 @@ ghengin world initialize _simstep loopstep finalize = Linear.do
         pure $ SomePipeline p
         )
       (\_ (RQ.SomeMaterialRef (Ref m_ref)) -> Linear.do
-        Ur (SomeMaterial m) <- Apecs.get (Entity m_ref)
+        Ur (Some @Material m) <- Apecs.get (Entity m_ref)
         -- lift $ freeMaterial m -- ROMES:TODO:
         pure ()
         )
-      (\_ (SomeMesh m) () -> Linear.do
+      (\_ (Some m) () -> Linear.do
         pure ()
         -- liftIO $ print =<< readIORef (m.referenceCount)
         lift $ freeMesh m -- ROMES:TODO:

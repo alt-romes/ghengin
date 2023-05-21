@@ -28,7 +28,7 @@ Write ups:
 
 Module dependencies:
 ```
-find src/ -name '*.hs' | xargs graphmod -q -p | dot -T svg -o mods.svg
+find src/ ghengin-core/ ghengin-core-indep/ ghengin-vulkan/ -name '*.hs' | xargs graphmod -q -p | dot -T svg -o mods.svg
 ```
 
 General dependencies:
