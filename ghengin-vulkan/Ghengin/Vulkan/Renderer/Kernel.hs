@@ -25,10 +25,10 @@ import Ghengin.Vulkan.Renderer.GLFW.Window
 import qualified Vulkan as Vk
 import Ghengin.Core.Log
 
-import Data.Counted
+import qualified Data.Linear.Alias as Alias
 import qualified Unsafe.Linear as Unsafe
 
-type RefC = RefC' Renderer
+type Alias = Alias.Alias Renderer
 
 data RendererEnv =
   REnv { _instance        :: !Vk.Instance

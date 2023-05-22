@@ -17,24 +17,21 @@
 {-# LANGUAGE QualifiedDo #-}
 module Ghengin.Vulkan.Renderer.DescriptorSet where
 
-import qualified Prelude
-import Prelude.Linear
-import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear
+import Ghengin.Core.Prelude as Linear
 import qualified Data.Functor.Linear as Data.Linear
+import qualified Prelude
 
+import Data.Bifunctor.Linear
 import Data.Bits
-import Data.List.NonEmpty (NonEmpty((:|)))
+
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List as L
 import qualified Data.Set as S
-import Data.Map (Map)
 import qualified Data.Map as M
-import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
 import qualified Data.IntMap.Internal as IMI
-import Data.Vector (Vector)
 import qualified Data.Vector as V
+
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
@@ -49,16 +46,14 @@ import Ghengin.Vulkan.Renderer.Buffer
 import Ghengin.Vulkan.Renderer.Image
 import Ghengin.Vulkan.Renderer.Sampler
 import Ghengin.Vulkan.Renderer.Kernel
--- import Ghengin.Vulkan.Renderer.Utils
--- import qualified Ghengin.Asset.Texture as T
-
-import Ghengin.Core.Shader.Pipeline
 
 import Ghengin.Vulkan.Renderer.Texture
 import Ghengin.Vulkan.Renderer.Pipeline (stageFlag)
 
-import Data.Counted as Counted
-import qualified Data.Counted.Unsafe as Unsafe
+import Ghengin.Core.Shader.Pipeline
+
+import qualified Data.Linear.Alias as Alias
+import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
 
 import qualified FIR.Layout
 import qualified Unsafe.Linear as Unsafe
@@ -74,8 +69,24 @@ import qualified Unsafe.Linear as Unsafe
 type ResourceMap = IntMap DescriptorResource
 
 data DescriptorResource where
-  UniformResource   :: RefC MappedBuffer ⊸ DescriptorResource
-  Texture2DResource :: RefC Texture2D ⊸ DescriptorResource
+  UniformResource   :: Alias MappedBuffer ⊸ DescriptorResource
+  Texture2DResource :: Alias Texture2D ⊸ DescriptorResource
+  deriving Generic
+
+instance Aliasable DescriptorResource where
+  -- Reliable automatic instance through generic still not working (TODO)
+  countedFields (UniformResource x) = [SomeAlias x]
+  countedFields (Texture2DResource x) = [SomeAlias x]
+
+instance Forgettable Renderer DescriptorResource where
+  forget = \case
+    UniformResource u -> Alias.forget u
+    Texture2DResource t -> Alias.forget t
+
+instance Shareable Renderer DescriptorResource where
+  share = \case
+    UniformResource u -> bimap UniformResource UniformResource <$> Alias.share u
+    Texture2DResource t -> bimap Texture2DResource Texture2DResource <$> Alias.share t
 
 type Size = Word
 
@@ -160,8 +171,8 @@ descriptorType = \case
 -- (A DescriptorResource wraps a Reference Counted value)
 forgetDescriptorResource :: DescriptorResource ⊸ Renderer ()
 forgetDescriptorResource = \case
-  UniformResource x -> Counted.forget x
-  Texture2DResource x -> Counted.forget x
+  UniformResource x -> Alias.forget x
+  Texture2DResource x -> Alias.forget x
 
 ---------------------
 --- : | Pools | : ---
@@ -225,7 +236,7 @@ createDescriptorPool sp =
 destroyDescriptorPool :: DescriptorPool ⊸ Renderer ()
 destroyDescriptorPool = Unsafe.toLinear \p -> Linear.do
   unsafeUseDevice (\dev -> Vk.destroyDescriptorPool dev p._pool Nothing)
-  consume_empty_IntMap <$> Data.Linear.traverse (destroyDescriptorSetLayout . Unsafe.toLinear fst) p._set_bindings
+  consume <$> Data.Linear.traverse (destroyDescriptorSetLayout . Unsafe.toLinear fst) p._set_bindings
     where
       destroyDescriptorSetLayout :: Vk.DescriptorSetLayout ⊸ Renderer ()
       destroyDescriptorSetLayout = Unsafe.toLinear \layout -> unsafeUseDevice (\dev -> Vk.destroyDescriptorSetLayout dev layout Nothing)
@@ -266,8 +277,9 @@ data DescriptorSet
                   , _descriptorSet :: Vk.DescriptorSet
                   }
 
-instance Counted DescriptorSet where
+instance Aliasable DescriptorSet where
   countedFields _ = []
+  {-# INLINE countedFields #-}
 
 -- | Allocate a descriptor set from a descriptor pool. This descriptor pool has
 -- the information required to allocate a descriptor set based on its index in
@@ -342,7 +354,7 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> Li
         UniformResource buf ->
           -- Each descriptor only has one buffer. If we had an array of buffers in a descriptor we would need multiple descriptor buffer infos
           let bufferInfo = Vk.DescriptorBufferInfo
-                                               { buffer = (Unsafe.get buf).buffer
+                                               { buffer = (Unsafe.Alias.get buf).buffer
                                                , offset = 0
                                                , range  = Vk.WHOLE_SIZE -- the whole buffer
                                                }
@@ -360,10 +372,10 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> Li
                                     }
 
                                     -- snd is safe bc despite ignoring talias here, we return it unchanged in the resources list
-        Texture2DResource talias -> Unsafe.toLinear snd $ use talias $ Unsafe.toLinear $ \(Texture2D vkimage sampler) ->
+        Texture2DResource talias -> Unsafe.toLinear snd $ Alias.use talias $ Unsafe.toLinear $ \(Texture2D vkimage sampler) ->
           let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
                                                  , imageView = vkimage._imageView
-                                                 , sampler   = Unsafe.toLinear snd $ use sampler $ Unsafe.toLinear $ \s -> (s, s.sampler) -- same unsafe as above
+                                                 , sampler   = Unsafe.toLinear snd $ Alias.use sampler $ Unsafe.toLinear $ \s -> (s, s.sampler) -- same unsafe as above
                                                  }
            in ( Texture2D vkimage sampler
               , Vk.SomeStruct Vk.WriteDescriptorSet
@@ -403,21 +415,11 @@ freeDescriptorSet :: DescriptorSet ⊸ Renderer ()
 freeDescriptorSet (DescriptorSet (Ur _ix) _dset) = Unsafe.toLinear (\_ -> pure ()) _dset
 
 freeResourceMap :: ResourceMap ⊸ Renderer ()
-freeResourceMap resmap = consume_empty_IntMap <$> Data.Linear.traverse freeDescriptorResource resmap
+freeResourceMap = Alias.forget
 
 freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
-freeDescriptorResource = \case
-  -- ROMES:TODO: Should I be ensuring this is the last reference here?
-  -- ROMES:TODO: assertLast won't work bc of the flags reference counting is
-  -- being compiled with; make predicate on reference counting and only assert
-  -- it here
-  UniformResource u -> assertLast u >>= Counted.forget
-  Texture2DResource r -> Counted.forget r
-
--- Util
-consume_empty_IntMap :: IntMap () ⊸ ()
-consume_empty_IntMap = Unsafe.toLinear \_ -> ()
-
+-- ROMES:TODO: Should I be ensuring this is the last reference here?
+freeDescriptorResource = Alias.forget
 
 -- Aren't these unsafe ? :)
 

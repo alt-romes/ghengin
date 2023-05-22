@@ -25,8 +25,6 @@ import FIR.Pipeline
 import FIR (Syntactic, InternalType)
 import FIR.ProgramState
     ( EntryPointInfo(EntryPointInfo), TLInterfaceVariable )
-import GHC.TypeLits
-    ( TypeError, type (+), Nat, ErrorMessage((:<>:), ShowType, Text) )
 import SPIRV.Decoration (Decoration(..))
 import qualified SPIRV.Image as SPIRV
 

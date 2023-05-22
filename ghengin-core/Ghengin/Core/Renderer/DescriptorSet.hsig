@@ -1,16 +1,12 @@
 signature Ghengin.Core.Renderer.DescriptorSet where
 
-import Prelude (Int)
-import Data.IntMap (IntMap)
+import Ghengin.Core.Prelude
 
 import Ghengin.Core.Shader.Pipeline
 
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.Texture
-
-import Data.Counted as Counted
-
 
 -------- Resources ----------------
 -- Resources are a part of the descriptor set module since these resources are
@@ -23,8 +19,11 @@ type ResourceMap = IntMap DescriptorResource
 
 
 data DescriptorResource where
-  UniformResource   :: RefC MappedBuffer ⊸ DescriptorResource
-  Texture2DResource :: RefC Texture2D ⊸ DescriptorResource
+  UniformResource   :: Alias MappedBuffer ⊸ DescriptorResource
+  Texture2DResource :: Alias Texture2D ⊸ DescriptorResource
+instance Aliasable DescriptorResource
+instance Forgettable Renderer DescriptorResource
+instance Shareable Renderer DescriptorResource
 
 -- ROMES:TODO: These definitions need to be inlined... in the instancing modules?
 -- Shouldn't be too inefficient since the use case, ResourceMap, is usually small
@@ -45,7 +44,7 @@ createDescriptorPool :: ShaderPipeline info
 
 
 data DescriptorSet
-instance Counted DescriptorSet
+instance Aliasable DescriptorSet
 
 -- | Allocates a descriptor set whose layout is defined according to the shader
 -- pipeline information stored in the descriptor pool.
@@ -74,5 +73,5 @@ updateDescriptorSet :: DescriptorSet -- Vk.DescriptorSet -- ^ The descriptor set
 freeDescriptorSet :: DescriptorSet ⊸ Renderer ()
 freeResourceMap :: ResourceMap ⊸ Renderer ()
 
--- ROMES:TODO: shareResourceMap function, since the fields of ResourceMap are already refcounted?
+-- ROMES:TODO: shareResourceMap function, since the fields of ResourceMap are already refcounted? -- Yes, now we can instance 'Shareable' from Data.Linear.Alias
   

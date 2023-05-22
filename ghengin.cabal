@@ -112,6 +112,7 @@ common common-flags
                       UnboxedTuples,
                       PatternSynonyms,
                       DisambiguateRecordFields,
+                      DeriveGeneric,
                       LinearTypes,
                       QualifiedDo,
                       -- Use Ghengin.Core.Prelude!
@@ -304,7 +305,7 @@ library
         -- apecs
         Apecs.Linear,
         -- reference-counting
-        Data.Counted
+        Data.Linear.Alias
     -- reexported-modules: Ghengin.Vulkan.Renderer.Kernel,
     --                     Ghengin.Vulkan.Renderer.DescriptorSet,
     --                     Ghengin.Vulkan.Renderer.Buffer,

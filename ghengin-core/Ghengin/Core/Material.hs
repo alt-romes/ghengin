@@ -1,11 +1,9 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Core.Material where
 
-import Prelude.Linear
+import Ghengin.Core.Prelude as Linear
 
 import Data.Unique ( Unique, newUnique )
-import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear
 
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Type.Compatible ( CompatibleMaterial )
@@ -14,8 +12,8 @@ import Ghengin.Core.Render.Pipeline ( RenderPipeline(..) )
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.DescriptorSet
 
-import Data.Counted as Counted
-import qualified Data.Counted.Unsafe as Unsafe.Counted
+import qualified Data.Linear.Alias as Alias
+import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
 import qualified Unsafe.Linear as Unsafe
 
 {-
@@ -62,7 +60,7 @@ Resources:
 
 data Material xs where
 
-  Done :: (RefC DescriptorSet, RefC ResourceMap, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
+  Done :: (Alias DescriptorSet, Alias ResourceMap, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
 
   MaterialProperty :: ∀ α β
                    .  PropertyBinding α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
@@ -84,25 +82,25 @@ instance HasProperties Material where
     unsafeGo = \case
       Done {} -> pure GHNil
       MaterialProperty (Texture2DBinding refc) xs -> Linear.do
-        x' <- Unsafe.Counted.inc refc
+        x' <- Unsafe.Alias.inc refc
         xs' <- unsafeGo xs
         pure (Texture2DBinding x' :## xs')
       MaterialProperty x xs -> (x :##) <$> unsafeGo xs
 
   descriptors   :: MonadIO m
                 => Material α
-                 ⊸ m (RefC DescriptorSet, RefC ResourceMap, Material α)
+                 ⊸ m (Alias DescriptorSet, Alias ResourceMap, Material α)
   descriptors = Unsafe.toLinear (\mat -> unsafeGo mat >>= \case
                                           (dset, rmap) -> pure (dset, rmap, mat)) where
     -- Note it's not linear on the pipeline, unsafe! -- but we return the original reference
-    unsafeGo :: MonadIO m => Material α -> m (RefC DescriptorSet, RefC ResourceMap)
+    unsafeGo :: MonadIO m => Material α -> m (Alias DescriptorSet, Alias ResourceMap)
     unsafeGo = \case
       Done (dset, rmap, _uq) ->
         -- In descriptors, we're returning the whole render pipeline unchanged.
         -- To return DescriptorSet and ResourceMap we increment their reference
         -- counts because we unsafely keep one reference in the original
         -- renderpipeline we return
-        (,) <$> Unsafe.Counted.inc dset <*> Unsafe.Counted.inc rmap
+        (,) <$> Unsafe.Alias.inc dset <*> Unsafe.Alias.inc rmap
 
       -- TODO: This will possibly have to become linear
       MaterialProperty _ xs -> unsafeGo xs
@@ -142,8 +140,8 @@ material props0 (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Line
   -- created resource map
   (dset1, resources1) <- updateDescriptorSet dset0 resources0
 
-  dset2 <- Counted.new freeDescriptorSet dset1
-  resources2 <- Counted.new freeResourceMap resources1
+  dset2 <- Alias.newAlias freeDescriptorSet dset1
+  resources2 <- Alias.newAlias freeResourceMap resources1
 
   -- Create the material which stores the final descriptor set with the
   -- updated information.

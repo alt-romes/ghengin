@@ -13,52 +13,48 @@ module Ghengin.Vulkan.Renderer.Texture
   , DynamicImage(..)
   ) where
 
+import Ghengin.Core.Prelude as Linear
 import qualified Prelude
 import qualified Unsafe.Linear as Unsafe
 import qualified Vulkan as Vk
 
 -- import System.Mem.Weak
 import Codec.Picture
-import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear
 import Data.Bits
-import Data.Counted
-import Data.IORef (IORef)
 import Foreign.Storable
 import Ghengin.Vulkan.Renderer.Buffer
 import Ghengin.Vulkan.Renderer.Command
 import Ghengin.Vulkan.Renderer.Image
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.Sampler
-import Prelude.Linear hiding (IO)
-import System.IO.Linear
+import qualified Data.Linear.Alias as Alias
 
 data Texture2D = Texture2D { image          :: VulkanImage
-                           , sampler        :: RefC Sampler
-                           }
+                           , sampler        :: Alias Sampler
+                           } deriving Generic
 
-instance Counted Texture2D where
-  countedFields (Texture2D _ s) = [SomeRefC s]
+instance Aliasable Texture2D where
+  countedFields (Texture2D _ s) = [SomeAlias s]
 
 -- TODO: This isntance sholuldn't exist. just temporary... if you find this here later try to remove it. it's currenty being used to instance hashable to create the render key...
 instance Prelude.Eq Texture2D where
   (==) _ _ = False
 
-texture :: FilePath -> RefC Sampler ⊸ Renderer (RefC Texture2D)
+texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
 texture fp sampler = Linear.do
   liftSystemIOU (readImage fp) >>= \case
-    Ur (Left e      ) -> Data.Counted.forget sampler >> liftSystemIO (Prelude.fail e)
+    Ur (Left e      ) -> Alias.forget sampler >> liftSystemIO (Prelude.fail e)
     Ur (Right dimage) -> textureFromImage dimage sampler
 
 freeTexture :: Texture2D ⊸ Renderer ()
 freeTexture = Unsafe.toLinear $ \t@(Texture2D img sampler) -> Linear.do
   -- ROMES:tODO: fix Image.hs so that this definition doesn't need to be unsafe.
   useDevice (\dev -> ((),) <$> (destroyImage dev img))
-  Data.Counted.forget sampler
+  Alias.forget sampler
 
 textureFromImage :: DynamicImage
-                 -> RefC Sampler
-                  ⊸ Renderer (RefC Texture2D)
+                 -> Alias Sampler
+                  ⊸ Renderer (Alias Texture2D)
 -- (For now) we convert the image to RGBA8 at all costs, which is a bit of a hack
 textureFromImage (ImageRGBA8 Prelude.. convertRGBA8 -> dimage) = \sampler' ->
   let wsb = case dimage of
@@ -113,7 +109,7 @@ textureFromImage (ImageRGBA8 Prelude.. convertRGBA8 -> dimage) = \sampler' ->
     -- Write thoughts on Command module.
     immediateSubmit $ cmd1 >> cmd2 >> cmd3
 
-    Data.Counted.new freeTexture (Texture2D (VulkanImage image devMem imgView) sampler')
+    Alias.newAlias freeTexture (Texture2D (VulkanImage image devMem imgView) sampler')
 
 
 -- | Convert a vec3 with values between 0-1 and convert it into a pixelrgb8

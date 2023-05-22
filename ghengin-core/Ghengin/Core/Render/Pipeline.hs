@@ -8,12 +8,10 @@ module Ghengin.Core.Render.Pipeline where
 -- import Geomancy.Mat4 ( Mat4 )
 -- import Control.Lens (Lens', lens)
 
-import Prelude.Linear
-import Control.Functor.Linear as Linear
+import Ghengin.Core.Prelude as Linear
 import qualified Unsafe.Linear as Unsafe
 
 import Data.Typeable
-import Data.Kind
 import Foreign.Storable ( Storable(sizeOf) )
 
 import Ghengin.Core.Type.Compatible ( CompatiblePipeline )
@@ -45,8 +43,8 @@ import qualified FIR.Pipeline
 
 import qualified Vulkan as Vk
 
-import Data.Counted as Counted
-import qualified Data.Counted.Unsafe as Unsafe.Counted
+import qualified Data.Linear.Alias as Alias
+import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
 
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Shader.Pipeline ( ShaderPipeline )
@@ -64,9 +62,9 @@ type RenderPipeline :: FIR.Pipeline.PipelineInfo -> [Type] -> Type
 data RenderPipeline info tys where
 
   RenderPipeline :: RendererPipeline Graphics -- ^ The graphics pipeline underlying this render pipeline. Can a graphics pipeline be shared amongst Render Pipelines such that this field needs to be ref counted?
-                 ⊸  RefC RenderPass -- ^ A reference counted reference to a render pass, since we might share render passes amongst pipelines
+                 ⊸  Alias RenderPass -- ^ A reference counted reference to a render pass, since we might share render passes amongst pipelines
                  -- ⊸  NonEmpty (DescriptorSet, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
-                 ⊸  (RefC DescriptorSet, RefC ResourceMap, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
+                 ⊸  (Alias DescriptorSet, Alias ResourceMap, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
                  ⊸  ShaderPipeline info
                  %p -> RenderPipeline info '[] 
 
@@ -146,9 +144,9 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
                                      [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   logT "Creating reference counted"
-  dset2 <- Counted.new freeDescriptorSet dset1
-  resources2 <- Counted.new freeResourceMap resources1
-  simpleRenderPass3 <- Counted.new destroyRenderPass simpleRenderPass2
+  dset2 <- Alias.newAlias freeDescriptorSet dset1
+  resources2 <- Alias.newAlias freeResourceMap resources1
+  simpleRenderPass3 <- Alias.newAlias destroyRenderPass simpleRenderPass2
 
   pure $ mkRP (RenderPipeline pipeline simpleRenderPass3 (dset2, resources2, dpool2) shaderPipeline) props1
     where
@@ -163,23 +161,23 @@ instance HasProperties (RenderPipeline π) where
     unsafeGo = \case
       RenderPipeline {} -> pure GHNil
       RenderProperty (Texture2DBinding refc) xs -> Linear.do
-        x' <- Unsafe.Counted.inc refc
+        x' <- Unsafe.Alias.inc refc
         xs' <- unsafeGo xs
         pure (Texture2DBinding x' :## xs')
       RenderProperty x xs -> (x :##) <$> unsafeGo xs
 
-  descriptors :: RenderPipeline π α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, RenderPipeline π α)
+  descriptors :: RenderPipeline π α ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, RenderPipeline π α)
   descriptors = Unsafe.toLinear (\rp -> unsafeGo rp >>= \case
                                           (dset, rmap) -> pure (dset, rmap, rp)) where
     -- Note it's not linear on the pipeline, unsafe! -- but we return the original reference
-    unsafeGo :: RenderPipeline π α -> Renderer (RefC DescriptorSet, RefC ResourceMap)
+    unsafeGo :: RenderPipeline π α -> Renderer (Alias DescriptorSet, Alias ResourceMap)
     unsafeGo = \case
       RenderPipeline gpip rpass (dset, rmap, dpool) spip ->
         -- In descriptors, we're returning the whole render pipeline unchanged.
         -- To return DescriptorSet and ResourceMap we increment their reference
         -- counts because we unsafely keep one reference in the original
         -- renderpipeline we return
-        (,) <$> Unsafe.Counted.inc dset <*> Unsafe.Counted.inc rmap
+        (,) <$> Unsafe.Alias.inc dset <*> Unsafe.Alias.inc rmap
 
       -- TODO: This will possibly have to become linear
       RenderProperty _ xs -> unsafeGo xs

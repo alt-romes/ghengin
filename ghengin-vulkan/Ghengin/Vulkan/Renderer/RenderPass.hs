@@ -39,7 +39,7 @@ import Ghengin.Vulkan.Renderer.Kernel
 
 import qualified Unsafe.Linear as Unsafe
 
-import Data.Counted
+import Data.Linear.Alias
 
 data RenderPass = VulkanRenderPass { _renderPass :: Vk.RenderPass
                                    -- | We bundle framebuffer with the 
@@ -54,8 +54,9 @@ data RenderPass = VulkanRenderPass { _renderPass :: Vk.RenderPass
                                    , _framebuffers :: Vector.Vector Vk.Framebuffer
                                    }
 
-instance Counted RenderPass where
+instance Aliasable RenderPass where
   countedFields _ = []
+  {-# INLINE countedFields #-}
 
 -- withSimpleRenderPass :: (RenderPass -> Renderer a) -> Renderer a
 -- withSimpleRenderPass f = rendererBracket createSimpleRenderPass destroyRenderPass f

@@ -21,15 +21,12 @@ module Ghengin.Core.Render.Property
 -- Consumable, (we only ever deal with properties which are consumable, btut I
 -- suppose we could have properties which aren't, and are always updated).
 -- Perhaps just the setter lens could be over the thing if it is Consumable
-import Control.Functor.Linear as Linear
-import Data.Kind ( Type, Constraint )
+import Ghengin.Core.Prelude as Linear
 import Foreign.Storable (Storable(sizeOf))
-import GHC.TypeLits ( KnownNat, type (+), Nat )
 import Ghengin.Core.Renderer
 import Ghengin.Core.Renderer.Texture
-import Ghengin.Core.Type.Utils (nat)
-import Prelude.Linear hiding (IO)
-import qualified Data.Counted as Counted
+import Ghengin.Core.Type.Utils
+import qualified Data.Linear.Alias as Alias
 import qualified Data.IntMap as IM
 import qualified Prelude
 import qualified Unsafe.Linear
@@ -49,9 +46,9 @@ data PropertyBinding α where
                 => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
                 -> PropertyBinding α
 
-  Texture2DBinding :: RefC Texture2D ⊸ PropertyBinding Texture2D
+  Texture2DBinding :: Alias Texture2D ⊸ PropertyBinding Texture2D
 
--- ROMES:TODO: Try to instance Dupable on RefC, but won't work because needs bounding monad to consume.
+-- ROMES:TODO: Try to instance Dupable on Alias, but won't work because needs bounding monad to consume.
 -- Need ConsumableM and DupableM defined on reference-counting
 -- instance Consumable (PropertyBinding α) where
 --   consume = \case
@@ -71,7 +68,7 @@ data PropertyBinding α where
 --
 -- For all intents and purposes, this is the inverse of 'PropertyBinding'.
 type family PBInv α = r | r -> α where
-  PBInv Texture2D = RefC Texture2D
+  PBInv Texture2D = Alias Texture2D
   PBInv x         = Ur x
 
 instance Prelude.Eq α => Prelude.Eq (PropertyBinding (Ur α)) where
@@ -159,7 +156,7 @@ makeResources =
         
       Texture2DBinding t -> Linear.do
 
-        (t1, t2) <- Counted.share t
+        (t1, t2) <- Alias.share t
 
         -- Image has already been allocated when the texture was created, we
         -- simply share it to the resource map
@@ -214,7 +211,7 @@ writeProperty dr pb = case pb of
 class HasProperties φ where
   -- Re-think these...
   properties    :: φ α ⊸ Renderer (PropertyBindings α, φ α)
-  descriptors   :: φ α ⊸ Renderer (RefC DescriptorSet, RefC ResourceMap, φ α)
+  descriptors   :: φ α ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, φ α)
   puncons       :: φ (α:β) ⊸ (PropertyBinding α, φ β)
   pcons         :: PropertyBinding α %p -> φ β ⊸ φ (α:β)
 
@@ -349,13 +346,13 @@ instance {-# OVERLAPPING #-}
             --     (dset, resmap, xs1) -> edit prop1 dset resmap xs1 afmub
             -- ) Linear.<$> afmub a
    where
-    edit :: (β' ~ PBInv β) => PropertyBinding β ⊸ RefC DescriptorSet ⊸ RefC ResourceMap ⊸ φ αs ⊸ (β' ⊸ Renderer β') ⊸ Renderer (φ (β:αs))
+    edit :: (β' ~ PBInv β) => PropertyBinding β ⊸ Alias DescriptorSet ⊸ Alias ResourceMap ⊸ φ αs ⊸ (β' ⊸ Renderer β') ⊸ Renderer (φ (β:αs))
     edit prop dset resmap xs fmub = Linear.do
       -- Ur b <- mub
       -- TODO: Perhaps assert this isn't the last usage of dset and resmap,
       -- though I imagine it would be quite hard to get into that situation.
-      (dset'  , freeDSet)   <- Counted.get dset
-      (resmap', freeResMap) <- Counted.get resmap
+      (dset'  , freeDSet)   <- Alias.get dset
+      (resmap', freeResMap) <- Alias.get resmap
       (updatedProp, dset'', resmap'') <- editProperty prop fmub (nat @n) dset' resmap'
       freeDSet dset''
       freeResMap resmap''
@@ -369,7 +366,7 @@ instance {-# OVERLAPPING #-}
     --   -- updated, and otherwise the computation is pure. This allows the
     --   -- propertyAt' not to require something such as a MonadIO constraint
     --   Texture2DBinding x -> Unsafe.Linear.toLinear unsafePerformIO $ Unsafe.Linear.toLinear Linear.withLinearIO $ Linear.do
-    --     (x1, x2) <- Counted.share x
+    --     (x1, x2) <- Alias.share x
     --     pure $ Unsafe.Linear.toLinear Ur (x1, Texture2DBinding x2)
 
 instance {-# OVERLAPPABLE #-}
@@ -409,7 +406,7 @@ editProperty prop update i dset resmap0 = Linear.do
 
       (UniformResource bufref, resmap1) <- getDescriptorResource resmap0 i
 
-      writeDynamicBinding bufref ux >>= Counted.forget
+      writeDynamicBinding bufref ux >>= Alias.forget
 
       pure (DynamicBinding (Ur ux), dset, resmap1)
 
@@ -418,7 +415,7 @@ editProperty prop update i dset resmap0 = Linear.do
 
       (UniformResource bufref, resmap1) <- getDescriptorResource resmap0 i
 
-      writeStaticBinding bufref ux >>= Counted.forget
+      writeStaticBinding bufref ux >>= Alias.forget
 
       pure (StaticBinding (Ur ux), dset, resmap1)
 
@@ -427,7 +424,7 @@ editProperty prop update i dset resmap0 = Linear.do
                           -- previous texture as an aliased value. It might free it and return a new
                           -- reference counted texture, for example.
 
-      (ux1, ux2) <- Counted.share ux
+      (ux1, ux2) <- Alias.share ux
 
       -- We don't need to do anything besides updating the texture binding with
       -- the updated texture, regardless of what the update function did with
@@ -438,12 +435,12 @@ editProperty prop update i dset resmap0 = Linear.do
       pure (Texture2DBinding ux2, dset1, resmap0)
 
   where
-    writeDynamicBinding :: Storable α => RefC MappedBuffer ⊸ α -> Renderer (RefC MappedBuffer)
+    writeDynamicBinding :: Storable α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
     writeDynamicBinding = writeMappedBuffer @α
 
     -- TODO: For now, static bindings use a mapped buffer as well, but perhaps
     -- it'd be better to use a GPU local buffer to which we write only so often
-    writeStaticBinding :: Storable α => RefC MappedBuffer ⊸ α -> Renderer (RefC MappedBuffer)
+    writeStaticBinding :: Storable α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
     writeStaticBinding = writeMappedBuffer @α
 
     -- | Overwrite the texture bound on a descriptor set at binding #n
@@ -451,14 +448,14 @@ editProperty prop update i dset resmap0 = Linear.do
     -- TODO: Is it OK to overwrite previously written descriptor sets at specific points?
     -- TODO: this one has the potential to be wrong, think about it carefully eventually
     -- ROMES:TODO: Textures!!!!
-    updateTextureBinding :: DescriptorSet ⊸ RefC Texture2D ⊸ Renderer DescriptorSet
+    updateTextureBinding :: DescriptorSet ⊸ Alias Texture2D ⊸ Renderer DescriptorSet
     updateTextureBinding dset t
       = updateDescriptorSet dset (linInsert i (Texture2DResource t) IM.empty) >>=
         (\(dset, rmap) -> Linear.do
           -- We can forget the single texture2D references in the resource map
           -- since we only shared it to be able to update the resource map with it.
           case Unsafe.Linear.toLinear IM.elems rmap of
-            [Texture2DResource tex] -> Counted.forget tex
+            [Texture2DResource tex] -> Alias.forget tex
             x -> Unsafe.Linear.toLinear (\_ -> error "updateTextureBinding: not expecting any resource other than a single texture2d resource here.") x
           pure dset)
 
@@ -480,6 +477,6 @@ forgetPropertyBindings (b :## bs)
   = case b of
       DynamicBinding _ -> forgetPropertyBindings bs
       StaticBinding  _ -> forgetPropertyBindings bs
-      Texture2DBinding t -> Counted.forget t >> forgetPropertyBindings bs
+      Texture2DBinding t -> Alias.forget t >> forgetPropertyBindings bs
 
   

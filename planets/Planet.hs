@@ -20,7 +20,7 @@ import Data.Unrestricted.Linear (liftUrT, runUrT, UrT(..))
 import qualified Control.Monad as M
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
-import qualified Data.Counted as Counted
+import qualified Data.Linear.Alias as Alias
 import Data.IORef (IORef)
 import Data.List (foldl')
 import Data.String
@@ -90,7 +90,7 @@ instance GStorable MinMax
 instance Sized MinMax where
   type SizeOf MinMax = 2 * SizeOf Float
 
-planetPBS :: MinMax -> RefC Texture2D ⊸ PropertyBindings PlanetProps
+planetPBS :: MinMax -> Alias Texture2D ⊸ PropertyBindings PlanetProps
 planetPBS mm t = StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil
 
 data PlanetSettings = PlanetSettings { resolution :: !(IORef Int)
@@ -155,12 +155,12 @@ instance UISettings PlanetSettings where
             -- didn't remove the original compatibility between the existential
             -- material and pipeline
             newTex <- textureFromGradient grad
-            newMat <- lift $ mat & propertyAt @1 (\oldtex -> Counted.forget oldtex >> pure newTex) -- linearity makes us forget the reference counted previous texture
+            newMat <- lift $ mat & propertyAt @1 (\oldtex -> Alias.forget oldtex >> pure newTex) -- linearity makes us forget the reference counted previous texture
             Unsafe.toLinear2 C.set (Entity mat_ref) (Some newMat) -- TODO: wrap calls to C.set -- ROMES:TODO: Unsafe set, just to maek this work. The whole linear apecs thing is kind of broken.
 -- TODO: For now we have to do this manually since re-using the same mesh but
 -- building a new render packet will make the reference count of the same mesh
 -- be incorrectly increased. Perhaps we could have a similar function which takes some parameters.
-            -- ^^^ decRefCount oldMesh 
+            -- ^^^ decAliasount oldMesh 
             -- We no longer need to do this. Now, we only need to recreate the
             -- render packet if we want to change the material this render
             -- packet is using.
@@ -203,7 +203,7 @@ instance UISettings PlanetSettings where
 
     pure ()
 
-textureFromGradient :: Dupable w => ImGradient -> Ghengin w (RefC Texture2D)
+textureFromGradient :: Dupable w => ImGradient -> Ghengin w (Alias Texture2D)
 textureFromGradient grad = Linear.do
   let img = generateImage (\x _y -> normVec3ToRGB8 $ colorAt grad (fromIntegral x/(50-1))) 50 1
   sampler <- lift $ createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE

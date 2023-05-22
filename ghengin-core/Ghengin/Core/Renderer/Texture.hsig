@@ -1,15 +1,15 @@
 signature Ghengin.Core.Renderer.Texture where
 
 import Prelude (FilePath)
-import Data.Counted
+import Data.Linear.Alias (Aliasable)
 
 import Ghengin.Core.Renderer.Sampler
 import Ghengin.Core.Renderer.Kernel
 
 data Texture2D
-instance Counted Texture2D
+instance Aliasable Texture2D
 
-texture :: FilePath -> RefC Sampler ⊸ Renderer (RefC Texture2D)
+texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
 
 -- ROMES:TODO: Include dependency on JuicyPixels? I guess that would make sense
 -- textureFromImage :: DynamicImage

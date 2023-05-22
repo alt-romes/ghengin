@@ -9,7 +9,7 @@ import qualified Vulkan as Vk (DescriptorType, BufferUsageFlags)
 import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Renderer.Kernel
 
-import Data.Counted
+import Data.Linear.Alias (Aliasable)
 
 {-
 Note [Mapped vs Device-local Buffers]
@@ -62,10 +62,10 @@ destroyDeviceLocalBuffer :: DeviceLocalBuffer ⊸ Renderer ()
 
 -- | A mapped (uniform) buffer. See Note [Mapped vs Device-local Buffers]
 data MappedBuffer
-instance Counted MappedBuffer
+instance Aliasable MappedBuffer
 
 -- | TODO: Drop dependency on Vulkan and make DescriptorType a data type renderer agnostic
-createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (RefC MappedBuffer)
-writeMappedBuffer :: ∀ α. SV.Storable α => RefC MappedBuffer ⊸ α -> Renderer (RefC MappedBuffer)
+createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (Alias MappedBuffer)
+writeMappedBuffer :: ∀ α. SV.Storable α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
 
 

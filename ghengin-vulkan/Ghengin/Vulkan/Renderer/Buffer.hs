@@ -1,32 +1,18 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE QualifiedDo #-}
-{-# LANGUAGE LinearTypes #-}
-{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Vulkan.Renderer.Buffer where
 
-import Data.Word (Word32)
+import Ghengin.Core.Prelude as Linear hiding (zero)
 import Ghengin.Core.Log
 import qualified Prelude
-import Prelude.Linear hiding (zero)
-import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear as Linear
 
 import Foreign.Storable
 
 import Control.Exception
 import Data.Int
-import Data.Counted as Counted
+import qualified Data.Linear.Alias as Alias
 
 import qualified Data.Vector.Storable as SV
 import Foreign.Ptr
@@ -118,13 +104,9 @@ data MappedBuffer = UniformBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
                                   , hostMem :: {-# UNPACK #-} !(Ur (Ptr ())) -- See comment on mapMemory wrapper
                                   , bufSize :: {-# UNPACK #-} !(Ur Word)
                                   }
-
-instance Counted MappedBuffer where
-  countedFields (UniformBuffer {}) = []
-
--- ROMES:TODO: When the next version comes out:
--- instance Counted.Counted MappedBuffer where
---   countedFields _ = []
+instance Aliasable MappedBuffer where
+  countedFields _ = []
+  {-# INLINE countedFields #-}
 
 -- | Create a uniform buffer with a given size, but don't copy memory to it
 -- yet. See 'writeUniformBuffer' for that yet. See 'writeUniformBuffer' for
@@ -132,7 +114,7 @@ instance Counted MappedBuffer where
 -- for that.
 --
 -- The size is given by the type of the storable to store in the uniform buffer.
-createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (RefC MappedBuffer)
+createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (Alias MappedBuffer)
 createMappedBuffer size descriptorType = Linear.do
 
   case descriptorType of
@@ -144,15 +126,15 @@ createMappedBuffer size descriptorType = Linear.do
 
       (devMem1, Ur data') <- mapMemory devMem0 0 bsize zero
 
-      Counted.new destroyMappedBuffer (UniformBuffer buf devMem1 (Ur (castPtr data')) (Ur size))
+      Alias.newAlias destroyMappedBuffer (UniformBuffer buf devMem1 (Ur (castPtr data')) (Ur size))
 
     t -> error $ "Unexpected/unsupported storage class for descriptor: " <> show t
 
 -- | Note how the storable must be the same as the storable of the uniform buffer so that the sizes match (ROMES:it seems I dropped the type parameter on the buffer, why?)
-writeMappedBuffer :: ∀ α. (SV.Storable α) => (RefC MappedBuffer) ⊸ α -> Renderer (RefC MappedBuffer)
+writeMappedBuffer :: ∀ α. (SV.Storable α) => (Alias MappedBuffer) ⊸ α -> Renderer (Alias MappedBuffer)
 -- writeMappedBuffer (UniformBuffer _ _ (castPtr -> ptr) s) x = assert (fromIntegral (sizeOf @α undefined) <= s) $ liftIO $ poke @α ptr x -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
 writeMappedBuffer refcbuf x = enterD "writeMappedBuffer" Linear.do
-  (ub, ()) <- useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (Ur ptr) (Ur s)) ->
+  (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (Ur ptr) (Ur s)) ->
     Unsafe.toLinear2 assert (fromIntegral (sizeOf @α undefined) Prelude.<= s) $ -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
       Linear.do liftSystemIO $ poke @α (castPtr ptr) x
                 pure (ub, ())
@@ -262,7 +244,7 @@ destroyMappedBuffer (UniformBuffer b dm (Ur _hostMemory) (Ur _size)) = enterD "d
 --
 -- It's a bit weird we dont' need to free the host memory, but until we (TODO) make sure, we return the host memory ptr as unrestricted
 mapMemory :: Vk.DeviceMemory ⊸ Vk.DeviceSize -> Vk.DeviceSize -> Vk.MemoryMapFlags -> Renderer (Vk.DeviceMemory, Ur (Ptr ()))
-mapMemory = Unsafe.toLinear $ \mem offset size flgs -> (mem,) <$> (unsafeUseDevice $ \dev -> Ur Prelude.<$> Vk.mapMemory dev mem offset size flgs)
+mapMemory = Unsafe.toLinear $ \mem offset size flgs -> (mem,) <$> (unsafeUseDevice $ \dev -> Ur <$$> Vk.mapMemory dev mem offset size flgs)
 
 -- | Linear wrapper for Vk.unmapMemory
 unmapMemory :: Vk.DeviceMemory ⊸ Renderer Vk.DeviceMemory

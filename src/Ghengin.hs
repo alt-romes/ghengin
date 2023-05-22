@@ -79,8 +79,8 @@ import qualified Ghengin.DearImGui as IM
 import qualified Ghengin.Render.Queue as RQ
 import qualified Vulkan as Vk
 import Control.Lens ((^.), (.~), (%~), Lens, Lens', (&))
-import Data.Counted
-import qualified Data.Counted.Unsafe
+import qualified Data.Linear.Alias as Alias
+import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
 
 import qualified Unsafe.Linear as Unsafe
 
@@ -143,7 +143,7 @@ ghengin world initialize _simstep loopstep finalize = Linear.do
     Ur rps <- cfoldM (\acc (RenderPacket _ _ (Ref pp_ref) _) ->
                     Apecs.get (Entity pp_ref) >>= \(Ur (SomePipeline pp)) -> Linear.do
                       Ur (rrp,pp') <- Unsafe.toLinear Ur <$> getRenderPass pp
-                      Ur rp <- Unsafe.toLinear Ur <$> Data.Counted.Unsafe.dec rrp
+                      Ur rp <- Unsafe.toLinear Ur <$> pure (Unsafe.Alias.get rrp)
                       pure (Ur (rp._renderPass:acc))
                            ) []
     logT "Got renderpass from first packet"

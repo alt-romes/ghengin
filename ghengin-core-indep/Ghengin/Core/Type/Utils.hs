@@ -5,6 +5,7 @@ module Ghengin.Core.Type.Utils
   , module Data.Type.Map
   , module Data.Type.List
   , module Data.Type.Maybe
+  , module GHC.TypeLits
   ) where
 
 import Prelude

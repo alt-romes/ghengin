@@ -4,6 +4,7 @@
 {-# LANGUAGE LinearTypes #-}
 module Ghengin.Vulkan.Renderer.Image where
 
+import GHC.Generics
 import Prelude.Linear (($))
 import Prelude hiding (($))
 import Vulkan.Zero (zero)
@@ -19,7 +20,7 @@ import qualified Unsafe.Linear as Unsafe
 data VulkanImage = VulkanImage { _image :: Vk.Image
                                , _devMem :: Vk.DeviceMemory
                                , _imageView :: Vk.ImageView
-                               }
+                               } deriving Generic
 
 createImage :: MonadIO m => VulkanDevice ⊸ Vk.Format -> Vk.Extent3D -> Vk.MemoryPropertyFlags -> Vk.ImageUsageFlagBits -> Vk.ImageAspectFlags -> m (VulkanImage, VulkanDevice)
 createImage = Unsafe.toLinear $ \device format extent properties usage aspect -> liftSystemIO $ do

@@ -1,5 +1,5 @@
-{-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Core.Renderer
   ( module Ghengin.Core.Renderer.DescriptorSet
   , module Ghengin.Core.Renderer.Buffer
@@ -19,12 +19,7 @@ import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.DescriptorSet
 
-import Data.Counted
-import qualified Data.Counted.Unsafe as Unsafe.Counted
-
-instance Counted DescriptorResource where
-  countedFields (UniformResource x) = [SomeRefC x]
-  countedFields (Texture2DResource x) = [SomeRefC x]
+import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
 
 getDescriptorResource :: ResourceMap ⊸ Int -> Renderer (DescriptorResource, ResourceMap)
 getDescriptorResource = Unsafe.toLinear $ \resourcemap i -> enterD "getUniformBuffer" $
@@ -34,6 +29,6 @@ getDescriptorResource = Unsafe.toLinear $ \resourcemap i -> enterD "getUniformBu
     -- This is also why resourcemap is used twice (and hence is unsafe).
     --
     -- In short, we unsafely increment a linear resource for one we unsafely keep
-    Just (UniformResource b) -> (,resourcemap) . UniformResource <$> Unsafe.Counted.inc b
-    Just (Texture2DResource t) -> (,resourcemap) . Texture2DResource <$> Unsafe.Counted.inc t
+    Just (UniformResource b) -> (,resourcemap) . UniformResource <$> Unsafe.Alias.inc b
+    Just (Texture2DResource t) -> (,resourcemap) . Texture2DResource <$> Unsafe.Alias.inc t
     Nothing -> error $ "Expecting a uniform descriptor resource at binding " <> show i <> " but found nothing!"

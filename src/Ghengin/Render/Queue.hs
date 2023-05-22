@@ -113,6 +113,3 @@ traverseRenderQueue (RenderQueue q) ini f g h finally =
         ) q)
 {-# INLINE traverseRenderQueue #-}
 
-instance Consumable (Map Unique ()) where
-  consume = Unsafe.toLinear $ \_ -> ()
-

@@ -45,8 +45,8 @@ import Ghengin.Render.Queue
 import {-# SOURCE #-} Ghengin.World (World)
 import {-# SOURCE #-} Ghengin (Ghengin)
 
-import Data.Counted
-import qualified Data.Counted.Unsafe as Unsafe
+import qualified Data.Linear.Alias as Alias
+import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
 import qualified Unsafe.Linear as Unsafe
 
 type RenderConstraints w = ( Has (World w) Renderer Transform
@@ -151,11 +151,11 @@ render i = enterD "render" $ Linear.do
           -- ROMES: This Ur can't really be right, perhaps it's just better to use normal apecs over unrestricted monad transformer.
           Ur (SomePipeline pp') <- lift $ Apecs.get (Apecs.Entity pp'_ref) -- TODO: Share this with the next one
           (rp, _pp') <- getRenderPass pp'
-          (rp', ()) <- useM rp $ Unsafe.toLinear $ \rp' -> Linear.do
+          (rp', ()) <- Alias.useM rp $ Unsafe.toLinear $ \rp' -> Linear.do
             renderPassCmd rp'._renderPass (rp'._framebuffers V.! currentImage) extent m -- nice and unsafe
             pure (rp', ())
 
-          lift $ lift $ Data.Counted.forget rp'
+          lift $ lift $ Alias.forget rp'
 
           Unsafe.toLinear (\_ -> pure ()) _pp' -- forget pipeline??
         )
@@ -178,10 +178,10 @@ render i = enterD "render" $ Linear.do
                 -- pipeline in the set #0, so the 'descriptorSetBinding' buffer
                 -- will always be valid to write with the corresponding
                 -- material binding
-                (rmap', pipeline'') <- lift $ useM rmap (\rmap' -> writePropertiesToResources rmap' pipeline')
+                (rmap', pipeline'') <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' pipeline')
                 
                 -- Bind descriptor set #0
-                (dset', pLayout) <- useM dset (Unsafe.toLinear $ \dset' -> Linear.do
+                (dset', pLayout) <- Alias.useM dset (Unsafe.toLinear $ \dset' -> Linear.do
                   (pLayout', vkdset) <-
                     bindGraphicsDescriptorSet graphicsPipeline._pipelineLayout 0 dset'._descriptorSet
                   pure (Unsafe.toLinear (\_ -> dset') vkdset, pLayout') --forget vulkan dset
@@ -196,8 +196,8 @@ render i = enterD "render" $ Linear.do
                 Unsafe.toLinearN @3 (\_ _ _ -> pure ()) pipeline'' pLayout gppp' -- The pipeline is still in the Apecs store. Really, these functions should have no Unsafes and in that case all would be right (e.g. the resource passed to this function would have to be freed in this function, guaranteeing that it is reference counted or something?....
 
                 lift $ lift $ Linear.do
-                  Data.Counted.forget dset'
-                  Data.Counted.forget rmap'
+                  Alias.forget dset'
+                  Alias.forget rmap'
 
             pure $ SomePipeline pipeline
           )
@@ -213,11 +213,11 @@ render i = enterD "render" $ Linear.do
                 -- These materials are necessarily compatible with this pipeline in
                 -- the set #1, so the 'descriptorSetBinding' buffer will always be
                 -- valid to write with the corresponding material binding
-                (rmap', material''') <- lift $ useM rmap (\rmap' -> writePropertiesToResources rmap' material'')
+                (rmap', material''') <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' material'')
                 
                 -- static bindings will have to choose a different dset
                 -- Bind descriptor set #1
-                (dset', pLayout) <- useM dset (Unsafe.toLinear $ \dset' -> Linear.do
+                (dset', pLayout) <- Alias.useM dset (Unsafe.toLinear $ \dset' -> Linear.do
                   (pLayout', vkdset) <-
                     bindGraphicsDescriptorSet graphicsPipeline._pipelineLayout 1 (dset'._descriptorSet)
                   pure (Unsafe.toLinear (\_ -> dset') vkdset, pLayout') --forget vulkan dset
@@ -226,8 +226,8 @@ render i = enterD "render" $ Linear.do
                 Unsafe.toLinearN @2 (\_ _ -> pure ()) material''' pLayout -- The material still in the Apecs store. Really, these functions should have no Unsafes and in that case all would be right (e.g. the resource passed to this function would have to be freed in this function, guaranteeing that it is reference counted or something?....
 
                 lift $ lift $ Linear.do
-                  Data.Counted.forget dset'
-                  Data.Counted.forget rmap'
+                  Alias.forget dset'
+                  Alias.forget rmap'
 
           )
         (\(SomePipeline pipeline) (Some mesh) (ModelMatrix mm _) -> enterD "Mesh changed" Linear.do
@@ -321,11 +321,11 @@ renderMesh = \case
 -- These being used really go to show how broken the ghengin side of things
 -- (outside of core) seem to be wrt linearity.
 
-getRenderPass :: ∀ m α info. MonadIO m => RenderPipeline info α ⊸ m (RefC RenderPass, RenderPipeline info α)
+getRenderPass :: ∀ m α info. MonadIO m => RenderPipeline info α ⊸ m (Alias RenderPass, RenderPipeline info α)
 getRenderPass = Unsafe.toLinear $ \x -> (,x) <$> get' x  -- Safe since we increment the reference count of the thing we return
   where
-    get' :: ∀ b. RenderPipeline info b -> m (RefC RenderPass)
-    get' (RenderPipeline _ rp _ _) = Unsafe.inc rp
+    get' :: ∀ b. RenderPipeline info b -> m (Alias RenderPass)
+    get' (RenderPipeline _ rp _ _) = Unsafe.Alias.inc rp
     get' (RenderProperty _ rp) = get' rp
 
 unsafeGraphicsPipeline :: ∀ α info. RenderPipeline info α ⊸ Ur (RendererPipeline Graphics, RenderPipeline info α)
@@ -335,10 +335,10 @@ unsafeGraphicsPipeline = Unsafe.toLinear $ \x -> Ur (get' x,x)  -- just unsafe..
     get' (RenderPipeline rpg _ _ _) = rpg
     get' (RenderProperty _ rp) = get' rp
 
-getResourceMap :: ∀ m α info. MonadIO m => RenderPipeline info α ⊸ m (RefC ResourceMap, RenderPipeline info α)
+getResourceMap :: ∀ m α info. MonadIO m => RenderPipeline info α ⊸ m (Alias ResourceMap, RenderPipeline info α)
 getResourceMap = Unsafe.toLinear $ \x -> (,x) <$> get' x  -- Safe since we increment the reference count of the thing we return
   where
-    get' :: ∀ b. RenderPipeline info b -> m (RefC ResourceMap)
-    get' (RenderPipeline _ _ (_, rmap, _) _) = Unsafe.inc rmap
+    get' :: ∀ b. RenderPipeline info b -> m (Alias ResourceMap)
+    get' (RenderPipeline _ _ (_, rmap, _) _) = Unsafe.Alias.inc rmap
     get' (RenderProperty _ rp) = get' rp
 
