@@ -13,8 +13,6 @@ import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.DescriptorSet
 
 import qualified Data.Linear.Alias as Alias
-import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
-import qualified Unsafe.Linear as Unsafe
 
 {-
 
@@ -76,40 +74,31 @@ data Material xs where
 
 instance HasProperties Material where
 
+  -- Worry about performance of doing things safely later.
+  -- For now, simply strive for correctness.
+
   properties :: Material α ⊸ Renderer (PropertyBindings α, Material α)
-  properties = Unsafe.toLinear $ \m -> (, m) <$> unsafeGo m where
-    unsafeGo :: Material α -> Renderer (PropertyBindings α)
-    unsafeGo = \case
-      Done {} -> pure GHNil
-      MaterialProperty (Texture2DBinding refc) xs -> Linear.do
-        x' <- Unsafe.Alias.inc refc
-        xs' <- unsafeGo xs
-        pure (Texture2DBinding x' :## xs')
-      MaterialProperty x xs -> (x :##) <$> unsafeGo xs
+  properties = \case
+    Done n -> pure (GHNil, Done n)
+    MaterialProperty p0 xs -> Linear.do
+      (p1,p2) <- Alias.share p0
+      (xs', mat') <- properties xs
+      pure (p1 :## xs', MaterialProperty p2 mat')
 
-  descriptors   :: MonadIO m
-                => Material α
-                 ⊸ m (Alias DescriptorSet, Alias ResourceMap, Material α)
-  descriptors = Unsafe.toLinear (\mat -> unsafeGo mat >>= \case
-                                          (dset, rmap) -> pure (dset, rmap, mat)) where
-    -- Note it's not linear on the pipeline, unsafe! -- but we return the original reference
-    unsafeGo :: MonadIO m => Material α -> m (Alias DescriptorSet, Alias ResourceMap)
-    unsafeGo = \case
-      Done (dset, rmap, _uq) ->
-        -- In descriptors, we're returning the whole render pipeline unchanged.
-        -- To return DescriptorSet and ResourceMap we increment their reference
-        -- counts because we unsafely keep one reference in the original
-        -- renderpipeline we return
-        (,) <$> Unsafe.Alias.inc dset <*> Unsafe.Alias.inc rmap
-
-      -- TODO: This will possibly have to become linear
-      MaterialProperty _ xs -> unsafeGo xs
+  descriptors :: Material α ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, Material α)
+  descriptors = \case
+    Done (dset0, rmap0, _uq) -> Linear.do
+      ((dset1, rmap1), (dset2, rmap2)) <- Alias.share (dset0, rmap0)
+      pure (dset1, rmap1, Done (dset2, rmap2, _uq))
+    MaterialProperty p xs -> Linear.do
+      (dset, rmap, mat') <- descriptors xs
+      pure (dset, rmap, MaterialProperty p mat')
 
   puncons :: Material (α:β) ⊸ (PropertyBinding α, Material β)
   puncons (MaterialProperty p xs) = (p, xs)
 
   pcons :: PropertyBinding α %p -> Material β ⊸ Material (α:β)
-  pcons = Unsafe.toLinear MaterialProperty
+  pcons = MaterialProperty
 
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
@@ -156,11 +145,9 @@ material props0 (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Line
     mkMat x (p :## pl) = MaterialProperty p (mkMat x pl)
 
 materialUID :: Material α ⊸ (Ur Unique, Material α)
-materialUID = Unsafe.toLinear $ \x -> (unsafeGo x, x) where
-  unsafeGo :: Material α -> Ur Unique
-  unsafeGo = \case
-    Done (_,_,y) -> y
-    MaterialProperty _ xs -> unsafeGo xs
+materialUID = \case
+    Done (r,m,Ur y) -> (Ur y, Done (r,m,Ur y))
+    MaterialProperty p xs -> case materialUID xs of (uq, mat) -> (uq, MaterialProperty p mat)
 
 -- freeMaterial :: Material α -> Renderer χ ()
 -- freeMaterial = \case

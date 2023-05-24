@@ -83,7 +83,7 @@ instance Forgettable Renderer DescriptorResource where
     UniformResource u -> Alias.forget u
     Texture2DResource t -> Alias.forget t
 
-instance Shareable Renderer DescriptorResource where
+instance Shareable m DescriptorResource where
   share = \case
     UniformResource u -> bimap UniformResource UniformResource <$> Alias.share u
     Texture2DResource t -> bimap Texture2DResource Texture2DResource <$> Alias.share t

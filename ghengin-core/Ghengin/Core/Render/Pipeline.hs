@@ -9,7 +9,6 @@ module Ghengin.Core.Render.Pipeline where
 -- import Control.Lens (Lens', lens)
 
 import Ghengin.Core.Prelude as Linear
-import qualified Unsafe.Linear as Unsafe
 
 import Data.Typeable
 import Foreign.Storable ( Storable(sizeOf) )
@@ -44,7 +43,6 @@ import qualified FIR.Pipeline
 import qualified Vulkan as Vk
 
 import qualified Data.Linear.Alias as Alias
-import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
 
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Shader.Pipeline ( ShaderPipeline )
@@ -78,8 +76,9 @@ data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β
 -- TODO: PushConstants must also be inferred from the shader code
 -- Add them as possible alternative to descritpor set #2?
 -- ROMES:TODO:PushConstants automatically used alongside dset #2
-newtype PushConstantData = PushConstantData { pos_offset :: () -- Mat4
-                                            } deriving Storable
+-- How can I delete this and this still is correct? :D
+-- newtype PushConstantData = PushConstantData { pos_offset :: () -- Mat4
+--                                             } deriving Storable
 
 -- Shader pipeline and buffers are only be created once and reused across
 -- render packets that use the same one (Note that render packets store
@@ -141,7 +140,7 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
   logT "Creating graphics pipeline"
   (pipeline, simpleRenderPass2, dpool2) <- createGraphicsPipeline
                                      shaderPipeline simpleRenderPass dpool1
-                                     [Vk.PushConstantRange { offset = 0 , size   = fromIntegral $ sizeOf @PushConstantData undefined , stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+                                     [Vk.PushConstantRange { offset = 0 , size   = fromIntegral 64, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   logT "Creating reference counted"
   dset2 <- Alias.newAlias freeDescriptorSet dset1
@@ -155,35 +154,29 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
       mkRP x (p :## pl) = RenderProperty p (mkRP x pl)
 
 instance HasProperties (RenderPipeline π) where
+
+  -- Worry about performance of doing things safely later.
+  -- For now, simply strive for correctness.
+
   properties :: RenderPipeline π τ ⊸ Renderer (PropertyBindings τ, RenderPipeline π τ)
-  properties = Unsafe.toLinear $ \m -> (, m) <$> unsafeGo m where
-    unsafeGo :: RenderPipeline π τ ⊸ Renderer (PropertyBindings τ)
-    unsafeGo = \case
-      RenderPipeline {} -> pure GHNil
-      RenderProperty (Texture2DBinding refc) xs -> Linear.do
-        x' <- Unsafe.Alias.inc refc
-        xs' <- unsafeGo xs
-        pure (Texture2DBinding x' :## xs')
-      RenderProperty x xs -> (x :##) <$> unsafeGo xs
+  properties = \case
+    RenderPipeline a b c d -> pure (GHNil, RenderPipeline a b c d)
+    RenderProperty p0 xs -> Linear.do
+      (p1,p2) <- Alias.share p0
+      (xs', mat') <- properties xs
+      pure (p1 :## xs', RenderProperty p2 mat')
 
   descriptors :: RenderPipeline π α ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, RenderPipeline π α)
-  descriptors = Unsafe.toLinear (\rp -> unsafeGo rp >>= \case
-                                          (dset, rmap) -> pure (dset, rmap, rp)) where
-    -- Note it's not linear on the pipeline, unsafe! -- but we return the original reference
-    unsafeGo :: RenderPipeline π α -> Renderer (Alias DescriptorSet, Alias ResourceMap)
-    unsafeGo = \case
-      RenderPipeline gpip rpass (dset, rmap, dpool) spip ->
-        -- In descriptors, we're returning the whole render pipeline unchanged.
-        -- To return DescriptorSet and ResourceMap we increment their reference
-        -- counts because we unsafely keep one reference in the original
-        -- renderpipeline we return
-        (,) <$> Unsafe.Alias.inc dset <*> Unsafe.Alias.inc rmap
-
-      -- TODO: This will possibly have to become linear
-      RenderProperty _ xs -> unsafeGo xs
+  descriptors = \case
+    RenderPipeline gpip rpass (dset0, rmap0, dpool) spip -> Linear.do
+      ((dset1, rmap1), (dset2, rmap2)) <- Alias.share (dset0, rmap0)
+      pure (dset1, rmap1, RenderPipeline gpip rpass (dset2, rmap2, dpool) spip)
+    RenderProperty p xs -> Linear.do
+      (dset, rmap, mat') <- descriptors xs
+      pure (dset, rmap, RenderProperty p mat')
 
   puncons (RenderProperty p xs) = (p, xs)
-  pcons = Unsafe.toLinear RenderProperty
+  pcons = RenderProperty
 
 
 -- destroyRenderPipeline :: RenderPipeline α τ

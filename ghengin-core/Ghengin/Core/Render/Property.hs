@@ -48,19 +48,17 @@ data PropertyBinding α where
 
   Texture2DBinding :: Alias Texture2D ⊸ PropertyBinding Texture2D
 
--- ROMES:TODO: Try to instance Dupable on Alias, but won't work because needs bounding monad to consume.
--- Need ConsumableM and DupableM defined on reference-counting
--- instance Consumable (PropertyBinding α) where
---   consume = \case
---     DynamicBinding (Ur _) -> ()
---     StaticBinding  (Ur _) -> ()
---     Texture2DBinding refc -> consume refc
+instance Forgettable Renderer (PropertyBinding α) where
+  forget = \case
+    DynamicBinding (Ur _) -> pure ()
+    StaticBinding  (Ur _) -> pure ()
+    Texture2DBinding refc -> Alias.forget refc
 
--- instance Dupable (PropertyBinding α) where
---   dup2 = \case
---     DynamicBinding (Ur x) -> (DynamicBinding (Ur x), DynamicBinding (Ur x))
---     StaticBinding  (Ur x) -> (StaticBinding (Ur x), StaticBinding (Ur x))
---     Texture2DBinding refc -> dup2 refc
+instance MonadIO m => Shareable m (PropertyBinding α) where
+  share = \case
+    DynamicBinding (Ur x) -> pure (DynamicBinding (Ur x), DynamicBinding (Ur x))
+    StaticBinding  (Ur x) -> pure (StaticBinding (Ur x), StaticBinding (Ur x))
+    Texture2DBinding t -> bimap Texture2DBinding Texture2DBinding <$> Alias.share t
 
 -- | A 'PropertyBinding' actual value. Useful when we want to define functions
 -- over the value bound when constructing the PropertyBinding rather than the
@@ -209,11 +207,11 @@ writeProperty dr pb = case pb of
 -- Consider as an alternative to HasProperties a list-like type of properties
 -- with an χ parameter for the extra information at the list's end.
 class HasProperties φ where
-  -- Re-think these...
+  -- Re-think these...?
   properties    :: φ α ⊸ Renderer (PropertyBindings α, φ α)
   descriptors   :: φ α ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, φ α)
   puncons       :: φ (α:β) ⊸ (PropertyBinding α, φ β)
-  pcons         :: PropertyBinding α %p -> φ β ⊸ φ (α:β)
+  pcons         :: PropertyBinding α ⊸ φ β ⊸ φ (α:β)
 
 -- | If we know that a type (φ α) has property of type (β) at binding (#n), we
 -- can edit that property or get its value
