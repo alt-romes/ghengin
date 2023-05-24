@@ -12,6 +12,9 @@ module Ghengin.Core.Prelude
   , Generic(..), NE.NonEmpty(..), Type, Constraint
   , Word32, IORef
 
+  -- linear-base
+  , bimap
+
   -- containers
   , IM.IntMap, M.Map, S.Set
 
@@ -25,6 +28,7 @@ module Ghengin.Core.Prelude
   , (<$$>)
 
   -- * Our own things
+  , GHList(..)
   )
   where
 
@@ -36,6 +40,8 @@ import Control.Monad.IO.Class.Linear
 import System.IO.Linear
 import Prelude (Semigroup(..), Monoid(..), mappend, mconcat)
 import qualified Prelude
+
+import Data.Bifunctor.Linear (bimap)
 
 import qualified Data.IntMap as IM
 import qualified Data.Set as S
@@ -54,19 +60,20 @@ import Data.Linear.Alias
 
 import qualified Unsafe.Linear as Unsafe
 
+-- Worry about performance of doing things safely later.
+-- For now, simply strive for correctness.
+
 -- | Unrestricted 'fmap' over unrestricted Functor.
 -- Equivalent to Prelude.<$> over Prelude.Functor.
 (<$$>) :: Prelude.Functor f => (a -> b) -> f a -> f b
 {-# INLINE (<$$>) #-}
 (<$$>) = (Prelude.<$>)
 
-
--- TODO
--- -- | Generic HList
--- data GHList c xs where
---     GHNil :: GHList c '[]
---     (:##) :: c a ⊸ GHList c as ⊸ GHList c (a ': as)
--- infixr 6 :##
+-- | Generic HList
+data GHList c xs where
+    GHNil :: GHList c '[]
+    (:##) :: c a ⊸ GHList c as ⊸ GHList c (a ': as)
+infixr 6 :##
 
 -- * Orphan instances
 
