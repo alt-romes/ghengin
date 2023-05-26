@@ -9,18 +9,10 @@ module Ghengin.Core.Render.Property
   -- , freeProperty
   , writeProperty
 
-  , forgetPropertyBindings
-
   -- * Utils
   , GHList(..)
   ) where
 
--- TODO: Some special linear lenses to use propertyAt ... import Control.Lens ((^.), Lens', lens)
--- ROMES:TODO: For the lens to be used as a getter, I think we will need this definition of functor rather than the control one.
--- Otherwise, I think we can assume the lens is always over something which is
--- Consumable, (we only ever deal with properties which are consumable, btut I
--- suppose we could have properties which aren't, and are always updated).
--- Perhaps just the setter lens could be over the thing if it is Consumable
 import Ghengin.Core.Prelude as Linear
 import Foreign.Storable (Storable(sizeOf))
 import Ghengin.Core.Renderer
@@ -50,8 +42,8 @@ data PropertyBinding α where
 
 instance Forgettable Renderer (PropertyBinding α) where
   forget = \case
-    DynamicBinding (Ur _) -> pure ()
-    StaticBinding  (Ur _) -> pure ()
+    DynamicBinding _ -> pure ()
+    StaticBinding  _ -> pure ()
     Texture2DBinding refc -> Alias.forget refc
 
 instance MonadIO m => Shareable m (PropertyBinding α) where
@@ -350,17 +342,6 @@ instance {-# OVERLAPPING #-}
       freeResMap resmap''
       pure $ pcons updatedProp xs
 
-    -- propertyValue :: ∀ α. PropertyBinding α ⊸ (α, PropertyBinding α)
-    -- propertyValue = \case
-    --   DynamicBinding x -> (x, DynamicBinding x)
-    --   StaticBinding  x -> (x, StaticBinding x)
-    --   -- I can do unsafe perform IO since the atomic counter is atomically
-    --   -- updated, and otherwise the computation is pure. This allows the
-    --   -- propertyAt' not to require something such as a MonadIO constraint
-    --   Texture2DBinding x -> Unsafe.Linear.toLinear unsafePerformIO $ Unsafe.Linear.toLinear Linear.withLinearIO $ Linear.do
-    --     (x1, x2) <- Alias.share x
-    --     pure $ Unsafe.Linear.toLinear Ur (x1, Texture2DBinding x2)
-
 instance {-# OVERLAPPABLE #-}
   ( HasProperties φ
   , HasPropertyAt' n (m+1) φ αs β
@@ -461,14 +442,4 @@ editProperty prop update i dset resmap0 = Linear.do
 -- Utils
 
 linInsert :: Int ⊸ a ⊸ IM.IntMap a ⊸ IM.IntMap a
-linInsert = Unsafe.Linear.toLinear3 IM.insert
-
-forgetPropertyBindings :: PropertyBindings α ⊸ Renderer ()
-forgetPropertyBindings GHNil = pure ()
-forgetPropertyBindings (b :## bs)
-  = case b of
-      DynamicBinding _ -> forgetPropertyBindings bs
-      StaticBinding  _ -> forgetPropertyBindings bs
-      Texture2DBinding t -> Alias.forget t >> forgetPropertyBindings bs
-
-  
+linInsert = Unsafe.Linear.toLinear3 IM.insert 

@@ -1,16 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE LinearTypes #-}
-{-# LANGUAGE QualifiedDo #-}
 module Ghengin.Render where
 
+import Ghengin.Core.Prelude hiding (insert)
 import Ghengin.Core.Log
-import Prelude.Linear hiding (insert)
 import qualified Prelude
 import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear
 -- import Data.Maybe
 
 import qualified Data.Vector as V
@@ -284,7 +280,7 @@ writePropertiesToResources rmap' fi
               logT "Going on rmap'"
               (rmap'', pbs') <- go rmap' 0 pbs
               logT "Forgetting property bindings"
-              lift $ forgetPropertyBindings pbs'
+              lift $ Alias.forget pbs'
               pure (rmap'', fi')
 
   where
