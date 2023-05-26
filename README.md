@@ -7,19 +7,99 @@ A work in progress game engine.
 Based on https://dl.acm.org/doi/abs/10.1145/15922.15894
 
 
-## Unique features:
+## Unique? features:
 
-* Shader focused -- the engine is design with custom shaders in the center, and
+* Shader first -- the engine is design with custom shaders in the center, and
     a lot of compile time validation and runtime data is based on the shader
 * Compile time validation of compatibility between the game defined materials,
     meshes and the game defined shader programs.
 * It's written in Haskell
+* ...
 
+## Key ideas
+
+I haven't had much time to write about this (even more so with the big
+linear-types refactor on the way), but the key ideas are:
+
+* `RenderPacket`s are things that get rendered, and each render packet is defined by:
+    * A `Mesh`
+    * a `Material`
+    * and a `RenderPipeline`
+
+* Meshes are vertices together with properties to influence the render of these
+    vertices, and are parametrized by:
+    * A type list describing the properties of each vertex in this mesh
+    * (This is not yet implemented:) A type list describing the property
+        bindings that describe this mesh and get bound to descriptor set #2 for
+        each different mesh that is drawn.
+        * Note that multiple render packets sharing the same mesh can be drawn
+            while the mesh properties being still only bound once.
+
+* Materials are group of properties that influence how all render packets
+    sharing this Material are rendered; it is parametrized by:
+    * A type list with the type of each property describing this material, which
+        will get bound once to descriptor set #1 for every different material.
+        * Note that multiple render packets with different meshes may share the
+            same material, and the material properties will be shared across mesh draws without being rewritten
+            * (Each material may get bound more than once, if there's no clear
+                serialization of draw calls that ensures the material only needs
+                to be bound once -- this has to due with heuristics in the
+                render queue, I don't recall all the details)
+
+* Render pipelines are group of properties and descriptions of render pipelines
+    in graphics parlor, that define how all render packets that share this
+    render pipeline are rendered (across different materials and meshes); it is
+    parametrized by:
+    * A type list describing the properties shared accross all render packets
+        drawn with this render pipeline, that will be bound in descriptor set #0
+    * A type-level complete description of the shader, which is the type of the
+        shader program in the FIR shader language.
+
+* The `Compatible` constraint must be satisfied in order to construct a render
+    packet. This constraint validates, at compile time, that:
+    * For the `Mesh` (see also `CompatibleMesh`)
+        * The properties of each vertex match the vertice properties expected by the
+            shader
+        * (This is not yet implemented:) The mesh properties match the properties expected to be bound at
+            descriptor set #2 in the shader
+    * For the `Material` (see also `CompatibleMaterial`)
+        * The properties of the material match the properties expected to be
+            bound at descriptor set #1 by the shader
+    * For the `RenderPipeline` (see also `CompatiblePipeline`)
+        * The properties of the pipeline match the properties expected to be
+            bound at descriptor set #0 by the shader
+
+* ...
+
+* The Core of the engine is abstract over the renderer implementation (through
+    backpack), though we only have a vulkan implementation of the renderer, and
+    the Core isn't yet fully standalone
+
+* The Core of the engine is much like the Core in GHC: it strives to be a
+    tiny but very expressive engine, that can represent in its completeness the
+    full engine (which provides additional features not directly available in
+    Core, but that can be expressed in it), for example:
+    * The `Camera` construct is not part of Core, for it can be fully defined as
+        a `RenderPipeline` property that gets bound in descriptor set #0 once
+        per render pipeline, and some shader math. Of course, this ought to be
+        provided as a plug and play capability in the full engine (say, one just
+        has to import the Camera module, add it as a property of the render
+        pipeline, and call the imported camera shader function in their own
+        shader)
+        * It's prettty good how in the shaders being written in Haskell one can
+            easily use other engine-defined shader functions
+    * ...
+
+## Where's the action at?
 
 The current demo is `planets`. To run it call:
 ```
 cabal run planets
 ```
+
+I'm trying to write a set of tutorials in some sort of book, based on an ocean
+simulation, though progress has been slow as I've been busy with the linear
+types refactor.
 
 Write ups:
 * https://discourse.haskell.org/t/monthly-update-on-a-haskell-game-engine/5515
