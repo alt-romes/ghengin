@@ -6,7 +6,6 @@ module Ghengin.Core.Render.Property
   , HasProperties(..)
   , HasPropertyAt(..)
   , makeResources
-  -- , freeProperty
   , writeProperty
 
   -- * Utils
@@ -19,9 +18,8 @@ import Ghengin.Core.Renderer
 import Ghengin.Core.Renderer.Texture
 import Ghengin.Core.Type.Utils
 import qualified Data.Linear.Alias as Alias
-import qualified Data.IntMap as IM
+import qualified Data.IntMap.Linear as IM
 import qualified Prelude
-import qualified Unsafe.Linear
 
 import qualified Unsafe.Linear as Unsafe
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
@@ -114,7 +112,7 @@ TODO: Mesh bindings at dset #2
 makeResources :: ∀ α. PropertyBindings α ⊸ Renderer (ResourceMap, PropertyBindings α)
 makeResources =
   foldMX (\(resources, pbinds) (i,x) ->
-            go x >>= \case (dres, pbind) -> pure (linInsert i dres resources, pbind :## pbinds)
+            go x >>= \case (dres, pbind) -> pure (IM.insert i dres resources, pbind :## pbinds)
          )
          (IM.empty, GHNil)
   where
@@ -151,9 +149,9 @@ makeResources =
     foldMX :: ∀ b x xs ys
             . ((b,PropertyBindings xs) ⊸ (Int, PropertyBinding x) ⊸ Renderer (b,PropertyBindings (x:xs)))
             ⊸ (b,PropertyBindings '[]) ⊸ PropertyBindings ys ⊸ Renderer (b,PropertyBindings ys)
-    foldMX f b as = Unsafe.Linear.coerce (foldM @Renderer) f b
+    foldMX f b as = Unsafe.coerce (foldM @Renderer) f b
                            -- See Note [Coerce HList to List]
-                           (Unsafe.Linear.toLinear2 Prelude.zip [0..] (Unsafe.Linear.coerce as))
+                           (Unsafe.toLinear2 Prelude.zip [0..] (Unsafe.coerce as))
 
 -- | Write a property binding value to a mapped buffer.  Eventually we might
 -- want to associate the binding set and binding #number and get them directly
@@ -180,7 +178,8 @@ writeProperty dr pb = case pb of
         -- Dynamic bindings are written every frame
         buf' <- writeMappedBuffer buf a
         pure (UniformResource buf', DynamicBinding (Ur a))
-      e -> case Unsafe.toLinear (\_ -> ()) e of () -> error "writeProperty: one can't write a dynamic binding into a non-mapped-buffer resource"
+      Texture2DResource t -> Alias.forget t >>
+        error "writeProperty: one can't write a dynamic binding into a non-mapped-buffer resource"
 {-# INLINE writeProperty #-}
 
 
@@ -423,23 +422,12 @@ editProperty prop update i dset resmap0 = Linear.do
     -- ROMES:TODO: Textures!!!!
     updateTextureBinding :: DescriptorSet ⊸ Alias Texture2D ⊸ Renderer DescriptorSet
     updateTextureBinding dset t
-      = updateDescriptorSet dset (linInsert i (Texture2DResource t) IM.empty) >>=
+      = updateDescriptorSet dset (IM.insert i (Texture2DResource t) IM.empty) >>=
         (\(dset, rmap) -> Linear.do
           -- We can forget the single texture2D references in the resource map
           -- since we only shared it to be able to update the resource map with it.
-          case Unsafe.Linear.toLinear IM.elems rmap of
+          case IM.elems rmap of
             [Texture2DResource tex] -> Alias.forget tex
-            x -> Unsafe.Linear.toLinear (\_ -> error "updateTextureBinding: not expecting any resource other than a single texture2d resource here.") x
+            x -> Alias.forget x >> error "updateTextureBinding: not expecting any resource other than a single texture2d resource here."
           pure dset)
 
--- ROMES:TODO
--- freeProperty :: MonadRenderer μ => PropertyBinding α -> μ ()
--- freeProperty = \case
---   DynamicBinding _ -> pure ()
---   StaticBinding _ -> pure ()
---   Texture2DBinding x -> freeTexture x
-
--- Utils
-
-linInsert :: Int ⊸ a ⊸ IM.IntMap a ⊸ IM.IntMap a
-linInsert = Unsafe.Linear.toLinear3 IM.insert 

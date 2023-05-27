@@ -29,6 +29,7 @@ import qualified Data.List as L
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.IntMap as IM
+import qualified Data.IntMap.Linear as IML
 import qualified Data.IntMap.Internal as IMI
 import qualified Data.Vector as V
 

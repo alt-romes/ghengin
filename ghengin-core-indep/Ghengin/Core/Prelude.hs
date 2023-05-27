@@ -116,6 +116,3 @@ instance (∀ a. Shareable m (c a)) => Shareable m (GHList c as) where
 
 instance Consumable (M.Map Unique ()) where
   consume = Unsafe.toLinear $ \_ -> ()
-
-instance Consumable (IM.IntMap ()) where
-  consume = Unsafe.toLinear $ \_ -> ()

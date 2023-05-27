@@ -1,3 +1,4 @@
+[ ] Make the Vulkan macos distribution and other distribution/exporter packages agnostic to ghengin
 [ ] That's right, we can use the normal apecs with a wrapper module that unsafe coerces the Renderer to UnsafeRenderer
 [ ] Separate things like Mesh, Material and Pipeline references from Apecs. These should be kept in a renderer data structure really.
 [ ] Picking up a previous idea, we should automatically make imgui editors for
