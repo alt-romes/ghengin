@@ -7,28 +7,22 @@ module Ghengin.Core.Renderer
   , module Ghengin.Core.Renderer
   ) where
 
-import qualified Data.IntMap as IM
+import qualified Data.IntMap.Linear as IM
 import Ghengin.Core.Log
 import Prelude.Linear
 
-import Control.Functor.Linear
-
-import qualified Unsafe.Linear as Unsafe
+import Control.Functor.Linear as Linear
 
 import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.DescriptorSet
 
-import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
+import qualified Data.Linear.Alias as Alias
 
 getDescriptorResource :: ResourceMap ⊸ Int -> Renderer (DescriptorResource, ResourceMap)
-getDescriptorResource = Unsafe.toLinear $ \resourcemap i -> enterD "getUniformBuffer" $
-  case IM.lookup i resourcemap of
-    -- We *unsafely* increment the reference because we also return
-    -- `resourcemap` which retains one reference, which makes it *all work out safely*
-    -- This is also why resourcemap is used twice (and hence is unsafe).
-    --
-    -- In short, we unsafely increment a linear resource for one we unsafely keep
-    Just (UniformResource b) -> (,resourcemap) . UniformResource <$> Unsafe.Alias.inc b
-    Just (Texture2DResource t) -> (,resourcemap) . Texture2DResource <$> Unsafe.Alias.inc t
-    Nothing -> error $ "Expecting a uniform descriptor resource at binding " <> show i <> " but found nothing!"
+getDescriptorResource resourcemap i = enterD "getUniformBuffer" $
+  IM.lookupM i resourcemap >>= \case
+    (Just x, rmap1) -> pure (x, rmap1)
+    (Nothing, rmap1) -> Linear.do
+      Alias.forget rmap1
+      error $ "Expecting a uniform descriptor resource at binding " <> show i <> " but found nothing!"

@@ -1,3 +1,6 @@
+[ ] Replace SizeOf with gl-block https://gitlab.com/dpwiz/gl-block
+[ ] Use Geomancy.Gl.Block
+[ ] Maybe we could make good use of streamly here somwhere
 [ ] Make the Vulkan macos distribution and other distribution/exporter packages agnostic to ghengin
 [ ] That's right, we can use the normal apecs with a wrapper module that unsafe coerces the Renderer to UnsafeRenderer
 [ ] Separate things like Mesh, Material and Pipeline references from Apecs. These should be kept in a renderer data structure really.

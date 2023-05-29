@@ -167,6 +167,8 @@ library ghengin-core
                       containers,
                       vector,
 
+                      gl-block,
+
                       ghengin:ghengin-core-indep,
                       ghengin:linear-utils
 
@@ -203,6 +205,8 @@ library ghengin-core-indep
                       bytestring,
 
                       fast-logger,
+
+                      gl-block,
 
                       ghengin:linear-utils
 
@@ -265,6 +269,7 @@ library ghengin-vulkan
                       reference-counting,
                       -- ghengin:ghengin-core MISTAKE!,
                       ghengin:ghengin-core-indep,
+                      gl-block,
 
                       -- For textures (consider adding to Core too)
                       JuicyPixels,
@@ -373,6 +378,7 @@ library
                       StateVar,
                       derive-storable,
                       random,
+                      gl-block,
                       -- ghc-typelits-natnormalise,
                       fast-logger,
                       JuicyPixels,

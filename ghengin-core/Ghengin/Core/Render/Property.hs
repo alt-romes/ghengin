@@ -21,7 +21,6 @@ import qualified Data.Linear.Alias as Alias
 import qualified Data.IntMap.Linear as IM
 import qualified Prelude
 
-import qualified Unsafe.Linear as Unsafe
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 
 -- ROMES: Can we avoid the Eq instance here? Depends on what we need the property binding eq instance for...
@@ -70,13 +69,6 @@ instance Prelude.Eq (PropertyBinding Texture2D) where
 type PropertyBindings α = GHList PropertyBinding α
 
 {-
-Note [Coerce HList to List]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-They have the same representation ^_^, so unsafeCoerce is safe ^_^
--}
-
-
-{-
 Note [Property Bindings]
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -110,12 +102,15 @@ TODO: Mesh bindings at dset #2
 -- counted:
 --  * Texture2D
 makeResources :: ∀ α. PropertyBindings α ⊸ Renderer (ResourceMap, PropertyBindings α)
-makeResources =
-  foldMX (\(resources, pbinds) (i,x) ->
-            go x >>= \case (dres, pbind) -> pure (IM.insert i dres resources, pbind :## pbinds)
-         )
-         (IM.empty, GHNil)
+makeResources = go_build 0
   where
+    go_build :: ∀ αs. Int -> PropertyBindings αs ⊸ Renderer (ResourceMap, PropertyBindings αs)
+    go_build !_i GHNil        = pure (IM.empty, GHNil)
+    go_build !i (pb :## pbs) = Linear.do
+      (dres, pb')  <- go pb
+      (rmap, pbs') <- go_build (i+1) pbs
+      pure (IM.insert i dres rmap, pb' :## pbs')
+
     go :: ∀ β. PropertyBinding β ⊸ Renderer (DescriptorResource, PropertyBinding β)
     go pb = case pb of
       DynamicBinding (Ur x) -> Linear.do
@@ -143,15 +138,6 @@ makeResources =
         -- Image has already been allocated when the texture was created, we
         -- simply share it to the resource map
         pure (Texture2DResource t1, Texture2DBinding t2)
-
-    -- Special foldM for the needs of this function, adds indexes, handles type level lists, etc...
-    -- Big ouch, I know its correct but don't feel like proving it... let's get the engine back up first at least
-    foldMX :: ∀ b x xs ys
-            . ((b,PropertyBindings xs) ⊸ (Int, PropertyBinding x) ⊸ Renderer (b,PropertyBindings (x:xs)))
-            ⊸ (b,PropertyBindings '[]) ⊸ PropertyBindings ys ⊸ Renderer (b,PropertyBindings ys)
-    foldMX f b as = Unsafe.coerce (foldM @Renderer) f b
-                           -- See Note [Coerce HList to List]
-                           (Unsafe.toLinear2 Prelude.zip [0..] (Unsafe.coerce as))
 
 -- | Write a property binding value to a mapped buffer.  Eventually we might
 -- want to associate the binding set and binding #number and get them directly

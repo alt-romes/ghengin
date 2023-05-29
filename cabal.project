@@ -20,6 +20,10 @@ source-repository-package
 
 source-repository-package
   type:     git
+  location: https://gitlab.com/dpwiz/gl-block
+
+source-repository-package
+  type:     git
   location: https://github.com/alt-romes/wavefront.git
 
 source-repository-package

@@ -78,6 +78,12 @@ data GHList c xs where
     (:##) :: c a ⊸ GHList c as ⊸ GHList c (a ': as)
 infixr 6 :##
 
+{-
+Note [Coerce HList to List]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+They have the same representation ^_^, so unsafeCoerce is safe ^_^
+-}
+
 -- GHList instances
 
 instance Consumable (GHList c '[]) where
