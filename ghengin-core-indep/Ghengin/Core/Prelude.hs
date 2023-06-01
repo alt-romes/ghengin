@@ -4,17 +4,21 @@ module Ghengin.Core.Prelude
   (
   -- * Re-exports
     module Prelude.Linear
+  , module Data.Tuple.Linear
   , module Control.Functor.Linear
   , module Control.Monad.IO.Class.Linear
   , module System.IO.Linear
   , module Prelude
+  , module Data.Unrestricted.Linear.Orphans
 
   -- base
   , Generic(..), NE.NonEmpty(..), Type, Constraint
-  , Word32, IORef
+  , Word32, IORef, KnownNat
 
   -- linear-base
   , bimap
+  -- linear vectors
+  , VL.V(..)
 
   -- containers
   , IM.IntMap, M.Map, S.Set
@@ -27,14 +31,20 @@ module Ghengin.Core.Prelude
 
   -- * Re-exports under different names
   , (<$$>)
+  -- ** With multiplicity generalization
+  , vmap, vtraverse
 
   -- * Our own things
-  , GHList(..)
+  , GHList(..), (=<<), (<=<), (>=>), v2vec, l2vec, vec2l
+
+  , vzipWith
   )
   where
 
+import GHC.TypeLits
 import Prelude.Linear hiding ( IO, log
                              , Semigroup(..), Monoid(..), mappend, mconcat
+                             , fst, snd
                              )
 import Control.Functor.Linear hiding (get,modify)
 import qualified Control.Functor.Linear as Linear
@@ -43,18 +53,24 @@ import System.IO.Linear
 import Prelude (Semigroup(..), Monoid(..), mappend, mconcat)
 import qualified Prelude
 
+import Data.Tuple.Linear
 import Data.Bifunctor.Linear (bimap)
+import Data.Unrestricted.Linear.Orphans
+import qualified Data.Functor.Linear as Data.Linear
 
 import qualified Data.IntMap as IM
 import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
+import qualified Data.V.Linear.Internal as VL
+import qualified Data.V.Linear.Internal.Instances as VL
 
 import GHC.Generics
 import Data.Kind
 import Data.Word
 import Data.IORef (IORef)
+import Data.Coerce
 
 import Data.Unique (Unique)
 
@@ -118,7 +134,49 @@ instance (∀ a. Shareable m (c a)) => Shareable m (GHList c as) where
 -- suppose we could have properties which aren't, and are always updated).
 -- Perhaps just the setter lens could be over the thing if it is Consumable
 
--- * Orphan instances
+(=<<) :: Monad m => (a ⊸ m b) ⊸ m a ⊸ m b
+f =<< x = x >>= f
 
-instance Consumable (M.Map Unique ()) where
-  consume = Unsafe.toLinear $ \_ -> ()
+(<=<) :: Monad m => (b ⊸ m c) ⊸ (a ⊸ m b) ⊸ a ⊸ m c
+(<=<) = flip (>=>)
+
+(>=>) :: Monad m => (a ⊸ m b) ⊸ (b ⊸ m c) ⊸ a ⊸ m c
+f >=> g = \x -> f x >>= g
+
+-- | 'map' but this is polymorphic in the multiplicity (for some reason the default isn't)
+vmap :: (a %p -> b) -> VL.V n a %p -> VL.V n b
+vmap f (VL.V xs) = VL.V $ Unsafe.toLinear (V.map (\x -> f x)) xs
+
+-- | Like 'Data.Linear.traverse', but polymorphic multiplicity (for some reason, not the default)
+vtraverse :: (KnownNat n, Applicative f) => (a %p -> f b) -> VL.V n a %p -> f (VL.V n b) 
+vtraverse = Unsafe.toLinear2 Data.Linear.traverse . Unsafe.toLinear
+          -- I really think this is safe, for these vectors at least.
+          -- If we consume the $a$s linearly, we consume V linearly
+          -- If we consume $a$s unrestrictedly, we consume V unrestrictedly...
+
+vzipWith :: (a %p -> b %p -> c) -> VL.V n a %p -> VL.V n b %p -> VL.V n c
+vzipWith f (VL.V va) (VL.V vb) = VL.V (Unsafe.toLinear3 V.zipWith (Unsafe.toLinear2 f) va vb)
+
+v2vec :: VL.V n a ⊸ V.Vector a
+v2vec (VL.V v) = v
+
+
+-- | Shame, traversable should really be polimorphic over %p.
+-- I'm afraid it could break some instances, so I'll just specialize this to V
+-- threadThrough :: Data.Linear.Traversable t => (a %p -> c ⊸ (b,c)) -> c ⊸ t a %p -> (t b, c)
+--
+-- Wait, isn't this (linear) mapAccumL? It already exists! Only it's linear on
+-- the first argument too. We can work around it with dup2 @Int in our case
+--
+-- We comment it out. Delete in the next commit.
+-- threadThrough :: KnownNat n => (a %p -> c ⊸ (b,c)) -> VL.V n a %p -> c ⊸ (VL.V n b, c)
+-- threadThrough f va c = runState (vtraverse (\a -> StateT (pure . f a)) va) c
+
+
+l2vec :: [a] ⊸ V.Vector a
+l2vec = Unsafe.toLinear V.fromList
+
+vec2l :: V.Vector a ⊸ [a]
+vec2l = Unsafe.toLinear V.toList
+
+

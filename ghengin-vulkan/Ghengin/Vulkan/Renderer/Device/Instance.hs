@@ -18,13 +18,12 @@ import Control.Monad
 import Foreign.C.String
 
 import qualified Control.Monad.IO.Class.Linear as Linear
-import qualified Unsafe.Linear as Unsafe
 
 import qualified Data.ByteString as BS
 import qualified Data.Vector as V
 
 import qualified Graphics.UI.GLFW as GLFW
-import qualified Vulkan as Vk
+import qualified Vulkan.Linear as Vk
 
 instanceExtensions :: V.Vector BS.ByteString
 instanceExtensions = [
@@ -90,5 +89,5 @@ createInstance validationLayers = Linear.liftSystemIO $ do
 
 
 destroyInstance :: Linear.MonadIO m => Vk.Instance ⊸ m ()
-destroyInstance = Unsafe.toLinear $ \vkInst -> Linear.liftSystemIO $ Vk.destroyInstance vkInst Nothing
+destroyInstance vkInst = Vk.destroyInstance vkInst Nothing
 

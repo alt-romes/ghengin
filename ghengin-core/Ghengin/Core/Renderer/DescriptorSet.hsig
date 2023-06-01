@@ -1,5 +1,6 @@
 signature Ghengin.Core.Renderer.DescriptorSet where
 
+import Data.V.Linear (V)
 import Ghengin.Core.Prelude
 
 import Ghengin.Core.Shader.Pipeline
@@ -38,6 +39,7 @@ instance Shareable m DescriptorResource
 --       ResourceMap )
 
 data DescriptorPool
+instance Aliasable DescriptorPool
 
 createDescriptorPool :: ShaderPipeline info
                      -> Renderer DescriptorPool
@@ -70,8 +72,9 @@ updateDescriptorSet :: DescriptorSet -- Vk.DescriptorSet -- ^ The descriptor set
                                                              -- ROMES: where are the overwritten descriptors being freed?
 
 
-freeDescriptorSet :: DescriptorSet ⊸ Renderer ()
+freeDescriptorSets :: Alias DescriptorPool ⊸ V n DescriptorSet ⊸ Renderer ()
 freeResourceMap :: ResourceMap ⊸ Renderer ()
 
 -- ROMES:TODO: shareResourceMap function, since the fields of ResourceMap are already refcounted? -- Yes, now we can instance 'Shareable' from Data.Linear.Alias
   
+destroyDescriptorPool :: DescriptorPool ⊸ Renderer ()

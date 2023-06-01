@@ -113,7 +113,7 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                          ⊸ V.Vector Vk.PushConstantRange
                         -> Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
 createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstantRanges -> enterD "createGraphicsPipeline" $ Linear.do
-  Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ Prelude.fmap (Prelude.fst) (IM.elems dpool._set_bindings)
+  Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ Prelude.fmap (Prelude.fst) (IM.elems dpool.set_bindings)
 
   Ur dev <- unsafeGetDevice
 

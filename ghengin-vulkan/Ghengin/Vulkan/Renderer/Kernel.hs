@@ -85,8 +85,12 @@ runRenderer' l renv (Renderer rend) = runStateT (runReaderT rend (Ur (RREnv l)))
 useVulkanDevice :: (VulkanDevice %1 -> System.IO.Linear.IO (a, VulkanDevice)) %1 -> Renderer a
 useVulkanDevice f = renderer $ \(REnv{..}) -> f _vulkanDevice >>= \case (a, d') -> pure (a, REnv{_vulkanDevice=d',..})
 
+{-# DEPRECATED useDevice "for withDevice" #-}
 useDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
-useDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
+useDevice = withDevice
+
+withDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
+withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
 
 -- | Unsafely run a Vulkan action on a linear MonadIO that requires a
 -- Vulkan.Device reference as a linear action on 'Renderer'.

@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE TypeFamilyDependencies #-}
 {-# LANGUAGE DataKinds #-}
@@ -17,9 +18,14 @@
 {-# LANGUAGE QualifiedDo #-}
 module Ghengin.Vulkan.Renderer.DescriptorSet where
 
+import Debug.Trace
 import Ghengin.Core.Prelude as Linear
+import Ghengin.Core.Log
 import qualified Data.Functor.Linear as Data.Linear
 import qualified Prelude
+
+import Data.Linear.Alias.Unsafe as Unsafe.Alias
+import qualified Unsafe.Linear as Unsafe
 
 import Data.Bifunctor.Linear
 import Data.Bits
@@ -27,15 +33,16 @@ import Data.Bits
 import qualified Data.List.NonEmpty as NonEmpty
 import qualified Data.List as L
 import qualified Data.Set as S
-import qualified Data.Map as M
-import qualified Data.IntMap as IM
+import qualified Data.Map.Strict as M
+import qualified Data.IntMap.Strict as IM
 import qualified Data.IntMap.Linear as IML
-import qualified Data.IntMap.Internal as IMI
+import qualified Data.IntMap.Strict.Internal as IMI
 import qualified Data.Vector as V
+import qualified Data.V.Linear as VL
 
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
-import qualified Vulkan as Vk
+import qualified Vulkan.Linear as Vk
 
 import qualified FIR hiding (ShaderPipeline, (:>->))
 import qualified FIR.Definition as FIR
@@ -54,10 +61,15 @@ import Ghengin.Vulkan.Renderer.Pipeline (stageFlag)
 import Ghengin.Core.Shader.Pipeline
 
 import qualified Data.Linear.Alias as Alias
-import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
 
 import qualified FIR.Layout
-import qualified Unsafe.Linear as Unsafe
+
+-- The descriptor set number 0 will be used for engine-global resources, and bound
+-- once per frame. The descriptor set number 1 will be used for per-pass
+-- resources, and bound once per pass. The descriptor set number 2 will be used
+-- for material resources, and the number 3 will be used for per-object resources.
+--   This way, the inner render loops will only be binding descriptor sets 2 and
+--   3, and performance will be high.
 
 -------- Resources ----------------
 -- (INLINED from hsig file)
@@ -89,15 +101,23 @@ instance Shareable m DescriptorResource where
     UniformResource u -> bimap UniformResource UniformResource <$> Alias.share u
     Texture2DResource t -> bimap Texture2DResource Texture2DResource <$> Alias.share t
 
-type Size = Word
-
 -- | Mapping from each binding to corresponding binding type, size, shader stage
-type BindingsMap = IntMap (Vk.DescriptorType, Size, Vk.ShaderStageFlags)
+-- We have a maybe word because not every binding has a layout in memory (images don't)
+type BindingsMap = IntMap (Vk.DescriptorType, Maybe Word, Vk.ShaderStageFlags)
+
+instance Consumable BindingsMap where
+  consume = Unsafe.toLinear \_bm -> ()
+instance Dupable BindingsMap where
+  dup2 = Unsafe.toLinear \bm -> (bm,bm)
+instance Movable BindingsMap where
+  move = Unsafe.toLinear \bm -> Ur bm
 
 -- | Mapping from each descriptor set ix to its bindings map
 type DescriptorSetMap = IntMap BindingsMap
 
 data SomeDefs = ∀ defs. FIR.KnownDefinitions defs => SomeDefs
+instance Show SomeDefs where
+  show _ = "SomeDefs"
 
 -- :| From Shaders |:
 
@@ -131,7 +151,7 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempt
                 SomeDefs @defs ->
                   -- For each descriptor we compute the buffer size from  the known definitionn
                   -- let tsize = getDescriptorBindingSize @defs descriptorSetIx bindingIx
-                  let tsize = fromIntegral (sizeOfPrimTy primTy)
+                  let tsize = sizeOfPrimTy primTy
 
                    in IM.insertWith mergeSameDS descriptorSetIx
                                 (IM.singleton bindingIx (descriptorType pt, tsize, stageFlag shader))
@@ -155,10 +175,12 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempt
 
 -- What I couldn't do: Prove that the type family application results in a type that always instances a certain class.
 
-sizeOfPrimTy :: SPIRV.PrimTy -> Size
+-- ROMES:TODO: Drop this completely, the size type is unused and even wrong since not all things have a prim ty size like this?
+-- Delete the corresponding entry from "BindingsMap" too
+sizeOfPrimTy :: SPIRV.PrimTy -> Maybe Word
 sizeOfPrimTy x = case FIR.Layout.primTySizeAndAli FIR.Layout.Extended x of
-                   Left e -> error (show e)
-                   Right (size,_alignment) -> fromIntegral size
+                   Left e -> Nothing
+                   Right (size,_alignment) -> Just (fromIntegral size)
 
 
 descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType
@@ -168,12 +190,6 @@ descriptorType = \case
   SPIRV.PointerTy SPIRV.Storage.UniformConstant (SPIRV.SampledImage _) -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
   x -> error $ "Unexpected/unsupported descriptor set #1 descriptor type: " <> show x
 
--- | Forget a descriptor resource. This might free the resource if it's the last reference to it
--- (A DescriptorResource wraps a Reference Counted value)
-forgetDescriptorResource :: DescriptorResource ⊸ Renderer ()
-forgetDescriptorResource = \case
-  UniformResource x -> Alias.forget x
-  Texture2DResource x -> Alias.forget x
 
 ---------------------
 --- : | Pools | : ---
@@ -202,9 +218,13 @@ shader) from the pool, rather than specifying each descriptor.
 
 -- | See Note [Pools]
 data DescriptorPool =
-  DescriptorPool { _pool :: Vk.DescriptorPool
-                 , _set_bindings :: IntMap (Vk.DescriptorSetLayout, BindingsMap)
+  DescriptorPool { dpool :: Vk.DescriptorPool
+                 , set_bindings :: IntMap (Vk.DescriptorSetLayout, BindingsMap)
                  }
+
+instance Aliasable DescriptorPool where
+  countedFields _ = []
+  {-# INLINE countedFields #-}
 
 -- | Todo: Linear Types. The created pool must be freed.
 --
@@ -213,11 +233,11 @@ data DescriptorPool =
 -- TODO: Right amount of descriptors. For now we simply multiply 1000 by the
 -- number of all total descriptors across sets
 createDescriptorPool :: ShaderPipeline info -> Renderer DescriptorPool
-createDescriptorPool sp =
+createDescriptorPool sp = enterD "createDescriptorPool" $
   case createDescriptorSetBindingsMap sp of
     dsetmap -> Linear.do
 
-      layouts <- Data.Linear.traverse (Unsafe.toLinear \bm -> (,bm) <$> createDescriptorSetLayout bm) dsetmap
+      layouts <- Data.Linear.traverse (\bm -> case move bm of Ur bm1 -> (,bm1) <$> createDescriptorSetLayout bm1) dsetmap
 
       let 
         descriptorsAmounts :: [(Vk.DescriptorType, Int)] -- ^ For each type, its amount
@@ -231,24 +251,20 @@ createDescriptorPool sp =
                                                , next = ()
                                                }
 
-      descriptorPool <- unsafeUseDevice (\device -> Vk.createDescriptorPool device poolInfo Nothing)
+      descriptorPool <- withDevice (Vk.createDescriptorPool poolInfo Nothing)
       pure (DescriptorPool descriptorPool layouts)
 
 destroyDescriptorPool :: DescriptorPool ⊸ Renderer ()
-destroyDescriptorPool = Unsafe.toLinear \p -> Linear.do
-  unsafeUseDevice (\dev -> Vk.destroyDescriptorPool dev p._pool Nothing)
-  consume <$> Data.Linear.traverse (destroyDescriptorSetLayout . Unsafe.toLinear fst) p._set_bindings
-    where
-      destroyDescriptorSetLayout :: Vk.DescriptorSetLayout ⊸ Renderer ()
-      destroyDescriptorSetLayout = Unsafe.toLinear \layout -> unsafeUseDevice (\dev -> Vk.destroyDescriptorSetLayout dev layout Nothing)
-
+destroyDescriptorPool DescriptorPool{..} = enterD "destroyDescriptorPool" $ Linear.do
+  withDevice (Vk.destroyDescriptorPool Nothing dpool)
+  consume <$> Data.Linear.traverse (withDevice . Vk.destroyDescriptorSetLayout Nothing . fst) set_bindings
 
 -- | Create a DescriptorSetLayout for a group of bindings (that represent a set) and their properties.
 --
 -- DescriptorSetLayouts are created and stored by 'DescriptorPool's.
 createDescriptorSetLayout :: BindingsMap -- ^ Binding, type and stage flags for each descriptor in the set to create
                           -> Renderer Vk.DescriptorSetLayout
-createDescriptorSetLayout bindingsMap =
+createDescriptorSetLayout bindingsMap = enterD "createDescriptorSetLayout" $
   let
       makeBinding bindingIx (descriptorType',_ss,sflags) =
         Vk.DescriptorSetLayoutBinding { binding = fromIntegral bindingIx
@@ -263,10 +279,7 @@ createDescriptorSetLayout bindingsMap =
                                                     , flags = Vk.zero
                                                     }
 
-   in unsafeUseDevice (\device -> Vk.createDescriptorSetLayout device layoutInfo Nothing)
-
-
-
+   in withDevice (Vk.createDescriptorSetLayout Nothing layoutInfo)
 
 -------------------------------
 --- : | Descriptor Sets | : ---
@@ -274,7 +287,7 @@ createDescriptorSetLayout bindingsMap =
 
 
 data DescriptorSet
-  = DescriptorSet { _ix :: Ur Int
+  = DescriptorSet { _ix :: Int
                   , _descriptorSet :: Vk.DescriptorSet
                   }
 
@@ -301,102 +314,122 @@ instance Aliasable DescriptorSet where
 -- To write and obtain the descriptor set, apply the returned function to a
 -- resource map. If the function is applied to an empty resource map, it'll
 -- simply create a descriptor set and write nothing to it.
-allocateEmptyDescriptorSet :: Int -- ^ The set to allocate by index
+allocateEmptyDescriptorSet :: Int -- ^ The set to allocate by index (we could enforce this number is inside of the descritpor pool if we had a type level map of the bindings in the descriptor set : TODO)
                       -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
                        ⊸ Renderer (DescriptorSet, DescriptorPool)
-allocateEmptyDescriptorSet ix = fmap (Unsafe.toLinear \case ([ds], x) -> (ds, x); _ -> error $ "Internal error: Failed to allocate a single descriptor set #" <> show ix
-                                ) . allocateEmptyDescriptorSets [ix]
+allocateEmptyDescriptorSet ix = extract <=< allocateEmptyDescriptorSets (VL.make ix)
+  where
+    extract :: (V 1 DescriptorSet, DescriptorPool) ⊸ Renderer (DescriptorSet, DescriptorPool)
+    extract (ds,p) = pure (VL.elim id ds,p)
+    extract (ds,p)   = Linear.do
+      p' <- Alias.newAlias destroyDescriptorPool p
+      freeDescriptorSets p' ds -- This will destroy certainly destroy the pool, since we've just created the reference and haven't shared it.
+      error $ "Internal error: Failed to allocate a single descriptor set #" <> show ix
 
 -- | Like 'allocateEmptyDescriptorSet' but allocate multiple sets at once
-allocateEmptyDescriptorSets :: [Int]    -- ^ The sets to allocate by Ix
-                      -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
-                       ⊸ Renderer (Vector DescriptorSet, DescriptorPool)
-allocateEmptyDescriptorSets ixs = Unsafe.toLinear \dpool -> Linear.do
-  let
-      sets :: [(Vk.DescriptorSetLayout, BindingsMap)]
-      sets = map (Unsafe.toLinear \i -> case IM.lookup i dpool._set_bindings of
-                           Just x -> x
-                           Nothing -> error $ "Internal error: We're trying to allocate a descriptor set #" <> show i <> " with no bindings."
-                  ) ixs
-                  -- The lookup will be nothing if we are trying to allocate a
-                  -- descriptor set type #i, but there exist no bindings on set #1.
-                  -- In that case, we don't allocate that descriptor set (which
-                  -- might result in an empty returned vector)
+-- INVARIANT: The Int vector does not have duplicate Ints
+allocateEmptyDescriptorSets :: ∀ n. V n Int   -- ^ The sets to allocate by Ix
+                            -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
+                             ⊸ Renderer (V n DescriptorSet, DescriptorPool)
+allocateEmptyDescriptorSets ixs DescriptorPool{..} = enterD "allocateEmptyDescriptorSets" $ Linear.do
+  -- This is one of those for which I really should have just used Unsafeness, right...
+  -- What I think I really need for these cases is a sorts of *framing rule* as
+  -- that in separation logic
 
-      allocInfo = Vk.DescriptorSetAllocateInfo { descriptorPool = dpool._pool
-                                               , setLayouts = V.fromList $ map (Unsafe.toLinear fst) sets
-                                               , next = ()
-                                               }
-  let vixs = V.map Ur $ V.fromList ixs
+  -- Extract the layouts info needed for allocation out of the dpool map
+  (to_alloc, the_rest)  <- pure $ IML.partitionByKeys ixs set_bindings
+  (keys, to_alloc_tups) <- pure $ unzip $ IML.toList $ to_alloc
+  (layouts, bindingsxs) <- pure $ unzip $ to_alloc_tups
+
   -- Allocate the descriptor sets
-  descriptorSets <- unsafeUseDevice (\dev -> V.zipWith DescriptorSet Prelude.<$> Prelude.pure vixs Prelude.<*> Vk.allocateDescriptorSets dev allocInfo)
-  pure (descriptorSets, dpool)
+  (dsets, V layouts, dpool) <- enterD "Allocate the descriptor sets" $
+    withDevice (Vk.allocateDescriptorSets dpool (V @n (l2vec layouts))) -- @n since the partition takes @n@ integers (well, only if the integer list is disjoint...)
 
-  -- ROMES:TODO: make update/writing explicit and allocate only allocates the empty set
-  -- This also would allow us to change the special hacks in updateDescriptorSet to an assertion
-  -- Rename to allocate*Empty*descriptorSet
-  -- DONE! Just delete the comments when this all works...
+  -- Reconstruct things
+  (to_alloc_tups, Nothing) <- pure $ zip' (vec2l layouts) bindingsxs
+  (to_alloc,Nothing)       <- pure $ zip' keys to_alloc_tups
+  set_bindings  <- pure $ IML.unionWith (Unsafe.toLinear2 \_ _ -> error "impossible") (IML.fromList to_alloc) the_rest
 
-  -- Return a closure that when applied to a resource map will write the
-  -- descriptor set with the resources information and then return it
-  -- V.zipWithM (\ix dset resources -> do
-  --                     -- Write the descriptor set with the allocated resources
-  --                     updateDescriptorSet dset resources
-  --                     pure $ DescriptorSet ix dset resources) ixs descriptorSets
+  pure (vzipWith DescriptorSet ixs dsets, DescriptorPool dpool set_bindings)
   
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
 updateDescriptorSet :: DescriptorSet -- ^ The descriptor set we're updating with these resources
                      ⊸ ResourceMap
                      ⊸ Renderer (DescriptorSet, ResourceMap)
 updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> Linear.do
-  -- Ach... the resource map must only be freed when the descriptor set is no longer in use... right?
 
-  let makeDescriptorWrite i = \case
-        UniformResource buf ->
+  -- Ach... the resource map must only be freed when the descriptor set is no longer in use... right? Perhaps not...
+  -- This could be done, e.g., by storing a reference counted alias of the
+  -- things the it depends on, and free them when we free this.
+
+  {- To update a descriptor set, we must write a Vk.WriteDescriptorSet info
+      structure for each resource we want to update a descriptor set with
+
+      This is bothersome to do linearly, we could, e.g., share an alias for
+      every resource to be stored in the write-info, then pass the write infos
+      to the or .. .o r... hard
+
+
+      Basically, makeDescriptorWriteInfo would need to give ownwership of the
+      resources to the writeInfos, give it to Vk.updateDescriptorSet, which
+      would return ownership of the writeInfos, and we'd construct ownership of
+      the resources again.
+      -}
+
+  let makeDescriptorWriteInfo :: Int -> DescriptorResource -> Renderer (Vk.SomeStruct Vk.WriteDescriptorSet)
+      makeDescriptorWriteInfo i = \case
+        UniformResource bufA ->
           -- Each descriptor only has one buffer. If we had an array of buffers in a descriptor we would need multiple descriptor buffer infos
           let bufferInfo = Vk.DescriptorBufferInfo
-                                               { buffer = (Unsafe.Alias.get buf).buffer
+                                               { buffer = (Unsafe.Alias.get bufA).buffer
                                                , offset = 0
                                                , range  = Vk.WHOLE_SIZE -- the whole buffer
                                                }
 
-           in Vk.SomeStruct Vk.WriteDescriptorSet
-                                    { next = ()
-                                    , dstSet = dset -- the descriptor set to update with this write
-                                    , dstBinding = fromIntegral i
-                                    , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
-                                    , descriptorType = Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -- The type of buffer
-                                    , descriptorCount = 1 -- Only one buffer in the array of buffers to update
-                                    , bufferInfo = [bufferInfo] -- The one buffer info
-                                    , imageInfo = []
-                                    , texelBufferView = []
-                                    }
+           in pure $ Vk.SomeStruct Vk.WriteDescriptorSet
+               { next = ()
+               , dstSet = dset -- the descriptor set to update with this write
+               , dstBinding = fromIntegral i
+               , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+               , descriptorType = Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -- The type of buffer
+               , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+               , bufferInfo = [bufferInfo] -- The one buffer info
+               , imageInfo = []
+               , texelBufferView = []
+               }
 
-                                    -- snd is safe bc despite ignoring talias here, we return it unchanged in the resources list
-        Texture2DResource talias -> Unsafe.toLinear snd $ Alias.use talias $ Unsafe.toLinear $ \(Texture2D vkimage sampler) ->
-          let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                                                 , imageView = vkimage._imageView
-                                                 , sampler   = Unsafe.toLinear snd $ Alias.use sampler $ Unsafe.toLinear $ \s -> (s, s.sampler) -- same unsafe as above
-                                                 }
-           in ( Texture2D vkimage sampler
-              , Vk.SomeStruct Vk.WriteDescriptorSet
-                { next = ()
-                , dstSet = dset -- the descriptor set to update with this write
-                , dstBinding = fromIntegral i
-                , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
-                , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
-                , descriptorCount = 1 -- Only one buffer in the array of buffers to update
-                , bufferInfo = [] -- The one buffer info
-                , imageInfo = [imageInfo]
-                , texelBufferView = []
-                }
-              )
+        Texture2DResource talias ->
+          case Unsafe.Alias.get talias of
+            (Texture2D vkimage sampler) ->
+              let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                                                     , imageView = vkimage._imageView
+                                                     , sampler   = (Unsafe.Alias.get sampler).sampler
+                                                     }
+               in pure $ Vk.SomeStruct Vk.WriteDescriptorSet
+                    { next = ()
+                    , dstSet = dset -- the descriptor set to update with this write
+                    , dstBinding = fromIntegral i
+                    , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+                    , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
+                    , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+                    , bufferInfo = [] -- The one buffer info
+                    , imageInfo = [imageInfo]
+                    , texelBufferView = []
+                    }
 
-  unsafeUseDevice (\dev -> Vk.updateDescriptorSets dev (V.fromList $ IM.elems $ IM.mapWithKey makeDescriptorWrite resources) [])
+
+  -- The difficulty in making this linear is that we can't traverse and update
+  -- one thing at a time, we must write them all first, then call update on the
+  -- whole batch
+  writeInfos <- IML.traverseWithKey (Unsafe.toLinear2 makeDescriptorWriteInfo) resources
+  -- How can I do this well? It's really not immediatly clear
+
+  useDevice (Unsafe.toLinear Vk.updateDescriptorSets (l2vec $ IML.elems writeInfos) [])
   pure (DescriptorSet uix dset, resources)
 
 -- | Destroy a descriptor set 
 --
+-- I think this comment is outdated:
 -- We must be careful here not to free resources shared across materials
 --
 -- (1) Uniform buffers are allocated per-material, so we always free them
@@ -408,37 +441,19 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> Li
 -- The texture resource is used to update the descriptor set to point to that
 -- texture
 --
---
--- TODO: Write this to the note
---
--- TODO: The descriptor sets don't need to be freed! perhaps make them unrestricted elsewhere and get rid of this function
-freeDescriptorSet :: DescriptorSet ⊸ Renderer ()
-freeDescriptorSet (DescriptorSet (Ur _ix) _dset) = Unsafe.toLinear (\_ -> pure ()) _dset
+freeDescriptorSets :: Alias DescriptorPool ⊸ V n DescriptorSet ⊸ Renderer ()
+freeDescriptorSets dpoolA dsets = Linear.do
+  (DescriptorPool{..}, f) <- Alias.get dpoolA
+  dpool1 <- withDevice (Vk.freeDescriptorSets dpool (case VL.map (\(DescriptorSet ix dset) -> ix `lseq` dset) dsets of V v -> v))
+  f (DescriptorPool{dpool=dpool1,..})
+  return ()
 
 freeResourceMap :: ResourceMap ⊸ Renderer ()
 freeResourceMap = Alias.forget
 
+-- | Forget a descriptor resource. This might free the resource if it's the last reference to it
+-- (A DescriptorResource wraps a Reference Counted value)
 freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
 -- ROMES:TODO: Should I be ensuring this is the last reference here?
 freeDescriptorResource = Alias.forget
-
--- Aren't these unsafe ? :)
-
-instance Data.Linear.Functor IntMap where
-  fmap f x = Unsafe.toLinear2 Prelude.fmap (Unsafe.toLinear f) x
-  {-# INLINE fmap #-}
-
-instance Data.Linear.Traversable IntMap where
-  traverse :: ∀ t a b. Data.Linear.Applicative t => (a %1 -> t b) -> IntMap a %1 -> t (IntMap b)
-  traverse f = go
-    where
-      go :: IntMap a %1 -> t (IntMap b)
-      go IMI.Nil = Data.Linear.pure IMI.Nil
-      go (IMI.Tip k v) = Unsafe.toLinear (\k' -> IMI.Tip k' Data.Linear.<$> f v) k
-      go bin = Unsafe.toLinear (\(IMI.Bin p m l r) ->
-          if m < 0
-             then Data.Linear.liftA2 (flip (IMI.Bin p m)) (go r) (go l)
-             else Data.Linear.liftA2 (IMI.Bin p m) (go l) (go r)
-        ) bin
-  {-# INLINE traverse #-}
 

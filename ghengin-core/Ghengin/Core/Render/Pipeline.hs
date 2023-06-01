@@ -8,6 +8,8 @@ module Ghengin.Core.Render.Pipeline where
 -- import Geomancy.Mat4 ( Mat4 )
 -- import Control.Lens (Lens', lens)
 
+import Data.Functor.Compose
+import Data.V.Linear (V,make)
 import Ghengin.Core.Prelude as Linear
 
 import Data.Typeable
@@ -62,7 +64,7 @@ data RenderPipeline info tys where
   RenderPipeline :: RendererPipeline Graphics -- ^ The graphics pipeline underlying this render pipeline. Can a graphics pipeline be shared amongst Render Pipelines such that this field needs to be ref counted?
                  ⊸  Alias RenderPass -- ^ A reference counted reference to a render pass, since we might share render passes amongst pipelines
                  -- ⊸  NonEmpty (DescriptorSet, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
-                 ⊸  (Alias DescriptorSet, Alias ResourceMap, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
+                 ⊸  (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
                  ⊸  ShaderPipeline info
                  %p -> RenderPipeline info '[] 
 
@@ -143,11 +145,13 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
                                      [Vk.PushConstantRange { offset = 0 , size   = fromIntegral 64, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   logT "Creating reference counted"
-  dset2 <- Alias.newAlias freeDescriptorSet dset1
+  dpool3 <- Alias.newAlias destroyDescriptorPool dpool2
+  (dpool4,dpool5) <- Alias.share dpool3
+  dset2 <- Alias.newAlias (\s -> freeDescriptorSets dpool4 (make s)) dset1
   resources2 <- Alias.newAlias freeResourceMap resources1
   simpleRenderPass3 <- Alias.newAlias destroyRenderPass simpleRenderPass2
 
-  pure $ mkRP (RenderPipeline pipeline simpleRenderPass3 (dset2, resources2, dpool2) shaderPipeline) props1
+  pure $ mkRP (RenderPipeline pipeline simpleRenderPass3 (dset2, resources2, dpool5) shaderPipeline) props1
     where
       mkRP :: ∀ info (b :: [Type]). RenderPipeline info '[] ⊸ PropertyBindings b ⊸ RenderPipeline info b
       mkRP x GHNil = x

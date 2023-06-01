@@ -1,3 +1,12 @@
+[ ] Still need to make the batteries included engine (Ghengin) be unrestricted (need to use UrT to wrap Renderer)
+[ ] Drop (Maybe Word) corresponding to Size in `BindingsMap`, it is no longer used.
+[x] After "Remove Unsafes from Core", the planets application is able to run and generate meshes without crashing.
+    However, after "Remove Unsafes from Vulkan", the application won't even start.
+    Fix that. Fixed, it was a darn accidental recursive binding
+[ ] I'm starting to think the Vulkan implementation should use Unsafe.toLinear
+    *EVERYWHERE*, and simply provide a linear API on top of it.
+    The individual functions are too painful to make linear.
+[ ] Make revertable commit changing to multiple packages in a cabal.project file, so that we get LSP back (it + multiple components + backpack is broken)
 [ ] Replace SizeOf with gl-block https://gitlab.com/dpwiz/gl-block
 [ ] Use Geomancy.Gl.Block
 [ ] Maybe we could make good use of streamly here somwhere

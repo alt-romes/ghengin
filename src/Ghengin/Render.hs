@@ -290,7 +290,7 @@ writePropertiesToResources rmap' fi
       binding :## as -> Linear.do
         (res, rmap'') <- lift $ getDescriptorResource rmap n
         (res', binding') <- lift $ writeProperty res binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
-        lift $ forgetDescriptorResource res' -- gotten from rmap, def. not the last ref
+        lift $ Alias.forget res' -- gotten from rmap, def. not the last ref
         (rmap''', bs) <- go rmap'' (n+1) as
         pure (rmap''', binding':##bs)
 

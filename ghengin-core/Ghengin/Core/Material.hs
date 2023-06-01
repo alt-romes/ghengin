@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Core.Material where
 
+import Data.V.Linear (V,make)
 import Ghengin.Core.Prelude as Linear
 
 import Data.Unique ( Unique, newUnique )
@@ -113,7 +114,8 @@ material props0 (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Line
 
   -- We allocate an empty descriptor set of type #1 to later write with the
   -- resource map
-  (dset0, dpool1) <- allocateEmptyDescriptorSet 1 dpool0
+  (dpool1,dset0)  <- Alias.useM dpool0 (\pool -> swap <$> allocateEmptyDescriptorSet 1 pool)
+  (dpool2,dpool3) <- Alias.share dpool1
 
   -- -- We bail out early if this descriptor pool has no descriptor sets of
   -- -- type #1 (which would mean there are no bindings in descriptor set #1
@@ -129,14 +131,14 @@ material props0 (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Line
   -- created resource map
   (dset1, resources1) <- updateDescriptorSet dset0 resources0
 
-  dset2 <- Alias.newAlias freeDescriptorSet dset1
+  dset2 <- Alias.newAlias (freeDescriptorSets dpool2 . make) dset1
   resources2 <- Alias.newAlias freeResourceMap resources1
 
   -- Create the material which stores the final descriptor set with the
   -- updated information.
   pure
     ( mkMat (Done (dset2, resources2, Ur uniq)) props1
-    , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders
+    , RenderPipeline gpip rpass (rdset, rres, dpool3) shaders
     )
   -- TODO: Apecs.newEntity (SomeMaterial mat)?
   where

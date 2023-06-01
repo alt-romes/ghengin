@@ -70,22 +70,21 @@ common common-flags
 
                  -- Debugging symbols
                  --------------------
-                 -g2
+                 -- -g2
 
                  -- Linting
                  ----------
-                 -debug
-                 -- -falignment-sanitisation
+                 -- -debug
                  -- -dcore-lint
                  -- -dlint
                  -dasm-lint
                  -dcmm-lint
                  -dstg-lint
-                 -- -fcmm-thread-sanitizer
+                 -- -falignment-sanitisation
 
     cc-options: -O0 -DDEBUG
     cpp-options: -DDEBUG
-                 -- -DDEBUG_TRACE
+                 -DDEBUG_TRACE
                  -- -DTHINGS_ARE_GOING_THAT_BAD
   else
     ghc-options: -Wall -O2
@@ -117,7 +116,14 @@ common common-flags
                       QualifiedDo,
                       QuantifiedConstraints,
                       -- Use Ghengin.Core.Prelude!
-                      NoImplicitPrelude
+                      NoImplicitPrelude,
+
+                      -- This is just an experiment, but honestly it might be
+                      -- the right thing to do by default for the engine?
+
+                      -- If you find this comment here later, try benchmarking this
+                      -- Strict,
+                      -- StrictData,
 
 
   -- Base language which the package is written in.
@@ -217,6 +223,7 @@ library linear-utils
     visibility:       public
 
     exposed-modules:  Data.IntMap.Linear,
+                      Data.Unrestricted.Linear.Orphans,
                       Vulkan.Linear
 
     hs-source-dirs:   linear-utils
