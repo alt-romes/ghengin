@@ -1,3 +1,4 @@
+[ ] Plan: (1) Split into multiple packages to get HLS working again. (2) Make Ghengin unrestricted. (3) Get back to making ghengin-vulkan safe-only
 [ ] Still need to make the batteries included engine (Ghengin) be unrestricted (need to use UrT to wrap Renderer)
 [ ] Drop (Maybe Word) corresponding to Size in `BindingsMap`, it is no longer used.
 [x] After "Remove Unsafes from Core", the planets application is able to run and generate meshes without crashing.

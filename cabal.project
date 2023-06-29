@@ -1,5 +1,16 @@
-packages: .
+packages:
           ./ghengin-dist-macos/
+-----------------------------
+-- THE PACKAGES BELOW SHOULD
+-- ONLY EXIST WHILE MULTILIBS
+-- INSIDE CABAL + HLS +
+-- BACKPACK DOESN'T WORK
+-----------------------------
+          ./ghengin/
+          ./ghengin-vulkan/
+          ./ghengin-core/
+          ./ghengin-core-indep/
+          ./linear-utils/
 
 package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3

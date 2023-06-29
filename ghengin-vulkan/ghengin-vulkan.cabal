@@ -1,0 +1,131 @@
+cabal-version:      3.4
+
+--------------------------------------------------------------------------------
+-- this file is split off from ../ghengin.cabal
+-- we had to split these libraries into a different package
+-- to fix HLS when using backpack
+-- when that's fixed, move the packages back together to the same cabal project file
+--------------------------------------------------------------------------------
+
+name:               ghengin-vulkan
+version:            0.1.0.0
+tested-with: GHC ==9.4.4 || ==9.6.1
+license:            BSD-3-Clause
+license-file:       ../LICENSE
+author:             romes
+maintainer:         rodrigo.m.mesquita@gmail.com
+category:           Graphics
+build-type:         Simple
+extra-doc-files:    ../CHANGELOG.md
+
+flag dev
+  default: True
+  manual: True
+  description: This flag controls development settings and should be manually disabled when the game is being built for release. The ghengin packaging tools will take care to set this flag to false when packaging.
+               When enabled, vulkan validation layers are enabled.
+               Run `cabal build -f-dev` to build with the flag disabled.
+               -- Enable with -f+dev
+
+common common-flags
+
+  if flag(dev)
+    ghc-options: -Wall -O0
+                 -dasm-lint
+                 -dcmm-lint
+                 -dstg-lint
+
+    cc-options: -O0 -DDEBUG
+    cpp-options: -DDEBUG
+                 -DDEBUG_TRACE
+  else
+    ghc-options: -Wall -O2
+    cc-options: -O2
+
+  default-extensions: UnicodeSyntax,
+                      MultiParamTypeClasses,
+                      NoStarIsType,
+                      RankNTypes,
+                      DataKinds,
+                      PolyKinds,
+                      GADTs,
+                      ViewPatterns,
+                      TypeApplications,
+                      TypeFamilies,
+                      ExplicitNamespaces,
+                      TypeFamilyDependencies,
+                      TypeOperators,
+                      LambdaCase,
+                      BlockArguments,
+                      RecordWildCards,
+                      UnboxedTuples,
+                      PatternSynonyms,
+                      DisambiguateRecordFields,
+                      DeriveGeneric,
+                      LinearTypes,
+                      QualifiedDo,
+                      QuantifiedConstraints,
+                      -- Use Ghengin.Core.Prelude!
+                      NoImplicitPrelude,
+
+  default-language: GHC2021
+
+library
+    import:           common-flags
+
+    visibility:       public
+
+    exposed-modules:  Ghengin.Vulkan.Renderer.Kernel,
+                      Ghengin.Vulkan.Renderer.DescriptorSet,
+                      Ghengin.Vulkan.Renderer.Buffer,
+                      Ghengin.Vulkan.Renderer.Pipeline,
+                      Ghengin.Vulkan.Renderer.RenderPass,
+                      Ghengin.Vulkan.Renderer.Texture,
+
+                      -- To be an instance eventually
+                      Ghengin.Vulkan.Renderer,
+
+                      -- Don't know
+                      Ghengin.Vulkan.Renderer.ImmediateSubmit,
+                      Ghengin.Vulkan.Renderer.Image,
+                      Ghengin.Vulkan.Renderer.SwapChain,
+                      Ghengin.Vulkan.Renderer.Sampler,
+                      Ghengin.Vulkan.Renderer.Frame,
+
+                      -- Should soon enough be part of the required pieces
+                      Ghengin.Vulkan.Renderer.Command,
+                      -- Modules that don't instance signatures
+                      Ghengin.Vulkan.Renderer.Device,
+                      Ghengin.Vulkan.Renderer.Device.Instance,
+                      Ghengin.Vulkan.Renderer.GLFW.Window,
+                      Ghengin.Vulkan.Renderer.Synchronization,
+
+    hs-source-dirs:   ghengin-vulkan
+
+    build-depends:    base,
+                      fir,
+                      vulkan,
+                      GLFW-b,
+                      linear-base,
+                      reference-counting,
+                      -- ghengin:ghengin-core MISTAKE!,
+                      ghengin-core-indep,
+                      gl-block,
+
+                      -- For textures (consider adding to Core too)
+                      JuicyPixels,
+
+                      containers,
+                      bytestring,
+                      mtl,
+                      vector,
+                      linear-utils
+
+    -- Until #23322 is fixed?
+    -- Nope, also doesn't work. Perhaps we could support this sort of cyclic dependencies.
+    -- mixins:           ghengin:ghengin-core requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+    --                                                 , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+    --                                                 , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+    --                                                 , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+    --                                                 , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+    --                                                 )
+

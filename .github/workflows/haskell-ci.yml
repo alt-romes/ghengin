@@ -157,8 +157,12 @@ jobs:
       - name: initial cabal.project for sdist
         run: |
           touch cabal.project
-          echo "packages: $GITHUB_WORKSPACE/source/." >> cabal.project
           echo "packages: $GITHUB_WORKSPACE/source/./ghengin-dist-macos" >> cabal.project
+          echo "packages: $GITHUB_WORKSPACE/source/./ghengin" >> cabal.project
+          echo "packages: $GITHUB_WORKSPACE/source/./ghengin-vulkan" >> cabal.project
+          echo "packages: $GITHUB_WORKSPACE/source/./ghengin-core" >> cabal.project
+          echo "packages: $GITHUB_WORKSPACE/source/./ghengin-core-indep" >> cabal.project
+          echo "packages: $GITHUB_WORKSPACE/source/./linear-utils" >> cabal.project
           cat cabal.project
       - name: sdist
         run: |
@@ -170,18 +174,38 @@ jobs:
           find sdist -maxdepth 1 -type f -name '*.tar.gz' -exec tar -C $GITHUB_WORKSPACE/unpacked -xzvf {} \;
       - name: generate cabal.project
         run: |
-          PKGDIR_ghengin="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/ghengin-[0-9.]*')"
-          echo "PKGDIR_ghengin=${PKGDIR_ghengin}" >> "$GITHUB_ENV"
           PKGDIR_ghengin_dist_macos="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/ghengin-dist-macos-[0-9.]*')"
           echo "PKGDIR_ghengin_dist_macos=${PKGDIR_ghengin_dist_macos}" >> "$GITHUB_ENV"
+          PKGDIR_ghengin="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/ghengin-[0-9.]*')"
+          echo "PKGDIR_ghengin=${PKGDIR_ghengin}" >> "$GITHUB_ENV"
+          PKGDIR_ghengin_vulkan="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/ghengin-vulkan-[0-9.]*')"
+          echo "PKGDIR_ghengin_vulkan=${PKGDIR_ghengin_vulkan}" >> "$GITHUB_ENV"
+          PKGDIR_ghengin_core="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/ghengin-core-[0-9.]*')"
+          echo "PKGDIR_ghengin_core=${PKGDIR_ghengin_core}" >> "$GITHUB_ENV"
+          PKGDIR_ghengin_core_indep="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/ghengin-core-indep-[0-9.]*')"
+          echo "PKGDIR_ghengin_core_indep=${PKGDIR_ghengin_core_indep}" >> "$GITHUB_ENV"
+          PKGDIR_linear_utils="$(find "$GITHUB_WORKSPACE/unpacked" -maxdepth 1 -type d -regex '.*/linear-utils-[0-9.]*')"
+          echo "PKGDIR_linear_utils=${PKGDIR_linear_utils}" >> "$GITHUB_ENV"
           rm -f cabal.project cabal.project.local
           touch cabal.project
           touch cabal.project.local
-          echo "packages: ${PKGDIR_ghengin}" >> cabal.project
           echo "packages: ${PKGDIR_ghengin_dist_macos}" >> cabal.project
+          echo "packages: ${PKGDIR_ghengin}" >> cabal.project
+          echo "packages: ${PKGDIR_ghengin_vulkan}" >> cabal.project
+          echo "packages: ${PKGDIR_ghengin_core}" >> cabal.project
+          echo "packages: ${PKGDIR_ghengin_core_indep}" >> cabal.project
+          echo "packages: ${PKGDIR_linear_utils}" >> cabal.project
+          echo "package ghengin-dist-macos" >> cabal.project
+          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
           echo "package ghengin" >> cabal.project
           echo "    ghc-options: -Werror=missing-methods" >> cabal.project
-          echo "package ghengin-dist-macos" >> cabal.project
+          echo "package ghengin-vulkan" >> cabal.project
+          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
+          echo "package ghengin-core" >> cabal.project
+          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
+          echo "package ghengin-core-indep" >> cabal.project
+          echo "    ghc-options: -Werror=missing-methods" >> cabal.project
+          echo "package linear-utils" >> cabal.project
           echo "    ghc-options: -Werror=missing-methods" >> cabal.project
           cat >> cabal.project <<EOF
           allow-newer: dear-imgui:*
@@ -228,7 +252,7 @@ jobs:
           if $HEADHACKAGE; then
           echo "allow-newer: $($HCPKG list --simple-output | sed -E 's/([a-zA-Z-]+)-[0-9.]+/*:\1,/g')" >> cabal.project
           fi
-          $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: $_ installed\n" unless /^(ghengin|ghengin-dist-macos)$/; }' >> cabal.project.local
+          $HCPKG list --simple-output --names-only | perl -ne 'for (split /\s+/) { print "constraints: $_ installed\n" unless /^(ghengin|ghengin-core|ghengin-core-indep|ghengin-dist-macos|ghengin-vulkan|linear-utils)$/; }' >> cabal.project.local
           cat cabal.project
           cat cabal.project.local
       - name: dump install plan
@@ -256,18 +280,26 @@ jobs:
           $CABAL v2-test $ARG_COMPILER $ARG_TESTS $ARG_BENCH all --test-show-details=direct
       - name: hlint
         run: |
-          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude src) ; fi
-          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude ghengin-vulkan) ; fi
-          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude linear-utils) ; fi
-          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude ghengin-core-indep) ; fi
-          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude ghengin-core) ; fi
-          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin} && hlint -XGHC2021 -XUnicodeSyntax planets) ; fi
           if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin_dist_macos} && hlint -XGHC2021 app) ; fi
+          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude ghengin) ; fi
+          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin} && hlint -XGHC2021 -XUnicodeSyntax planets) ; fi
+          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin_vulkan} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude ghengin-vulkan) ; fi
+          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin_core} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude ghengin-core) ; fi
+          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_ghengin_core_indep} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude ghengin-core-indep) ; fi
+          if [ $((HCNUMVER < 90600)) -ne 0 ] ; then (cd ${PKGDIR_linear_utils} && hlint -XGHC2021 -XUnicodeSyntax -XMultiParamTypeClasses -XNoStarIsType -XRankNTypes -XDataKinds -XPolyKinds -XGADTs -XViewPatterns -XTypeApplications -XTypeFamilies -XExplicitNamespaces -XTypeFamilyDependencies -XTypeOperators -XLambdaCase -XBlockArguments -XRecordWildCards -XUnboxedTuples -XPatternSynonyms -XDisambiguateRecordFields -XDeriveGeneric -XLinearTypes -XQualifiedDo -XQuantifiedConstraints -XNoImplicitPrelude linear-utils) ; fi
       - name: cabal check
         run: |
+          cd ${PKGDIR_ghengin_dist_macos} || false
+          ${CABAL} -vnormal check
           cd ${PKGDIR_ghengin} || false
           ${CABAL} -vnormal check
-          cd ${PKGDIR_ghengin_dist_macos} || false
+          cd ${PKGDIR_ghengin_vulkan} || false
+          ${CABAL} -vnormal check
+          cd ${PKGDIR_ghengin_core} || false
+          ${CABAL} -vnormal check
+          cd ${PKGDIR_ghengin_core_indep} || false
+          ${CABAL} -vnormal check
+          cd ${PKGDIR_linear_utils} || false
           ${CABAL} -vnormal check
       - name: haddock
         run: |

@@ -1,0 +1,120 @@
+cabal-version:      3.4
+
+--------------------------------------------------------------------------------
+-- this file is split off from ../ghengin.cabal
+-- we had to split these libraries into a different package
+-- to fix HLS when using backpack
+-- when that's fixed, move the packages back together to the same cabal project file
+--------------------------------------------------------------------------------
+
+name:               ghengin-core
+version:            0.1.0.0
+tested-with: GHC ==9.4.4 || ==9.6.1
+license:            BSD-3-Clause
+license-file:       ../LICENSE
+author:             romes
+maintainer:         rodrigo.m.mesquita@gmail.com
+category:           Graphics
+build-type:         Simple
+extra-doc-files:    ../CHANGELOG.md
+
+flag dev
+  default: True
+  manual: True
+  description: This flag controls development settings and should be manually disabled when the game is being built for release. The ghengin packaging tools will take care to set this flag to false when packaging.
+               When enabled, vulkan validation layers are enabled.
+               Run `cabal build -f-dev` to build with the flag disabled.
+               -- Enable with -f+dev
+
+common common-flags
+
+  if flag(dev)
+    ghc-options: -Wall -O0
+                 -dasm-lint
+                 -dcmm-lint
+                 -dstg-lint
+
+    cc-options: -O0 -DDEBUG
+    cpp-options: -DDEBUG
+                 -DDEBUG_TRACE
+  else
+    ghc-options: -Wall -O2
+    cc-options: -O2
+
+  default-extensions: UnicodeSyntax,
+                      MultiParamTypeClasses,
+                      NoStarIsType,
+                      RankNTypes,
+                      DataKinds,
+                      PolyKinds,
+                      GADTs,
+                      ViewPatterns,
+                      TypeApplications,
+                      TypeFamilies,
+                      ExplicitNamespaces,
+                      TypeFamilyDependencies,
+                      TypeOperators,
+                      LambdaCase,
+                      BlockArguments,
+                      RecordWildCards,
+                      UnboxedTuples,
+                      PatternSynonyms,
+                      DisambiguateRecordFields,
+                      DeriveGeneric,
+                      LinearTypes,
+                      QualifiedDo,
+                      QuantifiedConstraints,
+
+                      -- Use Ghengin.Core.Prelude!
+                      NoImplicitPrelude,
+
+  default-language: GHC2021
+
+library
+    import:           common-flags
+
+    visibility:       public
+
+    exposed-modules:  Ghengin.Core.Material,
+                      Ghengin.Core.Mesh,
+
+                      -- Moved to ghengin-core-indep until #23322 is fixed
+                      -- Ghengin.Core.Mesh.Vertex,
+
+                      -- Ghengin.Core.Type.Compatible,
+                      -- Ghengin.Core.Type.Utils,
+
+                      -- Ghengin.Core.Shader.Pipeline,
+                      -- Ghengin.Core.Shader.Canonical,
+
+                      Ghengin.Core.Render.Pipeline,
+                      Ghengin.Core.Render.Property,
+                      Ghengin.Core.Render.Packet,
+                      Ghengin.Core.Render,
+
+                      Ghengin.Core.Renderer
+    signatures:       Ghengin.Core.Renderer.Kernel,
+                      Ghengin.Core.Renderer.DescriptorSet,
+                      Ghengin.Core.Renderer.Buffer,
+                      Ghengin.Core.Renderer.Pipeline,
+                      Ghengin.Core.Renderer.RenderPass,
+                      Ghengin.Core.Renderer.Texture,
+                      Ghengin.Core.Renderer.Sampler,
+
+    hs-source-dirs:   ghengin-core
+
+    build-depends:    base,
+                      fir,
+                      -- TODO: NOT DEPEND ON VULKAN IN CORE
+                      vulkan,
+                      linear-base,
+                      reference-counting,
+
+                      containers,
+                      vector,
+
+                      gl-block,
+
+                      ghengin-core-indep,
+                      linear-utils
+
