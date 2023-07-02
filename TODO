@@ -1,4 +1,9 @@
-[ ] Plan: (1) Split into multiple packages to get HLS working again. (2) Make Ghengin unrestricted. (3) Get back to making ghengin-vulkan safe-only
+[ ] It's definitely not obvious how to have the developer use and update materials and meshes while keeping them linear in the renderer.
+[ ] Notes on how things are outside of Core can be good examples to demonstrate how Core works and is minimal
+[ ] Write Note [Cameras are not part of Core]
+[x] Plan: (1) Split into multiple packages to get HLS working again.
+[ ]       (2) Make Ghengin unrestricted.
+[ ]       (3) Get back to making ghengin-vulkan safe-only
 [ ] Still need to make the batteries included engine (Ghengin) be unrestricted (need to use UrT to wrap Renderer)
 [ ] Drop (Maybe Word) corresponding to Size in `BindingsMap`, it is no longer used.
 [x] After "Remove Unsafes from Core", the planets application is able to run and generate meshes without crashing.
@@ -12,7 +17,7 @@
 [ ] Use Geomancy.Gl.Block
 [ ] Maybe we could make good use of streamly here somwhere
 [ ] Make the Vulkan macos distribution and other distribution/exporter packages agnostic to ghengin
-[ ] That's right, we can use the normal apecs with a wrapper module that unsafe coerces the Renderer to UnsafeRenderer
+[-] That's right, we can use the normal apecs with a wrapper module that unsafe coerces the Renderer to UnsafeRenderer
 [ ] Separate things like Mesh, Material and Pipeline references from Apecs. These should be kept in a renderer data structure really.
 [ ] Picking up a previous idea, we should automatically make imgui editors for
     every game object that instances X, and enable said windows on keydown when
@@ -44,44 +49,43 @@
     incorrect semantics (I could probably fix the semantics with dupable, but
     then incur in even more performance regressions).
 [ ] Hot reloading textures
-[ ] It's currently a very unsafe frankenstein, but really make it compile again before improving it, as a hobby, I can take as many time as I need refactoring everything just for the sake of a more beautiful program
+[x] It's currently a very unsafe frankenstein, but really make it compile again before improving it, as a hobby, I can take as many time as I need refactoring everything just for the sake of a more beautiful program
 [ ] First worry about correctness, then about the performance regressions of using linear types
 [ ] More on WebGPU https://cohost.org/mcc/post/1406157-i-want-to-talk-about-webgpu
-[ ] Performance of linear-apecs is much worse than normal apecs. Probably we need to revert to using it...?
+[x] Performance of linear-apecs is much worse than normal apecs. Probably we need to revert to using it...?
 [ ] Write a backend for the new WebGPU! Make games for the web?
 [ ] Better abstract graphics API? https://wickedengine.net/2021/05/06/graphics-api-abstraction/
 [ ] Again, deferred rendering https://lettier.github.io/3d-game-shaders-for-beginners/deferred-rendering.html
-[ ] Use linear constraints with 9.8
+[ ] Use linear constraints with ~~9.8~~ 9.10
 [ ] Ghengin should not mention vulkan anywhere outside of the cabal file that
     instances Core.Renderer with Vulkan.Renderer. For now, though, we use Vulkan
     only while we don't figure out the parts of the API that still depend on Vulkan
 [ ] Exchange reference counted instances to Generic based instances to avoid bugs
-[ ] Perhaps linear-apecs components should be dupable rather than unrestricted,
+[-] Perhaps linear-apecs components should be dupable rather than unrestricted,
     so something like a reference counted pipeline can be stored in apecs, and be
     shared as many times as needed without it ever being unrestricted (of course,
     in requiring Dupable people can still store Ur elements there, so it's less
     restrictive than requiring Ur).
 [ ] Get rid of StateVar ?
 [ ] The World should really be an heterogenous list such that we can add and remove compontents at will, meaning the list of components we're using is more modular (we can add the transform animation components storage only if we're using animation). Though we can still have some built in ones.
-[ ] We could have an unrestricted Ghengin monad simply by wrapping the linear
+[x] We could have an unrestricted Ghengin monad simply by wrapping the linear
     bits with UrT!... Perhaps as an alternative instanciation of Ghengin? So
     we'd have linear-ghengin and just ghengin, but the core of both,
     ghengin-core, is always linear and resources there are carefully threaded
     through, so implementation wise resources are not forgotten. In games, we
-    can relax what we enforce in the types regarding resources, or keep them
-    still
+    can relax what we enforce in the types regarding resources, or keep them still
 [ ] Write some nice comments about how to use linear types with Dupable and Consumable and UrT that makes things Monads, those are really useful. Write a blog post about it even.
 [ ] Make better use of Consumable and Dupable... (linear types cleanup) (e.g. consumeUnits is just a specialisation of consume from Consumable -- change it.)
 [ ] ghengin should not import Ghengin.Vulkan either. It should simply ensure
     (for now) that ghengin-core is instanced with ghengin-vulkan, but later on we
     might even delegate that responsibility to the user
 [ ] Much more parallelism... both host and device (GPU)
-[ ] Clean up ghengin-core and ghengin-vulkan (better utils, custom prelude and
+[x] Clean up ghengin-core and ghengin-vulkan (better utils, custom prelude and
     exports in cabal (-XNoImplicitPrelude), linear by default (-XLinearTypes, -XQualifiedDo), block args too)
 [ ] Longterm: WebGPU backend + WASM GHC compilation
-[ ] Ghengin.Prelude
-[ ] Gigant refactor using linear types and backpack sigs for the renderer
-[ ] By default, QualifiedDo and NoImplicitPrelude in ghengin-core and default to Prelude.Linear (and perhaps in ghengin-vulkan and others too)
+[x] Ghengin.Prelude
+[x] Gigantic refactor using linear types and backpack sigs for the renderer
+[x] By default, QualifiedDo and NoImplicitPrelude in ghengin-core and default to Prelude.Linear (and perhaps in ghengin-vulkan and others too)
 [ ] Fix stuttering most likely due to update not being run per frame in flight
 [ ] Move ghengin-package-macos to more general packaging solution
 [x] Fix type errors and implement all of the logic of the camera in userland to experiment its expected feasibility
@@ -93,7 +97,7 @@
 [x] Edit for all render properties instead of just material (migrate medit)
 [ ] Fix Frames in Flight (completely-redo-it)
 [ ] Un-built-in Transform and the push constant that pushes it
-[ ] Consider moving Ghengin.Core to its own package
+[x] Consider moving Ghengin.Core to its own package
 [x] Use `Syntatic` and compare with `InternalType` and equality instead of SizeOf
 [x] Move hardcoded bindings out of render pipeline and instance it with properties instead
 [ ] FIR doesn't check compatibility between vertex data and vertex shader inputs
@@ -114,17 +118,17 @@
 [-] Resource wrapper that gets resource through special hoops depending on the system (e.g. using CoreFoundation in MacOS and iOS)
 [x] Flexible Mesh types checked against pipeline
 [x] Sharing RenderPackets makes mesh because multiple ones will be freed multiple times (since we don't de-duplicate meshes, but rather render all meshes in render entities agregatted by material) (reference count drop below 0)
-[ ] If using MonadRender, -fspecialize-agressively might be useful, but it will probably already specialize...
+[-] If using MonadRender, -fspecialize-agressively might be useful, but it will probably already specialize...
 [ ] Currently, if a texture or sampler is not used in a material then they aren't freed (textures and sampler are freed and reference counted through materials)
 [x] Reference count Textures and Samplers
 [ ] Instances for safe coercion between ImGui types and Geomancy (using unsafeCoerce :P)
-[ ] Linear types for resource management
-[ ] MonadRenderer to be able to call mesh creation and such from SystemT
+[x] Linear types for resource management
+[-] MonadRenderer to be able to call mesh creation and such from SystemT
 [ ] Toon Shader
-[ ] Automatically derive UISettings?
+[ ] Automatically derive UISettings? (This goes in line with the idea of making an editor-mode which allows things to be edited by default through imgui panels)
 [ ] Swap chain recreation...
 [x] Would it be bad having two layers of ECS (rendering + user)? <-- This wouldn't work because the user-world must also know of render packets and such, since it wants to add and manipulate them
-[ ] Better solution for memory management (linear types, gc, bla bla). Right now we require shared resources (like textures) to be manually freed, while material local resources are freed by the engine.
+[x] Better solution for memory management (linear types, gc, bla bla). Right now we require shared resources (like textures) to be manually freed, while material local resources are freed by the engine.
 [x] Build macos app bundles
 [0] If I ever have a big enough game, processing all assets at init will be slow, and we should otherwise store the processed data in a resource manager database
 [ ] Unity tutorial project

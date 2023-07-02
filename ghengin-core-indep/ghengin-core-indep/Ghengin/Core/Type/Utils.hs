@@ -37,6 +37,9 @@ type family NumbersFromTo from to where
 data Some f where
   Some :: f a %p -> Some f
 
+data Some2 f where
+  Some2 :: f a b %p -> Some2 f
+
 nat :: ∀ m. KnownNat m => Int
 nat = fromIntegral (natVal (Proxy @m))
 

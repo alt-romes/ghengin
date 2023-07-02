@@ -13,7 +13,7 @@
 {-# LANGUAGE QualifiedDo #-}
 module Ghengin.Component.Camera where
 
-import Apecs.Linear
+import Apecs
 import Data.Word (Word32)
 
 import Prelude.Linear (Ur(..), ($))
@@ -161,6 +161,9 @@ updateFirstPersonCameraTransform dt tr = Linear.do
 
     getKey :: GLFW.Key -> Renderer (Ur GLFW.KeyState)
     getKey k = Linear.do
+      -- TODO: This unsafe is easy to get rid off. Make getKey a linear
+      -- function that returns the window too, then this can be a simple call to `renderer`
+      -- (Need GLFW.Linear ...)
       Ur unsafe_w <- renderer $ Unsafe.toLinear \renv -> Linear.pure (Ur renv._vulkanWindow._window, renv)
       Linear.liftSystemIOU $ GLFW.getKey unsafe_w k
 

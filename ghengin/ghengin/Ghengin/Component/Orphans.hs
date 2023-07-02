@@ -7,7 +7,9 @@ import Ghengin.Core.Render.Pipeline (SomePipeline, RenderPipeline)
 import Ghengin.Core.Material (Material)
 import Ghengin.Core.Type.Utils (Some(..))
 
-import Apecs.Linear
+import Apecs
+
+-- ROMES:TODO: No, these kind of things don't get stored in Apecs, they should be in a dedicated data structure in the renderer
 
 -- For now we define the Storages of the Core elements here. What's the best
 -- place to do it? Perhaps here isn't so bad.

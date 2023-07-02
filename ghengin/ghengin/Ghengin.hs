@@ -54,7 +54,7 @@ import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Render.Property
 -- End re-exports
 
-import Apecs.Linear as Apecs
+import Apecs as Apecs
 -- import Control.Logger.Simple
 import Data.IORef
 import Data.Maybe
@@ -88,7 +88,7 @@ import qualified Unsafe.Linear as Unsafe
 -- destructor function that gets rid of resources stuck in components such as
 -- meshes
 
-type Ghengin w = SystemT (World w) Renderer
+type Ghengin w = SystemT (World w) (UrT Renderer)
 instance Dupable w => HasLogger (Ghengin w) where
   -- Unsafe, whateverrrrr, it's easier. This is bad...
   getLogger = SystemT $ ReaderT $ Unsafe.toLinear $ \w -> getLogger
@@ -222,11 +222,20 @@ ghengin world initialize _simstep loopstep finalize = Linear.do
       -- Game loop step
       b <- loopstep a (Prelude.min MAX_FRAME_TIME $ realToFrac frameTime)
 
+      -- Traverse all nodes in the scene graph updating the model matrices
+      -- TODO: Currently called traverseSceneGraph, but the name should reflect that the model matrices are updated
+      logT "Update all model matrices"
+      traverseSceneGraph i (const . const $ pure ())
+
       logT "Rendering"
+
+      logT "Making render queue"
+      -- Get all the 'RenderPacket's to create the 'RenderQueue' ahead
+      renderQueue <- cfold (flip $ \(p :: RenderPacket, fromMaybe (ModelMatrix identity 0) -> mm) -> insert p mm) Prelude.mempty
 
       -- Currently render is called here because it traverses the scene graph and
       -- populates the render queue, and renders!
-      render frameCounter
+      render frameCounter renderQueue
 
       logT "Done frame"
 

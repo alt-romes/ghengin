@@ -16,7 +16,7 @@ module Ghengin.Core.Prelude
   , Word32, IORef, KnownNat
 
   -- linear-base
-  , bimap
+  , bimap, UrT(..)
   -- linear vectors
   , VL.V(..)
 
@@ -41,6 +41,7 @@ module Ghengin.Core.Prelude
   )
   where
 
+import Data.Unrestricted.Linear
 import GHC.TypeLits
 import Prelude.Linear hiding ( IO, log
                              , Semigroup(..), Monoid(..), mappend, mconcat

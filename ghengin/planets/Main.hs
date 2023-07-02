@@ -39,8 +39,8 @@ import Ghengin.Vulkan.Renderer.Sampler
 import Ghengin.Scene.Graph
 -- import Ghengin.Component (Storage, EntityCounter, explInit, cmap, cmapM)
 -- import qualified Ghengin.Component as C
-import Apecs.Linear (Storage, EntityCounter, explInit, cmap, cmapM, Entity(..))
-import qualified Apecs.Linear as C
+import Apecs (Storage, EntityCounter, explInit, cmap, cmapM, Entity(..))
+import qualified Apecs as C
 import Ghengin.Core.Render.Property
 
 import Prelude ((*),(+),(-),(/))

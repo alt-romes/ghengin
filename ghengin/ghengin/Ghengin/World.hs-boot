@@ -2,11 +2,9 @@
 module Ghengin.World where
 
 import GHC.Records
-import qualified Prelude
-import Control.Functor.Linear
-import Apecs.Linear
-import Apecs.Linear.Core
-import Data.Unrestricted.Linear (Dupable, Consumable)
+import Prelude
+import Apecs
+import Apecs.Core
 import Data.Kind
 import System.Log.FastLogger
 
@@ -19,8 +17,8 @@ import Ghengin.Core.Type.Utils (Some)
 data World :: Type -> Type
 type role World nominal
 
-instance Consumable w => Consumable (World w)
-instance Dupable w => Dupable (World w)
+-- instance Consumable w => Consumable (World w)
+-- instance Dupable w => Dupable (World w)
 
 instance Monad m => Has (World w) m RenderPacket where
 instance Monad m => Has (World w) m SomePipeline where

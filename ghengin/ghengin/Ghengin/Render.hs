@@ -13,8 +13,8 @@ import qualified Data.Vector as V
 import qualified Vulkan as Vk
 import Geomancy.Mat4
 
-import Apecs.Linear (Has, cfold)
-import qualified Apecs.Linear as Apecs
+import Apecs (Has, cfold)
+import qualified Apecs as Apecs
 
 import Ghengin.Component.Camera
 import Ghengin.Component.Transform
@@ -54,9 +54,12 @@ type RenderConstraints w = ( Has (World w) Renderer Transform
                            -- , Apecs.Get (World w) Renderer RenderPacket
                            -- , Apecs.Get (World w) Renderer SomePipeline
                            -- , Apecs.Get (World w) Renderer SomeMaterial
-                           , Dupable w
                            )
 
+
+-- ROMES:TODO: Move 'render' to ghengin-vulkan, and related world things like RenderPackets and Pipelines and Materials
+
+-- TODO: Deferred rendering!
 
 {-
 Note [Renderer]
@@ -79,8 +82,9 @@ each renderable entity.
 --  * Note [Renderable entities]
 render :: RenderConstraints w
        => Int -- frame identifier (frame count)
-       -> Ghengin w ()
-render i = enterD "render" $ Linear.do
+       -> RenderQueue ModelMatrix
+       -> Renderer (Ur ())
+render i renderQueue = enterD "render" $ do
 
   -- ROMES:TODO: This might cause flickering once every frame overflow due to ... overflows?
   -- Need to consider what happens if it overflows. For now, good enough, it's
@@ -89,19 +93,9 @@ render i = enterD "render" $ Linear.do
   let frameIndex = i `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
 
   -- Some required variables
-  Ur extent <- lift getRenderExtent
+  Ur extent <- getRenderExtent
   let viewport = viewport' extent
       scissor  = scissor' extent
-
-  -- Traverse all nodes in the scene graph updating the model matrices
-  -- TODO: Currently called traverseSceneGraph, but the name should reflect that the model matrices are updated
-  logT "Update all model matrices"
-  traverseSceneGraph i (const . const $ pure ())
-
-
-  -- Get all the 'RenderPacket's to create the 'RenderQueue' ahead
-  Ur renderQueue <- cfold (flip $ \(p :: RenderPacket, fromMaybe (ModelMatrix identity 0) -> mm) -> insert p mm) Prelude.mempty
-
 
   {-
      Here's a rundown of the draw function for each frame in flight:
@@ -243,7 +237,7 @@ render i = enterD "render" $ Linear.do
           liftSystemIO IM.getDrawData >>= IM.renderDrawData
         )
 
-    pure ((), cmdBuffer')
+    pure (Ur (), cmdBuffer')
     
  where
   -- The region of the framebuffer that the output will be rendered to. We
@@ -295,6 +289,8 @@ writePropertiesToResources rmap' fi
         pure (rmap''', binding':##bs)
 
 -- ROMES:TODO: move all this unwrapping device buffers to the Command module
+-- it is hard because Mesh is not defined in ghengin-vulkan, and ghengin-vulkan can't yet depend on ghengin-core because of backpack bugs
+-- (TODO: Report it)
 renderMesh :: MonadIO m => Mesh a ⊸ RenderPassCmdM m (Mesh a)
 renderMesh = \case
   SimpleMesh (VertexBuffer (DeviceLocalBuffer buf mem) nverts) -> Linear.do

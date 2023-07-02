@@ -14,7 +14,7 @@
 {-# LANGUAGE QualifiedDo #-}
 module Planet where
 
-import Apecs.Linear (Entity(..), cmapM)
+import Apecs (Entity(..), cmapM)
 import Ghengin.Core.Log
 import Data.Unrestricted.Linear (liftUrT, runUrT, UrT(..))
 import qualified Control.Monad as M
@@ -54,7 +54,7 @@ import System.IO.Linear
 import System.Random
 import Unsafe.Coerce
 import qualified Unsafe.Linear as Unsafe
-import qualified Apecs.Linear as C
+import qualified Apecs as C
 import qualified Data.List.NonEmpty as NE
 import qualified Foreign.Storable as S
 import qualified Ghengin.Shader.FIR as FIR

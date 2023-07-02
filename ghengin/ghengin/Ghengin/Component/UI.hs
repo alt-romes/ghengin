@@ -9,19 +9,16 @@
 {-# LANGUAGE LinearTypes #-}
 module Ghengin.Component.UI where
 
-import Prelude.Linear hiding (IO)
-import qualified Prelude
+import Prelude
 import Data.Kind
-import qualified Control.Monad as Base
-import Control.Functor.Linear as Linear hiding (get)
-import Control.Monad.IO.Class.Linear
+import Control.Monad
+import Control.Monad.IO.Class
 import Data.List.NonEmpty (NonEmpty(..))
-import Data.IORef (IORef)
-import System.IO.Linear
+import Data.IORef
 import Data.StateVar
 import Data.Text (Text, pack)
 import Geomancy.Vec3
-import Apecs.Linear (Component(..), Map, Storage(..), Entity)
+import Apecs (Component(..), Map, Storage(..), Entity)
 import Unsafe.Coerce
 import Ghengin.Scene.Graph
 import {-# SOURCE #-} Ghengin (Ghengin)
@@ -34,19 +31,19 @@ data UIWindow w = UIWindow Text (Ghengin w ())
 
 -- TODO: UI in the Scene Graph?
 newEntityUI :: EntityConstraints w (UIWindow w)
-            => Text -> Ghengin w () -> SceneGraph w (Ur Entity)
+            => Text -> Ghengin w () -> SceneGraph w (Entity)
 newEntityUI text act = newEntity (UIWindow text act)
 
-type UI w = Ghengin w (Ur Bool)
+type UI w = Ghengin w Bool
 
 data IOSelectRef a = IOSelectRef (IORef a) (IORef Int)
-newIOSelectRef :: MonadIO m => a -> m (Ur (IOSelectRef a))
-newIOSelectRef x = liftIO $ Linear.do
-  Ur x' <- newIORef x
-  Ur y' <- newIORef 0
-  pure $ Ur $ IOSelectRef x' y'
+newIOSelectRef :: MonadIO m => a -> m (IOSelectRef a)
+newIOSelectRef x = liftIO $ do
+  x' <- newIORef x
+  y' <- newIORef 0
+  pure $ IOSelectRef x' y'
 
-readIOSelectRef :: MonadIO m => IOSelectRef a -> m (Ur a)
+readIOSelectRef :: MonadIO m => IOSelectRef a -> m a
 readIOSelectRef (IOSelectRef r _) = liftIO $ readIORef r
 
 -- instance HasGetter (IOSelectRef a) a where
@@ -57,30 +54,30 @@ readIOSelectRef (IOSelectRef r _) = liftIO $ readIORef r
 -- The component should also define how to update the scene
 
 
-colorPicker :: Dupable w => Text -> IORef Vec3 -> UI w
-colorPicker t ref = liftSystemIOU $ IM.colorPicker3 t (unsafeCoerce ref :: IORef IM.ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
+colorPicker :: Text -> IORef Vec3 -> UI w
+colorPicker t ref = liftIO $ IM.colorPicker3 t (unsafeCoerce ref :: IORef IM.ImVec3) -- Unsafe coerce Vec3 to ImVec3. They have the same representation. Right?
 
-sliderFloat :: Dupable w => Text -> IORef Float -> Float -> Float -> UI w
-sliderFloat a b c d = liftSystemIOU $ IM.sliderFloat a b c d
+sliderFloat :: Text -> IORef Float -> Float -> Float -> UI w
+sliderFloat a b c d = liftIO $ IM.sliderFloat a b c d
 
-sliderInt :: Dupable w => Text -> IORef Int -> Int -> Int -> UI w
-sliderInt a b c d = liftSystemIOU $ IM.sliderInt a b c d
+sliderInt :: Text -> IORef Int -> Int -> Int -> UI w
+sliderInt a b c d = liftIO $ IM.sliderInt a b c d
 
-sliderVec3 :: Dupable w => Text -> IORef Vec3 -> Float -> Float -> UI w
-sliderVec3 t ref f1 f2 = liftIO $ Linear.do
-  Ur v <- readIORef ref
-  withVec3 v $ \x y z -> Linear.do
-    Ur tmpR <- newIORef (x,y,z)
-    Ur b <- liftSystemIOU $ IM.sliderFloat3 t tmpR f1 f2
-    Ur (x',y',z') <- readIORef tmpR
+sliderVec3 :: Text -> IORef Vec3 -> Float -> Float -> UI w
+sliderVec3 t ref f1 f2 = liftIO $ do
+  v <- readIORef ref
+  withVec3 v $ \x y z -> do
+    tmpR <- newIORef (x,y,z)
+    b <- liftIO $ IM.sliderFloat3 t tmpR f1 f2
+    (x',y',z') <- readIORef tmpR
     writeIORef ref (vec3 x' y' z')
-    pure (Ur b)
+    pure b
 
-dragFloat :: Dupable w => Text -> IORef Float -> Float -> Float -> UI w
-dragFloat t ref f1 f2 = liftSystemIOU $ IM.dragFloat t ref 0.05 f1 f2
+dragFloat :: Text -> IORef Float -> Float -> Float -> UI w
+dragFloat t ref f1 f2 = liftIO $ IM.dragFloat t ref 0.05 f1 f2
 
-checkBox :: Dupable w => Text -> IORef Bool -> UI w
-checkBox a b = liftSystemIOU $ IM.checkbox a b
+checkBox :: Text -> IORef Bool -> UI w
+checkBox a b = liftIO $ IM.checkbox a b
 
     -- get ref >>= \case
     --   WithVec3 x y z -> do
@@ -90,45 +87,45 @@ checkBox a b = liftSystemIOU $ IM.checkbox a b
     --     ref $= vec3 x' y' z'
     --     pure b
 
-withTree :: Dupable w => Text -> Ghengin w () -> Ghengin w ()
-withTree t act = Linear.do
-  Ur b <- liftSystemIOU $ IM.treeNode t
-  if b then Linear.do
+withTree :: Text -> Ghengin w () -> Ghengin w ()
+withTree t act = do
+  b <- liftIO $ IM.treeNode t
+  if b then do
     act
-    liftSystemIO IM.treePop
+    liftIO IM.treePop
     pure ()
   else
     pure ()
 
-button :: Dupable w => Text -> UI w
-button x = liftSystemIOU $ IM.button x
+button :: Text -> UI w
+button x = liftIO $ IM.button x
 
-withCombo :: (Show a, Dupable w)
+withCombo :: (Show a)
           => Text      -- ^ Combo label
           -> IOSelectRef a   -- ^ Reference to current item
           -> NonEmpty a -- ^ List of possible items
           -> UI w
-withCombo t (IOSelectRef ref currIx) (opt:|opts) = Linear.do
+withCombo t (IOSelectRef ref currIx) (opt:|opts) = do
 
-  Ur currSelected <- liftIO $ readIORef currIx
+  currSelected <- liftIO $ readIORef currIx
 
-  Ur b <- liftSystemIOU $ IM.beginCombo t (pack $ show $ (opt:opts) Prelude.!! currSelected)
-  if b then liftSystemIO $ do
+  b <- liftIO $ IM.beginCombo t (pack $ show $ (opt:opts) !! currSelected)
+  if b then liftIO $ do
 
-    bs <- Base.forM (Prelude.zip (opt:opts) [0..]) $ \(o, n) -> do
+    bs <- forM (zip (opt:opts) [0..]) $ \(o, n) -> do
             currIx' <- get currIx
             let is_selected = currIx' == n
             b' <- IM.selectableWith (IM.defSelectableOptions{IM.selected=is_selected}) (pack $ show o)
-            Base.when b' $ currIx $= n
+            when b' $ currIx $= n
             -- when is_selected (IM.setItemDefaultFocus)
-            Prelude.pure b'
+            pure b'
     currIx' <- get currIx
-    ref $= ((opt:opts) Prelude.!! currIx')
+    ref $= ((opt:opts) !! currIx')
     IM.endCombo
-    Prelude.pure $ move $ or bs
+    pure $ or bs
 
   else
-    pure (Ur False)
+    pure False
 
 
 instance Component (UIWindow w) where
@@ -155,7 +152,7 @@ class UISettings a where
   type ReactivityConstraints a w :: Constraint
   type ReactivityConstraints _ _ = ()
 
-  makeSettings   :: IO (Ur a)
+  makeSettings   :: IO a
 
   -- | Makes the UI components for these UI settings. Returns true if the settings were modified.
   makeComponents :: ReactivityConstraints a w

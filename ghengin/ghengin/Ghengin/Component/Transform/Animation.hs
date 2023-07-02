@@ -10,7 +10,7 @@ import Prelude.Linear
 import Control.Functor.Linear as Linear
 import Data.Typeable
 
-import Apecs.Linear
+import Apecs
 import Ghengin.Component.Transform
 
 import Geomancy.Vec3

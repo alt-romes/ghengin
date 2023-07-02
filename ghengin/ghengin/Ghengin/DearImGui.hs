@@ -23,6 +23,7 @@ import qualified Unsafe.Linear as Unsafe
 
 import Foreign
 import qualified Control.Monad as Base
+import qualified Control.Monad.IO.Class as Base
 
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan as Vk
@@ -112,16 +113,16 @@ renderDrawData = Unsafe.toLinear $ \dd -> makeRenderPassCmd $ \b ->
 
 -- | Returns a list of booleans indicating whether each component was changed
 -- in the previous frame
-pushWindow :: Dupable w => UIWindow w -> Ghengin w ()
-pushWindow (UIWindow wname act) = Linear.do
-  Ur beginnt <- liftSystemIOU $ IM.begin wname
-  if beginnt then Linear.do
+pushWindow :: UIWindow w -> Ghengin w ()
+pushWindow (UIWindow wname act) = do
+  beginnt <- Base.liftIO $ IM.begin wname
+  if beginnt then do
     act
-    liftSystemIO IM.end
+    Base.liftIO IM.end
   else do
     -- Optimization, if window is closed we end the the window and avoid
     -- drawing the ui inside it.
-    liftSystemIO IM.end
+    Base.liftIO IM.end
 
 
 -- | Returns a boolean indicating whether the component was changed in the previous frame
