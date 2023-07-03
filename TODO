@@ -1,3 +1,6 @@
+[ ] Drop type parameter from RenderQueue
+[ ] We only need the parameter to the render queue because we don't yet attach render properties to meshes
+[ ] Add render properties to meshes
 [ ] It's definitely not obvious how to have the developer use and update materials and meshes while keeping them linear in the renderer.
 [ ] Notes on how things are outside of Core can be good examples to demonstrate how Core works and is minimal
 [ ] Write Note [Cameras are not part of Core]

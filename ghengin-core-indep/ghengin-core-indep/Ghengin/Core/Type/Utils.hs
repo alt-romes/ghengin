@@ -35,10 +35,10 @@ type family NumbersFromTo from to where
   NumbersFromTo from to = from ': NumbersFromTo (from+1) to
 
 data Some f where
-  Some :: f a %p -> Some f
+  Some :: ∀ f a. f a ⊸ Some f
 
 data Some2 f where
-  Some2 :: f a b %p -> Some2 f
+  Some2 :: ∀ f a b. f a b ⊸ Some2 f
 
 nat :: ∀ m. KnownNat m => Int
 nat = fromIntegral (natVal (Proxy @m))

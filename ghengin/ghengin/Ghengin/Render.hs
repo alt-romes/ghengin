@@ -138,8 +138,7 @@ render i renderQueue = enterD "render" $ do
         renderQueue
         -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
         (\(SomePipelineRef (Ref pp'_ref)) m -> enterD "Lifting things" Linear.do
-          -- ROMES: This Ur can't really be right, perhaps it's just better to use normal apecs over unrestricted monad transformer.
-          Ur (SomePipeline pp') <- lift $ Apecs.get (Apecs.Entity pp'_ref) -- TODO: Share this with the next one
+          Ur (SomePipeline pp') <- lift $ Apecs.get (Apecs.Entity pp'_ref)
           (rp, _pp') <- getRenderPass pp'
           (rp', ()) <- Alias.useM rp $ Unsafe.toLinear $ \rp' -> Linear.do
             renderPassCmd rp'._renderPass (rp'._framebuffers V.! currentImage) extent m -- nice and unsafe

@@ -75,7 +75,8 @@ library
 
     visibility:       public
 
-    exposed-modules:  Ghengin.Core.Material,
+    exposed-modules:  Ghengin.Core,
+                      Ghengin.Core.Material,
                       Ghengin.Core.Mesh,
 
                       -- Moved to ghengin-core-indep until #23322 is fixed
@@ -90,6 +91,7 @@ library
                       Ghengin.Core.Render.Pipeline,
                       Ghengin.Core.Render.Property,
                       Ghengin.Core.Render.Packet,
+                      Ghengin.Core.Render.Queue,
                       Ghengin.Core.Render,
 
                       Ghengin.Core.Renderer
