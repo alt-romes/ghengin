@@ -1,0 +1,35 @@
+{-# LANGUAGE OverloadedStrings #-}
+signature Ghengin.Core.Renderer
+  ( module Ghengin.Core.Renderer.DescriptorSet
+  , module Ghengin.Core.Renderer.Buffer
+  , module Ghengin.Core.Renderer.Command
+  , module Ghengin.Core.Renderer.Kernel
+  , module Ghengin.Core.Renderer
+  )
+  where
+
+import qualified Data.IntMap.Linear as IM
+import Ghengin.Core.Log
+import Prelude.Linear
+
+import Control.Functor.Linear as Linear
+import System.IO.Linear as Linear
+import Control.Monad.IO.Class.Linear as Linear
+
+import Ghengin.Core.Renderer.Buffer
+import Ghengin.Core.Renderer.Kernel
+import Ghengin.Core.Renderer.DescriptorSet
+import Ghengin.Core.Renderer.Command
+
+import qualified Data.Linear.Alias as Alias
+
+runRenderer :: Renderer a ⊸ Linear.IO a
+
+-- extremely contrived? not anymore (at least no longer using the transformer thing, since we no longer mix render packets with things like the ECS system s.t. this function had to be run in ECS context)!
+withCurrentFramePresent :: Int -- ^ Current frame index
+                        -> ( CommandBuffer
+                              ⊸ Int -- ^ Current image index
+                             -> Renderer (a, CommandBuffer)
+                           )
+                         ⊸ Renderer a
+

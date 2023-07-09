@@ -188,3 +188,42 @@ truly awful, painful experience.
 
 The assets folder is copied to the bundle, so all resources should be in assets
 
+## ghengin-core
+
+What `ghengin-core` does and does not:
+
+- Does not implement a game-loop, nor a time step strategy
+- Does not implement a scene-graph
+- Nor (game) object positioning in terms of so-called "world coordinates"
+- Does not provide a camera
+- Does not manage game objects/entities in any way (no ECS, no FRP, actually, no concept of game object whatsover)
+- Does not have a UI abstraction, but will allow renderpasses to be managed in such a way that one can add outside of Core, e.g., a dear-imgui render pass
+- Has an (editable) Render Queue with the render packets (meshes + properties + material properties + pipeline with shader) that are rendered every frame
+- Can express all of the above things it "does not" do with the existing concepts and combinators
+- Handles double-buffering (eventually configurable?) semantics for the 'render' function, i.e. blocks after drawing a second frame
+    - Actually, it's the renderer implementation that handles this
+
+## Add-ons
+
+These add-ons exist as separate packages, and are all included in `ghengin`, the
+batteries included engine. These also attempt to be somewhat independent from
+ghengin-core when possible.
+
+- `ghengin-scene-graph`, which defines a scene-graph and world coordinate space
+    with objects related in a hieararchy with properties defined relative to
+    their parents (i.e. a scene, in its usual meaning)
+- `ghengin-camera`, a camera object, shader, and update function (i.e. a camera, in its usual meaning)
+- `ghengin-models`, to load and render 3D models
+- `ghengin-lighting`, that provides lighting functions/models like the Blinn-Phong model
+- `ghengin-dearimgui`, for UIs based on ghengin
+
+## Ghengin
+
+`ghengin` provides game-development abstractions on top of `ghengin-core`, and
+is more developer friendly in the sense that it *does not* require linear types
+
+## Other design ideas
+
+- The `render/draw` function takes an action which "draws" things, which,
+    depending on the implementation, either batches the drawcall or actually
+    makes the draw call.

@@ -213,6 +213,8 @@ library
                                , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
                                , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
                                , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                               , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                               , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
                                )
 
     -- Directories containing source files.
@@ -286,6 +288,8 @@ executable planets
                                , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
                                , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
                                , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                               , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                               , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
                                )
 
     -- Base language which the package is written in.

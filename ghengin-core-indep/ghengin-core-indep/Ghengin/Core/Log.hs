@@ -15,6 +15,8 @@ import Ghengin.Core.Prelude as G
 import System.Log.FastLogger
 import qualified Prelude (take)
 
+import Control.Functor.Linear as Linear
+
 #ifdef THINGS_ARE_GOING_THAT_BAD
 -- In that case we always flush and use BS.putStr
 import qualified Data.ByteString as BS
@@ -31,6 +33,10 @@ class MonadIO m => HasLogger m where
   -- | Increment the depth of the logging. This makes it quite hard to instance
   -- HasLogger for all MonadTrans over a HasLogger m.
   withLevelUp  :: m a ⊸ m a
+
+instance (MonadIO m, HasLogger m) => HasLogger (StateT s m) where
+  getLogger = lift getLogger
+  withLevelUp (StateT m) = StateT $ \s -> withLevelUp (m s)
 
 -- | Returns a new logger and an IO cleanup action
 newLogger :: MonadIO m => LogType -> m (Ur Logger, IO ())

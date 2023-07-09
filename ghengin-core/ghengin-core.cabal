@@ -92,16 +92,17 @@ library
                       Ghengin.Core.Render.Property,
                       Ghengin.Core.Render.Packet,
                       Ghengin.Core.Render.Queue,
-                      Ghengin.Core.Render,
+                      Ghengin.Core.Render
 
-                      Ghengin.Core.Renderer
-    signatures:       Ghengin.Core.Renderer.Kernel,
+    signatures:       Ghengin.Core.Renderer,
+                      Ghengin.Core.Renderer.Kernel,
                       Ghengin.Core.Renderer.DescriptorSet,
                       Ghengin.Core.Renderer.Buffer,
                       Ghengin.Core.Renderer.Pipeline,
                       Ghengin.Core.Renderer.RenderPass,
                       Ghengin.Core.Renderer.Texture,
                       Ghengin.Core.Renderer.Sampler,
+                      Ghengin.Core.Renderer.Command
 
     hs-source-dirs:   ghengin-core
 
@@ -113,6 +114,7 @@ library
                       reference-counting,
 
                       containers,
+                      mtl,
                       vector,
 
                       gl-block,
@@ -120,3 +122,31 @@ library
                       ghengin-core-indep,
                       linear-utils
 
+executable planets-core
+    main-is:       Main.hs
+    default-extensions: UnicodeSyntax
+    build-depends:
+        base >=4.17.0.0,
+        -- Can't depend on this without instancing it because of backpack
+        ghengin-core,
+        ghengin-vulkan,
+        ghengin-core-indep,
+        mtl, vector, hsnoise, containers, random, linear-base,
+        derive-storable
+
+    ghc-options: -dcmm-lint -dstg-lint -dasm-lint -g2 -rtsopts -debug
+    cpp-options: -DDEBUG
+
+    hs-source-dirs:   planets-core
+    mixins:           ghengin-core
+                      requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                               , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                               , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                               , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                               , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                               , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                               , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                               , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                               , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                               )
+    default-language: GHC2021

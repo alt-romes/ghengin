@@ -15,6 +15,7 @@ module Ghengin.Core.Render.Property
 import Ghengin.Core.Prelude as Linear
 import Foreign.Storable (Storable(sizeOf))
 import Ghengin.Core.Renderer
+import Ghengin.Core.Render
 import Ghengin.Core.Renderer.Texture
 import Ghengin.Core.Type.Utils
 import qualified Data.Linear.Alias as Alias

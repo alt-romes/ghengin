@@ -98,7 +98,7 @@ instance Monoid (RenderQueue α) where
 traverseRenderQueue :: (Linear.Monad μ, Linear.Monad μ')
                     => RenderQueue α -- ^ The render queue
                      ⊸ (∀ π bs. RenderPipeline π bs ⊸ μ' () -> μ (RenderPipeline π bs)) -- ^ The initial context lifting from m to m' for the inner functions
-                    -- -> (Some2 Pipeline ⊸ μ' SomePipeline) -- ^ The pipeline changed (nothing should be rendered) (return the pipeline fetched)
+                    -- ????what was this -> (Some2 Pipeline ⊸ μ' SomePipeline) -- ^ The pipeline changed (nothing should be rendered) (return the pipeline fetched)
                     -> (∀ π bs ms. RenderPipeline π bs ⊸ Material ms ⊸ μ' (RenderPipeline π bs, Material ms)) -- ^ The material changed (nothing should be rendered)
                     -> (∀ π bs τs. RenderPipeline π bs ⊸ Mesh τs ⊸ α ⊸ μ' (RenderPipeline π bs, Mesh τs)) -- ^ The mesh to render
                     -> μ' () -- ^ A command at the end of each render pass

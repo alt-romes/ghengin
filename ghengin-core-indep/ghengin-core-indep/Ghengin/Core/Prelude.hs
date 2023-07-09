@@ -180,4 +180,7 @@ l2vec = Unsafe.toLinear V.fromList
 vec2l :: V.Vector a ⊸ [a]
 vec2l = Unsafe.toLinear V.toList
 
+--- More orphans
 
+instance MonadIO m => MonadIO (StateT s m) where
+  liftIO io = StateT $ \s -> (,s) <$> liftIO io

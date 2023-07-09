@@ -1,0 +1,58 @@
+signature Ghengin.Core.Renderer.Command where
+
+import Ghengin.Core.Prelude
+import Ghengin.Core.Log
+import Control.Monad.IO.Class.Linear
+import qualified Data.Functor.Linear as Data
+
+import Ghengin.Core.Renderer.Pipeline
+import Ghengin.Core.Renderer.Buffer
+import Ghengin.Core.Renderer.DescriptorSet
+import Ghengin.Core.Renderer.RenderPass
+
+import qualified Vulkan as Vk
+
+type RenderPassCmd m = RenderPassCmdM m ()
+type Command m = CommandM m ()
+
+data RenderPassCmdM m a
+data CommandM m a
+
+data CommandBuffer
+
+instance Applicative m => Applicative (CommandM m)
+instance Data.Applicative m => Data.Applicative (CommandM m)
+instance Monad m => Monad (CommandM m)
+instance MonadIO m => MonadIO (CommandM m)
+instance HasLogger m => HasLogger (CommandM m)
+instance MonadTrans CommandM
+
+instance Applicative m => Applicative (RenderPassCmdM m)
+instance Data.Applicative m => Data.Applicative (RenderPassCmdM m)
+instance Monad m => Monad (RenderPassCmdM m)
+instance MonadIO m => MonadIO (RenderPassCmdM m)
+instance HasLogger m => HasLogger (RenderPassCmdM m)
+instance MonadTrans RenderPassCmdM
+
+-- the command buffer comes from the leaky
+recordCommand :: MonadIO m => CommandBuffer ⊸ Command m ⊸ m CommandBuffer
+
+-- TODO: Cleanup the API
+
+drawVertexBuffer :: MonadIO m => VertexBuffer ⊸ RenderPassCmdM m VertexBuffer
+drawVertexBufferIndexed :: MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderPassCmdM m (VertexBuffer, Index32Buffer)
+
+bindGraphicsPipeline :: MonadIO m => RendererPipeline Graphics ⊸ RenderPassCmdM m (RendererPipeline Graphics)
+
+bindGraphicsDescriptorSet :: MonadIO m
+                          => RendererPipeline Graphics
+                          ⊸ Word32 -- ^ Set index at which to bind the descriptor set
+                          -> DescriptorSet ⊸ RenderPassCmdM m (RendererPipeline Graphics, DescriptorSet)
+
+-- leaky, fixme.
+setViewport :: MonadIO m => Vk.Viewport -> RenderPassCmd m
+setScissor :: MonadIO m => Vk.Rect2D -> RenderPassCmd m
+
+renderPassCmd :: MonadIO m
+              => Int -- ^ needs a good explanation...
+              -> RenderPass -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a

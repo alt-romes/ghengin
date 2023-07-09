@@ -20,6 +20,7 @@ module Ghengin.Vulkan.Renderer.Command
   , RenderPassCmd
   , CommandM
   , RenderPassCmdM
+  , CommandBuffer -- for backpack, re-export Vulkan's definition
   , recordCommand
   , recordCommandOneShot
   , renderPassCmd
@@ -74,6 +75,7 @@ import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
 import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Command
 
 import Ghengin.Core.Type.Utils (w32)
 import Ghengin.Core.Log
@@ -239,7 +241,7 @@ recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
 {-# INLINE recordCommandOneShot #-}
 
 -- | Make a render pass part a command blueprint that can be further composed with other commands
-renderPassCmd :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd m -> Command m
+renderPassCmd :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
 renderPassCmd rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ReaderT \buf -> Linear.do
   let
     renderPassInfo = Vk.RenderPassBeginInfo { next = ()
@@ -256,9 +258,9 @@ renderPassCmd rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Comman
   Linear.liftSystemIO $ Vk.cmdEndRenderPass buf
 {-# INLINE renderPassCmd #-}
 
-bindGraphicsPipeline :: Linear.MonadIO m => Vk.Pipeline ⊸ RenderPassCmdM m Vk.Pipeline
-bindGraphicsPipeline pp = unsafeRenderPassCmd pp (\buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_GRAPHICS)
-{-# INLINE bindGraphicsPipeline #-}
+bindGraphicsPipeline' :: Linear.MonadIO m => Vk.Pipeline ⊸ RenderPassCmdM m Vk.Pipeline
+bindGraphicsPipeline' pp = unsafeRenderPassCmd pp (\buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_GRAPHICS)
+{-# INLINE bindGraphicsPipeline' #-}
 
 bindComputePipeline :: Linear.MonadIO m => Vk.Pipeline -> RenderPassCmdM m Vk.Pipeline
 bindComputePipeline pp = unsafeRenderPassCmd pp (\buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_COMPUTE)
@@ -276,8 +278,8 @@ setScissor :: Linear.MonadIO m => Vk.Rect2D -> RenderPassCmd m
 setScissor scissor = unsafeRenderPassCmd_ (\buf -> Vk.cmdSetScissor buf 0 [scissor])
 {-# INLINE setScissor #-}
 
-bindVertexBuffers :: Linear.MonadIO m => Word32 -> Vector Vk.Buffer ⊸ Vector Vk.DeviceSize -> RenderPassCmdM m (Vector Vk.Buffer)
-bindVertexBuffers i bufs offsets = unsafeRenderPassCmd bufs (\cmdbuf bufs' -> Vk.cmdBindVertexBuffers cmdbuf i bufs' offsets)
+bindVertexBuffers :: Linear.MonadIO m => Word32 -> V.V n Vk.Buffer ⊸ V.V n Vk.DeviceSize -> RenderPassCmdM m (V.V n Vk.Buffer)
+bindVertexBuffers i bufs (VI.V offsets) = unsafeRenderPassCmd bufs (\cmdbuf (VI.V bufs') -> Vk.cmdBindVertexBuffers cmdbuf i bufs' offsets)
 {-# INLINE bindVertexBuffers #-}
 
 bindIndex32Buffer :: Linear.MonadIO m
@@ -307,12 +309,13 @@ pushConstants pipelineLayout stageFlags values = unsafeRenderPassCmd pipelineLay
       Vk.cmdPushConstants buf piplayout stageFlags 0 (fromIntegral $ sizeOf values) (castPtr ptr)
 {-# INLINE pushConstants #-}
 
-bindGraphicsDescriptorSet :: Linear.MonadIO m
+bindGraphicsDescriptorSet' :: Linear.MonadIO m
                           => Vk.PipelineLayout
                           ⊸ Word32 -- ^ Set index at which to bind the descriptor set
                           -> Vk.DescriptorSet ⊸ RenderPassCmdM m (Vk.PipelineLayout, Vk.DescriptorSet)
-bindGraphicsDescriptorSet pipelay ix dset =
+bindGraphicsDescriptorSet' pipelay ix dset =
   unsafeRenderPassCmd (pipelay,dset) (\buf (pip',dset') -> Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pip' ix [dset'] []) -- offsets array not used
+{-# INLINE bindGraphicsDescriptorSet' #-}
 
 -- | Lift a function that uses a command buffer to a Command
 -- Get back to this: not trivial with linearity. Probably unsafe will have to be called outside
@@ -438,6 +441,45 @@ transitionImageLayout = Unsafe.toLinear $ \img format srcLayout dstLayout ->
       , img )
 
 
+----- More for the .hsig interface -------
+
+-- While I don't know the best place to keep this, I keep it here:
+--
+-- Ultimately, I think it will be about a good abstraction for issuing/batching
+-- draw call.
+
+
+drawVertexBuffer :: MonadIO m => VertexBuffer ⊸ RenderPassCmdM m VertexBuffer
+drawVertexBuffer (VertexBuffer (DeviceLocalBuffer buf mem) nverts) = Linear.do
+  let offsets = V.make 0
+  buffers' <- bindVertexBuffers 0 (V.make buf) offsets
+  draw nverts
+  pure (VertexBuffer (DeviceLocalBuffer (V.elim id buffers') mem) nverts)
+
+drawVertexBufferIndexed :: MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderPassCmdM m (VertexBuffer, Index32Buffer)
+drawVertexBufferIndexed (VertexBuffer (DeviceLocalBuffer vbuf mem) nverts) (Index32Buffer (DeviceLocalBuffer ibuf imem) nixs) = Linear.do
+  let offsets = V.make 0
+  buffers' <- bindVertexBuffers 0 (V.make vbuf) offsets
+  ibuf'    <- bindIndex32Buffer ibuf 0
+  drawIndexed nixs
+  pure ( VertexBuffer (DeviceLocalBuffer (V.elim id buffers') mem) nverts
+       , Index32Buffer (DeviceLocalBuffer ibuf' imem) nixs
+       )
+
+bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ RenderPassCmdM m GraphicsPipeline
+bindGraphicsPipeline pp = bindGraphicsPipeline' pp._pipeline
+{-# INLINE bindGraphicsPipeline #-}
+
+bindGraphicsDescriptorSet :: Linear.MonadIO m
+                          => RendererPipeline Graphics
+                          ⊸ Word32 -- ^ Set index at which to bind the descriptor set
+                          -> DescriptorSet ⊸ RenderPassCmdM m (RendererPipeline Graphics, DescriptorSet)
+bindGraphicsDescriptorSet pipelay ix dset = bindGraphicsDescriptorSet' pipelay._pipelineLayout ix dset._descriptorSet
+{-# INLINE bindGraphicsDescriptorSet #-}
+
+renderPassCmd :: Linear.MonadIO m => Int -- ^ needs a good explanation...
+              -> RenderPass -> Vk.Extent2D -> RenderPassCmd m -> Command m
+renderPassCmd currentImage = Unsafe.toLinear \rpass renderAreaExtent rpcmds -> renderPassCmd' rpass._renderPass (rpass._framebuffers V.! currentImage) renderAreaExtent rpcmds
 
 ----- Linear Unsafe Utils
 
@@ -457,3 +499,5 @@ unsafeRenderPassCmd = Unsafe.toLinear \a f -> (RenderPassCmd $ ReaderT \buf -> a
 unsafeRenderPassCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> RenderPassCmd m
 unsafeRenderPassCmd_ = Unsafe.toLinear \f -> (RenderPassCmd $ ReaderT \buf -> Linear.liftSystemIO (f buf))
 
+-- ghengin-vulkan can't yet depend on ghengin-core because of backpack bugs
+-- (TODO: Report that ghc bug)

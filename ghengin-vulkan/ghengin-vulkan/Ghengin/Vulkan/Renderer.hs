@@ -55,7 +55,7 @@ import qualified System.IO.Linear as Linear
 
 -- ROMES: Eventually thikn about bracketing again, but for linear types to work simply get rid of it
 -- ROMES:TODO: Make runRenderer an hsig in Ghengin.Core.Renderer
-runRenderer :: Renderer a -> Linear.IO a
+runRenderer :: Renderer a ⊸ Linear.IO a
 runRenderer r = Linear.do
 
   -- Initialisation
@@ -135,17 +135,17 @@ runRenderer r = Linear.do
 -- N is 'MAX_FRAMES_IN_FLIGHT'
 --
 -- TODO: Figure out mismatch between current image index and current image frame.
-withCurrentFramePresent :: (MonadTrans t, MonadIO (t (Renderer)))
-                        -- => ( ∀ α. Renderer α -> t (Renderer ext) α ) -- ^ A lift function
-                        => Int -- ^ Current frame index
+--
+-- I don't think we need the `t` transformer any longer!
+withCurrentFramePresent :: Int -- ^ Current frame index
                         -> ( Vk.CommandBuffer
                               ⊸ Int -- ^ Current image index
-                             -> t (Renderer) (a, Vk.CommandBuffer)
+                             -> Renderer (a, Vk.CommandBuffer)
                            )
-                         ⊸ t (Renderer) a
+                         ⊸ Renderer a
 withCurrentFramePresent currentFrameIndex action = Linear.do
 
-  Ur unsafeCurrentFrame <- lift $ renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)
+  Ur unsafeCurrentFrame <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)
   -- These are all unsafe too
   let
       cmdBuffer         = unsafeCurrentFrame._commandBuffer
@@ -158,12 +158,12 @@ withCurrentFramePresent currentFrameIndex action = Linear.do
   -- Record a command buffer which draws the scene onto that image
   -- Submit the recorded command buffer
   -- Present the swap chain image 
-  lift $ unsafeUseDevice (\device -> do
+  unsafeUseDevice (\device -> do
     Vk.waitForFences device [inFlightFence] True maxBound
     Vk.resetFences device [inFlightFence]
                   )
 
-  (Ur i, imageAvailableSem') <- lift $ acquireNextImage imageAvailableSem
+  (Ur i, imageAvailableSem') <- acquireNextImage imageAvailableSem
 
   liftSystemIO $ Vk.resetCommandBuffer cmdBuffer zero
 
@@ -171,9 +171,9 @@ withCurrentFramePresent currentFrameIndex action = Linear.do
 
   -- Finally, submit and present
   (cmdBuffer'',imageAvailableSem'', renderFinishedSem', inFlightFence')
-    <- lift $ submitGraphicsQueue cmdBuffer' imageAvailableSem' renderFinishedSem inFlightFence
+    <- submitGraphicsQueue cmdBuffer' imageAvailableSem' renderFinishedSem inFlightFence
 
-  renderFinishedSem'' <- lift $ presentPresentQueue renderFinishedSem' i
+  renderFinishedSem'' <- presentPresentQueue renderFinishedSem' i
 
   -- Forget these as they're in the renderer environment still, remember we got them unsafely in the first place...
   Unsafe.toLinearN @4 (\_ _ _ _ -> pure ()) cmdBuffer'' imageAvailableSem'' renderFinishedSem'' inFlightFence'

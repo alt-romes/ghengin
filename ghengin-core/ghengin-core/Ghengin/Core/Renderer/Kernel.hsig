@@ -3,6 +3,7 @@ signature Ghengin.Core.Renderer.Kernel where
 import GHC.TypeNats
 import Prelude.Linear
 import Control.Functor.Linear        as Linear
+import qualified Data.Functor.Linear as Data
 import Control.Monad.IO.Class.Linear as Linear
 import qualified System.IO.Linear
 
@@ -20,6 +21,8 @@ newtype Renderer a
 type Alias = Alias.Alias Renderer
 
 -- These could all be shared accross backends :)
+instance Data.Functor Renderer
+instance Data.Applicative Renderer
 instance Linear.Functor Renderer
 instance Linear.Applicative Renderer
 instance Linear.Monad Renderer
