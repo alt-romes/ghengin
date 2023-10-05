@@ -98,14 +98,12 @@ withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._devi
 -- e.g. frees the reference, Bad Things Will Happen
 --
 -- Note, this is quite unsafe really, but makes usage of non-linear vulkan much easier
-unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b)
-                   -> Renderer b
+unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b) -> Renderer b
 unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
   b <- liftSystemIO $ f (_vulkanDevice._device)
   pure $ (b, renv)
 
-unsafeUseVulkanDevice :: (VulkanDevice -> Unrestricted.IO b)
-                   -> Renderer b
+unsafeUseVulkanDevice :: (VulkanDevice -> Unrestricted.IO b) -> Renderer b
 unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
   b <- liftSystemIO $ f _vulkanDevice
   pure $ (b, renv)

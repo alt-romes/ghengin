@@ -20,6 +20,8 @@ data CommandM m a
 
 data CommandBuffer
 
+instance Functor m => Functor (CommandM m)
+instance Data.Functor m => Data.Functor (CommandM m)
 instance Applicative m => Applicative (CommandM m)
 instance Data.Applicative m => Data.Applicative (CommandM m)
 instance Monad m => Monad (CommandM m)
@@ -27,6 +29,8 @@ instance MonadIO m => MonadIO (CommandM m)
 instance HasLogger m => HasLogger (CommandM m)
 instance MonadTrans CommandM
 
+instance Functor m => Functor (RenderPassCmdM m)
+instance Data.Functor m => Data.Functor (RenderPassCmdM m)
 instance Applicative m => Applicative (RenderPassCmdM m)
 instance Data.Applicative m => Data.Applicative (RenderPassCmdM m)
 instance Monad m => Monad (RenderPassCmdM m)

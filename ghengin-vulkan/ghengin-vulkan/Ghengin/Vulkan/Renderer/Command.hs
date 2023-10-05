@@ -241,8 +241,8 @@ recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
 {-# INLINE recordCommandOneShot #-}
 
 -- | Make a render pass part a command blueprint that can be further composed with other commands
-renderPassCmd :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
-renderPassCmd rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ReaderT \buf -> Linear.do
+renderPassCmd' :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
+renderPassCmd' rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ReaderT \buf -> Linear.do
   let
     renderPassInfo = Vk.RenderPassBeginInfo { next = ()
                                             , renderPass  = rpass

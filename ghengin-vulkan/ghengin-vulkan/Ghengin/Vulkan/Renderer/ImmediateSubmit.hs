@@ -52,6 +52,7 @@ destroyImmediateSubmitCtx device0 (ImmediateSubmitCtx fence pool0 buffer) = Line
   device3 <- destroyCommandPool device2 pool1
   pure device3
 
+
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
 immediateSubmit' :: MonadIO m

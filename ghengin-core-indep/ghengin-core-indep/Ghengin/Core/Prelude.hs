@@ -9,7 +9,7 @@ module Ghengin.Core.Prelude
   , module Control.Monad.IO.Class.Linear
   , module System.IO.Linear
   , module Prelude
-  , module Data.Unrestricted.Linear.Orphans
+  -- , module Data.Unrestricted.Linear.Orphans
 
   -- base
   , Generic(..), NE.NonEmpty(..), Type, Constraint
@@ -56,7 +56,7 @@ import qualified Prelude
 
 import Data.Tuple.Linear
 import Data.Bifunctor.Linear (bimap)
-import Data.Unrestricted.Linear.Orphans
+import Data.Unrestricted.Linear.Orphans ()
 import qualified Data.Functor.Linear as Data.Linear
 
 import qualified Data.IntMap as IM
@@ -71,7 +71,6 @@ import GHC.Generics
 import Data.Kind
 import Data.Word
 import Data.IORef (IORef)
-import Data.Coerce
 
 import Data.Unique (Unique)
 

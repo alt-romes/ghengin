@@ -6,6 +6,7 @@ which one expresses more high-level game-engine and rendering abstractions, like
  -}
 module Ghengin.Core where
 
+import qualified Prelude
 import Ghengin.Core.Prelude
 import Ghengin.Core.Log
 import qualified Data.V.Linear as V
@@ -26,7 +27,7 @@ import Ghengin.Core.Mesh
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Material
 
-import Ghengin.Core.Type.Utils (nat)
+import Ghengin.Core.Type.Utils
 
 import qualified Data.Linear.Alias as Alias
 
@@ -48,38 +49,44 @@ newtype Core α = Core (StateT CoreState Renderer α)
 runCore :: Core a ⊸ IO a
 runCore (Core st)
   = runRenderer $ Linear.do
-      (a, CoreState i rq) <- runStateT st (CoreState 0 mempty)
-      flip evalStateT () $ traverseRenderQueue @(StateT () Renderer) @Renderer rq
-        (\pipeline _ -> Linear.do
-          -- lift $ destroyRenderPipeline p -- ROMES:TODO:
-          -- How do I return things if I am to destroy them??? likely make that
-          -- function yet more contrived. or simpler--really, we just need that
-          -- the thing is consumed in the function, hence the linear argument
-          -- (but if it is to be returned we must know, to enforce linearity? we'll see...)
-          return pipeline
-        )
-        (\p mat -> Linear.do
-          -- lift $ freeMaterial m -- ROMES:TODO:
-          return (p, mat)
-          )
-        (\p mesh () -> Linear.do
-          -- lift $ freeMesh m -- ROMES:TODO:
-          return (p, mesh)
-        )
-        (pure ())
+      (a, CoreState i (RenderQueue rq)) <- runStateT st (CoreState 0 (RenderQueue mempty))
+      -- TODO: FREE THINGS NEXT STEP!
+      Ur _ <- pure $ Unsafe.toLinear Ur rq
+      -- flip evalStateT () $ traverseRenderQueue @(StateT () Renderer) @Renderer rq
+      --   (\pipeline _ -> Linear.do
+      --     -- lift $ destroyRenderPipeline p -- ROMES:TODO:
+      --     -- How do I return things if I am to destroy them??? likely make that
+      --     -- function yet more contrived. or simpler--really, we just need that
+      --     -- the thing is consumed in the function, hence the linear argument
+      --     -- (but if it is to be returned we must know, to enforce linearity? we'll see...)
+      --     return pipeline
+      --   )
+      --   (\p mat -> Linear.do
+      --     -- lift $ freeMaterial m -- ROMES:TODO:
+      --     return (p, mat)
+      --     )
+      --   (\p mesh () -> Linear.do
+      --     -- lift $ freeMesh m -- ROMES:TODO:
+      --     return (p, mesh)
+      --   )
+      --   (pure ())
+      -- () <- pure (consume i)
+      -- return a
       () <- pure (consume i)
       return a
 
 
 
 render :: Core ()
-render = Core $ StateT $ \CoreState{..} -> enterD "render" $ do
+render = Core $ StateT $ \CoreState{renderQueue= RenderQueue rqueue', frameCounter=fcounter'} -> enterD "render" $ Linear.do
+  Ur fcounter <- pure (move fcounter')
+  Ur unsafeQueue <- pure (Unsafe.toLinear Ur rqueue')
 
   -- ROMES:TODO: This might cause flickering once every frame overflow due to ... overflows?
   -- Need to consider what happens if it overflows. For now, good enough, it's
   -- unlikely the frame count overflows, with 60 frames per second the game
   -- would have to run for years to overflow a 64 bit integer
-  let frameIndex = frameCounter `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
+  let frameIndex = fcounter `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
 
   -- Some required variables
   -- TODO: instead, use defaults and provide functions to change viewport and scissor
@@ -98,7 +105,7 @@ render = Core $ StateT $ \CoreState{..} -> enterD "render" $ do
           bind material descriptor set at set #1
 
           ∀ object that uses material do
-            
+
             bind object descriptor set at set #2
             bind object model (vertex buffer)
             draw object
@@ -125,67 +132,61 @@ render = Core $ StateT $ \CoreState{..} -> enterD "render" $ do
       -- Now, render the renderable entities from the render queue in the given order.
       -- If everything works as expected, if we blindly bind the descriptor sets as
       -- they come, we should bind the pipeline once and each material once.
-      traverseRenderQueue @(CommandM Renderer) @(RenderPassCmdM Renderer)
-        renderQueue
+
+      pipesunit <- Data.traverse (Unsafe.toLinear \(Some2 @RenderPipeline @π @bs pipeline, materials) -> enterD "Traverse: pipeline" Linear.do
+
         -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
-        (\pipeline next -> enterD "Traverse: pipeline" Linear.do
 
-          {-
-             We'll likely want to do some pre-processing of user-defined render passes,
-             but let's keep it simple and working for now.
-          -}
+        {-
+           We'll likely want to do some pre-processing of user-defined render passes,
+           but let's keep it simple and working for now.
+        -}
 
-          Ur rp' <- pure $ unsafeGetRenderPass pipeline
-          let rp = Unsafe.Alias.get rp' -- nice and unsafe
-          renderPassCmd currentImage rp extent $ Linear.do
+        Ur rp' <- pure $ unsafeGetRenderPass pipeline
+        let rp = Unsafe.Alias.get rp' -- nice and unsafe
+        renderPassCmd currentImage rp extent $ Linear.do
 
+          -- then
 
-            -- then
+          logT "Binding pipeline"
+          Ur graphicsPipeline <- pure $ completelyUnsafeGraphicsPipeline pipeline
 
+          -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
+          -- Bind the pipeline
+          gppp' <- bindGraphicsPipeline graphicsPipeline
+          setViewport viewport
+          setScissor  scissor
 
-            logT "Binding pipeline"
-            Ur graphicsPipeline <- pure $ completelyUnsafeGraphicsPipeline pipeline
+          lift (descriptors pipeline) >>= \case
+            (dset, rmap, pipeline') -> Linear.do
 
-            -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
-            -- Bind the pipeline
-            gppp' <- bindGraphicsPipeline graphicsPipeline
-            setViewport viewport
-            setScissor  scissor
+              -- These render properties are necessarily compatible with this
+              -- pipeline in the set #0, so the 'descriptorSetBinding' buffer
+              -- will always be valid to write with the corresponding
+              -- material binding
+              (rmap', pipeline'') <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' pipeline')
+              
+              -- Bind descriptor set #0
+              (dset', pLayout) <- Alias.useM dset (Unsafe.toLinear $ \dset' -> Linear.do
+                (pLayout', vkdset) <-
+                  bindGraphicsDescriptorSet graphicsPipeline 0 dset'
+                pure (Unsafe.toLinear (\_ -> dset') vkdset, pLayout') --forget vulkan dset
+                                            )
 
-            lift (descriptors pipeline) >>= \case-- TODO: Fix frames in flight... here it migth be crrect actylly, descriptor sets are shared, only one frame is being drawn at the time despite the double buffering
-              (dset, rmap, pipeline') -> Linear.do
+              -- Dangerous!! Could be forgetting values that need to be
+              -- reference-counted forgotten, or otherwise references become
+              -- obsolete. These values are probably shared before being
+              -- returned from 'descriptors' T_T.
+              -- OK, I made it less bad, now I'm only forgetting stuff I got unsafely...
+              -- And the pipeline T_T
+              Unsafe.toLinearN @3 (\_ _ _ -> pure ()) pipeline'' pLayout gppp' -- The pipeline is still in the Apecs store. Really, these functions should have no Unsafes and in that case all would be right (e.g. the resource passed to this function would have to be freed in this function, guaranteeing that it is reference counted or something?....
 
-                -- These render properties are necessarily compatible with this
-                -- pipeline in the set #0, so the 'descriptorSetBinding' buffer
-                -- will always be valid to write with the corresponding
-                -- material binding
-                (rmap', pipeline'') <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' pipeline')
-                
-                -- Bind descriptor set #0
-                (dset', pLayout) <- Alias.useM dset (Unsafe.toLinear $ \dset' -> Linear.do
-                  (pLayout', vkdset) <-
-                    bindGraphicsDescriptorSet graphicsPipeline 0 dset'
-                  pure (Unsafe.toLinear (\_ -> dset') vkdset, pLayout') --forget vulkan dset
-                                              )
+              lift $ Linear.do
+                Alias.forget dset'
+                Alias.forget rmap'
 
-                -- Dangerous!! Could be forgetting values that need to be
-                -- reference-counted forgotten, or otherwise references become
-                -- obsolete. These values are probably shared before being
-                -- returned from 'descriptors' T_T.
-                -- OK, I made it less bad, now I'm only forgetting stuff I got unsafely...
-                -- And the pipeline T_T
-                Unsafe.toLinearN @3 (\_ _ _ -> pure ()) pipeline'' pLayout gppp' -- The pipeline is still in the Apecs store. Really, these functions should have no Unsafes and in that case all would be right (e.g. the resource passed to this function would have to be freed in this function, guaranteeing that it is reference counted or something?....
-
-                lift $ Linear.do
-                  Alias.forget dset'
-                  Alias.forget rmap'
-
-            -- finally, call the other actions in the renderpass cmd:
-            next
-
-            pure pipeline
-          )
-        (\pipeline material -> enterD "Material changed" Linear.do
+          -- For every material...
+          matsunits <- Data.traverse (Unsafe.toLinear \(Some @Material @ms material, meshes) -> enterD "Material changed" Linear.do
 
             logT "Binding material..."
             Ur graphicsPipeline <- pure $ completelyUnsafeGraphicsPipeline pipeline
@@ -212,36 +213,46 @@ render = Core $ StateT $ \CoreState{..} -> enterD "render" $ do
                   Alias.forget dset'
                   Alias.forget rmap'
 
-                pure (pipeline, material)
-          )
-        -- We used to have (\(SomePipeline pipeline) (Some mesh) (ModelMatrix mm _) -> enterD "Mesh changed" Linear.do
-        (\pipeline mesh () -> enterD "Mesh changed" Linear.do
+            -- For every mesh...
+                                            -- we still attach no data to the render queue, but we could, and it would be inplace of this unit
+            Data.traverse (\(Some @Mesh @ts mesh, ()) ->  enterD "Mesh changed" Linear.do
 
-            logT "Drawing mesh"
-            Ur graphicsPipeline <- pure $ completelyUnsafeGraphicsPipeline pipeline
+              logT "Drawing mesh"
+              Ur graphicsPipeline <- pure $ completelyUnsafeGraphicsPipeline pipeline
 
-            -- TODO: Bind descriptor set #2
+              -- TODO: Bind descriptor set #2
 
-            -- TODO: No more push constants, for now!!!!
-            -- pLayout <- pushConstants graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
+              -- TODO: No more push constants, for now!!!!
+              -- pLayout <- pushConstants graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
 
-            mesh' <- renderMesh mesh
+              mesh' <- renderMesh mesh
+              Ur _  <- pure $ Unsafe.toLinear Ur mesh'
+              return ()
 
-            pure (pipeline, mesh')
-          )
-        (
+              ) meshes
+
+            ) materials
+
           {-
-             We'll likely want to do some post-processing of user-defined
+            We'll likely want to do some post-processing of user-defined
              render passes, but let's keep it simple and working for now. We'll
              get back to a clean dear-imgui add-on to ghengin-core later.
+             (For each pipeline)
           -}
 
           -- Draw UI (TODO: Special render pass...?)
           -- liftSystemIO IM.getDrawData >>= IM.renderDrawData
-          return ()
-        )
 
-    pure ((), cmdBuffer')
+          pure (consume matsunits)
+
+        ) unsafeQueue
+      pure (consume pipesunit)
+
+    -- We can return the unsafe queue after having rendered from it because
+    -- rendering does not do anything to the resources in the render queue (it
+    -- only draws the scene specified by it) It is rather edited by the game,
+    -- in the loops before rendering
+    pure (((), CoreState{renderQueue=RenderQueue unsafeQueue, frameCounter=fcounter}), cmdBuffer')
     
  where
   -- The region of the framebuffer that the output will be rendered to. We
@@ -293,10 +304,10 @@ writePropertiesToResources rmap' fi
         pure (rmap''', binding':##bs)
 
 
-renderMesh :: MonadIO m => Mesh a ⊸ RenderPassCmdM m (Mesh a)
+renderMesh :: (Data.Functor m, MonadIO m) => Mesh a ⊸ RenderPassCmdM m (Mesh a)
 renderMesh = \case
-  SimpleMesh vb -> SimpleMesh <$> drawVertexBuffer vb
-  IndexedMesh vb ib -> uncurry IndexedMesh <$> drawVertexBufferIndexed vb ib
+  SimpleMesh vb -> SimpleMesh Data.<$> drawVertexBuffer vb
+  IndexedMesh vb ib -> uncurry IndexedMesh Data.<$> drawVertexBufferIndexed vb ib
 
 -- completely unsafe things, todo:fix
 

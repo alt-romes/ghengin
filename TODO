@@ -1,3 +1,5 @@
+[ ] Implementar o ghengin-core/planets-core
+[ ] A hie.yaml file to fix HLS?
 [ ] Drop type parameter from RenderQueue
 [ ] We only need the parameter to the render queue because we don't yet attach render properties to meshes
 [ ] Add render properties to meshes

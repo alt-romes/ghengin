@@ -183,8 +183,7 @@ instance HasProperties (RenderPipeline π) where
   pcons = RenderProperty
 
 
--- destroyRenderPipeline :: RenderPipeline α τ
---                        ⊸ Renderer ()
+-- destroyRenderPipeline :: RenderPipeline α τ ⊸ Renderer ()
 -- destroyRenderPipeline (RenderProperty _ rp) = destroyRenderPipeline rp
 -- destroyRenderPipeline (RenderPipeline gp rp dss _) = do
 --   forM_ dss $ \(dset, dpool) -> do
