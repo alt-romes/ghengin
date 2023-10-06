@@ -64,6 +64,7 @@ common common-flags
                       LinearTypes,
                       QualifiedDo,
                       QuantifiedConstraints,
+                      RoleAnnotations,
 
                       -- Use Ghengin.Core.Prelude!
                       NoImplicitPrelude,

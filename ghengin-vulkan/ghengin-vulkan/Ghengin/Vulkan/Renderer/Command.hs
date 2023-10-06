@@ -20,7 +20,7 @@ module Ghengin.Vulkan.Renderer.Command
   , RenderPassCmd
   , CommandM
   , RenderPassCmdM
-  -- , CommandBuffer -- for backpack, re-export Vulkan's definition
+  , Vk.CommandBuffer -- for backpack, re-export Vulkan's definition
   , recordCommand
   , recordCommandOneShot
   , renderPassCmd
@@ -36,6 +36,8 @@ module Ghengin.Vulkan.Renderer.Command
   , pushConstants
   , draw
   , drawIndexed
+  , drawVertexBuffer
+  , drawVertexBufferIndexed
   , withCmdBuffer
   , makeRenderPassCmd
 

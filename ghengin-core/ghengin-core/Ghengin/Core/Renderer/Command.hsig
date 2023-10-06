@@ -15,7 +15,12 @@ import qualified Vulkan as Vk
 type RenderPassCmd m = RenderPassCmdM m ()
 type Command m = CommandM m ()
 
+type role RenderPassCmdM representational nominal
+type RenderPassCmdM :: (Type -> Type) -> Type -> Type
 data RenderPassCmdM m a
+
+type role CommandM representational nominal
+type CommandM :: (Type -> Type) -> Type -> Type
 data CommandM m a
 
 data CommandBuffer
@@ -59,4 +64,4 @@ setScissor :: MonadIO m => Vk.Rect2D -> RenderPassCmd m
 
 renderPassCmd :: MonadIO m
               => Int -- ^ needs a good explanation...
-              -> RenderPass -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
+              -> RenderPass -> Vk.Extent2D -> RenderPassCmd m -> Command m
