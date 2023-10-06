@@ -70,12 +70,17 @@ import Foreign.Storable
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
 import Data.Vector (Vector)
+import qualified Data.Vector as Vector
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
 import Ghengin.Vulkan.Renderer.Device
-import Ghengin.Vulkan.Renderer.Command
+import {-# SOURCE #-} Ghengin.Vulkan.Renderer.RenderPass
+import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet
+import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Pipeline
+import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
+import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Buffer
 
 import Ghengin.Core.Type.Utils (w32)
 import Ghengin.Core.Log
@@ -241,7 +246,7 @@ recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
 {-# INLINE recordCommandOneShot #-}
 
 -- | Make a render pass part a command blueprint that can be further composed with other commands
-renderPassCmd' :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
+renderPassCmd' :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd m -> Command m
 renderPassCmd' rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ReaderT \buf -> Linear.do
   let
     renderPassInfo = Vk.RenderPassBeginInfo { next = ()
@@ -466,7 +471,7 @@ drawVertexBufferIndexed (VertexBuffer (DeviceLocalBuffer vbuf mem) nverts) (Inde
        , Index32Buffer (DeviceLocalBuffer ibuf' imem) nixs
        )
 
-bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ RenderPassCmdM m GraphicsPipeline
+bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ RenderPassCmdM m (RendererPipeline Graphics)
 bindGraphicsPipeline pp = bindGraphicsPipeline' pp._pipeline
 {-# INLINE bindGraphicsPipeline #-}
 
@@ -479,7 +484,7 @@ bindGraphicsDescriptorSet pipelay ix dset = bindGraphicsDescriptorSet' pipelay._
 
 renderPassCmd :: Linear.MonadIO m => Int -- ^ needs a good explanation...
               -> RenderPass -> Vk.Extent2D -> RenderPassCmd m -> Command m
-renderPassCmd currentImage = Unsafe.toLinear \rpass renderAreaExtent rpcmds -> renderPassCmd' rpass._renderPass (rpass._framebuffers V.! currentImage) renderAreaExtent rpcmds
+renderPassCmd currentImage = Unsafe.toLinear \rpass renderAreaExtent rpcmds -> renderPassCmd' rpass._renderPass (rpass._framebuffers Vector.! currentImage) renderAreaExtent rpcmds
 
 ----- Linear Unsafe Utils
 

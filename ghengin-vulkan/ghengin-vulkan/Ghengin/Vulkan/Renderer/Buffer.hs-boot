@@ -1,0 +1,76 @@
+-- | This module currently duplicates Buffer.hsig in ghengin-core, so it can be used in ghengin-vulkan
+module Ghengin.Vulkan.Renderer.Buffer where
+
+import Data.Word (Word, Word32)
+import Data.Int (Int32)
+import qualified Data.Vector.Storable as SV
+-- TODO:Exchange Vk specific types to renderer agnostic enumerations
+import qualified Vulkan as Vk (DescriptorType, BufferUsageFlags, Buffer, DeviceMemory)
+
+import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Core.Mesh.Vertex
+
+import Data.Linear.Alias (Aliasable)
+
+{-
+Note [Mapped vs Device-local Buffers]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Mapped buffers are buffers of usage 'UNIFORM' (as in uniform buffer) which are
+mapped to a device-local buffer. Writing to a mapped buffer writes host-local
+memory which is synchronized automatically to the device-local memory.
+
+It is (probably?) faster to use a mapped buffer if you are writing it a lot.
+The alternative is a DeviceLocalBuffer such as a VertexBuffer, which is
+allocated on the device without being mapped to host-local memory. To write such
+a device-local buffer one needs to allocate a separate mapped buffer called a
+staging buffer and then issue a copy command from the staging buffer to the
+device-local buffer. Device-local buffers are more performant often, but writing
+to them seems much slower.
+
+In Vulkan at least. For some renderers this distinction might not exist...
+
+-}
+
+-------- Specific buffers --------------
+
+data Index32Buffer where
+  Index32Buffer :: !DeviceLocalBuffer
+                 ⊸ Word32                 -- ^ N indices
+                -> Index32Buffer
+
+createIndex32Buffer :: SV.Vector Int32 -- ^ Indices
+                    -> Renderer Index32Buffer
+
+data VertexBuffer where
+  VertexBuffer :: !DeviceLocalBuffer
+                ⊸ Word32               -- ^ N vertices
+               -> VertexBuffer
+
+createVertexBuffer :: ∀ αs. SV.Storable (Vertex αs)
+                   => SV.Vector (Vertex αs) -- ^ Vertices
+                   -> Renderer VertexBuffer
+
+-------- Device-local buffer -----------
+
+data DeviceLocalBuffer where
+  DeviceLocalBuffer :: {-# UNPACK #-} !Vk.Buffer
+                     ⊸ {-# UNPACK #-} !Vk.DeviceMemory
+                     -- ⊸ Word -- Size
+                     ⊸ DeviceLocalBuffer
+
+createDeviceLocalBuffer :: ∀ α. SV.Storable α => Vk.BufferUsageFlags -> SV.Vector α -> Renderer DeviceLocalBuffer
+
+destroyDeviceLocalBuffer :: DeviceLocalBuffer ⊸ Renderer ()
+
+-------- Mapped Buffer -----------------
+
+-- | A mapped (uniform) buffer. See Note [Mapped vs Device-local Buffers]
+data MappedBuffer
+instance Aliasable MappedBuffer
+
+-- | TODO: Drop dependency on Vulkan and make DescriptorType a data type renderer agnostic
+createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (Alias MappedBuffer)
+writeMappedBuffer :: ∀ α. SV.Storable α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
+
+

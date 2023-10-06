@@ -14,7 +14,7 @@ import Control.Monad.IO.Class.Linear as Linear
 import qualified Data.V.Linear as V
 
 import Ghengin.Vulkan.Renderer.Device
-import Ghengin.Vulkan.Renderer.Command (Command)
+import Ghengin.Vulkan.Renderer.Command (Command, copyFullBuffer)
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.SwapChain
 import Ghengin.Vulkan.Renderer.Frame
@@ -122,6 +122,15 @@ immediateSubmit :: Command System.IO.Linear.IO ⊸ Renderer () -- ROMES: Command
 immediateSubmit cmd = renderer $ \(REnv{..}) -> Linear.do
   (dev', imsctx') <- immediateSubmit' _vulkanDevice _immediateSubmit cmd
   pure ((), REnv{_vulkanDevice=dev',_immediateSubmit=imsctx',..})
+
+-- | Run a one-shot command that copies the whole data between two buffers.
+-- Returns the two buffers, in the order they were passed to the function
+copyBuffer :: Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> Renderer (Vk.Buffer, Vk.Buffer)
+copyBuffer src dst size = Linear.do
+  case Cmd.copyFullBuffer src dst size of
+    (cmd, src', dst') -> Linear.do
+      immediateSubmit cmd
+      pure (src', dst')
 
 -- | Get the extent of the images in the swapchain?
 getRenderExtent :: Renderer (Ur Vk.Extent2D)

@@ -21,9 +21,11 @@ import Data.Bits
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
-import Ghengin.Vulkan.Renderer.Kernel
+import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
+-- import qualified Ghengin.Vulkan.Renderer.Command as Cmd
 import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Core.Mesh.Vertex
+import qualified Data.Linear.Alias as Alias
 
 import qualified Unsafe.Linear as Unsafe
 
@@ -31,26 +33,13 @@ import qualified Unsafe.Linear as Unsafe
 -- We might need to duplicate these definitions? If we do, does it work?
 -- import {-# SOURCE #-} Ghengin.Core.Renderer.Buffer (Index32Buffer(..), VertexBuffer(..))
 
-import qualified Ghengin.Vulkan.Renderer.Command as Cmd
-
 -------- Specific buffers --------------
-
--- Inlined definitions from Ghengin Core
-data Index32Buffer where
-  Index32Buffer :: !DeviceLocalBuffer
-                 ⊸ Word32
-                -> Index32Buffer
 
 createIndex32Buffer :: SV.Vector Int32 -> Renderer Index32Buffer
 createIndex32Buffer vv = index32buffer <$> createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT vv <*> pure (Ur $ fromIntegral $ SV.length vv)
   where
     index32buffer :: DeviceLocalBuffer %1 -> Ur Word32 %1 -> Index32Buffer
     index32buffer d (Ur w) = Index32Buffer d w
-
-data VertexBuffer where
-  VertexBuffer :: !DeviceLocalBuffer
-                ⊸ Word32
-               -> VertexBuffer
 
 createVertexBuffer :: ∀ αs. SV.Storable (Vertex αs) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
 createVertexBuffer vv = vertexBuffer <$> createDeviceLocalBuffer @(Vertex αs) Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT vv <*> pure (Ur $ fromIntegral $ SV.length vv) -- use Locations for vertex buffers
@@ -167,22 +156,13 @@ createBuffer size usage properties = Linear.do
     Prelude.pure (buffer, devMem)
                      )
 
--- | Run a one-shot command that copies the whole data between two buffers.
--- Returns the two buffers, in the order they were passed to the function
-copyBuffer :: Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> Renderer (Vk.Buffer, Vk.Buffer)
-copyBuffer src dst size = Linear.do
-  case Cmd.copyFullBuffer src dst size of
-    (cmd, src', dst') -> Linear.do
-      immediateSubmit cmd
-      pure (src', dst')
-
 -- | Fills a staging buffer with data, uses it with the given function that
 -- typically copies the buffer data from the staging buffer to another one
 -- (e.g. creating device local buffers and copying textures to the device), and
 -- finally frees the staging buffer
-withStagingBuffer :: ∀ α ρ. SV.Storable α => SV.Vector α -> (Vk.Buffer ⊸ Vk.DeviceSize -> Renderer ρ) ⊸ Renderer ρ
+withStagingBuffer :: ∀ α (ρ :: Type). SV.Storable α => SV.Vector α -> (Vk.Buffer ⊸ Vk.DeviceSize -> Renderer ρ) ⊸ Renderer ρ
 -- ROMES:TODO: nevermind brackets for now, if we ever make this compile we can worry about linear bracket-ing then
-withStagingBuffer bufferData f = enterD "withStagingBuffer" $ Linear.do
+withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
   -- Accquire staging buffer
   -- -----------------------
   let l          = SV.length bufferData
