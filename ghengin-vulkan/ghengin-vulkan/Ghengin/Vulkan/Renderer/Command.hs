@@ -20,7 +20,7 @@ module Ghengin.Vulkan.Renderer.Command
   , RenderPassCmd
   , CommandM
   , RenderPassCmdM
-  , CommandBuffer -- for backpack, re-export Vulkan's definition
+  -- , CommandBuffer -- for backpack, re-export Vulkan's definition
   , recordCommand
   , recordCommandOneShot
   , renderPassCmd
@@ -54,7 +54,7 @@ module Ghengin.Vulkan.Renderer.Command
 
 import GHC.TypeLits
 
-import Prelude hiding (($))
+import Prelude hiding (($), pure, return)
 import Prelude.Linear (($), Ur(..))
 import qualified Prelude.Linear as Linear ((.))
 
@@ -62,6 +62,7 @@ import qualified Data.V.Linear as V
 import qualified Data.V.Linear.Internal as VI
 
 import Control.Monad.Reader
+import Control.Functor.Linear (pure, return)
 import qualified Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data.Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
@@ -454,32 +455,36 @@ transitionImageLayout = Unsafe.toLinear $ \img format srcLayout dstLayout ->
 -- draw call.
 
 
-drawVertexBuffer :: MonadIO m => VertexBuffer ⊸ RenderPassCmdM m VertexBuffer
+drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderPassCmdM m VertexBuffer
 drawVertexBuffer (VertexBuffer (DeviceLocalBuffer buf mem) nverts) = Linear.do
   let offsets = V.make 0
-  buffers' <- bindVertexBuffers 0 (V.make buf) offsets
+  buffers' <- bindVertexBuffers 0 (V.make buf :: V.V 1 Vk.Buffer) offsets
   draw nverts
-  pure (VertexBuffer (DeviceLocalBuffer (V.elim id buffers') mem) nverts)
+  pure (VertexBuffer (DeviceLocalBuffer (V.elim (\x -> x) buffers') mem) nverts)
 
-drawVertexBufferIndexed :: MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderPassCmdM m (VertexBuffer, Index32Buffer)
+drawVertexBufferIndexed :: Linear.MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderPassCmdM m (VertexBuffer, Index32Buffer)
 drawVertexBufferIndexed (VertexBuffer (DeviceLocalBuffer vbuf mem) nverts) (Index32Buffer (DeviceLocalBuffer ibuf imem) nixs) = Linear.do
   let offsets = V.make 0
   buffers' <- bindVertexBuffers 0 (V.make vbuf) offsets
   ibuf'    <- bindIndex32Buffer ibuf 0
   drawIndexed nixs
-  pure ( VertexBuffer (DeviceLocalBuffer (V.elim id buffers') mem) nverts
+  pure ( VertexBuffer (DeviceLocalBuffer (V.elim (\x -> x) buffers') mem) nverts
        , Index32Buffer (DeviceLocalBuffer ibuf' imem) nixs
        )
 
 bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ RenderPassCmdM m (RendererPipeline Graphics)
-bindGraphicsPipeline pp = bindGraphicsPipeline' pp._pipeline
+bindGraphicsPipeline (VulkanPipeline pipeline layout) = Linear.do
+  pipeline' <- bindGraphicsPipeline' pipeline
+  return (VulkanPipeline pipeline' layout)
 {-# INLINE bindGraphicsPipeline #-}
 
 bindGraphicsDescriptorSet :: Linear.MonadIO m
                           => RendererPipeline Graphics
                           ⊸ Word32 -- ^ Set index at which to bind the descriptor set
                           -> DescriptorSet ⊸ RenderPassCmdM m (RendererPipeline Graphics, DescriptorSet)
-bindGraphicsDescriptorSet pipelay ix dset = bindGraphicsDescriptorSet' pipelay._pipelineLayout ix dset._descriptorSet
+bindGraphicsDescriptorSet (VulkanPipeline pipelay layout) ix (DescriptorSet dix dset) = Linear.do
+  (layout', dset') <- bindGraphicsDescriptorSet' layout ix dset
+  return (VulkanPipeline pipelay layout', DescriptorSet dix dset')
 {-# INLINE bindGraphicsDescriptorSet #-}
 
 renderPassCmd :: Linear.MonadIO m => Int -- ^ needs a good explanation...

@@ -127,7 +127,7 @@ immediateSubmit cmd = renderer $ \(REnv{..}) -> Linear.do
 -- Returns the two buffers, in the order they were passed to the function
 copyBuffer :: Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> Renderer (Vk.Buffer, Vk.Buffer)
 copyBuffer src dst size = Linear.do
-  case Cmd.copyFullBuffer src dst size of
+  case copyFullBuffer src dst size of
     (cmd, src', dst') -> Linear.do
       immediateSubmit cmd
       pure (src', dst')
