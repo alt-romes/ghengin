@@ -69,7 +69,7 @@ data DeviceLocalBuffer where
 -- | Fills a device (GPU) local buffer with the provided flags and the provided data
 -- by first copying the data to a staging buffer and then running a buffer copy
 -- one-shot command.
-createDeviceLocalBuffer :: ∀ α. (SV.Storable α) => Vk.BufferUsageFlags -> SV.Vector α -> Renderer DeviceLocalBuffer
+createDeviceLocalBuffer :: ∀ α. SV.Storable α => Vk.BufferUsageFlags -> SV.Vector α -> Renderer DeviceLocalBuffer
 createDeviceLocalBuffer flags bufferData =
 
   withStagingBuffer bufferData $ \stagingBuffer bufferSize -> Linear.do

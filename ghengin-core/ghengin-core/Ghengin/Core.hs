@@ -304,10 +304,10 @@ writePropertiesToResources rmap' fi
         pure (rmap''', binding':##bs)
 
 
-renderMesh :: (Data.Functor m, MonadIO m) => Mesh a ⊸ RenderPassCmdM m (Mesh a)
+renderMesh :: (Functor m, MonadIO m) => Mesh a ⊸ RenderPassCmdM m (Mesh a)
 renderMesh = \case
-  SimpleMesh vb -> SimpleMesh Data.<$> drawVertexBuffer vb
-  IndexedMesh vb ib -> uncurry IndexedMesh Data.<$> drawVertexBufferIndexed vb ib
+  SimpleMesh vb -> SimpleMesh <$> drawVertexBuffer vb
+  IndexedMesh vb ib -> uncurry IndexedMesh <$> drawVertexBufferIndexed vb ib
 
 -- completely unsafe things, todo:fix
 

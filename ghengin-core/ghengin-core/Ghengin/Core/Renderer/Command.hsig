@@ -10,6 +10,8 @@ import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.DescriptorSet
 import Ghengin.Core.Renderer.RenderPass
 
+import qualified Control.Functor.Linear as Linear
+import qualified Control.Monad.IO.Class.Linear as Linear
 import qualified Vulkan as Vk
 
 type RenderPassCmd m = RenderPassCmdM m ()
@@ -25,43 +27,43 @@ data CommandM m a
 
 data CommandBuffer
 
-instance Functor m => Functor (CommandM m)
-instance Data.Functor m => Data.Functor (CommandM m)
-instance Applicative m => Applicative (CommandM m)
-instance Data.Applicative m => Data.Applicative (CommandM m)
-instance Monad m => Monad (CommandM m)
-instance MonadIO m => MonadIO (CommandM m)
-instance HasLogger m => HasLogger (CommandM m)
-instance MonadTrans CommandM
+instance Linear.Functor m     => Linear.Functor (CommandM m)
+instance Data.Functor m       => Data.Functor (CommandM m)
+instance Linear.Applicative m => Linear.Applicative (CommandM m)
+instance Data.Applicative m   => Data.Applicative (CommandM m)
+instance Linear.Monad m       => Linear.Monad (CommandM m)
+instance Linear.MonadIO m     => Linear.MonadIO (CommandM m)
+instance HasLogger m          => HasLogger (CommandM m)
+instance Linear.MonadTrans CommandM
 
-instance Functor m => Functor (RenderPassCmdM m)
-instance Data.Functor m => Data.Functor (RenderPassCmdM m)
-instance Applicative m => Applicative (RenderPassCmdM m)
-instance Data.Applicative m => Data.Applicative (RenderPassCmdM m)
-instance Monad m => Monad (RenderPassCmdM m)
-instance MonadIO m => MonadIO (RenderPassCmdM m)
-instance HasLogger m => HasLogger (RenderPassCmdM m)
-instance MonadTrans RenderPassCmdM
+instance Linear.Functor m     => Linear.Functor (RenderPassCmdM m)
+instance Data.Functor m       => Data.Functor (RenderPassCmdM m)
+instance Linear.Applicative m => Linear.Applicative (RenderPassCmdM m)
+instance Data.Applicative m   => Data.Applicative (RenderPassCmdM m)
+instance Linear.Monad m       => Linear.Monad (RenderPassCmdM m)
+instance Linear.MonadIO m     => Linear.MonadIO (RenderPassCmdM m)
+instance HasLogger m          => HasLogger (RenderPassCmdM m)
+instance Linear.MonadTrans RenderPassCmdM
 
 -- the command buffer comes from the leaky
-recordCommand :: MonadIO m => CommandBuffer ⊸ Command m ⊸ m CommandBuffer
+recordCommand :: Linear.MonadIO m => CommandBuffer ⊸ Command m ⊸ m CommandBuffer
 
 -- TODO: Cleanup the API
 
-drawVertexBuffer :: MonadIO m => VertexBuffer ⊸ RenderPassCmdM m VertexBuffer
-drawVertexBufferIndexed :: MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderPassCmdM m (VertexBuffer, Index32Buffer)
+drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderPassCmdM m VertexBuffer
+drawVertexBufferIndexed :: Linear.MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderPassCmdM m (VertexBuffer, Index32Buffer)
 
-bindGraphicsPipeline :: MonadIO m => RendererPipeline Graphics ⊸ RenderPassCmdM m (RendererPipeline Graphics)
+bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ RenderPassCmdM m (RendererPipeline Graphics)
 
-bindGraphicsDescriptorSet :: MonadIO m
+bindGraphicsDescriptorSet :: Linear.MonadIO m
                           => RendererPipeline Graphics
                           ⊸ Word32 -- ^ Set index at which to bind the descriptor set
                           -> DescriptorSet ⊸ RenderPassCmdM m (RendererPipeline Graphics, DescriptorSet)
 
 -- leaky, fixme.
-setViewport :: MonadIO m => Vk.Viewport -> RenderPassCmd m
-setScissor :: MonadIO m => Vk.Rect2D -> RenderPassCmd m
+setViewport :: Linear.MonadIO m => Vk.Viewport -> RenderPassCmd m
+setScissor :: Linear.MonadIO m => Vk.Rect2D -> RenderPassCmd m
 
-renderPassCmd :: MonadIO m
+renderPassCmd :: Linear.MonadIO m
               => Int -- ^ needs a good explanation...
               -> RenderPass -> Vk.Extent2D -> RenderPassCmd m -> Command m

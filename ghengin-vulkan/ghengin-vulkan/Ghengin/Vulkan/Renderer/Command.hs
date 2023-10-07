@@ -148,10 +148,10 @@ type RenderPassCmd m = RenderPassCmdM m ()
 
 
 newtype CommandM m a = Command (ReaderT Vk.CommandBuffer m a)
-  deriving (Data.Linear.Functor, Linear.Functor, Functor, Applicative, Monad, MonadIO, MonadTrans)
+  deriving (Data.Linear.Functor, Linear.Functor)
 
 newtype RenderPassCmdM m a = RenderPassCmd (ReaderT Vk.CommandBuffer m a)
-  deriving (Data.Linear.Functor, Linear.Functor, Functor, Applicative, Monad, MonadIO, MonadTrans)
+  deriving (Data.Linear.Functor, Linear.Functor)
 
 -- This interface is safe because the only ways to record the command
 -- (recordCommand, recordCommandOneShot) guarantee the command buffer is

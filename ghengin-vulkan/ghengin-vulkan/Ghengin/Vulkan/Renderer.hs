@@ -11,7 +11,15 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE QualifiedDo #-}
-module Ghengin.Vulkan.Renderer where
+module Ghengin.Vulkan.Renderer
+  ( module Ghengin.Vulkan.Renderer.DescriptorSet
+  , module Ghengin.Vulkan.Renderer.Buffer
+  , module Ghengin.Vulkan.Renderer.Command
+  , module Ghengin.Vulkan.Renderer.Kernel
+  , module Ghengin.Vulkan.Renderer
+  )
+  where
+
 
 import GHC.TypeLits
 import qualified Prelude
@@ -43,6 +51,11 @@ import qualified Vulkan as Vk
 import Vulkan.Zero (zero)
 
 import Ghengin.Core.Log
+
+-- reexport
+import Ghengin.Vulkan.Renderer.DescriptorSet
+import Ghengin.Vulkan.Renderer.Buffer
+
 import Ghengin.Vulkan.Renderer.Device.Instance
 import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Vulkan.Renderer.SwapChain
