@@ -61,7 +61,7 @@ import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Vulkan.Renderer.SwapChain
 import Ghengin.Vulkan.Renderer.Command
 import Ghengin.Vulkan.Renderer.Frame
-import Ghengin.Vulkan.Renderer.GLFW.Window
+import Ghengin.Vulkan.Renderer.GLFW.Window as GLFW
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Kernel
 import qualified System.IO.Linear as Linear
@@ -300,6 +300,14 @@ rateFn surface d = do
 
         isSuitablePresent :: Int -> Prelude.IO Bool
         isSuitablePresent  i = Vk.getPhysicalDeviceSurfaceSupportKHR pd (Prelude.fromIntegral i) sr
+
+shouldCloseWindow :: Renderer Bool
+shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+  b <- liftSystemIO (GLFW.windowShouldClose _vulkanWindow._window)
+  pure $ (b, renv)
+
+pollWindowEvents :: Renderer ()
+pollWindowEvents = liftSystemIO $ GLFW.pollEvents
 
 
 -- :| Utils |:

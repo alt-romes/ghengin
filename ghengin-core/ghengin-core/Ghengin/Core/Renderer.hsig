@@ -33,3 +33,7 @@ withCurrentFramePresent :: Int -- ^ Current frame index
                            )
                          ⊸ Renderer a
 
+-- A bit GLFW-centric, but passable...
+shouldCloseWindow :: Renderer Bool
+pollWindowEvents :: Renderer ()
+

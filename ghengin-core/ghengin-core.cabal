@@ -143,7 +143,7 @@ executable planets-core
         ghengin-vulkan,
         ghengin-core-indep,
         mtl, vector, hsnoise, containers, random, linear-base,
-        derive-storable, geomancy, vulkan
+        derive-storable, geomancy, vulkan, time
 
     ghc-options: -dcmm-lint -dstg-lint -dasm-lint -g2 -rtsopts -debug -Wno-partial-type-signatures
     cpp-options: -DDEBUG

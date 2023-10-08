@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PostfixOperators #-}
@@ -27,6 +28,7 @@ The main function
 module Main where
 
 import qualified Prelude
+import Data.Time
 import Data.Coerce
 import Foreign.Storable
 import Ghengin.Core.Prelude as Linear
@@ -34,6 +36,7 @@ import Ghengin.Core.Render.Packet
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render
 import Ghengin.Core.Shader (StructVec3(..), StructMat4(..))
+import Ghengin.Core.Log
 import Ghengin.Core
 import Geomancy.Mat4
 import Geomancy.Vec4
@@ -82,9 +85,31 @@ makeMainPipeline = Linear.do
     :## GHNil                       )
 
 main :: Prelude.IO ()
-main = withLinearIO $
+main = do
+ currTime <- getCurrentTime
+ withLinearIO $
   runCore Linear.do
     pipeline <- (makeMainPipeline ↑)
+    gameLoop currTime
     (destroyRenderPipeline pipeline ↑)
     return (Ur ())
 
+gameLoop :: UTCTime -> Core ()
+gameLoop currentTime = Linear.do
+ logT "New frame" 
+ should_close <- (shouldCloseWindow ↑)
+ if should_close then return () else Linear.do
+  (pollWindowEvents ↑)
+
+  Ur newTime <- liftSystemIOU getCurrentTime
+
+  -- Fix Your Timestep: A Very Hard Thing To Get Right. For now, the simplest approach:
+  let frameTime = diffUTCTime newTime currentTime
+      deltaTime = Prelude.min MAX_FRAME_TIME $ realToFrac frameTime
+
+  -- Loop!
+  gameLoop newTime
+
+
+pattern MAX_FRAME_TIME :: Float
+pattern MAX_FRAME_TIME = 0.5

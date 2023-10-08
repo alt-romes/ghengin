@@ -9,8 +9,8 @@
 -- | TODO: One day, abstract over window API too
 module Ghengin.Vulkan.Renderer.GLFW.Window
   (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosedOr
-  , initGLFW, terminateGLFW
-  , GLFWToken
+  , GLFW.windowShouldClose, GLFW.pollEvents
+  , initGLFW, terminateGLFW , GLFWToken
   ) where
 
 import GHC.Int (Int32)
@@ -90,15 +90,15 @@ loopUntilClosedOr = loopUntilClosedOr' False
   loopUntilClosedOr' shouldClose win (Ur s) action =
     if shouldClose then pure (win,Ur s)
     else Linear.do
-      windowShouldClose win >>= \case
+      wShouldClose win >>= \case
         (True , win') -> pure (win', Ur s)
         (False, win') -> Linear.do
           liftSystemIO GLFW.pollEvents
           (shouldClose',Ur s') <- action (Ur s)
           loopUntilClosedOr' shouldClose' win' (Ur s') action
       where
-        windowShouldClose :: GLFW.Window ⊸ m (Bool, GLFW.Window)
-        windowShouldClose = Unsafe.toLinear \w -> (,w) <$> liftSystemIO (GLFW.windowShouldClose w)
+        wShouldClose :: GLFW.Window ⊸ m (Bool, GLFW.Window)
+        wShouldClose = Unsafe.toLinear \w -> (,w) <$> liftSystemIO (GLFW.windowShouldClose w)
 
 data GLFWToken = GLFWToken
 
