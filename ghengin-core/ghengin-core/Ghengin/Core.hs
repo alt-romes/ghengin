@@ -39,9 +39,6 @@ import qualified Unsafe.Linear as Unsafe
 
 data CoreState
   = CoreState { frameCounter :: {-# UNPACK #-} !Int
-              , renderQueue  :: RenderQueue ()
-              -- ^ The unit type parameter is data attached to each item in the
-              -- render queue, we could eventually use it for something relevant.
               }
 newtype Core α = Core (StateT CoreState Renderer α)
   deriving (Functor, Data.Functor, Applicative, Data.Applicative, Monad, MonadIO, HasLogger)
@@ -49,9 +46,13 @@ newtype Core α = Core (StateT CoreState Renderer α)
 runCore :: Core a ⊸ IO a
 runCore (Core st)
   = runRenderer $ Linear.do
-      (a, CoreState i (RenderQueue rq)) <- runStateT st (CoreState 0 (RenderQueue mempty))
+      (a, CoreState i) <- runStateT st (CoreState 0)
       -- TODO: FREE THINGS NEXT STEP!
-      Ur _ <- pure $ Unsafe.toLinear Ur rq
+      -- Well, now that we moved it out, I suppose we need a "freeRenderQueue"
+      -- function that frees everything in it, so that it may be called from
+      -- the game.
+      -- Ur _ <- pure $ Unsafe.toLinear Ur rq
+
       -- flip evalStateT () $ traverseRenderQueue @(StateT () Renderer) @Renderer rq
       --   (\pipeline _ -> Linear.do
       --     -- lift $ destroyRenderPipeline p -- ROMES:TODO:
@@ -72,6 +73,7 @@ runCore (Core st)
       --   (pure ())
       -- () <- pure (consume i)
       -- return a
+
       () <- pure (consume i)
       return a
 
@@ -84,9 +86,12 @@ runCore (Core st)
 (↑)      = Core . lift
 liftCore = Core . lift
 
-render :: Core ()
-render = Core $ StateT $ \CoreState{renderQueue= RenderQueue rqueue', frameCounter=fcounter'} -> enterD "render" $ Linear.do
-  Ur fcounter <- pure (move fcounter')
+render :: RenderQueue ()
+          -- ^ The unit type parameter is data attached to each item in the
+          -- render queue, we could eventually use it for something relevant...
+        ⊸ Core (RenderQueue ())
+render (RenderQueue rqueue') = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
+  Ur fcounter    <- pure (move fcounter')
   Ur unsafeQueue <- pure (Unsafe.toLinear Ur rqueue')
 
   -- ROMES:TODO: This might cause flickering once every frame overflow due to ... overflows?
@@ -259,7 +264,7 @@ render = Core $ StateT $ \CoreState{renderQueue= RenderQueue rqueue', frameCount
     -- rendering does not do anything to the resources in the render queue (it
     -- only draws the scene specified by it) It is rather edited by the game,
     -- in the loops before rendering
-    pure (((), CoreState{renderQueue=RenderQueue unsafeQueue, frameCounter=fcounter+1}), cmdBuffer')
+    pure ((RenderQueue unsafeQueue, CoreState{frameCounter=fcounter+1}), cmdBuffer')
     
  where
   -- The region of the framebuffer that the output will be rendered to. We

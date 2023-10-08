@@ -34,6 +34,7 @@ import Foreign.Storable
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Render.Packet
 import Ghengin.Core.Render.Property
+import Ghengin.Core.Render.Queue
 import Ghengin.Core.Render
 import Ghengin.Core.Shader (StructVec3(..), StructMat4(..))
 import Ghengin.Core.Log
@@ -63,6 +64,9 @@ newtype CameraPos   = CameraPos Vec3
 
 type CameraProperties = [ProjectionM, ViewM, CameraPos]
 
+pattern MAX_FRAME_TIME :: Float
+pattern MAX_FRAME_TIME = 0.5
+
 -- We should use Alexander's gl-block library instead of Storable, and
 -- Geomancy.Transform.Tree for the node tree...
 
@@ -87,18 +91,22 @@ makeMainPipeline = Linear.do
 main :: Prelude.IO ()
 main = do
  currTime <- getCurrentTime
- withLinearIO $
+ withLinearIO . fmap move $
   runCore Linear.do
     pipeline <- (makeMainPipeline ↑)
-    gameLoop currTime
-    (destroyRenderPipeline pipeline ↑)
-    return (Ur ())
 
-gameLoop :: UTCTime -> Core ()
-gameLoop currentTime = Linear.do
+    rq <- gameLoop currTime mempty
+
+    freeRenderQueue rq
+    (destroyRenderPipeline pipeline ↑)
+
+    return ()
+
+gameLoop :: UTCTime -> RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop currentTime rq = Linear.do
  logT "New frame" 
  should_close <- (shouldCloseWindow ↑)
- if should_close then return () else Linear.do
+ if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 
   Ur newTime <- liftSystemIOU getCurrentTime
@@ -107,9 +115,9 @@ gameLoop currentTime = Linear.do
   let frameTime = diffUTCTime newTime currentTime
       deltaTime = Prelude.min MAX_FRAME_TIME $ realToFrac frameTime
 
+  -- Render the rendering queue!
+  rq' <- render rq
+
   -- Loop!
-  gameLoop newTime
+  gameLoop newTime rq'
 
-
-pattern MAX_FRAME_TIME :: Float
-pattern MAX_FRAME_TIME = 0.5
