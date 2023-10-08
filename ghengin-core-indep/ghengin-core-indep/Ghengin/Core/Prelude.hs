@@ -43,15 +43,21 @@ module Ghengin.Core.Prelude
 
 import Data.Unrestricted.Linear
 import GHC.TypeLits
+-- Perhaps it would be better to re-export explicit modules instead of their prelude
 import Prelude.Linear hiding ( IO, log
                              , Semigroup(..), Monoid(..), mappend, mconcat
                              , fst, snd
+                             -- For now, we don't adhere to the "better Num" from linear base
+                             , Num(..), FromInteger(..), Ring(..), Additive(..), AddIdentity(..), AdditiveGroup(..), Multiplicative(..), MultIdentity(..), Semiring(..), Ring(..), FromInteger(..)
                              )
 import Control.Functor.Linear hiding (get,modify)
 import qualified Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
 import System.IO.Linear
-import Prelude (Semigroup(..), Monoid(..), mappend, mconcat)
+import Prelude (Semigroup(..), Monoid(..), mappend, mconcat
+               -- For now, we don't adhere to the "better Num" from linear base
+               , Num(..)
+               )
 import qualified Prelude
 
 import Data.Tuple.Linear

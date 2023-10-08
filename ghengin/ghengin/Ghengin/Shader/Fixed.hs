@@ -56,8 +56,8 @@ applyMVP :: ∀ π
 applyMVP vec = do
 
   modelM <- use @(Name "push" :.: Name "model" :: Optic '[] π (M 4 4 Float))
-  viewM  <- use @(Name "ubo" :.: Name "view"   :: Optic '[] π (M 4 4 Float))
-  projM  <- use @(Name "ubo" :.: Name "proj"   :: Optic '[] π (M 4 4 Float))
+  viewM  <- use @(Name "ubo"  :.: Name "view"   :: Optic '[] π (M 4 4 Float))
+  projM  <- use @(Name "ubo"  :.: Name "proj"   :: Optic '[] π (M 4 4 Float))
 
   pure $ (projM !*! viewM !*! modelM) !*^ vec
 

@@ -54,3 +54,4 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                          ⊸ V.Vector Vk.PushConstantRange
                         -> Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
 
+destroyPipeline :: RendererPipeline a ⊸ Renderer ()

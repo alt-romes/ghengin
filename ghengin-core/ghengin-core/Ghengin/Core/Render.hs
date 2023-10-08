@@ -1,5 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Ghengin.Core.Render where
+module Ghengin.Core.Render
+  ( module Ghengin.Core.Render
+  , module Ghengin.Core.Renderer
+  , module Ghengin.Core.Renderer.Kernel
+  )
+  where
 
 import qualified Data.IntMap.Linear as IM
 import Ghengin.Core.Log
@@ -9,6 +14,7 @@ import Control.Functor.Linear as Linear
 
 import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.Kernel
+import Ghengin.Core.Renderer
 import Ghengin.Core.Renderer.DescriptorSet
 
 import qualified Data.Linear.Alias as Alias

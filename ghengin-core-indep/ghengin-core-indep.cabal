@@ -61,6 +61,8 @@ common common-flags
                       PatternSynonyms,
                       DisambiguateRecordFields,
                       DeriveGeneric,
+                      DerivingVia,
+                      DerivingStrategies,
                       LinearTypes,
                       QualifiedDo,
                       QuantifiedConstraints,
@@ -82,6 +84,7 @@ library
                       Ghengin.Core.Type.Sized,
                       Ghengin.Core.Type.Utils,
 
+                      Ghengin.Core.Shader,
                       Ghengin.Core.Shader.Pipeline,
                       Ghengin.Core.Shader.Canonical,
 
@@ -105,6 +108,7 @@ library
                       fast-logger,
 
                       gl-block,
+                      geomancy,
 
                       linear-utils
 

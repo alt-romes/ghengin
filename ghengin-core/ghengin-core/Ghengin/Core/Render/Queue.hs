@@ -69,7 +69,10 @@ instance Monoid (RenderQueue α) where
 -- {-# INLINE fromList #-}
 
 
--- TODO: Rather, to create a renderpacket we need a render queue, since we extract the render key from the render queue and the references into the render packet
+-- TODO: Rather, to create a renderpacket we need a render queue, since we
+-- extract the render key from the render queue and the references into the
+-- render packet
+-- TODO
 -- insert :: RenderPacket ⊸ α %p -> RenderQueue α ⊸ RenderQueue α
 -- insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue q) =
 --   RenderQueue $

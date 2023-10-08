@@ -106,7 +106,6 @@ makeProjection = \case
   Orthogonal -> Linear.liftSystemIO $ fail "TODO: Orthogonal projection not yet supported"
 
 
--- ^ Make a perspective camera using the renderer's width and height
 makePerspectiveProjection :: Integral side
                       => Float -- ^ Field of View in radians
                       -> Float -- ^ Near plane
@@ -114,6 +113,7 @@ makePerspectiveProjection :: Integral side
                       -> side  -- ^ Aspect width
                       -> side  -- ^ Aspect height
                       -> Mat4
+-- ^ Make a perspective camera using the renderer's width and height
 makePerspectiveProjection fovRad near far (fromIntegral -> width) (fromIntegral -> height) =
   let tanHalfFovy = tan (fovRad/2)
    in colMajor

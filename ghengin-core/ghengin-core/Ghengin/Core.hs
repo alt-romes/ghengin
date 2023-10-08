@@ -75,7 +75,14 @@ runCore (Core st)
       () <- pure (consume i)
       return a
 
-
+-- | A postfix operator to lift Renderer computations to Core (postfix version of liftCore)
+--
+-- Example usage: @ Ur ext <- ( getRenderExtent ↑ )@
+--
+-- Digraph (-!) in vim, i.e. typing <C-k>-! in insert mode, inserts ↑.
+(↑), liftCore :: Renderer a ⊸ Core a
+(↑)      = Core . lift
+liftCore = Core . lift
 
 render :: Core ()
 render = Core $ StateT $ \CoreState{renderQueue= RenderQueue rqueue', frameCounter=fcounter'} -> enterD "render" $ Linear.do
@@ -220,7 +227,7 @@ render = Core $ StateT $ \CoreState{renderQueue= RenderQueue rqueue', frameCount
               logT "Drawing mesh"
               Ur graphicsPipeline <- pure $ completelyUnsafeGraphicsPipeline pipeline
 
-              -- TODO: Bind descriptor set #2
+              -- TODO: Bind descriptor set #2 when we have that information in meshes
 
               -- TODO: No more push constants, for now!!!!
               -- pLayout <- pushConstants graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
@@ -252,7 +259,7 @@ render = Core $ StateT $ \CoreState{renderQueue= RenderQueue rqueue', frameCount
     -- rendering does not do anything to the resources in the render queue (it
     -- only draws the scene specified by it) It is rather edited by the game,
     -- in the loops before rendering
-    pure (((), CoreState{renderQueue=RenderQueue unsafeQueue, frameCounter=fcounter}), cmdBuffer')
+    pure (((), CoreState{renderQueue=RenderQueue unsafeQueue, frameCounter=fcounter+1}), cmdBuffer')
     
  where
   -- The region of the framebuffer that the output will be rendered to. We

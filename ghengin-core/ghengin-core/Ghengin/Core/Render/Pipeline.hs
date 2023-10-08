@@ -66,7 +66,7 @@ data RenderPipeline info tys where
                  -- ⊸  NonEmpty (DescriptorSet, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
                  ⊸  (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
                  ⊸  ShaderPipeline info
-                 %p -> RenderPipeline info '[] 
+                 -> RenderPipeline info '[] 
 
   RenderProperty :: ∀ α β info
                   . PropertyBinding α
@@ -183,17 +183,13 @@ instance HasProperties (RenderPipeline π) where
   pcons = RenderProperty
 
 
--- destroyRenderPipeline :: RenderPipeline α τ ⊸ Renderer ()
--- destroyRenderPipeline (RenderProperty _ rp) = destroyRenderPipeline rp
--- destroyRenderPipeline (RenderPipeline gp rp dss _) = do
---   forM_ dss $ \(dset, dpool) -> do
---     destroyDescriptorPool dpool
---     -- TODO: Destroy descriptor set resources if they are not shared (for now,
---     -- this is only set #0, so this is always fine since there is nothing
---     -- shared here)
---     -- TODO: This now crashes the program
---     destroyDescriptorSet dset
---   destroyRenderPass rp
---   destroyPipeline gp
+destroyRenderPipeline :: RenderPipeline α τ ⊸ Renderer ()
+destroyRenderPipeline (RenderProperty b rp) = Linear.do
+  Alias.forget b
+  destroyRenderPipeline rp
+destroyRenderPipeline (RenderPipeline gp rp (a,b,c) _) = Linear.do
+  Alias.forget a >> Alias.forget b >> Alias.forget c
+  Alias.forget rp
+  destroyPipeline gp
 
 
