@@ -82,7 +82,7 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "creat
   pure (IndexedMesh vertexBuffer indexBuffer)
 
 
-freeMesh :: Mesh ts -> Renderer ()
+freeMesh :: Mesh ts ⊸ Renderer ()
 freeMesh mesh = Linear.do
   logD "Freeing mesh..."
   case mesh of

@@ -47,6 +47,7 @@ import Geomancy.Vulkan.Projection (perspective)
 import Vulkan.Core10.FundamentalTypes (Extent2D(..))
 import qualified FIR
 import qualified Math.Linear as FIR
+import qualified Data.Monoid.Linear as LMon
 
 import Shaders -- planet shaders
 
@@ -91,16 +92,16 @@ makeMainPipeline = Linear.do
 main :: Prelude.IO ()
 main = do
  currTime <- getCurrentTime
- withLinearIO . fmap move $
+ withLinearIO $
   runCore Linear.do
     pipeline <- (makeMainPipeline ↑)
 
-    rq <- gameLoop currTime mempty
+    rq <- gameLoop currTime LMon.mempty
 
-    freeRenderQueue rq
+    (freeRenderQueue rq ↑)
     (destroyRenderPipeline pipeline ↑)
 
-    return ()
+    return (Ur ())
 
 gameLoop :: UTCTime -> RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop currentTime rq = Linear.do

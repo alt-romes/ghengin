@@ -151,8 +151,8 @@ materialUID = \case
     Done (r,m,Ur y) -> (Ur y, Done (r,m,Ur y))
     MaterialProperty p xs -> case materialUID xs of (uq, mat) -> (uq, MaterialProperty p mat)
 
--- freeMaterial :: Material α -> Renderer χ ()
--- freeMaterial = \case
---   Done x -> destroyDescriptorSet (fst x)
---   MaterialProperty prop xs -> freeProperty prop >> freeMaterial xs
+freeMaterial :: Material α ⊸ Renderer ()
+freeMaterial = \case
+  Done (x, y, Ur _) -> Alias.forget x >> Alias.forget y
+  MaterialProperty prop xs -> Alias.forget prop >> freeMaterial xs
 

@@ -1,4 +1,5 @@
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE QualifiedDo #-}
@@ -40,10 +41,13 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Linear as ML
 
+import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Render.Packet
 import Ghengin.Core.Mesh
+import Ghengin.Core.Log
 import Ghengin.Core.Type.Utils (Some2(..))
 import Ghengin.Core.Material hiding (material)
+
 
 newtype RenderQueue a = RenderQueue (Map TypeRep (Some2 RenderPipeline, Map Unique (Some Material, [(Some Mesh, a)])))
   deriving (Prelude.Functor)
@@ -85,6 +89,31 @@ instance Monoid (RenderQueue α) where
 --         pkey
 --         (Some2 pipeline, M.insert mkey (Some material, [(Some mesh, x)]) M.empty)
 --         q
+
+
+freeRenderQueue :: RenderQueue ()
+                 ⊸ Renderer ()
+freeRenderQueue (RenderQueue rq) = Linear.do
+  -- For every pipeline
+  pipesunit <- DL.traverse (\(Some2 @RenderPipeline @π @bs pipeline, materials) -> enterD "Freeing pipeline" Linear.do
+
+    -- For every material...
+    matsunits <- DL.traverse (\(Some @Material @ms material, meshes) -> enterD "Freeing material" Linear.do
+
+      -- For every mesh...
+      meshunits <- DL.traverse (\(Some @Mesh @ts mesh, ()) -> enterD "Freeing mesh" $
+                                                              freeMesh mesh) meshes
+      freeMaterial material
+      pure (consume meshunits)
+
+      ) materials
+
+    () <- pure (consume matsunits)
+    destroyRenderPipeline pipeline
+    ) rq
+  pure (consume pipesunit)
+
+
 
 -- | Traverse the render queue with a function for each different occasion:
 --
