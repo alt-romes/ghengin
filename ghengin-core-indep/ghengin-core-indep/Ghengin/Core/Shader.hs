@@ -36,19 +36,23 @@ type FragmentShaderModule defs
 -- @
 --
 -- TODO: Make an instance of Syntactic for n-ary products of syntactic things like Mat and Vec,
--- so we can easily create instances for compound structs
+-- so we can easily create instances for compound structs!
 
 type StructVec3 :: Symbol -> Type
 newtype StructVec3 name = StructVec3 Vec3
 
+
+-- Temporary?
+instance FIR.Syntactic FIR.Float where
+  type Internal FIR.Float = FIR.Val FIR.Float
+  toAST = FIR.Lit
+  fromAST (FIR.Lit x) = x
+
 instance KnownSymbol name => FIR.Syntactic (StructVec3 name) where
   type Internal (StructVec3 name) = FIR.Val (FIR.Struct '[ name 'FIR.:-> V 3 FIR.Float ])
 
-  toAST (StructVec3 (WithVec3 x y z)) = FIR.Struct (FIR.Vec3 (FIR.Lit x) (FIR.Lit y) (FIR.Lit z) FIR.:& FIR.End)
-
-  fromAST (FIR.view @(FIR.Name name) -> (FIR.Vec3 (FIR.Lit x) (FIR.Lit y) (FIR.Lit z))) = StructVec3 (vec3 x y z)
-
-  fromAST (FIR.view @(FIR.Name name) -> FIR.Vec3{}) = FIR.error "impossible"
+  toAST (StructVec3 (WithVec3 x y z)) = FIR.Struct (FIR.toAST (V3 x y z) FIR.:& FIR.End)
+  fromAST (FIR.fromAST FIR.. FIR.view @(FIR.Name name) -> V3 x y z) = StructVec3 (vec3 x y z)
 
 type StructMat4 :: Symbol -> Type
 newtype StructMat4 name = StructMat4 Mat4
@@ -56,7 +60,28 @@ newtype StructMat4 name = StructMat4 Mat4
 instance KnownSymbol name => FIR.Syntactic (StructMat4 name) where
   type Internal (StructMat4 name) = FIR.Val (FIR.Struct '[ name 'FIR.:-> M 4 4 FIR.Float ])
 
-  toAST = FIR.undefined
-  fromAST = FIR.undefined
+  toAST (StructMat4 mat)
+    = withColMajor mat
+         \ m00 m10 m20 m30
+           m01 m11 m21 m31
+           m02 m12 m22 m32
+           m03 m13 m23 m33 ->
+             FIR.Struct ( FIR.toAST ( M FIR.$
+                            V4 (V4 m00 m10 m20 m30)
+                               (V4 m01 m11 m21 m31)
+                               (V4 m02 m12 m22 m32)
+                               (V4 m03 m13 m23 m33)
+                                    )
+                          FIR.:& FIR.End )
+  fromAST (FIR.fromAST FIR.. FIR.view @(FIR.Name name)
+            -> M (V4 (V4 m00 m10 m20 m30)
+                     (V4 m01 m11 m21 m31)
+                     (V4 m02 m12 m22 m32)
+                     (V4 m03 m13 m23 m33))
+              ) = StructMat4 (colMajor m00 m10 m20 m30
+                                       m01 m11 m21 m31
+                                       m02 m12 m22 m32
+                                       m03 m13 m23 m33
+                             )
 
 
