@@ -1,9 +1,6 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Ghengin.Core.Render.Packet
-  ( module Ghengin.Core.Render.Packet
-  , module Ghengin.Core.Render.Pipeline
-  ) where
+module Ghengin.Core.Render.Packet where
 
 import Debug.Trace ( trace )
 import Type.Reflection ()
@@ -13,6 +10,7 @@ import Ghengin.Core.Material ( Material )
 import Ghengin.Core.Mesh ( Mesh )
 import Ghengin.Core.Type.Compatible ( Compatible )
 import Ghengin.Core.Render.Pipeline
+import Ghengin.Core.Render.Queue
 
 import qualified Prelude
 import Prelude.Linear
@@ -75,29 +73,12 @@ data RenderPacket where
   -- TODO:
   --  * Descriptor set #2 and #0 additional data binding?
   RenderPacket :: ∀ π ξ β α. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π)
-               => Mesh α
-                ⊸ Ref (Material β)
-                ⊸ Ref (RenderPipeline π ξ)
-                ⊸ RenderKey
+               =>
+                -- Mesh α
+                -- ⊸ Ref (Material β)
+                -- ⊸ Ref (RenderPipeline π ξ)
+                RenderKey
                -> RenderPacket
-
--- newtype Ref α = Ref { unRef :: Apecs.Entity } -- iso to Int
--- | For now we inline the definition of Ref, but this should probably be made to a signature or something
--- It needs to be rethought, this is very specific to the APECS usage.
--- But we might be indeed able to use Apecs in Core, at least for now (the render loop uses it and such...)
--- ROMES:TODO:!!!
--- We really need to write better render loops too, and have them run concurrently with other systems and have the multiple frames in flight and such
--- Now that we've a better view of the engine as we're refactoring it.... it'd be good to get to it soon
-newtype Ref α = Ref { unRef :: Int } -- iso to Int
-
--- | TODO: A better Eq instance, this instance is not very faithful, it simply compares render keys.
--- Render keys only differentiate the render context, not the render packet itself.
--- This instance fullfills the purpose of rendering all packets with the same context in a row in the render queue
-instance Prelude.Eq RenderPacket where
-  (==) (RenderPacket _ _ _ k1) (RenderPacket _ _ _ k2) = k1 Prelude.== k2
-
-instance Prelude.Ord RenderPacket where
-  compare (RenderPacket _ _ _ k1) (RenderPacket _ _ _ k2) = Prelude.compare k1 k2
 
 {-|
 
@@ -118,20 +99,17 @@ described in bytes.
 -- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map
 
 -- | Render packet wrapper that creates the key identifier.
-{-# DEPRECATED renderPacket "FIXME: Compute materialUID" #-}
-renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π, MonadIO μ)
-             => Mesh α
-              ⊸ Ref (Material β)
-              ⊸ Ref (RenderPipeline π ξ)
-              ⊸ μ RenderPacket
-renderPacket mesh material pipeline = Linear.do
-  -- ROMES:TODO: !!! incRefCount mesh
-  Ur uniq <- liftSystemIOU newUnique
-  pure $ RenderPacket mesh material pipeline (typeRep (Proxy @π), trace "Compute id <materialUID material>" uniq)
+-- {-# DEPRECATED renderPacket "FIXME: Compute materialUID" #-}
+-- renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π, MonadIO μ)
+--              => Mesh α
+--               ⊸ Ref (Material β)
+--               ⊸ Ref (RenderPipeline π ξ)
+--               ⊸ μ RenderPacket
+-- renderPacket mesh material pipeline = Linear.do
 
--- TODO: I think before I can get to this module I will need to handle both
--- Meshes and References(Apecs-based)!
--- References should be kept outside of apecs, really!
+--   Ur uniq <- liftSystemIOU newUnique
+--   pure $
+--     RenderPacket mesh material pipeline (typeRep (Proxy @π), trace "Compute id <materialUID material>" uniq)
 
 {-
 Note [Render Packet Key]

@@ -1,0 +1,120 @@
+cabal-version:      3.4
+
+--------------------------------------------------------------------------------
+-- this file is split off from ../ghengin.cabal
+-- we had to split these libraries into a different package
+-- to fix HLS when using backpack
+-- when that's fixed, move the packages back together to the same cabal project file
+--------------------------------------------------------------------------------
+
+name:               ghengin-games
+version:            0.1.0.0
+license:            BSD-3-Clause
+license-file:       ../LICENSE
+author:             romes
+maintainer:         rodrigo.m.mesquita@gmail.com
+category:           Graphics
+build-type:         Simple
+extra-doc-files:    ../CHANGELOG.md
+
+flag dev
+  default: True
+  manual: True
+  description: This flag controls development settings and should be manually disabled when the game is being built for release. The ghengin packaging tools will take care to set this flag to false when packaging.
+               When enabled, vulkan validation layers are enabled.
+               Run `cabal build -f-dev` to build with the flag disabled.
+               -- Enable with -f+dev
+
+common common-flags
+
+  if flag(dev)
+    ghc-options: -Wall -O0
+                 -dasm-lint
+                 -dcmm-lint
+                 -dstg-lint
+
+    cc-options: -O0 -DDEBUG
+    cpp-options: -DDEBUG
+                 -DDEBUG_TRACE
+  else
+    ghc-options: -Wall -O2
+    cc-options: -O2
+
+  ghc-options: -Wno-partial-type-signatures
+
+  default-extensions: UnicodeSyntax,
+                      MultiParamTypeClasses,
+                      NoStarIsType,
+                      RankNTypes,
+                      DataKinds,
+                      PolyKinds,
+                      GADTs,
+                      ViewPatterns,
+                      TypeApplications,
+                      TypeFamilies,
+                      ExplicitNamespaces,
+                      TypeFamilyDependencies,
+                      TypeOperators,
+                      LambdaCase,
+                      BlockArguments,
+                      RecordWildCards,
+                      UnboxedTuples,
+                      PatternSynonyms,
+                      DisambiguateRecordFields,
+                      DeriveGeneric,
+                      DerivingVia,
+                      DerivingStrategies,
+                      LinearTypes,
+                      QualifiedDo,
+                      QuantifiedConstraints,
+                      RoleAnnotations,
+                      PostfixOperators,
+
+                      -- Use Ghengin.Core.Prelude!
+                      NoImplicitPrelude,
+
+  default-language: GHC2021
+
+executable planets-core
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Camera, Planet, Shaders
+    default-extensions: UnicodeSyntax
+    build-depends:
+        base >=4.19.0.0,
+        -- Can't depend on this without instancing it because of backpack
+        ghengin-core,
+        ghengin-vulkan,
+        ghengin-core-indep,
+        mtl, vector, hsnoise, containers, random, linear-base,
+        derive-storable, geomancy, vulkan, time, ghengin-geometry
+
+    ghc-options: -dcmm-lint -dstg-lint -dasm-lint -g2 -rtsopts -debug -Wno-partial-type-signatures
+    cpp-options: -DDEBUG
+
+    hs-source-dirs:   planets-core
+    mixins:           ghengin-core
+                      requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                               , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                               , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                               , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                               , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                               , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                               , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                               , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                               , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                               )
+    -- We need to instance ghengin-geometry too...
+    -- That's quite awful: TODO: OPEN A TICKET
+    mixins:           ghengin-geometry
+                      requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                               , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                               , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                               , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                               , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                               , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                               , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                               , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                               , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                               )
+    default-language: GHC2021

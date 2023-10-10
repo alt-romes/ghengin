@@ -33,6 +33,7 @@ import Data.Coerce
 import Foreign.Storable
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Render.Packet
+import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Queue
 import Ghengin.Core.Render
@@ -89,19 +90,6 @@ makeMainPipeline = Linear.do
     :## DynamicBinding (Ur (coerce $ vec3 0 0 0))
     :## GHNil                       )
 
-main :: Prelude.IO ()
-main = do
- currTime <- getCurrentTime
- withLinearIO $
-  runCore Linear.do
-    pipeline <- (makeMainPipeline ↑)
-
-    rq <- gameLoop currTime LMon.mempty
-
-    (freeRenderQueue rq ↑)
-    (destroyRenderPipeline pipeline ↑)
-
-    return (Ur ())
 
 gameLoop :: UTCTime -> RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop currentTime rq = Linear.do
@@ -121,4 +109,19 @@ gameLoop currentTime rq = Linear.do
 
   -- Loop!
   gameLoop newTime rq'
+
+
+main :: Prelude.IO ()
+main = do
+ currTime <- getCurrentTime
+ withLinearIO $
+  runCore Linear.do
+    pipeline <- (makeMainPipeline ↑)
+
+    rq <- gameLoop currTime LMon.mempty
+
+    (freeRenderQueue rq ↑)
+    (destroyRenderPipeline pipeline ↑)
+
+    return (Ur ())
 

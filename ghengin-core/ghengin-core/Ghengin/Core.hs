@@ -20,6 +20,7 @@ import Ghengin.Core.Renderer.Pipeline
 import Ghengin.Core.Renderer.RenderPass
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer
+import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render
 
 import Ghengin.Core.Render.Packet

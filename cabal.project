@@ -8,6 +8,8 @@ packages:
 -----------------------------
           ./ghengin/
           ./ghengin-camera/
+          ./ghengin-games/
+          ./ghengin-geometry/
           ./ghengin-vulkan/
           ./ghengin-core/
           ./ghengin-core-indep/
