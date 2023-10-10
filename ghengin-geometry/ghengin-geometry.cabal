@@ -1,0 +1,27 @@
+cabal-version:      3.4
+name:               ghengin-geometry
+version:            0.1.0.0
+-- synopsis:
+-- description:
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Rodrigo Mesquita
+maintainer:         rodrigo.m.mesquita@gmail.com
+-- copyright:
+category:           Game
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:  Game.Geometry, Game.Geometry.Sphere
+    -- other-modules:
+    -- other-extensions:
+    build-depends:    base >=4.19.0.0, ghengin-core-indep, ghengin-core, vector, containers, split, geomancy
+    hs-source-dirs:   src
+    default-language: GHC2021
+
