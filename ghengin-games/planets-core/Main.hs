@@ -124,13 +124,14 @@ main = do
     pipeline            <- (makeMainPipeline ↑)
     (p1mesh, Ur minmax) <- newPlanetMesh defaultPlanetSettings
     (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
+    (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)
 
-    rq <- gameLoop currTime LMon.mempty
+    rq' <- gameLoop currTime rq
 
     (freeMaterial pmat ↑)
     (freeMesh p1mesh ↑)
-    (freeRenderQueue rq ↑)
-    (destroyRenderPipeline pipeline ↑)
+    (freeRenderQueue rq' ↑)
+    -- (destroyRenderPipeline pipeline ↑)
 
     return (Ur ())
 

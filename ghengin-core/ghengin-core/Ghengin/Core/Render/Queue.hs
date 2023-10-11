@@ -72,6 +72,26 @@ instance Monoid (RenderQueue α) where
 -- fromList = foldr ((<>) . (`insert` mempty)) mempty :)
 -- {-# INLINE fromList #-}
 
+-- | ... We assume there are no two pipelines with the exact same shaders
+newtype PipelineKey π p = UnsafePipelineKey TypeRep
+
+-- | Inserts a pipeline in a render queue, and returns a pipeline key indexing
+-- into that render queue.
+insertPipeline :: forall π p α. Typeable π
+               => RenderPipeline π p
+                ⊸ RenderQueue α
+                ⊸ (RenderQueue α, Ur (PipelineKey π p))
+insertPipeline 
+  -- Map.insert isn't linear still, so...
+  = Unsafe.toLinear2 \pipeline (RenderQueue q) ->
+    let pkey = typeRep (Proxy @π)
+        rq'  = RenderQueue $
+                 M.insertWith
+                    (\_ _ -> error "Inserting a duplicate pipeline??")
+                    pkey
+                    (Some2 pipeline, M.empty)
+                    q
+     in (rq', Ur $ UnsafePipelineKey pkey)
 
 -- TODO: Rather, to create a renderpacket we need a render queue, since we
 -- extract the render key from the render queue and the references into the
