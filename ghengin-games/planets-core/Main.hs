@@ -125,12 +125,15 @@ main = do
     (p1mesh, Ur minmax) <- newPlanetMesh defaultPlanetSettings
     (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
     (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)
+    (rq, Ur mkey)       <- pure (insertMaterial pkey pmat rq)
 
-    rq' <- gameLoop currTime rq
+    rq <- gameLoop currTime rq
 
-    (freeMaterial pmat ↑)
     (freeMesh p1mesh ↑)
-    (freeRenderQueue rq' ↑)
+    (freeRenderQueue rq ↑)
+    -- This is all done in the freeRenderQueue!
+    -- In fact, freeing these again is a type error. Woho!
+    -- (freeMaterial pmat ↑)
     -- (destroyRenderPipeline pipeline ↑)
 
     return (Ur ())

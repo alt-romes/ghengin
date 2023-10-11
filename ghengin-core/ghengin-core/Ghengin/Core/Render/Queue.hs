@@ -43,6 +43,7 @@ import qualified Data.Map.Linear as ML
 
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Render.Pipeline
+import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Mesh
 import Ghengin.Core.Log
 import Ghengin.Core.Type.Utils (Some2(..))
@@ -72,26 +73,53 @@ instance Monoid (RenderQueue α) where
 -- fromList = foldr ((<>) . (`insert` mempty)) mempty :)
 -- {-# INLINE fromList #-}
 
--- | ... We assume there are no two pipelines with the exact same shaders
+-- | ... We assume there are no two pipelines with the exact same shaders, so
+-- we can use TypeRep π to differentiate between them
 newtype PipelineKey π p = UnsafePipelineKey TypeRep
+
+newtype MaterialKey m = UnsafeMaterialKey Unique
 
 -- | Inserts a pipeline in a render queue, and returns a pipeline key indexing
 -- into that render queue.
-insertPipeline :: forall π p α. Typeable π
+insertPipeline :: forall π p a. (Typeable π, CompatiblePipeline p π)
                => RenderPipeline π p
-                ⊸ RenderQueue α
-                ⊸ (RenderQueue α, Ur (PipelineKey π p))
+                ⊸ RenderQueue a
+                ⊸ (RenderQueue a, Ur (PipelineKey π p))
 insertPipeline 
   -- Map.insert isn't linear still, so...
   = Unsafe.toLinear2 \pipeline (RenderQueue q) ->
     let pkey = typeRep (Proxy @π)
-        rq'  = RenderQueue $
-                 M.insertWith
-                    (\_ _ -> error "Inserting a duplicate pipeline??")
-                    pkey
-                    (Some2 pipeline, M.empty)
-                    q
-     in (rq', Ur $ UnsafePipelineKey pkey)
+        rq'  = M.insertWith
+                  (\_ _ -> error "Inserting a duplicate pipeline??")
+                  pkey
+                  (Some2 pipeline, M.empty)
+                  q
+     in (RenderQueue rq', Ur $ UnsafePipelineKey pkey)
+
+insertMaterial :: forall π p m a. CompatibleMaterial m π
+               => PipelineKey π p   -- ^ Key for pipeline in this render queue, on which this material is defined
+               -> Material m
+                ⊸ RenderQueue a
+                ⊸ (RenderQueue a, Ur (MaterialKey m))
+insertMaterial (UnsafePipelineKey pkey)
+  = Unsafe.toLinear2 \mat0 (RenderQueue q) -> -- unsafe bc of map insert
+    let (Ur muid,mat1) = materialUID mat0
+        rq' =
+          M.alter
+            (\case
+              Nothing -> error "pipeline not found!"
+              Just (p, mats) -> Just $
+                (p, M.insertWith (\_ _ -> error "Inserting a duplicate material??")
+                      muid
+                      (Some mat1, [])
+                      mats)
+            )
+            pkey
+            q
+     in (RenderQueue rq', Ur $ UnsafeMaterialKey muid)
+
+  -- (materialUID mat)
+
 
 -- TODO: Rather, to create a renderpacket we need a render queue, since we
 -- extract the render key from the render queue and the references into the
