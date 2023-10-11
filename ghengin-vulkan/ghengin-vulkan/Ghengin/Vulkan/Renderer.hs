@@ -16,10 +16,15 @@ module Ghengin.Vulkan.Renderer
   , module Ghengin.Vulkan.Renderer.Buffer
   , module Ghengin.Vulkan.Renderer.Command
   , module Ghengin.Vulkan.Renderer.Kernel
+  , module Ghengin.Vulkan.Renderer.Texture
+  , module Ghengin.Vulkan.Renderer.Sampler
   , module Ghengin.Vulkan.Renderer
   )
   where
 
+-- For re-exports
+import Ghengin.Vulkan.Renderer.Texture
+import Ghengin.Vulkan.Renderer.Sampler
 
 import GHC.TypeLits
 import qualified Prelude

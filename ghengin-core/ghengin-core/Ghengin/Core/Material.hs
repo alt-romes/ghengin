@@ -104,7 +104,7 @@ instance HasProperties Material where
 -- | All materials for a given pipeline share the same Descriptor Set #1
 -- Layout. If we know the pipeline we're creating a material for, we can simply
 -- allocate a descriptor set with the known layout for this material.
-material :: ∀ α π β. (CompatibleMaterial α π)
+material :: ∀ α π β. CompatibleMaterial α π
          => PropertyBindings α ⊸ RenderPipeline π β ⊸ Renderer (Material α, RenderPipeline π β)
 material props0 (RenderProperty pr rps) = material props0 rps >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
 material props0 (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Linear.do
@@ -140,7 +140,6 @@ material props0 (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Line
     ( mkMat (Done (dset2, resources2, Ur uniq)) props1
     , RenderPipeline gpip rpass (rdset, rres, dpool3) shaders
     )
-  -- TODO: Apecs.newEntity (SomeMaterial mat)?
   where
     mkMat :: ∀ b. Material '[] ⊸ PropertyBindings b ⊸ Material b
     mkMat x GHNil = x

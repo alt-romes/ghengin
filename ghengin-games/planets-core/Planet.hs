@@ -1,8 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE OverloadedLists #-}
 module Planet where
 
 import qualified Prelude as P
 import Ghengin.Core.Prelude as Linear hiding (All, foldl')
+import Ghengin.Core.Render
+import Ghengin.Core.Render.Pipeline
+import Ghengin.Core.Render.Property
+import Ghengin.Core.Material
+import Ghengin.Core.Type.Compatible
 import Data.List (foldl')
 import Ghengin.Core.Log
 
@@ -15,6 +22,7 @@ import Ghengin.Core.Mesh
 import Geomancy.Vec3
 
 import Game.Geometry.Sphere
+import Foreign.Storable.Generic
 
 --------------------------------------------------------------------------------
 -- * Planet
@@ -32,7 +40,7 @@ data PlanetSettings = PlanetSettings { resolution :: !Int
 data DisplayFace = All | FaceUp | FaceRight deriving Show
 
 data MinMax = MinMax !Float !Float
-  deriving (P.Eq, Generic, Show)
+  deriving (P.Eq, Generic, Show, GStorable)
 
 newPlanetMesh :: PlanetSettings -> Core (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
 newPlanetMesh (PlanetSettings re ra co enableMask nss df) = enterD "newPlanetMesh" $ Linear.do
@@ -63,6 +71,14 @@ newPlanetMesh (PlanetSettings re ra co enableMask nss df) = enterD "newPlanetMes
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)
    in (,Ur minmax) <$> (createMeshWithIxs vs'' is ↑)
+
+newPlanetMaterial :: forall π p
+                   . CompatibleMaterial '[MinMax,Texture2D] π
+                  => MinMax
+                  -> Alias Texture2D
+                   ⊸ RenderPipeline π p
+                   ⊸ Core (Material '[MinMax,Texture2D], RenderPipeline π p)
+newPlanetMaterial mm t pl = ( material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil) pl ↑)
 
 --------------------------------------------------------------------------------
 -- * Noise
@@ -115,3 +131,10 @@ evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p =
 
     noiseValue' (WithVec3 x y z) = coherentNoise 2 (float2Double x, float2Double y, float2Double z)
 
+defaultPlanetSettings :: PlanetSettings
+defaultPlanetSettings
+  = PlanetSettings 5 1 (vec3 1 0 0) False
+                   [ NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
+                   , NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
+                   ]
+                   All

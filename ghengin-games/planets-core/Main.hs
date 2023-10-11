@@ -20,37 +20,38 @@ which in turn are made up of multiple things, as represented in the following pi
 │Planet (RenderPacket)             │                             
 └──────────────────────────────────┘                             
 
-The function `newPlanet` handles the creation of planet render packets.
-
-The main function
+The function `newPlanet` handles the creation of planet render packets...
 
 -}
 module Main where
 
-import qualified Prelude
-import Data.Time
 import Data.Coerce
+import Data.Time
 import Foreign.Storable
+import Geomancy.Mat4
+import Geomancy.Transform
+import Geomancy.Vec3
+import Geomancy.Vec4
+import Geomancy.Vulkan.Projection (perspective)
+import Ghengin.Core
+import Ghengin.Core.Log
+import Ghengin.Core.Mesh
+import Ghengin.Core.Material
 import Ghengin.Core.Prelude as Linear
+import Ghengin.Core.Render
 import Ghengin.Core.Render.Packet
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Queue
-import Ghengin.Core.Render
 import Ghengin.Core.Shader (StructVec3(..), StructMat4(..))
-import Ghengin.Core.Log
-import Ghengin.Core
-import Geomancy.Mat4
-import Geomancy.Vec4
-import Geomancy.Vec3
-import Geomancy.Transform
-import Geomancy.Vulkan.Projection (perspective)
 import Vulkan.Core10.FundamentalTypes (Extent2D(..))
+import qualified Data.Monoid.Linear as LMon
 import qualified FIR
 import qualified Math.Linear as FIR
-import qualified Data.Monoid.Linear as LMon
+import qualified Prelude
 
 import Shaders -- planet shaders
+import Planet
 
 newtype ProjectionM = ProjectionM Transform
   deriving Storable -- use GlBlock instead...
@@ -116,10 +117,15 @@ main = do
  currTime <- getCurrentTime
  withLinearIO $
   runCore Linear.do
-    pipeline <- (makeMainPipeline ↑)
+
+    pipeline            <- (makeMainPipeline ↑)
+    (p1mesh, Ur minmax) <- newPlanetMesh defaultPlanetSettings
+    (pmat, pipeline)    <- newPlanetMaterial minmax undefined pipeline
 
     rq <- gameLoop currTime LMon.mempty
 
+    (freeMaterial pmat ↑)
+    (freeMesh p1mesh ↑)
     (freeRenderQueue rq ↑)
     (destroyRenderPipeline pipeline ↑)
 

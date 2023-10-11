@@ -4,6 +4,8 @@ signature Ghengin.Core.Renderer
   , module Ghengin.Core.Renderer.Buffer
   , module Ghengin.Core.Renderer.Command
   , module Ghengin.Core.Renderer.Kernel
+  , module Ghengin.Core.Renderer.Texture
+  , module Ghengin.Core.Renderer.Sampler
   , module Ghengin.Core.Renderer
   )
   where
@@ -20,6 +22,9 @@ import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.DescriptorSet
 import Ghengin.Core.Renderer.Command
+import Ghengin.Core.Renderer.Texture
+import Ghengin.Core.Renderer.Sampler
+
 
 import qualified Data.Linear.Alias as Alias
 
