@@ -29,13 +29,16 @@ module Ghengin.Core.Prelude
   -- reference-counting
   , Aliasable, Forgettable, Shareable, SomeAlias(..)
 
+  -- sop-core
+  , NP(..)
+
   -- * Re-exports under different names
   , (<$$>)
   -- ** With multiplicity generalization
   , vmap, vtraverse
 
   -- * Our own things
-  , GHList(..), (=<<), (<=<), (>=>), v2vec, l2vec, vec2l
+  , (=<<), (<=<), (>=>), v2vec, l2vec, vec2l
 
   , vzipWith
   )
@@ -74,6 +77,7 @@ import qualified Data.V.Linear.Internal as VL
 import qualified Data.V.Linear.Internal.Instances as VL
 
 import GHC.Generics
+import Data.SOP
 import Data.Kind
 import Data.Word
 import Data.IORef (IORef)
@@ -104,6 +108,7 @@ infixr 6 :##
 Note [Coerce HList to List]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~
 They have the same representation ^_^, so unsafeCoerce is safe ^_^
+(We use NP from sop-core instead of our own HList)
 -}
 
 -- GHList instances

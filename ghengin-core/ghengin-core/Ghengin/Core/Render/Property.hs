@@ -9,7 +9,7 @@ module Ghengin.Core.Render.Property
   , writeProperty
 
   -- * Utils
-  , GHList(..)
+  , NP(..)
   ) where
 
 import Ghengin.Core.Prelude as Linear
