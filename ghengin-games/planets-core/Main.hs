@@ -42,6 +42,7 @@ import Ghengin.Core.Render
 import Ghengin.Core.Render.Packet
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
+import Ghengin.Vulkan.Renderer.Sampler
 import Ghengin.Core.Render.Queue
 import Ghengin.Core.Shader (StructVec3(..), StructMat4(..))
 import Vulkan.Core10.FundamentalTypes (Extent2D(..))
@@ -117,10 +118,12 @@ main = do
  currTime <- getCurrentTime
  withLinearIO $
   runCore Linear.do
+    sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
+    tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
 
     pipeline            <- (makeMainPipeline ↑)
     (p1mesh, Ur minmax) <- newPlanetMesh defaultPlanetSettings
-    (pmat, pipeline)    <- newPlanetMaterial minmax undefined pipeline
+    (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
 
     rq <- gameLoop currTime LMon.mempty
 

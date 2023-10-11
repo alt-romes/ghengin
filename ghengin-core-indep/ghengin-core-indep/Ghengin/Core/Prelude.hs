@@ -71,14 +71,12 @@ import qualified Data.Map as M
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 import qualified Data.V.Linear.Internal as VL
-import qualified Data.V.Linear.Internal.Instances as VL
+import qualified Data.V.Linear.Internal.Instances ()
 
 import GHC.Generics
 import Data.Kind
 import Data.Word
 import Data.IORef (IORef)
-
-import Data.Unique (Unique)
 
 import Data.Linear.Alias as Alias
 
@@ -142,12 +140,15 @@ instance (∀ a. Shareable m (c a)) => Shareable m (GHList c as) where
 
 (=<<) :: Monad m => (a ⊸ m b) ⊸ m a ⊸ m b
 f =<< x = x >>= f
+{-# INLINE (=<<) #-}
 
 (<=<) :: Monad m => (b ⊸ m c) ⊸ (a ⊸ m b) ⊸ a ⊸ m c
 (<=<) = flip (>=>)
+{-# INLINE (<=<) #-}
 
 (>=>) :: Monad m => (a ⊸ m b) ⊸ (b ⊸ m c) ⊸ a ⊸ m c
 f >=> g = \x -> f x >>= g
+{-# INLINE (>=>) #-}
 
 -- | 'map' but this is polymorphic in the multiplicity (for some reason the default isn't)
 vmap :: (a %p -> b) -> VL.V n a %p -> VL.V n b

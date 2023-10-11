@@ -1,8 +1,10 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 module Ghengin.Core.Shader
   ( module Ghengin.Core.Shader
   , module Ghengin.Core.Shader.Canonical
   , module Ghengin.Core.Shader.Pipeline
+  , type (FIR.:->), M.Value
   )
   where
 
@@ -13,8 +15,15 @@ import Ghengin.Core.Shader.Pipeline
 import Geomancy.Vec3
 import Geomancy.Mat4
 
+import qualified FIR.Prim.Image as FIR
+import qualified SPIRV.Image as SPIRV
+import qualified SPIRV.ScalarTy
+
+import Ghengin.Core.Prelude (GHList(..))
+
 import Math.Linear
 import qualified FIR
+import qualified Data.Type.Map as M
 
 type VertexShaderModule defs
   = FIR.ShaderModule "main" FIR.VertexShader
@@ -30,19 +39,26 @@ type FragmentShaderModule defs
 -- | The following instances are supposed to be used with deriving via:
 --
 -- Example
+--
 -- @
 -- -- Internal type will be Struct [ "v" :-> V 3 Float ]
 -- newtype CameraPos = CP Vec3 deriving Syntactic via (Vec3Struct @"v")
 -- @
 --
--- TODO: Make an instance of Syntactic for n-ary products of syntactic things like Mat and Vec,
--- so we can easily create instances for compound structs!
+-- There is also an instance of Syntactic for n-ary products of syntactic things like Mat and Vec,
+-- so we can easily create instances for compound structs! (We need to use
+-- generic here I think, since deriving via won't coerce between SOP and datatypes)
+--
+-- Example
+-- 
+-- @
+--
+-- @
 
 type StructVec3 :: Symbol -> Type
 newtype StructVec3 name = StructVec3 Vec3
 
-
--- Temporary?
+-- Temporary? See ticket in fir
 instance FIR.Syntactic FIR.Float where
   type Internal FIR.Float = FIR.Val FIR.Float
   toAST = FIR.Lit
@@ -83,5 +99,4 @@ instance KnownSymbol name => FIR.Syntactic (StructMat4 name) where
                                        m02 m12 m22 m32
                                        m03 m13 m23 m33
                              )
-
 

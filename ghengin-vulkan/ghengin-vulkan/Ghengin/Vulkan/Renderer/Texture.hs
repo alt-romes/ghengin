@@ -18,6 +18,11 @@ import qualified Prelude
 import qualified Unsafe.Linear as Unsafe
 import qualified Vulkan as Vk
 
+import qualified FIR
+import qualified FIR.Prim.Image as FIR
+import qualified SPIRV.Image as SPIRV
+import qualified SPIRV.ScalarTy
+
 -- import System.Mem.Weak
 import Codec.Picture
 import Data.Bits
@@ -160,4 +165,10 @@ dynamicExtent dimg = Vk.Extent3D { width = dynamicMap (Prelude.fromIntegral Prel
                                  , height = dynamicMap (Prelude.fromIntegral Prelude.. (.imageHeight)) dimg
                                  , depth = 1
                                  }
+
+-- TODO
+instance FIR.Syntactic Texture2D where
+  type Internal Texture2D = FIR.Val ((FIR.Image ('FIR.Properties 'FIR.FloatingPointCoordinates Float 'SPIRV.TwoD ('Just 'SPIRV.NotDepthImage) 'SPIRV.NonArrayed 'SPIRV.SingleSampled 'SPIRV.Sampled ('Just ('SPIRV.ImageFormat ('SPIRV.Integer 'SPIRV.Normalised 'SPIRV.ScalarTy.Unsigned) '[8,8,8,8])))))
+  toAST = FIR.undefined
+  fromAST = FIR.undefined
 

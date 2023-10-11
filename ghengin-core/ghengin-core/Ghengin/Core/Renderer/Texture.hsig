@@ -2,6 +2,7 @@ signature Ghengin.Core.Renderer.Texture where
 
 import Prelude (FilePath)
 import Data.Linear.Alias (Aliasable)
+import qualified FIR
 
 import Ghengin.Core.Renderer.Sampler
 import Ghengin.Core.Renderer.Kernel
@@ -16,3 +17,4 @@ texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
 --                  -> Sampler
 --                  -> Renderer Texture2D
 
+instance FIR.Syntactic Texture2D

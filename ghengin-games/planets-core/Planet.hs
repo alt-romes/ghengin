@@ -24,6 +24,9 @@ import Geomancy.Vec3
 import Game.Geometry.Sphere
 import Foreign.Storable.Generic
 
+import qualified FIR
+import qualified Math.Linear as FIR
+
 --------------------------------------------------------------------------------
 -- * Planet
 --------------------------------------------------------------------------------
@@ -41,6 +44,12 @@ data DisplayFace = All | FaceUp | FaceRight deriving Show
 
 data MinMax = MinMax !Float !Float
   deriving (P.Eq, Generic, Show, GStorable)
+instance FIR.Syntactic MinMax where
+  type Internal MinMax = FIR.Val (FIR.Struct '[ "min" 'FIR.:-> FIR.Float, "max" 'FIR.:-> FIR.Float ])
+  toAST (MinMax x y) = FIR.Struct (FIR.Lit x FIR.:& FIR.Lit y FIR.:& FIR.End)
+  fromAST struct = case (FIR.view @(FIR.Name "min") struct, FIR.view @(FIR.Name "max") struct) of
+                     (FIR.Lit x, FIR.Lit y) -> MinMax x y
+                     _ -> error "impossible"
 
 newPlanetMesh :: PlanetSettings -> Core (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
 newPlanetMesh (PlanetSettings re ra co enableMask nss df) = enterD "newPlanetMesh" $ Linear.do
