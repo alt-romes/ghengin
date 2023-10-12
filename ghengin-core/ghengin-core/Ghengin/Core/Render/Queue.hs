@@ -77,7 +77,9 @@ instance Monoid (RenderQueue α) where
 -- we can use TypeRep π to differentiate between them
 newtype PipelineKey π p = UnsafePipelineKey TypeRep
 
-newtype MaterialKey m = UnsafeMaterialKey Unique
+newtype MaterialKey π p m = UnsafeMaterialKey (Unique, TypeRep)
+
+newtype MeshKey     π p m v = UnsafeMeshKey (Unique, Unique, TypeRep) -- (mesh, mat, pipeline)
 
 -- | Inserts a pipeline in a render queue, and returns a pipeline key indexing
 -- into that render queue.
@@ -100,7 +102,7 @@ insertMaterial :: forall π p m a. CompatibleMaterial m π
                => PipelineKey π p   -- ^ Key for pipeline in this render queue, on which this material is defined
                -> Material m
                 ⊸ RenderQueue a
-                ⊸ (RenderQueue a, Ur (MaterialKey m))
+                ⊸ (RenderQueue a, Ur (MaterialKey π p m))
 insertMaterial (UnsafePipelineKey pkey)
   = Unsafe.toLinear2 \mat0 (RenderQueue q) -> -- unsafe bc of map insert
     let (Ur muid,mat1) = materialUID mat0
@@ -116,9 +118,34 @@ insertMaterial (UnsafePipelineKey pkey)
             )
             pkey
             q
-     in (RenderQueue rq', Ur $ UnsafeMaterialKey muid)
+     in (RenderQueue rq', Ur $ UnsafeMaterialKey (muid, pkey))
 
-  -- (materialUID mat)
+insertMesh :: forall π p m v a
+            . Compatible v m p π
+           => MaterialKey π p m
+           -> Mesh v
+            ⊸ RenderQueue ()
+            -- there might be more than one mesh with the same key in the
+            -- render queue (if multiple instances of the same meshes are added?)
+            -- although we might want to figure out a better way of re-using the same mesh multiple times... (big performance opportunities? batch mesh instancing and stuff)
+            ⊸ (RenderQueue (), Ur (MeshKey π p m v))
+insertMesh (UnsafeMaterialKey (mkey, pkey))
+  = Unsafe.toLinear2 \mesh (RenderQueue q) -> -- unsafe bc of map insert
+    let rq = M.alter (\case
+                Nothing -> error "pipeline not found!"
+                Just (p, mats) -> Just $
+                  (p, M.alter (\case
+                          Nothing -> error "material not found??"
+                          Just (mat, meshes) -> Just $
+                            (mat, (Some mesh, ()):meshes)
+                          )
+                        mkey
+                        mats
+                  )
+              )
+              pkey
+              q
+     in (RenderQueue rq, Ur $ UnsafeMeshKey (unur mesh.meshid, mkey, pkey))
 
 
 -- TODO: Rather, to create a renderpacket we need a render queue, since we

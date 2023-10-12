@@ -64,11 +64,17 @@ instance FIR.Syntactic FIR.Float where
   toAST = FIR.Lit
   fromAST (FIR.Lit x) = x
 
+instance FIR.Syntactic Vec3 where
+  type Internal Vec3 = FIR.Val (V 3 FIR.Float)
+
+  toAST (WithVec3 x y z) = FIR.toAST (V3 x y z)
+  fromAST (FIR.fromAST -> V3 x y z) = vec3 x y z
+
 instance KnownSymbol name => FIR.Syntactic (StructVec3 name) where
   type Internal (StructVec3 name) = FIR.Val (FIR.Struct '[ name 'FIR.:-> V 3 FIR.Float ])
 
-  toAST (StructVec3 (WithVec3 x y z)) = FIR.Struct (FIR.toAST (V3 x y z) FIR.:& FIR.End)
-  fromAST (FIR.fromAST FIR.. FIR.view @(FIR.Name name) -> V3 x y z) = StructVec3 (vec3 x y z)
+  toAST (StructVec3 v3) = FIR.Struct (FIR.toAST v3 FIR.:& FIR.End)
+  fromAST (FIR.fromAST FIR.. FIR.view @(FIR.Name name) -> v3) = StructVec3 v3
 
 type StructMat4 :: Symbol -> Type
 newtype StructMat4 name = StructMat4 Mat4

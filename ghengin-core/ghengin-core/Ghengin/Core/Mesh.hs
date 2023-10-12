@@ -14,10 +14,12 @@ module Ghengin.Core.Mesh
   ) where
 
 import Prelude.Linear
+import Data.Unique
 
 import Data.Kind
 
 import Control.Functor.Linear as Linear
+import Control.Monad.IO.Class.Linear as Linear
 import Data.Vector.Storable (Storable)
 import qualified Data.Vector.Storable as SV
 
@@ -47,10 +49,11 @@ data Mesh ts = SimpleMesh { vertexBuffer       :: !VertexBuffer -- a vector of v
                           -- used to create this Mesh, bc having the vertex buffer and
                           -- the device memory is morally equivalent
                           -- , vertices :: Vector Vertex
-
+                          , meshid              :: Ur Unique
                           }
              | IndexedMesh { vertexBuffer       :: !VertexBuffer -- a vector of vertices in buffer format
                            , indexBuffer        :: !Index32Buffer
+                           , meshid              :: Ur Unique
                            }
 
       -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
@@ -71,7 +74,8 @@ data Mesh ts = SimpleMesh { vertexBuffer       :: !VertexBuffer -- a vector of v
 createMesh :: Storable (Vertex ts) => [Vertex ts] -> Renderer (Mesh ts)
 createMesh (SV.fromList -> vs) = enterD "createMesh" Linear.do
   vertexBuffer <- createVertexBuffer vs
-  pure (SimpleMesh vertexBuffer)
+  uniq         <- liftSystemIOU newUnique
+  pure (SimpleMesh vertexBuffer uniq)
 
 createMeshWithIxs :: Storable (Vertex ts) => [Vertex ts] -> [Int] -> Renderer (Mesh ts)
 createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "createMeshWithIxs" Linear.do
@@ -79,15 +83,16 @@ createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "creat
   vertexBuffer <- createVertexBuffer vertices
   logT "Creating Index Buffer"
   indexBuffer  <- createIndex32Buffer (SV.map fromIntegral ixs)
-  pure (IndexedMesh vertexBuffer indexBuffer)
+  uniq         <- liftSystemIOU newUnique
+  pure (IndexedMesh vertexBuffer indexBuffer uniq)
 
 
 freeMesh :: Mesh ts ⊸ Renderer ()
 freeMesh mesh = Linear.do
   logD "Freeing mesh..."
   case mesh of
-    SimpleMesh (VertexBuffer vb _) -> destroyDeviceLocalBuffer vb
-    IndexedMesh (VertexBuffer vb _) (Index32Buffer ib _) -> destroyDeviceLocalBuffer vb >> destroyDeviceLocalBuffer ib
+    SimpleMesh (VertexBuffer vb _) (Ur _) -> destroyDeviceLocalBuffer vb
+    IndexedMesh (VertexBuffer vb _) (Index32Buffer ib _) (Ur _) -> destroyDeviceLocalBuffer vb >> destroyDeviceLocalBuffer ib
 
 
 -- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)
