@@ -58,6 +58,9 @@ type FragmentShaderModule defs
 type StructVec3 :: Symbol -> Type
 newtype StructVec3 name = StructVec3 Vec3
 
+type StructMat4 :: Symbol -> Type
+newtype StructMat4 name = StructMat4 Mat4
+
 -- Temporary? See ticket in fir
 instance FIR.Syntactic FIR.Float where
   type Internal FIR.Float = FIR.Val FIR.Float
@@ -76,8 +79,32 @@ instance KnownSymbol name => FIR.Syntactic (StructVec3 name) where
   toAST (StructVec3 v3) = FIR.Struct (FIR.toAST v3 FIR.:& FIR.End)
   fromAST (FIR.fromAST FIR.. FIR.view @(FIR.Name name) -> v3) = StructVec3 v3
 
-type StructMat4 :: Symbol -> Type
-newtype StructMat4 name = StructMat4 Mat4
+instance FIR.Syntactic Mat4 where
+  type Internal Mat4 = FIR.Val (M 4 4 FIR.Float)
+
+  toAST mat
+    = withColMajor mat
+         \ m00 m10 m20 m30
+           m01 m11 m21 m31
+           m02 m12 m22 m32
+           m03 m13 m23 m33 ->
+             FIR.toAST ( M FIR.$
+                            V4 (V4 m00 m10 m20 m30)
+                               (V4 m01 m11 m21 m31)
+                               (V4 m02 m12 m22 m32)
+                               (V4 m03 m13 m23 m33)
+                       )
+
+  fromAST (FIR.fromAST
+            -> M (V4 (V4 m00 m10 m20 m30)
+                     (V4 m01 m11 m21 m31)
+                     (V4 m02 m12 m22 m32)
+                     (V4 m03 m13 m23 m33))
+          ) = colMajor m00 m10 m20 m30
+                       m01 m11 m21 m31
+                       m02 m12 m22 m32
+                       m03 m13 m23 m33
+
 
 instance KnownSymbol name => FIR.Syntactic (StructMat4 name) where
   type Internal (StructMat4 name) = FIR.Val (FIR.Struct '[ name 'FIR.:-> M 4 4 FIR.Float ])
