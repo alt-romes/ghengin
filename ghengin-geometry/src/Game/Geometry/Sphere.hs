@@ -5,10 +5,13 @@
 module Game.Geometry.Sphere where
 
 import Prelude
+import Ghengin.Core.Prelude (GHList(..))
 import Control.Monad
 import Geomancy.Vec3
 
+import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Renderer
+import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Mesh
 
 import qualified Data.Vector.Storable as SV
@@ -68,12 +71,14 @@ newUnitSphere res color =
    in
       UnitSphere (zipWith3 (\a b c -> a :& b :&: c) ps ns cls) is
 
-newSphereMesh :: Int -- ^ Resolution
-          -> Maybe Vec3 -- ^ Color, use the normals if Nothing
-          -> Renderer (Mesh [Vec3, Vec3, Vec3])
-newSphereMesh res color =
+newSphereMesh :: CompatibleVertex [Vec3, Vec3, Vec3] π
+              => RenderPipeline π bs
+              -> Int -- ^ Resolution
+              -> Maybe Vec3 -- ^ Color, use the normals if Nothing
+              -> Renderer (Mesh [Vec3, Vec3, Vec3] '[], RenderPipeline π bs)
+newSphereMesh pi res color =
   let UnitSphere vs is = newUnitSphere res color
-   in createMeshWithIxs vs is
+   in createMeshWithIxs pi GHNil vs is
 
 -- TODO: These were inlined from Core.Mesh. Make them a better home and remove occurrences there.
 

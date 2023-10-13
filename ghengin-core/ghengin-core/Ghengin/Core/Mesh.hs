@@ -9,27 +9,34 @@ module Ghengin.Core.Mesh
   -- , calculateSmoothNormals
   , freeMesh
 
+  , meshId
+
   -- * Vertices
   , module Ghengin.Core.Mesh.Vertex
   ) where
 
-import Prelude.Linear
+import GHC.Stack
+import Ghengin.Core.Prelude as Linear
 import Data.Unique
 
-import Data.Kind
+import Data.V.Linear (make)
 
-import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear as Linear
 import Data.Vector.Storable (Storable)
 import qualified Data.Vector.Storable as SV
 
 import Ghengin.Core.Mesh.Vertex
+import Ghengin.Core.Render.Property
+import Ghengin.Core.Type.Compatible ( CompatibleVertex, CompatibleMesh )
+import Ghengin.Core.Render.Pipeline ( RenderPipeline(..) )
 
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Buffer
+import Ghengin.Core.Renderer.DescriptorSet
 
 import Ghengin.Core.Log
 import Ghengin.Core.Type.Utils (Some(..))
+
+import qualified Data.Linear.Alias as Alias
 
 {-
 Note [Meshes]
@@ -42,19 +49,60 @@ mesh during the game you must free it explicitly. TODO: Enforce it somehow: line
 
  -}
 
-type Mesh :: [Type] -> Type
-data Mesh ts = SimpleMesh { vertexBuffer       :: !VertexBuffer -- a vector of vertices in buffer format
+type Mesh :: [Type] -- ^ Properties
+          -> [Type] -- ^ Vertex properties
+          -> Type
+data Mesh ts props where
+  SimpleMesh :: !VertexBuffer -- ^ vertexBuffer, a vector of vertices in buffer format
+                -- ^ We don't need to keep the Vector Vertex that was originally (unless we wanted to regenerate it every time?)
+                -- used to create this Mesh, bc having the vertex buffer and
+                -- the device memory is morally equivalent
+                -- , vertices :: Vector Vertex
+              ⊸ (Alias DescriptorSet, Alias ResourceMap) -- ^ Descriptors for property bindings
+              ⊸ !Unique
+             -> Mesh ts '[]
+  IndexedMesh :: !VertexBuffer -- ^ vertexBuffer, a vector of vertices in buffer format
+               ⊸ !Index32Buffer
+               ⊸ (Alias DescriptorSet, Alias ResourceMap) -- ^ Descriptors for property bindings
+               ⊸ Unique
+              -> Mesh ts '[]
+  MeshProperty :: forall p vs ps
+                . PropertyBinding p
+                ⊸ Mesh vs ps
+                ⊸ Mesh vs (p:ps)
 
-                          -- We don't need to keep the Vector Vertex that was originally (unless we wanted to regenerate it every time?)
-                          -- used to create this Mesh, bc having the vertex buffer and
-                          -- the device memory is morally equivalent
-                          -- , vertices :: Vector Vertex
-                          , meshid              :: Ur Unique
-                          }
-             | IndexedMesh { vertexBuffer       :: !VertexBuffer -- a vector of vertices in buffer format
-                           , indexBuffer        :: !Index32Buffer
-                           , meshid              :: Ur Unique
-                           }
+meshId :: Mesh ts props ⊸ (Ur Unique, Mesh ts props)
+meshId = \case
+  MeshProperty p xs -> case meshId xs of
+    (uq, xs') -> (uq, MeshProperty p xs')
+  SimpleMesh vb ds uq -> (Ur uq, SimpleMesh vb ds uq)
+  IndexedMesh vb ib ds uq -> (Ur uq, IndexedMesh vb ib ds uq)
+
+instance HasProperties (Mesh vs) where
+  properties :: Mesh vs ps ⊸ Renderer (PropertyBindings ps, Mesh vs ps)
+  properties = \case
+    MeshProperty p0 xs -> Linear.do
+      (p1, p2) <- Alias.share p0
+      (xs', mesh') <- properties xs
+      pure (p1 :## xs', MeshProperty p2 mesh')
+    SimpleMesh a b c -> pure (GHNil, SimpleMesh a b c)
+    IndexedMesh a b c d -> pure (GHNil, IndexedMesh a b c d)
+
+  descriptors = \case
+    SimpleMesh vb (ds0, rm0) uq -> Linear.do
+      (ds1, ds2) <- Alias.share ds0
+      (rm1, rm2) <- Alias.share rm0
+      pure (ds1, rm1, SimpleMesh vb (ds2, rm2) uq)
+    IndexedMesh vb ib (ds0, rm0) uq -> Linear.do
+      (ds1, ds2) <- Alias.share ds0
+      (rm1, rm2) <- Alias.share rm0
+      pure (ds1, rm1, IndexedMesh vb ib (ds2, rm2) uq)
+    MeshProperty p xs -> Linear.do
+      (dset, rmap, mesh') <- descriptors xs
+      pure (dset, rmap, MeshProperty p mesh')
+
+  puncons (MeshProperty p xs) = (p, xs)
+  pcons = MeshProperty
 
       -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
 
@@ -71,28 +119,79 @@ data Mesh ts = SimpleMesh { vertexBuffer       :: !VertexBuffer -- a vector of v
 -- because we simply free them at the end. One must free the same meshes as
 -- many times as they are shared for they will only be freed with the last
 -- reference
-createMesh :: Storable (Vertex ts) => [Vertex ts] -> Renderer (Mesh ts)
-createMesh (SV.fromList -> vs) = enterD "createMesh" Linear.do
+createMesh :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
+           => RenderPipeline π bs
+            ⊸ PropertyBindings props
+            ⊸ [Vertex ts]
+           -> Renderer (Mesh ts props, RenderPipeline π bs)
+createMesh (RenderProperty pr rps) props0 vs = createMesh rps props0 vs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
+createMesh (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) props0 (SV.fromList -> vs) = enterD "createMesh" Linear.do
+  Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vs
-  uniq         <- liftSystemIOU newUnique
-  pure (SimpleMesh vertexBuffer uniq)
 
-createMeshWithIxs :: Storable (Vertex ts) => [Vertex ts] -> [Int] -> Renderer (Mesh ts)
-createMeshWithIxs (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "createMeshWithIxs" Linear.do
-  logT "Creating Vertex Buffer"
+  (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes dpool0 props0
+
+  pure ( mkMesh (SimpleMesh vertexBuffer (dset0, rmap0) uniq) props1
+       , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders
+       )
+
+createMeshWithIxs :: HasCallStack => (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
+                  => RenderPipeline π bs
+                   ⊸ PropertyBindings props
+                   ⊸ [Vertex ts]
+                  -> [Int]
+                  -> Renderer (Mesh ts props, RenderPipeline π bs)
+createMeshWithIxs (RenderProperty pr rps) props0 vs ixs = createMeshWithIxs rps props0 vs ixs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
+createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) props0 (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "createMeshWithIxs" Linear.do
+  Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vertices
-  logT "Creating Index Buffer"
   indexBuffer  <- createIndex32Buffer (SV.map fromIntegral ixs)
-  uniq         <- liftSystemIOU newUnique
-  pure (IndexedMesh vertexBuffer indexBuffer uniq)
 
+  (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes dpool0 props0
 
-freeMesh :: Mesh ts ⊸ Renderer ()
+  pure ( mkMesh (IndexedMesh vertexBuffer indexBuffer (dset0, rmap0) uniq) props1
+       , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders
+       )
+
+-- | Util
+mkMesh :: ∀ t b. Mesh t '[] ⊸ PropertyBindings b ⊸ Mesh t b
+mkMesh x GHNil = x
+mkMesh x (p :## pl) = MeshProperty p (mkMesh x pl)
+
+-- | Util
+allocateDescriptorsForMeshes :: Alias DescriptorPool ⊸ PropertyBindings props ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool, PropertyBindings props)
+allocateDescriptorsForMeshes dpool0 props0 = Linear.do
+  -- Mostly just the same as in 'material' in Ghengin.Core.Material
+
+  logT "Allocating descriptor set"
+  -- We allocate an empty descriptor set of type #2 to later write with the resource map
+  (dpool1,dset0)  <- Alias.useM dpool0 (\pool -> swap <$> allocateEmptyDescriptorSet 2 pool)
+  (dpool2,dpool3) <- Alias.share dpool1
+
+  logT "Allocating resource map"
+  -- Make the resource map for this material
+  (resources0, props1) <- makeResources props0
+
+  logT "Updating descriptor with resources"
+  -- Create the descriptor set with the written descriptors based on the created resource map
+  (dset1, resources1) <- updateDescriptorSet dset0 resources0
+
+  logT "Making aliases for dset and rmap"
+  dset2 <- Alias.newAlias (freeDescriptorSets dpool2 . make) dset1
+  resources2 <- Alias.newAlias freeResourceMap resources1
+
+  pure (dset2, resources2, dpool3, props1)
+
+freeMesh :: Mesh vs ps ⊸ Renderer ()
 freeMesh mesh = Linear.do
   logD "Freeing mesh..."
   case mesh of
-    SimpleMesh (VertexBuffer vb _) (Ur _) -> destroyDeviceLocalBuffer vb
-    IndexedMesh (VertexBuffer vb _) (Index32Buffer ib _) (Ur _) -> destroyDeviceLocalBuffer vb >> destroyDeviceLocalBuffer ib
+    SimpleMesh (VertexBuffer vb _) ds _ ->
+      Alias.forget ds >> destroyDeviceLocalBuffer vb
+    IndexedMesh (VertexBuffer vb _) (Index32Buffer ib _) ds _ ->
+      Alias.forget ds >> destroyDeviceLocalBuffer vb >> destroyDeviceLocalBuffer ib
+    MeshProperty prop xs ->
+      Alias.forget prop >> freeMesh xs
 
 
 -- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)

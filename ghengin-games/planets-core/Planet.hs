@@ -51,8 +51,10 @@ instance FIR.Syntactic MinMax where
                      (FIR.Lit x, FIR.Lit y) -> MinMax x y
                      _ -> error "impossible"
 
-newPlanetMesh :: PlanetSettings -> Core (Mesh '[Vec3, Vec3, Vec3], Ur MinMax)
-newPlanetMesh (PlanetSettings re ra co enableMask nss df) = enterD "newPlanetMesh" $ Linear.do
+newPlanetMesh :: CompatibleVertex '[Vec3, Vec3, Vec3] π
+              => RenderPipeline π bs
+               ⊸ PlanetSettings -> Core ((Mesh '[Vec3, Vec3, Vec3] '[], RenderPipeline π bs), Ur MinMax)
+newPlanetMesh rp (PlanetSettings re ra co enableMask nss df) = enterD "newPlanetMesh" $ Linear.do
 
   let (vs, is) = case df of
                    All ->
@@ -79,7 +81,7 @@ newPlanetMesh (PlanetSettings re ra co enableMask nss df) = enterD "newPlanetMes
       vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' cs
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)
-   in (,Ur minmax) <$> (createMeshWithIxs vs'' is ↑)
+   in (,Ur minmax) <$> (createMeshWithIxs rp GHNil vs'' is ↑)
 
 newPlanetMaterial :: forall π p
                    . CompatibleMaterial '[MinMax,Texture2D] π

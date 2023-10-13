@@ -189,7 +189,7 @@ class HasProperties φ where
 -- | If we know that a type (φ α) has property of type (β) at binding (#n), we
 -- can edit that property or get its value
 --
--- Instanced by Material, Mesh? and RenderPipeline
+-- Instanced by Material, Mesh and RenderPipeline
 type HasPropertyAt :: Nat              -- ^ Position at which the structure has the property
                    -> Type             -- ^ Property it has at the position
                    -> ([Type] -> Type) -- ^ Structure with list of properties

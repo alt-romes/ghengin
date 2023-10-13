@@ -36,6 +36,7 @@ common common-flags
     cc-options: -O0 -DDEBUG
     cpp-options: -DDEBUG
                  -DDEBUG_TRACE
+                 -DTHINGS_ARE_GOING_THAT_BAD
   else
     ghc-options: -Wall -O2
     cc-options: -O2

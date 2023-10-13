@@ -63,8 +63,7 @@ data RenderPipeline info tys where
 
   RenderPipeline :: RendererPipeline Graphics -- ^ The graphics pipeline underlying this render pipeline. Can a graphics pipeline be shared amongst Render Pipelines such that this field needs to be ref counted?
                  ⊸  Alias RenderPass -- ^ A reference counted reference to a render pass, since we might share render passes amongst pipelines
-                 -- ⊸  NonEmpty (DescriptorSet, DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
-                 ⊸  (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool) -- (TODO:REFCOUNT THEM) A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
+                 ⊸  (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool) -- A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
                  ⊸  ShaderPipeline info
                  -> RenderPipeline info '[] 
 
@@ -142,6 +141,7 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
   logT "Creating graphics pipeline"
   (pipeline, simpleRenderPass2, dpool2) <- createGraphicsPipeline
                                      shaderPipeline simpleRenderPass dpool1
+                                     -- ROMES:TODO: Update push constants! This is not it! (It's hardcoded, and things are never actually pushed)
                                      [Vk.PushConstantRange { offset = 0 , size   = fromIntegral 64, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   logT "Creating reference counted"

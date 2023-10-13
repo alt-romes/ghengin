@@ -1,6 +1,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
-module Ghengin.Core.Render.Packet where
+
+module Ghengin.Core.Render.Packet {-# DEPRECATED "Packets are registered through the RenderQueues, see that module instead" #-} where
 
 import Debug.Trace ( trace )
 import Type.Reflection ()
@@ -69,10 +70,11 @@ The material unique key is created from a global counter. Whenever a material is
 created through 'material', a unique identifier is created for that material.
 
  -}
+
 data RenderPacket where
   -- TODO:
   --  * Descriptor set #2 and #0 additional data binding?
-  RenderPacket :: ∀ π ξ β α. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π)
+  RenderPacket :: ∀ π ξ β δ α. (Compatible α δ β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π)
                =>
                 -- Mesh α
                 -- ⊸ Ref (Material β)

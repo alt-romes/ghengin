@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Core.Material where
 
-import Data.V.Linear (V,make)
+import Data.V.Linear (make)
 import Ghengin.Core.Prelude as Linear
 
 import Data.Unique ( Unique, newUnique )
@@ -66,13 +66,6 @@ data Material xs where
                     ⊸ Material β
                     ⊸ Material (α:β)
 
--- Did I need this?
--- instance Eq (Material '[]) where
---   (==) (Done _) (Done _) = True
-
--- instance (Eq a, Eq (Material as)) => Eq (Material (a ': as)) where
---   (==) (MaterialProperty a xs) (MaterialProperty b ys) = a == b && xs == ys
-
 instance HasProperties Material where
 
   -- Worry about performance of doing things safely later.
@@ -116,12 +109,6 @@ material props0 (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) = Line
   -- resource map
   (dpool1,dset0)  <- Alias.useM dpool0 (\pool -> swap <$> allocateEmptyDescriptorSet 1 pool)
   (dpool2,dpool3) <- Alias.share dpool1
-
-  -- -- We bail out early if this descriptor pool has no descriptor sets of
-  -- -- type #1 (which would mean there are no bindings in descriptor set #1
-  -- mat <- case IM.lookup 1 dpool._set_bindings of
-  --   Nothing -> pure (matf (Done (EmptyDescriptorSet, uniq)))
-  --   Just _  -> do
 
   -- Make the resource map for this material
   -- Will also count texture references

@@ -48,33 +48,6 @@ runCore :: Core a ⊸ IO a
 runCore (Core st)
   = runRenderer $ Linear.do
       (a, CoreState i) <- runStateT st (CoreState 0)
-      -- TODO: FREE THINGS NEXT STEP!
-      -- Well, now that we moved it out, I suppose we need a "freeRenderQueue"
-      -- function that frees everything in it, so that it may be called from
-      -- the game.
-      -- Ur _ <- pure $ Unsafe.toLinear Ur rq
-
-      -- flip evalStateT () $ traverseRenderQueue @(StateT () Renderer) @Renderer rq
-      --   (\pipeline _ -> Linear.do
-      --     -- lift $ destroyRenderPipeline p -- ROMES:TODO:
-      --     -- How do I return things if I am to destroy them??? likely make that
-      --     -- function yet more contrived. or simpler--really, we just need that
-      --     -- the thing is consumed in the function, hence the linear argument
-      --     -- (but if it is to be returned we must know, to enforce linearity? we'll see...)
-      --     return pipeline
-      --   )
-      --   (\p mat -> Linear.do
-      --     -- lift $ freeMaterial m -- ROMES:TODO:
-      --     return (p, mat)
-      --     )
-      --   (\p mesh () -> Linear.do
-      --     -- lift $ freeMesh m -- ROMES:TODO:
-      --     return (p, mesh)
-      --   )
-      --   (pure ())
-      -- () <- pure (consume i)
-      -- return a
-
       () <- pure (consume i)
       return a
 
@@ -219,8 +192,13 @@ render (RenderQueue rqueue') = Core $ StateT $ \CoreState{frameCounter=fcounter'
                     bindGraphicsDescriptorSet graphicsPipeline 1 dset'
                   pure (Unsafe.toLinear (\_ -> dset') vkdset, pLayout') --forget vulkan dset
                                               )
-
-                Unsafe.toLinearN @2 (\_ _ -> pure ()) material'' pLayout -- The material still in the Apecs store. Really, these functions should have no Unsafes and in that case all would be right (e.g. the resource passed to this function would have to be freed in this function, guaranteeing that it is reference counted or something?....
+                -- The material still in the Apecs store. Really, these
+                -- functions should have no Unsafes and in that case all would
+                -- be right (e.g. the resource passed to this function would
+                -- have to be freed in this function, guaranteeing that it is
+                -- reference counted or something?....
+                -- ROMES:TODO: WAIT NOT AT ALL; there is no more Apecs...
+                Unsafe.toLinearN @2 (\_ _ -> pure ()) material'' pLayout
 
                 lift $ Linear.do
                   Alias.forget dset'
@@ -228,18 +206,41 @@ render (RenderQueue rqueue') = Core $ StateT $ \CoreState{frameCounter=fcounter'
 
             -- For every mesh...
                                             -- we still attach no data to the render queue, but we could, and it would be inplace of this unit
-            Data.traverse (\(Some @Mesh @ts mesh, ()) ->  enterD "Mesh changed" Linear.do
+            Data.traverse (\(Some2 @Mesh @ts mesh0, ()) ->  enterD "Mesh changed" Linear.do
 
               logT "Drawing mesh"
               Ur graphicsPipeline <- pure $ completelyUnsafeGraphicsPipeline pipeline
 
-              -- TODO: Bind descriptor set #2 when we have that information in meshes
+              -- Bind descriptor set #2 when we have that information in meshes
+              mesh2 <- lift (descriptors mesh0) >>= \case
+                (dset,rmap,mesh1) -> Linear.do
 
-              -- TODO: No more push constants, for now!!!!
+                  -- These meshes are necessarily compatible with this pipeline
+                  -- in the set #2, so the 'descriptorSetBinding' buffer will
+                  -- always be valid to write with the corresponding mesh binding
+                  (rmap', mesh2) <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' mesh1)
+                  
+                  -- static bindings will have to choose a different dset
+                  -- Bind descriptor set #2
+                  (dset', pLayout) <- Alias.useM dset (Unsafe.toLinear $ \dset' -> Linear.do
+                    (pLayout', vkdset) <-
+                      bindGraphicsDescriptorSet graphicsPipeline 2 dset'
+                    pure (Unsafe.toLinear (\_ -> dset') vkdset, pLayout') --forget vulkan dset
+                                                )
+                  -- WHAT????
+                  Unsafe.toLinearN @1 (\_ -> pure ()) pLayout
+
+                  lift $ Linear.do
+                    Alias.forget dset'
+                    Alias.forget rmap'
+
+                  return mesh2
+
+              -- TODO: No more push constants, for now!!!! They're being hardcoded to something but we don't codify what to push... allow push constants!
               -- pLayout <- pushConstants graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
 
-              mesh' <- renderMesh mesh
-              Ur _  <- pure $ Unsafe.toLinear Ur mesh'
+              mesh3 <- renderMesh mesh2
+              Ur _  <- pure $ Unsafe.toLinear Ur mesh3 -- WHY THE _ ARE WE DOING THIS?
               return ()
 
               ) meshes
@@ -317,10 +318,15 @@ writePropertiesToResources rmap' fi
         pure (rmap''', binding':##bs)
 
 
-renderMesh :: (Functor m, MonadIO m) => Mesh a ⊸ RenderPassCmdM m (Mesh a)
+renderMesh :: (Functor m, MonadIO m) => Mesh vs a ⊸ RenderPassCmdM m (Mesh vs a)
 renderMesh = \case
-  SimpleMesh vb uq -> SimpleMesh <$> drawVertexBuffer vb <*> pure uq
-  IndexedMesh vb ib uq -> uncurry IndexedMesh <$> drawVertexBufferIndexed vb ib <*> pure uq
+  SimpleMesh vb ds uq -> Linear.do
+    vb' <- drawVertexBuffer vb
+    return $ SimpleMesh vb' ds uq
+  IndexedMesh vb ib ds uq -> Linear.do
+    (vb', ib') <- drawVertexBufferIndexed vb ib
+    return $ IndexedMesh vb' ib' ds uq
+  MeshProperty p xs -> MeshProperty p <$> renderMesh xs
 
 -- completely unsafe things, todo:fix
 

@@ -50,7 +50,7 @@ import Ghengin.Core.Type.Utils (Some2(..))
 import Ghengin.Core.Material hiding (material)
 
 
-newtype RenderQueue a = RenderQueue (Map TypeRep (Some2 RenderPipeline, Map Unique (Some Material, [(Some Mesh, a)])))
+newtype RenderQueue a = RenderQueue (Map TypeRep (Some2 RenderPipeline, Map Unique (Some Material, [(Some2 Mesh, a)])))
   deriving (Prelude.Functor)
 
 instance Semigroup (RenderQueue α) where
@@ -79,7 +79,7 @@ newtype PipelineKey π p = UnsafePipelineKey TypeRep
 
 newtype MaterialKey π p m = UnsafeMaterialKey (Unique, TypeRep)
 
-newtype MeshKey     π p m v = UnsafeMeshKey (Unique, Unique, TypeRep) -- (mesh, mat, pipeline)
+newtype MeshKey π p ma me v = UnsafeMeshKey (Unique, Unique, TypeRep) -- (mesh, mat, pipeline)
 
 -- | Inserts a pipeline in a render queue, and returns a pipeline key indexing
 -- into that render queue.
@@ -120,24 +120,25 @@ insertMaterial (UnsafePipelineKey pkey)
             q
      in (RenderQueue rq', Ur $ UnsafeMaterialKey (muid, pkey))
 
-insertMesh :: forall π p m v a
-            . Compatible v m p π
-           => MaterialKey π p m
-           -> Mesh v
+insertMesh :: forall π p ma me vs a
+            . Compatible vs me ma p π
+           => MaterialKey π p ma
+           -> Mesh vs me
             ⊸ RenderQueue ()
             -- there might be more than one mesh with the same key in the
             -- render queue (if multiple instances of the same meshes are added?)
             -- although we might want to figure out a better way of re-using the same mesh multiple times... (big performance opportunities? batch mesh instancing and stuff)
-            ⊸ (RenderQueue (), Ur (MeshKey π p m v))
+            ⊸ (RenderQueue (), Ur (MeshKey π p ma me vs))
 insertMesh (UnsafeMaterialKey (mkey, pkey))
-  = Unsafe.toLinear2 \mesh (RenderQueue q) -> -- unsafe bc of map insert
-    let rq = M.alter (\case
+  = Unsafe.toLinear2 \mesh0 (RenderQueue q) -> -- unsafe bc of map insert
+    let (Ur meid, mesh) = meshId mesh0
+        rq = M.alter (\case
                 Nothing -> error "pipeline not found!"
                 Just (p, mats) -> Just $
                   (p, M.alter (\case
                           Nothing -> error "material not found??"
                           Just (mat, meshes) -> Just $
-                            (mat, (Some mesh, ()):meshes)
+                            (mat, (Some2 mesh, ()):meshes)
                           )
                         mkey
                         mats
@@ -145,25 +146,7 @@ insertMesh (UnsafeMaterialKey (mkey, pkey))
               )
               pkey
               q
-     in (RenderQueue rq, Ur $ UnsafeMeshKey (unur mesh.meshid, mkey, pkey))
-
-
--- TODO: Rather, to create a renderpacket we need a render queue, since we
--- extract the render key from the render queue and the references into the
--- render packet
--- TODO
--- insert :: RenderPacket ⊸ α %p -> RenderQueue α ⊸ RenderQueue α
--- insert (RenderPacket @μ @π mesh material pipeline (pkey, mkey)) x (RenderQueue q) =
---   RenderQueue $
---     M.insertWith
---         (\(p1, im1) (_p2, im2) -> -- (p1 should be the same as p2)
---             (p1, M.mergeWithKey
---                 (\_ (m1,meshes1) (_m2, meshes2) -> -- (m1 should be the same as m2)
---                   Prelude.pure (m1, meshes1 Prelude.<> meshes2)
---                 ) id id im1 im2))
---         pkey
---         (Some2 pipeline, M.insert mkey (Some material, [(Some mesh, x)]) M.empty)
---         q
+     in (RenderQueue rq, Ur $ UnsafeMeshKey (meid, mkey, pkey))
 
 
 freeRenderQueue :: RenderQueue ()
@@ -176,7 +159,7 @@ freeRenderQueue (RenderQueue rq) = Linear.do
     matsunits <- DL.traverse (\(Some @Material @ms material, meshes) -> enterD "Freeing material" Linear.do
 
       -- For every mesh...
-      meshunits <- DL.traverse (\(Some @Mesh @ts mesh, ()) -> enterD "Freeing mesh" $
+      meshunits <- DL.traverse (\(Some2 @Mesh @ts mesh, ()) -> enterD "Freeing mesh" $
                                                               freeMesh mesh) meshes
       freeMaterial material
       pure (consume meshunits)

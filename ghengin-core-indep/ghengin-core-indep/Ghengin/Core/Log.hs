@@ -15,7 +15,6 @@ import Ghengin.Core.Prelude as G
 import System.Log.FastLogger
 import qualified Prelude (take)
 
-import Control.Functor.Linear as Linear
 
 #ifdef THINGS_ARE_GOING_THAT_BAD
 -- In that case we always flush and use BS.putStr
@@ -56,7 +55,7 @@ log msg = getLogger >>= \(Ur logger) -> G.do
 #ifndef THINGS_ARE_GOING_THAT_BAD
     logger._log full_msg
 #else
-    do BS.putStr (fromLogStr full_msg); System.IO.hFlush System.IO.stdout
+    do BS.putStr (fromLogStr full_msg); !_ <- System.IO.hFlush System.IO.stdout; return ()
 #endif
 
 -- | Log if debug level (@-DDEBUG@) is set
@@ -74,9 +73,9 @@ enterD :: HasLogger m => LogStr -> m a ⊸ m a
 {-# INLINE enterD #-}
 #ifdef DEBUG
 enterD msg ma = G.do
-  log (toLogStr "Entering: " <> msg)
-  a <- withLevelUp ma
-  log "Done."
+  () <- log (toLogStr "Entering: " <> msg)
+  !a <- withLevelUp ma
+  () <- log "Done."
   pure a
 #else
 enterD _ = pure ()

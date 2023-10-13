@@ -122,7 +122,7 @@ main = do
     tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
 
     pipeline            <- (makeMainPipeline ↑)
-    (p1mesh, Ur minmax) <- newPlanetMesh defaultPlanetSettings
+    ((p1mesh, pipeline), Ur minmax) <- newPlanetMesh pipeline defaultPlanetSettings
     (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
     (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)       <- pure (insertMaterial pkey pmat rq)

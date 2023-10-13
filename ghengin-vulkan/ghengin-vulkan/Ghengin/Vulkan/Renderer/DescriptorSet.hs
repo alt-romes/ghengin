@@ -356,7 +356,7 @@ allocateEmptyDescriptorSets ixs DescriptorPool{..} = enterD "allocateEmptyDescri
 updateDescriptorSet :: DescriptorSet -- ^ The descriptor set we're updating with these resources
                      ⊸ ResourceMap
                      ⊸ Renderer (DescriptorSet, ResourceMap)
-updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> Linear.do
+updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> enterD "updateDescriptorSet" Linear.do
 
   -- Ach... the resource map must only be freed when the descriptor set is no longer in use... right? Perhaps not...
   -- This could be done, e.g., by storing a reference counted alias of the

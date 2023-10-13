@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedLists #-}
 module Ghengin.Vulkan.Renderer.Buffer where
 
-import Ghengin.Core.Prelude as Linear hiding (zero)
+import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Log
 import qualified Prelude
 
@@ -25,7 +25,6 @@ import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
 -- import qualified Ghengin.Vulkan.Renderer.Command as Cmd
 import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Core.Mesh.Vertex
-import qualified Data.Linear.Alias as Alias
 
 import qualified Unsafe.Linear as Unsafe
 
@@ -176,8 +175,8 @@ withStagingBuffer :: ∀ α (ρ :: Type). SV.Storable α => SV.Vector α -> (Vk.
 withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
   -- Accquire staging buffer
   -- -----------------------
-  let l          = SV.length bufferData
-      bufferSize = fromIntegral $ fromIntegral l * sizeOf @α undefined
+  let !l          = SV.length bufferData
+      !bufferSize = fromIntegral $ fromIntegral l * sizeOf @α undefined
   (stagingBuffer0, stagingMem0) <- createBuffer bufferSize Vk.BUFFER_USAGE_TRANSFER_SRC_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
   
   -- Map the buffer memory into CPU accessible memory

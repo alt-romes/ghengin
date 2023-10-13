@@ -10,6 +10,7 @@ render pipeline properties are compatible with the shader pipeline.
 module Ghengin.Core.Type.Compatible
   ( Compatible
   , CompatibleVertex
+  , CompatibleMesh
   , CompatibleMaterial
   , CompatiblePipeline
   ) where
@@ -36,15 +37,19 @@ import Ghengin.Core.Type.Sized
 -- | 'Compatible' validates at the type level that the mesh and material are
 -- compatible with the render pipeline. See Note [Pipeline compatible materials].
 type Compatible :: [Type]       -- ^ Vertex properties
+                -> [Type]       -- ^ Mesh properties
                 -> [Type]       -- ^ Material properties
                 -> [Type]       -- ^ Render properties
                 -> PipelineInfo -- ^ The pipeline against which the properties must be compatible
                 -> Constraint
-type family Compatible αs βs ξs π where
-  Compatible as bs cs p
+type family Compatible αs δs βs ξs π where
+  Compatible as ds bs cs p
     = ( MatchPropertiesSize (Length as) (Length (InputLocations p))
                             (Text " mesh vertex properties in vertex " :<>: ShowType as)
                             (Text " inputs in the vertex shader.")
+      , MatchPropertiesSize (Length ds) (Length (DSetBindings 2 p))
+                            (Text " mesh properties in mesh " :<>: ShowType ds)
+                            (Text " descriptors in descriptor set #2.")
       , MatchPropertiesSize (Length bs) (Length (DSetBindings 1 p))
                             (Text " material properties in material " :<>: ShowType bs)
                             (Text " descriptors in descriptor set #1.")
@@ -52,6 +57,7 @@ type family Compatible αs βs ξs π where
                             (Text " render properties in render pipeline properties " :<>: ShowType cs)
                             (Text " descriptors in descriptor set #0.")
       , CompatibleVertex   as p
+      , CompatibleMesh     ds p
       , CompatibleMaterial bs p
       , CompatiblePipeline cs p
       )
@@ -69,6 +75,20 @@ type family CompatibleVertex' as p where
                           :<>: Text " whose internal type is " :<>: ShowType (InternalType x)
                           :<>: Text " isn't compatible with the shader vertex property #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (InputByLocation' n p))
       , CompatibleVertex' xs p
+      )
+
+-- | 'CompatibleMesh' validates the mesh properties againsts the
+-- properties expected in the descriptor set #2 by the shader pipeline.
+type CompatibleMesh ds p = CompatibleMesh' (Zip (NumbersFromTo 0 (Length ds)) ds) p
+type CompatibleMesh' :: [(Nat,Type)] -> PipelineInfo -> Constraint
+type family CompatibleMesh' as p where
+  CompatibleMesh' '[] _ = ()
+  CompatibleMesh' ('(n,x) ': xs) p
+    = ( Syntactic x
+      , Match (InternalType x) (DSetBinding' 2 n p)
+              (Text "Mesh binding #" :<>: ShowType n :<>: TypeAndInternalType x
+               :<>: Text " isn't compatible with the descriptor binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (DSetBinding' 2 n p))
+      , CompatibleMesh' xs p
       )
 
 -- | 'CompatibleMaterial' validates the material properties againsts the
