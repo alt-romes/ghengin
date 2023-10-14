@@ -124,7 +124,7 @@ constraints:
   true-name ==0.1.0.3,
   typelits-printf ==0.2.0.0,
   unordered-containers ==0.2.19.1,
-  vector ==0.13.0.0,
+  vector ==0.13.1.0,
   vector-builder ==0.3.8.4,
   vector-circular ==0.1.4,
   vector-space ==0.16,

@@ -83,6 +83,8 @@ traverseWithKey f = toLinear go
       | otherwise = liftA2 (Bin p m) (go l) (go r)
 {-# INLINE traverseWithKey #-}
 
+size :: IntMap a ⊸ (Ur Int, IntMap a)
+size = toLinear \im -> (Ur $ IM.size im, im)
 
 instance {-# OVERLAPPABLE #-} Consumable a => Consumable (IntMap a) where
   consume = \case

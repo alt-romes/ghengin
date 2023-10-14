@@ -131,6 +131,9 @@ instance Show SomeDefs where
 -- less simple alternative should be added...
 createDescriptorSetBindingsMap :: ShaderPipeline info -> DescriptorSetMap
 createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempty ppstages)
+                                            -- If any of the descriptor sets is
+                                            -- unused, we default to an empty bindings map
+                                            <> IM.fromList [(0, mempty), (1, mempty), (2, mempty)]
   where
     go :: Map FIR.Shader [(SPIRV.PointerTy,SomeDefs,SPIRV.Decorations)]
        -> ShaderPipeline info
@@ -328,7 +331,8 @@ allocateEmptyDescriptorSet ix = extract <=< allocateEmptyDescriptorSets (VL.make
 
 -- | Like 'allocateEmptyDescriptorSet' but allocate multiple sets at once
 -- INVARIANT: The Int vector does not have duplicate Ints
-allocateEmptyDescriptorSets :: ∀ n. V n Int   -- ^ The sets to allocate by Ix
+allocateEmptyDescriptorSets :: ∀ n. KnownNat n
+                            => V n Int   -- ^ The sets to allocate by Ix
                             -> DescriptorPool -- ^ The descriptor pool associated with a shader pipeline in which the descriptor sets will be used
                              ⊸ Renderer (V n DescriptorSet, DescriptorPool)
 allocateEmptyDescriptorSets ixs DescriptorPool{..} = enterD "allocateEmptyDescriptorSets" $ Linear.do
@@ -338,6 +342,11 @@ allocateEmptyDescriptorSets ixs DescriptorPool{..} = enterD "allocateEmptyDescri
 
   -- Extract the layouts info needed for allocation out of the dpool map
   (to_alloc, the_rest)  <- pure $ IML.partitionByKeys ixs set_bindings
+
+  (Ur to_alloc_size, to_alloc) <- pure $ IML.size to_alloc
+  assertM "allocateEmptyDescriptorSets" (to_alloc_size == VL.theLength @n)
+  
+  -- Extract the infos from the sets by ix to allocate
   (keys, to_alloc_tups) <- pure $ unzip $ IML.toList $ to_alloc
   (layouts, bindingsxs) <- pure $ unzip $ to_alloc_tups
 
@@ -347,7 +356,7 @@ allocateEmptyDescriptorSets ixs DescriptorPool{..} = enterD "allocateEmptyDescri
 
   -- Reconstruct things
   (to_alloc_tups, Nothing) <- pure $ zip' (vec2l layouts) bindingsxs
-  (to_alloc,Nothing)       <- pure $ zip' keys to_alloc_tups
+  (to_alloc, Nothing)      <- pure $ zip' keys to_alloc_tups
   set_bindings  <- pure $ IML.unionWith (Unsafe.toLinear2 \_ _ -> error "impossible") (IML.fromList to_alloc) the_rest
 
   pure (vzipWith DescriptorSet ixs dsets, DescriptorPool dpool set_bindings)

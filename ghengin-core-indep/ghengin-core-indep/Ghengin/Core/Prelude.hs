@@ -1,5 +1,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE CPP #-}
 module Ghengin.Core.Prelude
   (
   -- * Re-exports
@@ -38,6 +39,8 @@ module Ghengin.Core.Prelude
   , GHList(..), (=<<), (<=<), (>=>), v2vec, l2vec, vec2l
 
   , vzipWith
+
+  , assertM
   )
   where
 
@@ -185,6 +188,14 @@ l2vec = Unsafe.toLinear V.fromList
 
 vec2l :: V.Vector a ⊸ [a]
 vec2l = Unsafe.toLinear V.toList
+
+assertM :: Monad m => String -> Bool -> m ()
+{-# INLINE assertM #-}
+#ifdef DEBUG
+assertM s b = if b then pure () else error ("Failed assertion: " ++ s)
+#else
+assertM _ _ = pure ()
+#endif
 
 --- More orphans
 
