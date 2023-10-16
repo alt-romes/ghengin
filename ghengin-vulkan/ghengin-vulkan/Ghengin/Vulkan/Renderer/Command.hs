@@ -222,7 +222,7 @@ instance HasLogger m => HasLogger (RenderPassCmdM m) where
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
-recordCommand :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m ⊸ m Vk.CommandBuffer
+recordCommand :: Linear.MonadIO m => Vk.CommandBuffer ⊸ CommandM m a ⊸ m (a, Vk.CommandBuffer)
 recordCommand = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.zero
                                             , inheritanceInfo = Nothing }
@@ -231,12 +231,12 @@ recordCommand = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
   Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
 
   -- Record commands
-  runReaderT cmds buf
+  a <- runReaderT cmds buf
 
   -- Finish recording
   Linear.liftSystemIO $ Vk.endCommandBuffer buf
 
-  Linear.pure buf
+  Linear.pure (a, buf)
 {-# INLINE recordCommand #-}
 
 recordCommandOneShot :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m ⊸ m Vk.CommandBuffer
@@ -249,7 +249,7 @@ recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
 {-# INLINE recordCommandOneShot #-}
 
 -- | Make a render pass part a command blueprint that can be further composed with other commands
-renderPassCmd' :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmd m -> Command m
+renderPassCmd' :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
 renderPassCmd' rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ReaderT \buf -> Linear.do
   let
     renderPassInfo = Vk.RenderPassBeginInfo { next = ()
@@ -261,9 +261,11 @@ renderPassCmd' rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Comma
 
   Linear.liftSystemIO $ Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
 
-  runReaderT rpcmds buf
+  a <- runReaderT rpcmds buf
 
   Linear.liftSystemIO $ Vk.cmdEndRenderPass buf
+
+  return a
 {-# INLINE renderPassCmd #-}
 
 bindGraphicsPipeline' :: Linear.MonadIO m => Vk.Pipeline ⊸ RenderPassCmdM m Vk.Pipeline
@@ -483,14 +485,14 @@ bindGraphicsPipeline (VulkanPipeline pipeline layout) = Linear.do
 bindGraphicsDescriptorSet :: Linear.MonadIO m
                           => RendererPipeline Graphics
                           ⊸ Word32 -- ^ Set index at which to bind the descriptor set
-                          -> DescriptorSet ⊸ RenderPassCmdM m (RendererPipeline Graphics, DescriptorSet)
+                          -> DescriptorSet ⊸ RenderPassCmdM m (DescriptorSet, RendererPipeline Graphics)
 bindGraphicsDescriptorSet (VulkanPipeline pipelay layout) ix (DescriptorSet dix dset) = Linear.do
   (layout', dset') <- bindGraphicsDescriptorSet' layout ix dset
-  return (VulkanPipeline pipelay layout', DescriptorSet dix dset')
+  return (DescriptorSet dix dset', VulkanPipeline pipelay layout')
 {-# INLINE bindGraphicsDescriptorSet #-}
 
 renderPassCmd :: Linear.MonadIO m => Int -- ^ needs a good explanation...
-              -> RenderPass -> Vk.Extent2D -> RenderPassCmd m -> Command m
+              -> RenderPass -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
 renderPassCmd currentImage = Unsafe.toLinear \rpass renderAreaExtent rpcmds -> renderPassCmd' rpass._renderPass (rpass._framebuffers Vector.! currentImage) renderAreaExtent rpcmds
 
 ----- Linear Unsafe Utils

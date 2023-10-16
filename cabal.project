@@ -8,7 +8,7 @@ packages:
 -----------------------------
           ./ghengin/
           ./ghengin-camera/
-          ./ghengin-games/
+          ./games/
           ./ghengin-geometry/
           ./ghengin-vulkan/
           ./ghengin-core/

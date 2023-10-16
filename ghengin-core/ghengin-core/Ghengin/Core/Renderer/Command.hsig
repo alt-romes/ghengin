@@ -46,7 +46,7 @@ instance HasLogger m          => HasLogger (RenderPassCmdM m)
 instance Linear.MonadTrans RenderPassCmdM
 
 -- the command buffer comes from the leaky
-recordCommand :: Linear.MonadIO m => CommandBuffer ⊸ Command m ⊸ m CommandBuffer
+recordCommand :: Linear.MonadIO m => CommandBuffer ⊸ CommandM m a ⊸ m (a, CommandBuffer)
 
 -- TODO: Cleanup the API
 
@@ -58,7 +58,7 @@ bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ Render
 bindGraphicsDescriptorSet :: Linear.MonadIO m
                           => RendererPipeline Graphics
                           ⊸ Word32 -- ^ Set index at which to bind the descriptor set
-                          -> DescriptorSet ⊸ RenderPassCmdM m (RendererPipeline Graphics, DescriptorSet)
+                          -> DescriptorSet ⊸ RenderPassCmdM m (DescriptorSet, RendererPipeline Graphics)
 
 -- leaky, fixme.
 setViewport :: Linear.MonadIO m => Vk.Viewport -> RenderPassCmd m
@@ -66,4 +66,4 @@ setScissor :: Linear.MonadIO m => Vk.Rect2D -> RenderPassCmd m
 
 renderPassCmd :: Linear.MonadIO m
               => Int -- ^ needs a good explanation...
-              -> RenderPass -> Vk.Extent2D -> RenderPassCmd m -> Command m
+              -> RenderPass -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a

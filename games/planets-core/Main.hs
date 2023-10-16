@@ -74,9 +74,6 @@ pattern MAX_FRAME_TIME = 0.5
 -- We should use Alexander's gl-block library instead of Storable, and
 -- Geomancy.Transform.Tree for the node tree...
 
--- newPlanet :: _
--- newPlanet = _
-
 makeMainPipeline :: Renderer (RenderPipeline _ CameraProperties)
 makeMainPipeline = Linear.do
   Ur extent <- getRenderExtent
