@@ -20,6 +20,7 @@ packages:
           -- ~/Developer/vector/vector
           -- ~/Developer/vector/vector-stream/
           -- ~/Developer/linear-base-fork/
+          ~/Developer/fir/
 
 package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3
@@ -34,9 +35,9 @@ allow-newer:
     linear-apecs:*,
     typelits-witnesses:*
 
-source-repository-package
-  type:     git
-  location: https://gitlab.com/sheaf/fir.git
+-- source-repository-package
+--   type:     git
+--   location: https://gitlab.com/sheaf/fir.git
 
 source-repository-package
   type:     git
@@ -84,3 +85,4 @@ source-repository-package
   location: https://github.com/sheaf/packages
   subdir: haskus-utils-variant
   tag: 8a69e7bc8873c04d5b671271c2dbdf759f405a56
+

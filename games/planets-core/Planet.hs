@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Planet where
 
 import qualified Prelude as P
@@ -19,13 +20,16 @@ import qualified Data.List.NonEmpty as NE
 
 import Ghengin.Core
 import Ghengin.Core.Mesh
+import Ghengin.Core.Shader () -- instance Syntactic Float
 import Geomancy.Vec3
 
 import Game.Geometry.Sphere
 import Foreign.Storable.Generic
 
 import qualified FIR
+import FIR.AST (FromGenericProduct(..))
 import qualified Math.Linear as FIR
+import qualified Generics.SOP as SOP
 
 --------------------------------------------------------------------------------
 -- * Planet
@@ -42,14 +46,18 @@ data PlanetSettings = PlanetSettings { resolution :: !Int
 
 data DisplayFace = All | FaceUp | FaceRight deriving Show
 
+
+
 data MinMax = MinMax !Float !Float
-  deriving (P.Eq, Generic, Show, GStorable)
-instance FIR.Syntactic MinMax where
-  type Internal MinMax = FIR.Val (FIR.Struct '[ "min" 'FIR.:-> FIR.Float, "max" 'FIR.:-> FIR.Float ])
-  toAST (MinMax x y) = FIR.Struct (FIR.Lit x FIR.:& FIR.Lit y FIR.:& FIR.End)
-  fromAST struct = case (FIR.view @(FIR.Name "min") struct, FIR.view @(FIR.Name "max") struct) of
-                     (FIR.Lit x, FIR.Lit y) -> MinMax x y
-                     _ -> error "impossible"
+  deriving (P.Eq, Generic, SOP.Generic, Show, GStorable)
+  deriving FIR.Syntactic via (FromGenericProduct MinMax ["min", "max"])
+
+-- instance FIR.Syntactic MinMax where
+--   type Internal MinMax = FIR.Val (FIR.Struct '[ "min" 'FIR.:-> FIR.Float, "max" 'FIR.:-> FIR.Float ])
+--   toAST (MinMax x y) = FIR.Struct (FIR.Lit x FIR.:& FIR.Lit y FIR.:& FIR.End)
+--   fromAST struct = case (FIR.view @(FIR.Name "min") struct, FIR.view @(FIR.Name "max") struct) of
+--                      (FIR.Lit x, FIR.Lit y) -> MinMax x y
+--                      _ -> error "impossible"
 
 newPlanetMesh :: CompatibleVertex '[Vec3, Vec3, Vec3] π
               => RenderPipeline π bs

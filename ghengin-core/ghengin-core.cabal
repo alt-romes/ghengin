@@ -113,7 +113,9 @@ library
 
     -- FIR re-exports, so people can import FIR without depending on fir (it's
     -- already a transitive dependency, we simply make it easier to access)
-    reexported-modules: FIR, Math.Linear, Math.Quaternion
+    reexported-modules: FIR, Math.Linear, Math.Quaternion,
+                        -- generics-sop, for deriving generically
+                        Generics.SOP
 
     hs-source-dirs:   ghengin-core
 
@@ -127,6 +129,7 @@ library
                       containers,
                       mtl,
                       vector,
+                      generics-sop,
 
                       gl-block,
 
