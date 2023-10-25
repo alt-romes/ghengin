@@ -27,9 +27,13 @@ import Game.Geometry.Sphere
 import Foreign.Storable.Generic
 
 import qualified FIR
-import FIR.AST (FromGenericProduct(..))
+import FIR.Generics (FromGenericProduct(..))
 import qualified Math.Linear as FIR
 import qualified Generics.SOP as SOP
+
+-- ROMES:TODO: We don't want Syntactic. We want our own family that
+-- canonicalizes types to their GPU representation, just so that the Compatible
+-- matching works.
 
 --------------------------------------------------------------------------------
 -- * Planet
@@ -51,13 +55,6 @@ data DisplayFace = All | FaceUp | FaceRight deriving Show
 data MinMax = MinMax !Float !Float
   deriving (P.Eq, Generic, SOP.Generic, Show, GStorable)
   deriving FIR.Syntactic via (FromGenericProduct MinMax ["min", "max"])
-
--- instance FIR.Syntactic MinMax where
---   type Internal MinMax = FIR.Val (FIR.Struct '[ "min" 'FIR.:-> FIR.Float, "max" 'FIR.:-> FIR.Float ])
---   toAST (MinMax x y) = FIR.Struct (FIR.Lit x FIR.:& FIR.Lit y FIR.:& FIR.End)
---   fromAST struct = case (FIR.view @(FIR.Name "min") struct, FIR.view @(FIR.Name "max") struct) of
---                      (FIR.Lit x, FIR.Lit y) -> MinMax x y
---                      _ -> error "impossible"
 
 newPlanetMesh :: CompatibleVertex '[Vec3, Vec3, Vec3] π
               => RenderPipeline π bs

@@ -44,9 +44,13 @@ data CoreState
 newtype Core α = Core (StateT CoreState Renderer α)
   deriving (Functor, Data.Functor, Applicative, Data.Applicative, Monad, MonadIO, HasLogger)
 
-runCore :: Core a ⊸ IO a
-runCore (Core st)
-  = runRenderer $ Linear.do
+-- ROMES:TODO: Eventually, the base configuration of the Core engine renderer should be passed in a record "RenderConfig"
+
+runCore :: (Int, Int)
+        -- ^ Dimensions of the window the Core engine renderer will render on
+        -> Core a ⊸ IO a
+runCore dimensions (Core st)
+  = runRenderer dimensions $ Linear.do
       (a, CoreState i) <- runStateT st (CoreState 0)
       () <- pure (consume i)
       return a

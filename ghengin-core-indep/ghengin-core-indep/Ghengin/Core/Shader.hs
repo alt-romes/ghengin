@@ -12,6 +12,7 @@ import Data.Kind
 import GHC.TypeLits
 import Ghengin.Core.Shader.Canonical
 import Ghengin.Core.Shader.Pipeline
+import Geomancy.Vec2
 import Geomancy.Vec3
 import Geomancy.Mat4
 
@@ -55,6 +56,9 @@ type FragmentShaderModule defs
 --
 -- @
 
+type StructVec2 :: Symbol -> Type
+newtype StructVec2 name = StructVec2 Vec2
+
 type StructVec3 :: Symbol -> Type
 newtype StructVec3 name = StructVec3 Vec3
 
@@ -67,15 +71,23 @@ instance FIR.Syntactic FIR.Float where
   toAST = FIR.Lit
   fromAST (FIR.Lit x) = x
 
+instance FIR.Syntactic Vec2 where
+  type Internal Vec2 = FIR.Val (V 2 FIR.Float)
+  toAST (WithVec2 x y) = FIR.toAST (V2 x y)
+  fromAST (FIR.fromAST -> V2 x y) = vec2 x y
+
+instance KnownSymbol name => FIR.Syntactic (StructVec2 name) where
+  type Internal (StructVec2 name) = FIR.Val (FIR.Struct '[ name 'FIR.:-> V 2 FIR.Float ])
+  toAST (StructVec2 v2) = FIR.Struct (FIR.toAST v2 FIR.:& FIR.End)
+  fromAST (FIR.fromAST FIR.. FIR.view @(FIR.Name name) -> v3) = StructVec2 v3
+
 instance FIR.Syntactic Vec3 where
   type Internal Vec3 = FIR.Val (V 3 FIR.Float)
-
   toAST (WithVec3 x y z) = FIR.toAST (V3 x y z)
   fromAST (FIR.fromAST -> V3 x y z) = vec3 x y z
 
 instance KnownSymbol name => FIR.Syntactic (StructVec3 name) where
   type Internal (StructVec3 name) = FIR.Val (FIR.Struct '[ name 'FIR.:-> V 3 FIR.Float ])
-
   toAST (StructVec3 v3) = FIR.Struct (FIR.toAST v3 FIR.:& FIR.End)
   fromAST (FIR.fromAST FIR.. FIR.view @(FIR.Name name) -> v3) = StructVec3 v3
 

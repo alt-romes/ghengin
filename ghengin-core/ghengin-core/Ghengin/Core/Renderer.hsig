@@ -28,7 +28,9 @@ import Ghengin.Core.Renderer.Sampler
 
 import qualified Data.Linear.Alias as Alias
 
-runRenderer :: Renderer a ⊸ Linear.IO a
+runRenderer :: (Int, Int)
+            -- ^ Dimensions of the window to render on (width, height)
+            -> Renderer a ⊸ Linear.IO a
 
 -- extremely contrived? not anymore (at least no longer using the transformer thing, since we no longer mix render packets with things like the ECS system s.t. this function had to be run in ECS context)!
 withCurrentFramePresent :: Int -- ^ Current frame index
@@ -41,4 +43,6 @@ withCurrentFramePresent :: Int -- ^ Current frame index
 -- A bit GLFW-centric, but passable...
 shouldCloseWindow :: Renderer Bool
 pollWindowEvents :: Renderer ()
+getMousePos :: Renderer (Ur (Double, Double))
+
 

@@ -1,9 +1,5 @@
-{-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE BlockArguments #-}
-{-# LANGUAGE QualifiedDo #-}
-{-# LANGUAGE LinearTypes #-}
 {-|
 Note [Render Queue]
 ~~~~~~~~~~~~~~~~~~~
@@ -48,6 +44,9 @@ import Ghengin.Core.Mesh
 import Ghengin.Core.Log
 import Ghengin.Core.Type.Utils (Some2(..))
 import Ghengin.Core.Material hiding (material)
+
+import Data.Constraint
+import Unsafe.Coerce (unsafeCoerce)
 
 
 newtype RenderQueue a = RenderQueue (Map TypeRep (Some2 RenderPipeline, Map Unique (Some Material, [(Some2 Mesh, a)])))
@@ -147,6 +146,22 @@ insertMesh (UnsafeMaterialKey (mkey, pkey))
               pkey
               q
      in (RenderQueue rq, Ur $ UnsafeMeshKey (meid, mkey, pkey))
+
+
+editPipeline :: PipelineKey π p -> RenderQueue () ⊸ (RenderPipeline π p ⊸ Renderer (RenderPipeline π p)) ⊸ Renderer (RenderQueue ())
+editPipeline (UnsafePipelineKey pkey) = 
+  -- Use withDict to avoid writing alterF with linear functor...
+  withDict (unsafeCoerce (Dict :: Dict (Functor Renderer)) :: Dict (Prelude.Functor Renderer)) go
+    where
+      go :: Prelude.Functor Renderer => RenderQueue () ⊸ (RenderPipeline π p ⊸ Renderer (RenderPipeline π p)) ⊸ Renderer (RenderQueue ())
+      go = Unsafe.toLinear2 \(RenderQueue q) edit ->
+        RenderQueue Prelude.<$>
+          M.alterF (\case Nothing -> error "pipeline key not in rq"
+                          Just (Some2 rp, materials) ->
+                            -- Key guarantees the type of the pipeline at that key is the same,
+                            -- so this is safe
+                            (\x -> Just (Some2 x, materials)) <$> edit (unsafeCoerce rp)
+                   ) pkey q
 
 
 freeRenderQueue :: RenderQueue ()

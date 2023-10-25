@@ -114,13 +114,14 @@ main :: Prelude.IO ()
 main = do
  currTime <- getCurrentTime
  withLinearIO $
-  runCore Linear.do
+  runCore (1280, 720) Linear.do
     sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
     tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
 
     pipeline            <- (makeMainPipeline ↑)
     ((p1mesh, pipeline), Ur minmax) <- newPlanetMesh pipeline defaultPlanetSettings
     (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
+    -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)       <- pure (insertMaterial pkey pmat rq)
     (rq, Ur mshkey)     <- pure (insertMesh mkey p1mesh rq)

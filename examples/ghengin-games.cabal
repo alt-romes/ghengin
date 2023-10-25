@@ -32,6 +32,9 @@ common common-flags
                  -dasm-lint
                  -dcmm-lint
                  -dstg-lint
+                 -- -dlint
+                 -- -dcore-lint
+                 -- -fpolymorphic-specialisation
 
     cc-options: -O0 -DDEBUG
     cpp-options: -DDEBUG
@@ -95,6 +98,51 @@ executable planets-core
     cpp-options: -DDEBUG
 
     hs-source-dirs:   planets-core
+    mixins:           ghengin-core
+                      requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                               , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                               , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                               , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                               , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                               , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                               , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                               , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                               , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                               )
+    -- We need to instance ghengin-geometry too...
+    -- That's quite awful: TODO: OPEN A TICKET
+    mixins:           ghengin-geometry
+                      requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                               , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                               , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                               , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                               , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                               , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                               , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                               , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                               , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                               )
+    default-language: GHC2021
+
+executable fir-juliaset
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    default-extensions: UnicodeSyntax
+    build-depends:
+        base >=4.19.0.0,
+        -- Can't depend on this without instancing it because of backpack
+        ghengin-core,
+        ghengin-vulkan,
+        ghengin-core-indep,
+        mtl, vector, hsnoise, containers, random, linear-base,
+        derive-storable, geomancy, vulkan, time, ghengin-geometry,
+        fir, filepath, text-short, vector-sized
+
+    ghc-options: -dcmm-lint -dstg-lint -dasm-lint -g2 -rtsopts -debug -Wno-partial-type-signatures
+    cpp-options: -DDEBUG
+
+    hs-source-dirs:   fir-juliaset
     mixins:           ghengin-core
                       requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
                                , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet

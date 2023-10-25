@@ -134,5 +134,6 @@ library
                       gl-block,
 
                       ghengin-core-indep,
-                      linear-utils
+                      linear-utils,
+                      constraints
 

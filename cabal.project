@@ -8,7 +8,7 @@ packages:
 -----------------------------
           ./ghengin/
           ./ghengin-camera/
-          ./games/
+          ./examples/
           ./ghengin-geometry/
           ./ghengin-vulkan/
           ./ghengin-core/
@@ -26,7 +26,7 @@ package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3
 
 package fir
-  flags: +internals
+  flags: +internals +sop
 
 allow-newer:
     dear-imgui:*,

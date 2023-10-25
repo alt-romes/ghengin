@@ -57,6 +57,8 @@ import Vulkan.Zero (zero)
 
 import Ghengin.Core.Log
 
+import qualified Graphics.UI.GLFW as GLFW
+
 -- reexport
 import Ghengin.Vulkan.Renderer.DescriptorSet
 import Ghengin.Vulkan.Renderer.Buffer
@@ -72,9 +74,11 @@ import Ghengin.Vulkan.Renderer.Kernel
 import qualified System.IO.Linear as Linear
 
 -- ROMES: Eventually thikn about bracketing again, but for linear types to work simply get rid of it
--- ROMES:TODO: Make runRenderer an hsig in Ghengin.Core.Renderer
-runRenderer :: Renderer a ⊸ Linear.IO a
-runRenderer r = Linear.do
+
+runRenderer :: (Int, Int)
+            -- ^ Dimensions of the window to render on (width, height)
+            -> Renderer a ⊸ Linear.IO a
+runRenderer dimensions r = Linear.do
 
   -- Initialisation
   -----------------
@@ -82,7 +86,7 @@ runRenderer r = Linear.do
 
   inst <- createInstance validationLayers
 
-  (win, inst) <- createVulkanWindow inst (1280, 720) "Ghengin"
+  (win, inst) <- createVulkanWindow inst dimensions "Ghengin"
 
   (Ur rateFunc, win) <- pure $ Unsafe.toLinear (\w -> (Ur (rateFn w._surface), w)) win
 
@@ -306,6 +310,8 @@ rateFn surface d = do
         isSuitablePresent :: Int -> Prelude.IO Bool
         isSuitablePresent  i = Vk.getPhysicalDeviceSurfaceSupportKHR pd (Prelude.fromIntegral i) sr
 
+-- :| Windowing with GLFW |:
+
 shouldCloseWindow :: Renderer Bool
 shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
   b <- liftSystemIO (GLFW.windowShouldClose _vulkanWindow._window)
@@ -314,6 +320,11 @@ shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
 pollWindowEvents :: Renderer ()
 pollWindowEvents = liftSystemIO $ GLFW.pollEvents
 
+
+getMousePos :: Renderer (Ur (Double, Double))
+getMousePos = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+  p <- liftSystemIOU (GLFW.getCursorPos _vulkanWindow._window)
+  pure $ (p, renv)
 
 -- :| Utils |:
 

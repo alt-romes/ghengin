@@ -112,3 +112,4 @@ initGLFW = liftSystemIO $ do
 
 terminateGLFW :: Linear.MonadIO m => GLFWToken ⊸ m ()
 terminateGLFW GLFWToken = liftSystemIO $ GLFW.terminate
+
