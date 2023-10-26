@@ -58,8 +58,9 @@ viewportIndices
     , 2, 1, 3
     ]
 
--- pattern WINDOW_SIZE = (2560, 1600)
-pattern WINDOW_SIZE = (1920, 1200)
+-- | we should be getting the window size dynamically (in ghengin utils we can even pass it automatically)
+pattern WINDOW_SIZE = (2560, 1600)
+-- pattern WINDOW_SIZE = (1920, 1200)
 
 makeMainPipeline :: Renderer (RenderPipeline _ '[MousePos])
 makeMainPipeline = makeRenderPipeline (shaderPipeline WINDOW_SIZE)
@@ -103,7 +104,6 @@ main = do
 
     (freeRenderQueue rq ↑)
 
-    -- This is all done in the freeRenderQueue!
     -- In fact, freeing these again is a type error. Woho!
     -- (destroyRenderPipeline pipeline ↑)
 

@@ -73,21 +73,31 @@ type FragmentDefs =
 #define N 64
 #define B  4
 
+mandel :: CodeComplex Float -> CodeComplex Float -> CodeComplex Float
+mandel z c = z * z + c
+
+burning_ship :: CodeComplex Float -> CodeComplex Float -> CodeComplex Float
+burning_ship (a :+: b) c = (a :+: abs b) + c
+
 fragment :: (Float, Float) -> G.FragmentShaderModule FragmentDefs _
 fragment (width,height) = shader do
 
   ~( Vec4 x y _ _ ) <- #gl_FragCoord
 
-  let uv = (2 *^ (Vec2 x y) ^-^ (Vec2 (Lit width) (Lit height)) ^-^ Vec2 1 1) ^/ (Lit height)
+  let uv = (1.5 *^ (2 *^ (Vec2 x y) ^-^ (Vec2 (Lit width) (Lit height)) ^-^ Vec2 1 1)) ^/ (Lit height) ^-^ Vec2 0.4 0
 
-  i <- iterate (CodeComplex uv)
+  i <- iterate mandel (CodeComplex uv)
 
-  let r = if i == N then 1 else i / N
+  let (Vec3 r g b) = if i == N then Vec3 0 0 0 else color (i / N)
 
-  #out_colour .= Vec4 r r r 1
+  #out_colour .= Vec4 r g b 1
 
-iterate :: _ => CodeComplex Float -> Program _s _s (Code Float)
-iterate c = locally do
+iterate :: _
+        => (CodeComplex Float -> CodeComplex Float -> CodeComplex Float)
+        -- ^ Fractal series function, taking complex numbers @z@ and @c@ as input
+        -> CodeComplex Float
+        -> Program _s _s (Code Float)
+iterate fractal_s c = locally do
   #z     #= (Vec2 0 0 :: Code (V 2 Float))
   #depth #= (0 :: Code Float) -- float incremented as an integer
 
@@ -97,18 +107,48 @@ iterate c = locally do
     if dot zv zv > B*B || depth >= N
     then break @1
     else do
-      #z     .= codeComplex (z * z + c)
+      #z     .= codeComplex (fractal_s z c)
       #depth .= depth + 1
 
+  zv <- #z
   depth <- #depth
+  -- return (depth - log (log (dot zv zv) / log B / log 2.0))
   return depth
 
--- iterate' :: Code Float -> CodeComplex Float -> CodeComplex Float -> Code Float
--- iterate' !i z c = do
---   let z' = z * z + c
---   if dot (codeComplex z') (codeComplex z') > B*B
---     then i
---     else iterate' (i+1) z' c
+color :: Code Float -> Code (V 3 Float)
+color t
+  = palette t
+            -- 3rd palette from https://darkeclipz.github.io/fractals/paper/Fractals%20&%20Rendering%20Techniques.html
+            (Vec3 0.66 0.56 0.68)
+            (Vec3 0.718 0.438 0.72)
+            (Vec3 0.52 0.8 0.52)
+            (Vec3 (-0.43) (-0.397) (-0.083))
+
+palette :: Code Float -> Code (V 3 Float) -> Code (V 3 Float) -> Code (V 3 Float) -> Code (V 3 Float) -> Code (V 3 Float)
+palette t a b c d = a ^+^ (b .* cos3 (6.28318*^(c^*t ^+^ d)))
+
+random v = fract(sin(dot(v, Vec2 12.989 78.233)) * 43758.543)
+
+
+------------------------------------------------
+-- utils
+
+fract x = x - floor x
+
+-- hadarmard product, element wise vector multiplication
+(.*) :: Code (V 3 Float) -> Code (V 3 Float) -> Code (V 3 Float)
+(.*) v1 v2 = toDiagMat v1 !*^ v2
+-- (.*) (Vec3 a b c) (Vec3 d e f) = Vec3 (a*d) (b*e) (c*f)
+
+-- turn a vector into the diagonal of a matrix otherwise filled with 0s
+toDiagMat :: Code (V 3 Float) -> Code (M 3 3 Float)
+toDiagMat (Vec3 a b c) = Mat33 a 0 0
+                               0 b 0
+                               0 0 c
+
+-- cos applied to all elements of a vector
+cos3 :: Code (V 3 Float) -> Code (V 3 Float)
+cos3 (Vec3 a b c) = Vec3 (cos a) (cos b) (cos c)
 
 ------------------------------------------------
 -- pipeline
