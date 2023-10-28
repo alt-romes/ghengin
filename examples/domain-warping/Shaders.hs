@@ -73,50 +73,33 @@ type FragmentDefs =
                         ( Struct '[ "mousePos" ':-> V 2 Float ] )
    ]
 
-#define N 64
-#define B  4
+pattern2, pattern2', pattern2'' :: Code (V 2 Float) -> Program _s _s (Code Float)
+pattern2 p = do
+  return $ fbm p
+pattern2' p = do
+  q <- let' $ fbm p
+  return $ fbm (p ^+^ Vec2 q q)
+pattern2'' p = do
+  q <- let' $ fbm p
+  r <- let' $ fbm (p ^+^ Vec2 q q)
+  return $ fbm (p ^+^ Vec2 r r)
 
-mandel :: CodeComplex Float -> CodeComplex Float -> CodeComplex Float
-mandel z c = z * z + c
-
-burning_ship :: CodeComplex Float -> CodeComplex Float -> CodeComplex Float
-burning_ship (a :+: b) c = (a :+: abs b) + c
+fbm = fbm2 16 (1/2)
 
 fragment :: (Float, Float) -> G.FragmentShaderModule FragmentDefs _
 fragment (width,height) = shader do
 
   ~( Vec4 x y _ _ ) <- #gl_FragCoord
+  ~(Vec2 mx my) <- use @(Name "ubo" :.: Name "mousePos")
 
-  let uv = (1.5 *^ (2 *^ (Vec2 x y) ^-^ (Vec2 (Lit width) (Lit height)) ^-^ Vec2 1 1)) ^/ (Lit height) ^-^ Vec2 0.4 0
+  let uv = Vec2 (x-Lit width) (y-Lit height) ^/ Lit height
+      mp = Vec2 (mx-Lit width) (my-Lit height) ^/ Lit height
 
-  i <- iterate mandel (CodeComplex uv)
+  p  <- pattern2'' (uv ^+^ mp)
 
-  let (Vec3 r g b) = if i == N then Vec3 0 0 0 else color (i / N)
+  let Vec3 r g b = color (p*0.5 + 0.5)
 
   #out_colour .= Vec4 r g b 1
-
-iterate :: _
-        => (CodeComplex Float -> CodeComplex Float -> CodeComplex Float)
-        -- ^ Fractal series function, taking complex numbers @z@ and @c@ as input
-        -> CodeComplex Float
-        -> Program _s _s (Code Float)
-iterate fractal_s c = locally do
-  #z     #= (Vec2 0 0 :: Code (V 2 Float))
-  #depth #= (0 :: Code Float) -- float incremented as an integer
-
-  loop do
-    zv@(CodeComplex -> z) <- #z
-    depth <- #depth
-    if dot zv zv > B*B || depth >= N
-    then break @1
-    else do
-      #z     .= codeComplex (fractal_s z c)
-      #depth .= depth + 1
-
-  zv <- #z
-  depth <- #depth
-  -- return (depth - log (log (dot zv zv) / log B / log 2.0))
-  return depth
 
 ------------------------------------------------
 -- pipeline

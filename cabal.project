@@ -72,6 +72,11 @@ source-repository-package
     type:   git
     location: https://github.com/recursion-schemes/recursion-schemes.git
 
+source-repository-package
+    type:   git
+    location: https://github.com/obsidiansystems/dependent-sum.git
+    subdir: dependent-sum
+
 -----------------------------
 -- GHC 9.6 support patches --
 -----------------------------
