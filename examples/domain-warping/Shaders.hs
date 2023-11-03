@@ -88,11 +88,14 @@ pattern2''' p = do
   q <- fbm p
   r <- fbm (p ^+^ Vec2 q q)
   n <- fbm (p^+^Vec2 r r)
-  u <- fbm (p ^+^ Vec2 q q ^+^ Vec2 n n)
-  fbm (p^+^Vec2 q q ^+^ Vec2 r r ^+^ Vec2 u u)
+  -- u <- fbm (p ^+^ Vec2 q q ^+^ Vec2 n n)
+  fbm (p^+^Vec2 q q ^+^ Vec2 r r) -- ^+^ Vec2 u u)
 
+-- For a future reader: You can get really far by just changing the translation
+-- vector and the number of octaves and the H parameter here (and the colors
+-- below)
 fbm :: Code (V 2 Float) -> Program _s _s (Code Float)
-fbm p = let' $ fbm2 4 (1/2) (p^+^Vec2 100 100)
+fbm p = let' $ fbm2 16 (2/3) (p^+^Vec2 2.1 33)
 {-# NOINLINE fbm #-}
 
 fragment :: (Float, Float) -> G.FragmentShaderModule FragmentDefs _
@@ -105,11 +108,12 @@ fragment (width,height) = shader do
   let uv = Vec2 (x-Lit width) (y-Lit height) ^/ Lit height
       mp = (25 *^ Vec2 (mx-Lit width) (my-Lit height)) ^/ Lit height
 
-  p  <- pattern2''' (uv ^+^ mp ^+^ Vec2 t t)
+  p  <- pattern2''' (uv ^+^ mp ^+^ Vec2 t 0)
 
-  let Vec3 r g b = color3 p
+  let Vec3 r g b = color p
+  let Vec3 r' g' b' = color3 p
 
-  #out_colour .= Vec4 p p p 1
+  #out_colour .= Vec4 r g' b 1
 
 ------------------------------------------------
 -- pipeline
