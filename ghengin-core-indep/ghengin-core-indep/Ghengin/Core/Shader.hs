@@ -20,10 +20,11 @@ import qualified FIR.Prim.Image as FIR
 import qualified SPIRV.Image as SPIRV
 import qualified SPIRV.ScalarTy
 
-import Ghengin.Core.Prelude (GHList(..))
+import Ghengin.Core.Prelude (GHList(..), Float, undefined)
 
 import Math.Linear
 import qualified FIR
+import qualified FIR.AST as FIR
 import qualified Data.Type.Map as M
 
 type VertexShaderModule defs
@@ -56,6 +57,9 @@ type FragmentShaderModule defs
 --
 -- @
 
+type StructFloat :: Symbol -> Type
+newtype StructFloat name = StructFloat Float
+
 type StructVec2 :: Symbol -> Type
 newtype StructVec2 name = StructVec2 Vec2
 
@@ -66,6 +70,7 @@ type StructMat4 :: Symbol -> Type
 newtype StructMat4 name = StructMat4 Mat4
 
 -- Temporary? See ticket in fir
+-- NO! Plain wrong, we need to completely move away from Syntactic for our use case
 instance FIR.Syntactic FIR.Float where
   type Internal FIR.Float = FIR.Val FIR.Float
   toAST = FIR.Lit
@@ -144,4 +149,12 @@ instance KnownSymbol name => FIR.Syntactic (StructMat4 name) where
                                        m02 m12 m22 m32
                                        m03 m13 m23 m33
                              )
+
+instance KnownSymbol name => FIR.Syntactic (StructFloat name) where
+  type Internal (StructFloat name) = FIR.Val (FIR.Struct '[ name 'FIR.:-> FIR.Float ])
+  -- we don't call these methods, they are needed by FIR only; our
+  -- serialization is currently done by Storable (though it should really be
+  -- through gl-block)
+  toAST (StructFloat f) = FIR.Struct (FIR.Lit f FIR.:& FIR.End)
+  fromAST = undefined -- bad!, we don't want syntactic really, this cannot be implemented correctly
 

@@ -26,6 +26,7 @@ flag dev
                -- Enable with -f+dev
 
 common common-flags
+  build-depends: generics-sop
 
   if flag(dev)
     ghc-options: -Wall -O0
@@ -40,12 +41,11 @@ common common-flags
     cpp-options: -DDEBUG
                  -DDEBUG_TRACE
                  -DTHINGS_ARE_GOING_THAT_BAD
+    -- ghc-options: -g2 -rtsopts -debug
   else
     ghc-options: -Wall -O2
     cc-options: -O2
 
-  ghc-options: -dcmm-lint -dstg-lint -dasm-lint -g2 -rtsopts -debug -Wno-partial-type-signatures
-  cpp-options: -DDEBUG
   ghc-options: -Wno-partial-type-signatures
 
   default-extensions: UnicodeSyntax,

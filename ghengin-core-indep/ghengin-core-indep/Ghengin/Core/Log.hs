@@ -78,7 +78,7 @@ enterD msg ma = G.do
   () <- log "Done."
   pure a
 #else
-enterD _ = pure ()
+enterD _ x = x
 #endif
 
 -- | Log if trace level (@-DDEBUG_TRACE@) is set

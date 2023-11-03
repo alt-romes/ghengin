@@ -115,7 +115,7 @@ runRenderer dimensions r = Linear.do
 
   -- Terminate
   ------------
-  liftSystemIO $ logger._log "[Start] Clean up\n"
+  liftSystemIO $ logger._log "[Start] Vulkan clean up\n"
 
   (vunit, device) <- runStateT (Data.Linear.mapM (\f -> StateT (fmap ((),) . destroyVulkanFrameData f)) frames') device
   pure $ consumeUnits vunit
@@ -130,7 +130,7 @@ runRenderer dimensions r = Linear.do
 
   terminateGLFW glfwtoken
 
-  liftSystemIO $ logger._log "[Done] Clean up\n"
+  liftSystemIO $ logger._log "[Done] Vulkan clean up\n"
 
   cleanupLogger
 

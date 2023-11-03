@@ -28,12 +28,16 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Queue
 import Ghengin.Vulkan.Renderer.Sampler
-import Ghengin.Core.Shader (StructVec2(..), StructVec3(..), StructMat4(..))
+import Ghengin.Core.Shader (StructVec2(..), StructVec3(..), StructMat4(..), StructFloat(..))
 import Vulkan.Core10.FundamentalTypes (Extent2D(..))
 import qualified Data.Monoid.Linear as LMon
 import qualified FIR
+import FIR.Generics
 import qualified Math.Linear as FIR
 import qualified Prelude
+import qualified Generics.SOP as SOP
+import qualified GHC.Generics as GHC
+import Data.Time.Clock.POSIX
 
 import Shaders
 
@@ -43,6 +47,10 @@ pattern MAX_FRAME_TIME = 0.5
 newtype MousePos = MousePos Vec2
   deriving Storable
   deriving FIR.Syntactic via (StructVec2 "mousePos")
+
+newtype Time = Time Float
+  deriving Storable
+  deriving FIR.Syntactic via (StructFloat "val")
 
 viewportVertices :: [ Vertex '[Vec3] ]
 viewportVertices =
@@ -59,17 +67,20 @@ viewportIndices
     ]
 
 -- | we should be getting the window size dynamically (in ghengin utils we can even pass it automatically)
--- pattern WINDOW_SIZE = (2560, 1600)
+pattern WINDOW_SIZE = (2560, 1600)
 -- pattern WINDOW_SIZE = (1920, 1200)
-pattern WINDOW_SIZE = (640, 480)
+-- pattern WINDOW_SIZE = (640, 480)
 
-makeMainPipeline :: Renderer (RenderPipeline _ '[MousePos])
+type PipelineProps = [MousePos, Time]
+
+makeMainPipeline :: Renderer (RenderPipeline _ PipelineProps)
 makeMainPipeline = makeRenderPipeline (shaderPipeline WINDOW_SIZE)
   ( DynamicBinding (Ur (MousePos $ vec2 0 0))
+  :## DynamicBinding (Ur (Time 0))
   :## GHNil
   )
 
-gameLoop :: forall (_s :: FIR.PipelineInfo). Vec2 -> PipelineKey _s '[MousePos] -> RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop :: forall (_s :: FIR.PipelineInfo). Vec2 -> PipelineKey _s PipelineProps -> RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop (WithVec2 previousPosX previousPosY) pkey rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then return rq else Linear.do
@@ -80,9 +91,13 @@ gameLoop (WithVec2 previousPosX previousPosY) pkey rq = Linear.do
 
   let pos = vec2 (0.5 * (previousPosX + newPosX)) (0.5 * (previousPosY + newPosY))
 
-  rq'  <- (editPipeline pkey rq (propertyAt @0 (\(Ur _) -> pure $ Ur $ MousePos pos)) ↑)
+  rq' <- (editPipeline pkey rq (propertyAt @1 (\(Ur (Time time)) -> pure $ Ur $ Time ((time+0.1))) <=< propertyAt @0 (\(Ur _) -> pure $ Ur $ MousePos pos)) ↑)
 
+  Ur prev <- liftSystemIOU getCurrentTime
   rq'' <- render rq'
+  Ur post <- liftSystemIOU getCurrentTime
+  liftSystemIO $
+    print ("Frame time " ++ show (diffUTCTime post prev))
 
   gameLoop (vec2 newPosX newPosY) pkey rq''
 

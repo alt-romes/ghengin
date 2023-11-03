@@ -71,35 +71,45 @@ vertex = shader do
 type FragmentDefs =
   '[ "ubo"         ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                         ( Struct '[ "mousePos" ':-> V 2 Float ] )
+   , "time"        ':-> Uniform '[ DescriptorSet 0, Binding 1 ] (Struct '[ "val" ':-> Float ])
    ]
 
 pattern2, pattern2', pattern2'' :: Code (V 2 Float) -> Program _s _s (Code Float)
 pattern2 p = do
-  return $ fbm p
+  fbm p
 pattern2' p = do
-  q <- let' $ fbm p
-  return $ fbm (p ^+^ Vec2 q q)
+  q <- fbm p
+  fbm (p ^+^ Vec2 q q)
 pattern2'' p = do
-  q <- let' $ fbm p
-  r <- let' $ fbm (p ^+^ Vec2 q q)
-  return $ fbm (p ^+^ Vec2 r r)
+  q <- fbm p
+  r <- fbm (p ^+^ Vec2 q q)
+  fbm (p ^+^ Vec2 r r)
+pattern2''' p = do
+  q <- fbm p
+  r <- fbm (p ^+^ Vec2 q q)
+  n <- fbm (p^+^Vec2 r r)
+  u <- fbm (p ^+^ Vec2 q q ^+^ Vec2 n n)
+  fbm (p^+^Vec2 q q ^+^ Vec2 r r ^+^ Vec2 u u)
 
-fbm = fbm2 16 (1/2)
+fbm :: Code (V 2 Float) -> Program _s _s (Code Float)
+fbm p = let' $ fbm2 4 (1/2) (p^+^Vec2 100 100)
+{-# NOINLINE fbm #-}
 
 fragment :: (Float, Float) -> G.FragmentShaderModule FragmentDefs _
 fragment (width,height) = shader do
 
   ~( Vec4 x y _ _ ) <- #gl_FragCoord
   ~(Vec2 mx my) <- use @(Name "ubo" :.: Name "mousePos")
+  t             <- use @(Name "time" :.: Name "val")
 
   let uv = Vec2 (x-Lit width) (y-Lit height) ^/ Lit height
-      mp = Vec2 (mx-Lit width) (my-Lit height) ^/ Lit height
+      mp = (25 *^ Vec2 (mx-Lit width) (my-Lit height)) ^/ Lit height
 
-  p  <- pattern2'' (uv ^+^ mp)
+  p  <- pattern2''' (uv ^+^ mp ^+^ Vec2 t t)
 
-  let Vec3 r g b = color (p*0.5 + 0.5)
+  let Vec3 r g b = color3 p
 
-  #out_colour .= Vec4 r g b 1
+  #out_colour .= Vec4 p p p 1
 
 ------------------------------------------------
 -- pipeline
