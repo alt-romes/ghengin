@@ -40,45 +40,7 @@ import qualified GHC.Generics as GHC
 import Data.Time.Clock.POSIX
 
 import Shaders
-
-pattern MAX_FRAME_TIME :: Float
-pattern MAX_FRAME_TIME = 0.5
-
-newtype MousePos = MousePos Vec2
-  deriving Storable
-  deriving FIR.Syntactic via (StructVec2 "mousePos")
-
-newtype Time = Time Float
-  deriving Storable
-  deriving FIR.Syntactic via (StructFloat "val")
-
-viewportVertices :: [ Vertex '[Vec3] ]
-viewportVertices =
-  [ Sin ( vec3 (-1) (-1) 0 )
-  , Sin ( vec3 (-1)   1  0 )
-  , Sin ( vec3   1 (-1)  0 )
-  , Sin ( vec3   1   1   0 )
-  ]
-
-viewportIndices :: [ Int ]
-viewportIndices
-  = [ 0, 1, 2
-    , 2, 1, 3
-    ]
-
--- | we should be getting the window size dynamically (in ghengin utils we can even pass it automatically)
-pattern WINDOW_SIZE = (2560, 1600)
--- pattern WINDOW_SIZE = (1920, 1200)
--- pattern WINDOW_SIZE = (640, 480)
-
-type PipelineProps = [MousePos, Time]
-
-makeMainPipeline :: Renderer (RenderPipeline _ PipelineProps)
-makeMainPipeline = makeRenderPipeline (shaderPipeline WINDOW_SIZE)
-  ( DynamicBinding (Ur (MousePos $ vec2 0 0))
-  :## DynamicBinding (Ur (Time 0))
-  :## GHNil
-  )
+import Common
 
 gameLoop :: forall (_s :: FIR.PipelineInfo). Vec2 -> PipelineKey _s PipelineProps -> RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop (WithVec2 previousPosX previousPosY) pkey rq = Linear.do
@@ -105,17 +67,9 @@ main :: Prelude.IO ()
 main = do
  withLinearIO $
   runCore WINDOW_SIZE Linear.do
-    pipeline             <- (makeMainPipeline ↑)
-    -- perhaps we should allow a way to bind meshes without materials? no! they
-    -- have to be compatible, and it turns out in this shader pipeline every
-    -- empty material is compatible. this explicitness is good...
-    (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    (mesh, pipeline)     <- (createMeshWithIxs pipeline GHNil viewportVertices viewportIndices ↑)
-    (rq, Ur pkey)        <- pure (insertPipeline pipeline LMon.mempty)
-    (rq, Ur mkey)        <- pure (insertMaterial pkey emptyMat rq)
-    (rq, Ur mshkey)      <- pure (insertMesh mkey mesh rq)
+    (rq, Ur pkey) <- (renderQueueWithViewport shaderPipeline ↑)
 
-    Ur (x,y) <- (getMousePos ↑)
+    Ur (x,y)   <- (getMousePos ↑)
     rq <- gameLoop (vec2 (double2Float x) (double2Float y)) pkey rq
 
     (freeRenderQueue rq ↑)

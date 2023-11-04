@@ -107,7 +107,7 @@ common common-flags
 
 library
   import: common-flags
-  exposed-modules: Common.Shader
+  exposed-modules: Common, Common.Shader
   build-depends:
         base >=4.19.0.0,
         fir,
