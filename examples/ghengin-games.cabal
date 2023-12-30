@@ -185,3 +185,20 @@ executable domain-warping
         fir, filepath, text-short, vector-sized
 
     hs-source-dirs:   domain-warping
+
+executable ocean-waves
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    build-depends:
+        base >=4.19.0.0,
+        ghengin-games,
+        -- Can't depend on this without instancing it because of backpack
+        ghengin-core,
+        ghengin-vulkan,
+        ghengin-core-indep,
+        mtl, vector, hsnoise, containers, random, linear-base,
+        derive-storable, geomancy, vulkan, time, ghengin-geometry,
+        fir, filepath, text-short, vector-sized
+
+    hs-source-dirs: ocean-waves/

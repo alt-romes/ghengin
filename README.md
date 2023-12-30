@@ -2,6 +2,14 @@ A work in progress game engine.
 
 ## Demos
 
+See the executables from `ghegin-games.cabal` in the `examples/` directory.
+The few work in progress/unpolished executables are:
+* `ocean-waves`
+* `planets-core`
+* `domain-warping`
+* `fir-juliaset`, a port of FIR's juliaset to `ghengin`.
+* `mandlebrot-set`
+
 ### Ocean waves
 
 Based on https://dl.acm.org/doi/abs/10.1145/15922.15894
