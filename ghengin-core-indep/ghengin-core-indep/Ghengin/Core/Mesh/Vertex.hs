@@ -24,7 +24,7 @@ infixr 6 :&:
 instance Storable x => Storable (Vertex '[x]) where
   sizeOf _ = sizeOf @x undefined
   {-# INLINE sizeOf #-}
-  alignment _ = 0
+  alignment _ = alignment @x undefined
   {-# INLINE alignment #-}
   peek p = Sin <$> peek (castPtr @(Vertex '[x]) @x p)
   {-# INLINE peek #-}
@@ -34,7 +34,7 @@ instance Storable x => Storable (Vertex '[x]) where
 instance (Storable (Vertex (y:xs)), Storable x) => Storable (Vertex (x:y:xs)) where
   sizeOf _ = sizeOf @x undefined + sizeOf @(Vertex (y : xs)) undefined
   {-# INLINE sizeOf #-}
-  alignment _ = 0
+  alignment _ = alignment @x undefined + alignment @(Vertex (y:xs)) undefined
   {-# INLINE alignment #-}
   peek p = do
     a  <- peekByteOff (castPtr @(Vertex (x:y:xs)) @x p) 0

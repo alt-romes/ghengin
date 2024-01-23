@@ -43,7 +43,19 @@ import Geomancy.Vec2
 
 import Shaders
 
--- ROMES:TODO: Spectacular things, why does changing this to `Vec2` and receiving in the shader a Vec2 cause the triangle to be deformed?
+-- ROMES:TODO: Using Vec2 instead of Vec3 breaks the simple triangle drawing.
+-- Why? Because of alignment issues. I'm unsure if the fault is in my handling
+-- of Storable Vectors, or in FIR. It is easy to see the issue is alignment by
+-- using this set of vertices for example:
+--   [ vec2 0 (-0.5)
+--   , vec2 0 0
+--   , vec2 0.5 0.5
+--   , vec2 0 0
+--   , vec2 (-0.5) 0.5
+--   , vec2 0 0
+--   ]
+-- This way we get the correct triangle, because the intermediate "vec2 0 0"
+-- are ignored because of alignment.
 triangleVertices :: [Vertex '[Vec3]]
 triangleVertices =
   [ Sin $ vec3 0 (-0.5) 1

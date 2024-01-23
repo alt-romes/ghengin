@@ -41,10 +41,9 @@ data Index32Buffer where
                 -> Index32Buffer
 
 createIndex32Buffer :: SV.Vector Int32 -> Renderer Index32Buffer
-createIndex32Buffer vv = index32buffer <$> createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT vv <*> pure (Ur $ fromIntegral $ SV.length vv)
-  where
-    index32buffer :: DeviceLocalBuffer %1 -> Ur Word32 %1 -> Index32Buffer
-    index32buffer d (Ur w) = Index32Buffer d w
+createIndex32Buffer vv =
+  flip Index32Buffer (fromIntegral $ SV.length vv) <$>
+    createDeviceLocalBuffer Vk.BUFFER_USAGE_INDEX_BUFFER_BIT vv
 
 data VertexBuffer where
   VertexBuffer :: !DeviceLocalBuffer
@@ -52,10 +51,9 @@ data VertexBuffer where
                -> VertexBuffer
 
 createVertexBuffer :: ∀ αs. SV.Storable (Vertex αs) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
-createVertexBuffer vv = vertexBuffer <$> createDeviceLocalBuffer @(Vertex αs) Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT vv <*> pure (Ur $ fromIntegral $ SV.length vv) -- use Locations for vertex buffers
-  where
-    vertexBuffer :: DeviceLocalBuffer %1 -> Ur Word32 %1 -> VertexBuffer
-    vertexBuffer d (Ur w) = VertexBuffer d w
+createVertexBuffer vv =
+  flip VertexBuffer (fromIntegral $ SV.length vv) <$>
+    createDeviceLocalBuffer @(Vertex αs) Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT vv -- use Locations for vertex buffers
 
 -------- Device-local buffer -----------
 

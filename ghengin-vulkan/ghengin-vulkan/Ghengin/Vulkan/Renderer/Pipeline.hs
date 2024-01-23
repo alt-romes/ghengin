@@ -17,6 +17,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Vulkan.Renderer.Pipeline where
 
+import Debug.Trace
 import qualified Prelude
 import Ghengin.Core.Log
 import Prelude.Linear hiding (zero, fromMaybe, IO)
@@ -452,7 +453,7 @@ assemblyAndVertexInputStateInfo =
     computeVulkanFormat fmt
       = fromMaybe
           ( error $ "Unsupported format " ++ show fmt ++ " used as a vertex input attribute." )
-          ( simpleFormat fmt )
+          ( let x = simpleFormat fmt in trace ("Graphics pipeline vertex input format: " ++ show x) x)
 
     vertexBindingDescriptions :: [ Vk.VertexInputBindingDescription ]
     vertexBindingDescriptions =
