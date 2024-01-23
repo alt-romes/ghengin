@@ -93,7 +93,7 @@ fragment (width,height) = shader do
     x' = (-alpha/k) - r*sin(alpha)
     z  = -r*cos(alpha)
 
-  #out_colour .= Vec4 x' y z 1
+  #out_colour .= Vec4 z z z 1
 
 --------------------------------------------------------------------------------
 -- * Pipeline

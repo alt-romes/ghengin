@@ -92,7 +92,7 @@ common common-flags
                              , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
                              )
   -- We need to instance ghengin-geometry too...
-  -- That's quite awful: TODO: OPEN A TICKET
+  -- That's quite awful? Maybe not... TODO: OPEN A TICKET
   mixins:           ghengin-geometry
                     requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
                              , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
@@ -116,7 +116,7 @@ library
         ghengin-vulkan,
         ghengin-core-indep,
         mtl, vector, hsnoise, containers, random, linear-base,
-        derive-storable, geomancy, vulkan, time, ghengin-geometry,
+        derive-storable, geomancy, vulkan, time, ghengin-geometry
   hs-source-dirs: common
 
 executable planets-core
@@ -132,9 +132,21 @@ executable planets-core
         ghengin-core-indep,
         mtl, vector, hsnoise, containers, random, linear-base,
         derive-storable, geomancy, vulkan, time, ghengin-geometry,
-        fir
+        fir,
+        -- ghengin-camera,
 
     hs-source-dirs:   planets-core
+    -- mixins:         ghengin-camera
+    --                 requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+    --                          , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+    --                          , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+    --                          , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+    --                          , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+    --                          , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+    --                          , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+    --                          , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+    --                          , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+    --                          )
 
 executable fir-juliaset
     import:        common-flags
@@ -199,6 +211,17 @@ executable ocean-waves
         ghengin-core-indep,
         mtl, vector, hsnoise, containers, random, linear-base,
         derive-storable, geomancy, vulkan, time, ghengin-geometry,
-        fir, filepath, text-short, vector-sized
+        fir, filepath, text-short, vector-sized, ghengin-camera
 
+    mixins:         ghengin-camera
+                    requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                             , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                             , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                             , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                             , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                             , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                             , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                             , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                             , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                             )
     hs-source-dirs: ocean-waves/
