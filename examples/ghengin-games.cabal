@@ -25,11 +25,22 @@ flag dev
                Run `cabal build -f-dev` to build with the flag disabled.
                -- Enable with -f+dev
 
+flag debug
+  default: False
+  manual: True
+  description: Linter + Debug mode
+
 common common-flags
   build-depends: generics-sop
+  build-depends:
+    -- Can't depend on ghengin-core and friends without instancing them because of backpack
+    ghengin-core, ghengin-vulkan, ghengin-geometry, ghengin-core-indep,
+    ghengin-camera, mtl, vector, hsnoise, containers, random, linear-base,
+    derive-storable, geomancy, vulkan >= 3.26, time, fir, filepath, text-short,
+    vector-sized, base >=4.19.0.0
 
-  if flag(dev)
-    ghc-options: -Wall -O0
+  if flag(debug)
+    ghc-options: -Wall
                  -dasm-lint
                  -dcmm-lint
                  -dstg-lint
@@ -37,11 +48,19 @@ common common-flags
                  -- -dcore-lint
                  -- -fpolymorphic-specialisation
 
-    cc-options: -O0 -DDEBUG
+    cc-options: -DDEBUG
     cpp-options: -DDEBUG
                  -DDEBUG_TRACE
                  -DTHINGS_ARE_GOING_THAT_BAD
     -- ghc-options: -g2 -rtsopts -debug
+
+  if flag(dev)
+    ghc-options: -O0
+
+    cc-options: -O0 -DDEBUG
+    cpp-options: -DDEBUG
+                 -DDEBUG_TRACE
+                 -DTHINGS_ARE_GOING_THAT_BAD
   else
     ghc-options: -Wall -O2
     cc-options: -O2
@@ -105,123 +124,68 @@ common common-flags
                              , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
                              )
 
+  mixins:         ghengin-camera
+                  requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                           , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                           , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                           , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                           , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                           , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                           , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                           , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                           , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                           )
+
 library
   import: common-flags
   exposed-modules: Common, Common.Shader
-  build-depends:
-        base >=4.19.0.0,
-        fir,
-        -- Can't depend on this without instancing it because of backpack
-        ghengin-core,
-        ghengin-vulkan,
-        ghengin-core-indep,
-        mtl, vector, hsnoise, containers, random, linear-base,
-        derive-storable, geomancy, vulkan, time, ghengin-geometry
   hs-source-dirs: common
 
 executable planets-core
     import:        common-flags
     main-is:       Main.hs
     other-modules: Camera, Planet, Shaders
-    build-depends:
-        base >=4.19.0.0,
-        ghengin-games,
-        -- Can't depend on this without instancing it because of backpack
-        ghengin-core,
-        ghengin-vulkan,
-        ghengin-core-indep,
-        mtl, vector, hsnoise, containers, random, linear-base,
-        derive-storable, geomancy, vulkan, time, ghengin-geometry,
-        fir,
-        -- ghengin-camera,
-
+    build-depends: ghengin-games
     hs-source-dirs:   planets-core
-    -- mixins:         ghengin-camera
-    --                 requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
-    --                          , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
-    --                          , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
-    --                          , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
-    --                          , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
-    --                          , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
-    --                          , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
-    --                          , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
-    --                          , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
-    --                          )
 
 executable fir-juliaset
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
-    build-depends:
-        base >=4.19.0.0,
-        ghengin-games,
-        -- Can't depend on this without instancing it because of backpack
-        ghengin-core,
-        ghengin-vulkan,
-        ghengin-core-indep,
-        mtl, vector, hsnoise, containers, random, linear-base,
-        derive-storable, geomancy, vulkan, time, ghengin-geometry,
-        fir, filepath, text-short, vector-sized
+    build-depends: ghengin-games
     hs-source-dirs:   fir-juliaset
 
 executable mandlebrot-set
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
-    build-depends:
-        base >=4.19.0.0,
-        -- Can't depend on this without instancing it because of backpack
-        ghengin-games,
-        ghengin-core,
-        ghengin-vulkan,
-        ghengin-core-indep,
-        mtl, vector, hsnoise, containers, random, linear-base,
-        derive-storable, geomancy, vulkan, time, ghengin-geometry,
-        fir, filepath, text-short, vector-sized
-
+    build-depends: ghengin-games
     hs-source-dirs:   mandlebrot-set
 
 executable domain-warping
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
-    build-depends:
-        base >=4.19.0.0,
-        ghengin-games,
-        -- Can't depend on this without instancing it because of backpack
-        ghengin-core,
-        ghengin-vulkan,
-        ghengin-core-indep,
-        mtl, vector, hsnoise, containers, random, linear-base,
-        derive-storable, geomancy, vulkan, time, ghengin-geometry,
-        fir, filepath, text-short, vector-sized
-
+    build-depends: ghengin-games
     hs-source-dirs:   domain-warping
 
 executable ocean-waves
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
-    build-depends:
-        base >=4.19.0.0,
-        ghengin-games,
-        -- Can't depend on this without instancing it because of backpack
-        ghengin-core,
-        ghengin-vulkan,
-        ghengin-core-indep,
-        mtl, vector, hsnoise, containers, random, linear-base,
-        derive-storable, geomancy, vulkan, time, ghengin-geometry,
-        fir, filepath, text-short, vector-sized, ghengin-camera
-
-    mixins:         ghengin-camera
-                    requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
-                             , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
-                             , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
-                             , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
-                             , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
-                             , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
-                             , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
-                             , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
-                             , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
-                             )
+    build-depends: ghengin-games
     hs-source-dirs: ocean-waves/
+
+executable cube
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    build-depends: ghengin-games
+    hs-source-dirs: cube/
+
+executable simple-triangle
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    build-depends: ghengin-games
+    hs-source-dirs: simple-triangle/
