@@ -16,26 +16,6 @@
 
 module Shaders where
 
--- base
-import Data.Foldable
-  ( sequence_ )
-import Data.Maybe
-  ( fromJust )
-import GHC.TypeNats
-  ( KnownNat )
-
--- filepath
-import System.FilePath
-  ( (</>) )
-
--- text-short
-import Data.Text.Short
-  ( ShortText )
-
--- vector-sized
-import qualified Data.Vector.Sized as Vector
-  ( fromList )
-
 -- fir
 import FIR
 import FIR.Syntax.Labels
@@ -43,9 +23,6 @@ import Math.Linear
 
 -- ghengin
 import qualified Ghengin.Core.Shader as G
-
--- ghengin-games
-import Common.Shader
 
 --------------------------------------------------------------------------------
 -- * Simple Triangle Shader
@@ -96,10 +73,10 @@ type VertexDefsColors =
 
 vertexColor :: G.VertexShaderModule VertexDefsColors _
 vertexColor = shader do
-    ~(Vec3 x y _) <- get @"in_position"
-    color <- get @"in_color"
-    put @"gl_Position" (Vec4 x y 0 1)
-    put @"frag_color" color
+    ~(Vec3 x y _) <- #in_position
+    color         <- #in_color
+    #gl_Position .= (Vec4 x y 0 1)
+    #frag_color  .= color
 
 fragmentColor :: G.FragmentShaderModule '["in_color" ':-> Input '[Location 0] (V 3 Float)] _
 fragmentColor = shader do

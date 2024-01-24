@@ -55,7 +55,7 @@ common common-flags
     -- ghc-options: -g2 -rtsopts -debug
 
   if flag(dev)
-    ghc-options: -O0
+    ghc-options: -O0 -Wall
 
     cc-options: -O0 -DDEBUG
     cpp-options: -DDEBUG
