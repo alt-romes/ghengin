@@ -189,3 +189,10 @@ executable simple-triangle
     other-modules: Shaders
     build-depends: ghengin-games
     hs-source-dirs: simple-triangle/
+
+executable simple-cube
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    build-depends: ghengin-games
+    hs-source-dirs: simple-cube/
