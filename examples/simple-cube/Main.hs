@@ -7,11 +7,14 @@
 module Main where
 
 import Geomancy.Vec3
+import Geomancy.Mat4
+import Geomancy.Transform
 import Ghengin.Core
 import Ghengin.Core.Mesh
 import Ghengin.Core.Material
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Render
+import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Queue
 import qualified Data.Monoid.Linear as LMon
@@ -19,6 +22,7 @@ import qualified Prelude
 
 import Shaders
 
+type CubeMesh = Mesh '[Vec3, Vec3] '[Transform]
 
 cubeVertices :: [Vertex '[Vec3, Vec3]]
 cubeVertices = [
@@ -77,7 +81,6 @@ cubeVertices = [
     blue = vec3 0.1 0.1 0.8
     green = vec3 0.1 0.8 0.1
 
-
 gameLoop :: RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
@@ -95,7 +98,7 @@ main = do
 
     pipeline <- (makeRenderPipeline shaderPipeline GHNil ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    (mesh, pipeline) <- (createMesh pipeline GHNil cubeVertices ↑)
+    (mesh :: CubeMesh, pipeline) <- (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) cubeVertices ↑)
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)

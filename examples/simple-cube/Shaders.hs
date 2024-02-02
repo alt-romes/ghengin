@@ -42,13 +42,15 @@ type VertexDefs =
   '[ "in_position"  ':-> Input      '[ Location 0 ] (V 3 Float)
    , "in_color"     ':-> Input      '[ Location 1 ] (V 3 Float)
    , "frag_color"   ':-> Output     '[ Location 0 ] (V 3 Float)
+   , "transform"    ':-> Uniform    '[ DescriptorSet 2, Binding 0 ] (Struct '[ "m" ':-> M 4 4 Float ])
    ]
 
 vertex :: G.VertexShaderModule VertexDefs _
 vertex = shader do
     ~(Vec3 x y _) <- #in_position
     color         <- #in_color
-    #gl_Position .= (Vec4 x y 0 1)
+    mat           <- use @(Name "transform" :.: Name "m")
+    #gl_Position .= mat !*^ (Vec4 x y 0 1)
     #frag_color  .= color
 
 fragment :: G.FragmentShaderModule '["in_color" ':-> Input '[Location 0] (V 3 Float)] _
