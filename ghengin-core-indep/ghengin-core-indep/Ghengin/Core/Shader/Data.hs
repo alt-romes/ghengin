@@ -8,9 +8,10 @@ module Ghengin.Core.Shader.Data
   ) where
 
 import Data.Kind
-import Foreign.Storable
+import Type.Reflection
+import Graphics.Gl.Block
 import FIR.Prim.Types
-import FIR.Layout
+import FIR.Layout as L
 
 -- ROMES:TODO: For now, we still define 'Compatible' by means of 'InternalType', but that should change! See 'ShaderData'.
 
@@ -26,20 +27,32 @@ import FIR.Layout
 -- @gl-block@ (TODO: May be hard bc of top-level info)). Another simple way to
 -- get a 'Poke' instance is to convert the type to its primitive representation
 -- and then leverage that representation's 'Poke' instance.
+--
+-- We could also require both Poke and Block and poke @Base = write430 and poke @Extended = write140@
+--
+-- Or perhaps we don't need 'Poke' at all, because we don't need type level alignment, only size?
 class -- (∀ lay. Poke ty (lay :: Layout)) => -- ROMES:TODO: We can't migrate to 'Poke' yet, drop 'Syntactic' first.
-    Storable ty =>
+    Block ty =>
     ShaderData ty where
 
-  -- | The primitive shader type whose memory representation matches the result
+  -- | The primitive FIR shader type whose memory representation matches the result
   -- of serializing this datatype using 'Poke'. This is the promise that if
-  -- your shader expects @firTy@ in a uniform location, writing @ty@ into the
+  -- your shader expects @FirType ty@ in a uniform location, writing @ty@ into the
   -- buffer will be sound, and the shader will find @ty@'s laid out in memory
-  -- according to @firTy@'s expected memory layout.
+  -- according to @FirType ty@'s expected memory layout.
   --
-  -- romes:todo: I don't think we will be able to compare primitive types for
-  -- 'Compatible' at runtime, so we'll likely have to resort to something else,
-  -- like getting the 'FieldsOfType' of the 'PrimTy' instance of the type
-  -- resulting from applying this type family.
+  -- === _Example_
+  --
+  -- @
+  -- instance FirType Vec3 where
+  --   type FirType Vec3 = V 3 Float
+  --
+  -- instance FirType Mat4 where
+  --   type FirType Mat4 = M 4 4 Float
+  --
+  -- instance FirType ... where
+  --   type FirType ... = Struct ...
+  -- @
   type family FirType (ty :: Type) :: Type
 
   -- ROMES:TODO: Perhaps we could instead have a family whose return kind is
@@ -48,4 +61,17 @@ class -- (∀ lay. Poke ty (lay :: Layout)) => -- ROMES:TODO: We can't migrate t
   -- Though that is quite considerably more burdensome (e.g. images, decorations...)
   -- Not sure if would be better.
   -- type family SpirType ty :: 'SPIRV.PrimTy
+
+  -- | A proof that that the @Poke/SizeOf@ of the "primitive" FIR shader type
+  -- matches the @Block/PackedSize@ of the CPU-level datatype. Even though this
+  -- isn't a full blown proof that the types are compatible with respect to the
+  -- expected memory layout by the graphics pipeline/shader, it nudges use of
+  -- 'ShaderData' in the right direction.
+  --
+  -- Possibly, the greatest benefit for now is guaranteeing the type result of
+  -- 'FirType' is actually a FIR primitive shader type, since we only have Poke
+  -- instances for those.
+  --
+  -- ROMES:TODO: I'm not sure how it will work with images... they don't instance 'Poke'.
+  proofSameSize :: PackedSize ty :~: L.SizeOf (FirType ty)
 

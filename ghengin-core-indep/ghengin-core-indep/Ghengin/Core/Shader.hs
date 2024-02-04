@@ -16,7 +16,6 @@ import Ghengin.Core.Shader.Pipeline
 import Geomancy.Vec2
 import Geomancy.Vec3
 import Geomancy.Mat4
-import Geomancy.Transform
 
 import qualified FIR.Prim.Image as FIR
 import qualified SPIRV.Image as SPIRV
@@ -37,7 +36,7 @@ type VertexShaderModule defs
 
 type FragmentShaderModule defs
   = FIR.ShaderModule "main" FIR.FragmentShader
-                     (("out_colour" 'FIR.:-> FIR.Output '[ FIR.Location 0 ] (V 4 FIR.Float)) ': ("main" 'FIR.:-> FIR.EntryPoint '[ FIR.OriginUpperLeft ] FIR.Fragment) ': CanonicalizeDefs defs)
+                     (("out_colour" 'FIR.:-> FIR.Output '[ FIR.Location 0 ] (V 4 Float)) ': ("main" 'FIR.:-> FIR.EntryPoint '[ FIR.OriginUpperLeft ] FIR.Fragment) ': CanonicalizeDefs defs)
 
 
 -- * Instances for Syntactic
@@ -77,29 +76,26 @@ type StructMat4 :: Symbol -> Type
 newtype StructMat4 name = StructMat4 Mat4
   deriving newtype Storable
 
-instance ShaderData FIR.Float where
-  type FirType FIR.Float = FIR.Float
+instance ShaderData Float where
+  type FirType Float = Float
 
 instance ShaderData Vec2 where
-  type FirType Vec2 = V 2 FIR.Float
+  type FirType Vec2 = V 2 Float
 
 instance KnownSymbol name => ShaderData (StructVec2 name) where
-  type FirType (StructVec2 name) = FIR.Struct '[ name 'FIR.:-> V 2 FIR.Float ]
+  type FirType (StructVec2 name) = FIR.Struct '[ name 'FIR.:-> V 2 Float ]
 
 instance ShaderData Vec3 where
-  type FirType Vec3 = V 3 FIR.Float
+  type FirType Vec3 = V 3 Float
 
 instance KnownSymbol name => ShaderData (StructVec3 name) where
-  type FirType (StructVec3 name) = FIR.Struct '[ name 'FIR.:-> V 3 FIR.Float ]
+  type FirType (StructVec3 name) = FIR.Struct '[ name 'FIR.:-> V 3 Float ]
 
 instance ShaderData Mat4 where
-  type FirType Mat4 = M 4 4 FIR.Float
-
-instance ShaderData Transform where
-  type FirType Transform = M 4 4 FIR.Float
+  type FirType Mat4 = M 4 4 Float
 
 instance KnownSymbol name => ShaderData (StructMat4 name) where
-  type FirType (StructMat4 name) = FIR.Struct '[ name 'FIR.:-> M 4 4 FIR.Float ]
+  type FirType (StructMat4 name) = FIR.Struct '[ name 'FIR.:-> M 4 4 Float ]
 
 instance KnownSymbol name => ShaderData (StructFloat name) where
-  type FirType (StructFloat name) = FIR.Struct '[ name 'FIR.:-> FIR.Float ]
+  type FirType (StructFloat name) = FIR.Struct '[ name 'FIR.:-> Float ]
