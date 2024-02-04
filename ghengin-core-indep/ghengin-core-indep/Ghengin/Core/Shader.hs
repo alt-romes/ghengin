@@ -16,6 +16,7 @@ import Ghengin.Core.Shader.Pipeline
 import Geomancy.Vec2
 import Geomancy.Vec3
 import Geomancy.Mat4
+import Geomancy.Transform
 
 import qualified FIR.Prim.Image as FIR
 import qualified SPIRV.Image as SPIRV
@@ -93,6 +94,9 @@ instance KnownSymbol name => ShaderData (StructVec3 name) where
 
 instance ShaderData Mat4 where
   type FirType Mat4 = M 4 4 FIR.Float
+
+instance ShaderData Transform where
+  type FirType Transform = M 4 4 FIR.Float
 
 instance KnownSymbol name => ShaderData (StructMat4 name) where
   type FirType (StructMat4 name) = FIR.Struct '[ name 'FIR.:-> M 4 4 FIR.Float ]
