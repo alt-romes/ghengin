@@ -17,4 +17,4 @@ texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
 --                  -> Sampler
 --                  -> Renderer Texture2D
 
-instance FIR.Syntactic Texture2D
+-- ROMES:TODO: instance FIR.Syntactic Texture2D

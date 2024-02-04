@@ -12,6 +12,8 @@ import qualified SPIRV.Image as SPIRV
 import qualified SPIRV.ScalarTy
 import Math.Linear
 
+-- ROMES:TODO: Completely Deprecated. We want to drop all of this.
+
 instance Syntactic Vec3 where
   type Internal Vec3 = Val (V 3 Float)
   toAST (WithVec3 x y z) = FIR.Vec3 (Lit x) (Lit y) (Lit z)

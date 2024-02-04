@@ -85,6 +85,7 @@ library
                       Ghengin.Core.Type.Utils,
 
                       Ghengin.Core.Shader,
+                      Ghengin.Core.Shader.Data,
                       Ghengin.Core.Shader.Pipeline,
                       Ghengin.Core.Shader.Canonical,
 

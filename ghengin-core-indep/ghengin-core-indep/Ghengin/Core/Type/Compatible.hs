@@ -23,12 +23,12 @@ import FIR.Pipeline
       PrimitiveTopology,
       VertexLocationDescriptions,
       GetVertexInputInfo )
-import FIR (Syntactic, InternalType)
 import FIR.ProgramState
     ( EntryPointInfo(EntryPointInfo), TLInterfaceVariable )
 import SPIRV.Decoration (Decoration(..))
 import qualified SPIRV.Image as SPIRV
 
+import Ghengin.Core.Shader.Data hiding (SizeOf) -- TODO: ultimately, we don't want to hide SizeOf, and want to get rid of Sized
 import Ghengin.Core.Type.Utils
 import Ghengin.Core.Type.Sized
 
@@ -69,10 +69,10 @@ type CompatibleVertex' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleVertex' as p where
   CompatibleVertex' '[] _ = ()
   CompatibleVertex' ('(n,x) ': xs) p
-    = ( Syntactic x
-      , Match (SizeOf (InternalType x)) (SizeOf (InputByLocation' n p))
+    = ( ShaderData x
+      , Match (SizeOf (FirType x)) (SizeOf (InputByLocation' n p))
                         (Text "Vertex property #" :<>: ShowType n :<>: TypeAndInternalType x
-                          :<>: Text " whose internal type is " :<>: ShowType (InternalType x)
+                          :<>: Text " whose internal type is " :<>: ShowType (FirType x)
                           :<>: Text " isn't compatible with the shader vertex property #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (InputByLocation' n p))
       , CompatibleVertex' xs p
       )
@@ -84,8 +84,8 @@ type CompatibleMesh' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleMesh' as p where
   CompatibleMesh' '[] _ = ()
   CompatibleMesh' ('(n,x) ': xs) p
-    = ( Syntactic x
-      , Match (InternalType x) (DSetBinding' 2 n p)
+    = ( ShaderData x
+      , Match (FirType x) (DSetBinding' 2 n p)
               (Text "Mesh binding #" :<>: ShowType n :<>: TypeAndInternalType x
                :<>: Text " isn't compatible with the descriptor binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (DSetBinding' 2 n p))
       , CompatibleMesh' xs p
@@ -98,8 +98,8 @@ type CompatibleMaterial' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleMaterial' as p where
   CompatibleMaterial' '[] _ = ()
   CompatibleMaterial' ('(n,x) ': xs) p
-    = ( Syntactic x
-      , Match (InternalType x) (DSetBinding' 1 n p)
+    = ( ShaderData x
+      , Match (FirType x) (DSetBinding' 1 n p)
               (Text "Material binding #" :<>: ShowType n :<>: TypeAndInternalType x
                :<>: Text " isn't compatible with the descriptor binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (DSetBinding' 1 n p))
       , CompatibleMaterial' xs p
@@ -112,8 +112,8 @@ type CompatiblePipeline' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatiblePipeline' as p where
   CompatiblePipeline' '[] p = ()
   CompatiblePipeline' ('(n,x) ': xs) p
-    = ( Syntactic x
-      , Match (InternalType x) (DSetBinding' 0 n p)
+    = ( ShaderData x
+      , Match (FirType x) (DSetBinding' 0 n p)
               (Text "Render property binding #" :<>: ShowType n :<>: TypeAndInternalType x
                 :<>: Text " isn't compatible with the descriptor binding #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (DSetBinding' 0 n p))
       , CompatiblePipeline' xs p
@@ -121,7 +121,7 @@ type family CompatiblePipeline' as p where
 
 type TypeAndInternalType :: Type -> ErrorMessage
 type family TypeAndInternalType x where
-  TypeAndInternalType x = Text " of type " :<>: ShowType x :<>: Text " and internal type " :<>: ShowType (InternalType x)
+  TypeAndInternalType x = Text " of type " :<>: ShowType x :<>: Text " and internal type " :<>: ShowType (FirType x)
 
 
 ------- Matching -----------------------------------

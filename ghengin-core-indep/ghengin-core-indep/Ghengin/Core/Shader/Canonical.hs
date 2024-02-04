@@ -12,14 +12,16 @@ type CanonicalizeDefs :: [ k FIR.:-> FIR.Definition ] -> [ k FIR.:-> FIR.Defini
 type family CanonicalizeDefs m where
   CanonicalizeDefs '[] = '[]
   CanonicalizeDefs ((k 'FIR.:-> def) ': xs)
+-- ROMES:TODO: Perhaps it is better not to canonicalize definitions, and have
+-- it be that the 'ShaderData' type family has to match exactly the shader
+-- type? (See where this is applied)
     = (k 'FIR.:-> CanonicalizeDef def) ': CanonicalizeDefs xs
 
 -- | Canonicalize tries to transform all non-primitive types into primitive
--- types using the 'Syntactic' instance.
+-- types using the 'CanonicalType' instance.
 type CanonicalizeDef :: FIR.Definition -> FIR.Definition
 type family CanonicalizeDef a where
   CanonicalizeDef ( 'FIR.Global storageClass decorations ty ) = 'FIR.Global storageClass decorations (CanonicalType ty)
-  -- TODO: The following two should also probably be canonicalized
   CanonicalizeDef ( 'FIR.Function a b c ) = 'FIR.Function a b c
   CanonicalizeDef ( 'FIR.EntryPoint a b ) = 'FIR.EntryPoint a b
 
@@ -28,6 +30,17 @@ type family CanonicalizeDef a where
 
 -- | Canonical type is a primitive type unchanged or, if the type isn't
 -- primitive, is its FIR.InternalType
+--
+-- ROMES:TODO: An alternative to doing this is probably to have a type family
+-- for instances of the "ToGPU" (to be renamed) class which determines which
+-- types are deemed compatible with the instance..., instead of having to
+-- canonicalize the definitions of the shader in order to guarantee matches
+-- against the "primitive/internal" representations of the ToGPU class
+-- But this may be better:
+--
+--  Ultimately, for every definition in the shader, all types need to have an
+--  "internal" representation that matches something that can be understood by
+--  SPIRV primitives, right?...
 type family CanonicalType a where
   -- We can't handle all primtys through their PrimTy, because of incoherency in instances,
   -- so, instead, we manually implement HasCanonicalType for each PrimTy instance

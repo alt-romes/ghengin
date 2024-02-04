@@ -1,6 +1,8 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Core.Type.Sized where
 
+-- ROMES:TODO: Should this be merged with our type for "internal canonical representation"
+
 import GHC.TypeLits
 import GHC.Float
 
@@ -8,6 +10,10 @@ import FIR.Prim.Struct
 import qualified SPIRV.Image as SPIRV
 import Math.Linear (V(..), M(..))
 import Data.Type.Map
+
+-- ROMES:TODO: I no longer think we should be using this. Instead, we should
+-- use the name of the same method from 'Poke', which we now require instead of
+-- 'Storable'.
 
 class Sized a where
   type SizeOf a :: Nat

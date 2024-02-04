@@ -27,6 +27,7 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Queue
 import Ghengin.Core.Shader (StructVec2(..), StructVec3(..), StructMat4(..), StructFloat(..))
+import Ghengin.Core.Shader.Data
 import Ghengin.Core.Type.Compatible
 import Ghengin.Vulkan.Renderer.Sampler
 import Vulkan.Core10.FundamentalTypes (Extent2D(..))
@@ -55,11 +56,11 @@ viewportIndices
 
 newtype MousePos = MousePos Vec2
   deriving Storable
-  deriving FIR.Syntactic via (StructVec2 "mousePos")
+  deriving ShaderData via (StructVec2 "mousePos")
 
 newtype Time = Time Float
   deriving Storable
-  deriving FIR.Syntactic via (StructFloat "val")
+  deriving ShaderData via (StructFloat "val")
 
 type PipelineProps = [MousePos, Time]
 
