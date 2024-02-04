@@ -191,9 +191,8 @@ render (RenderQueue renderQueue) = Core $ StateT $ \CoreState{frameCounter=fcoun
     
  where
 
-  handleMaterial :: Data.Traversable t
-                 => (Some Material, t (Some2 Mesh, ()))
-                  ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) (Some Material, t (Some2 Mesh, ()))
+  handleMaterial :: (Some Material, MeshMap ())
+                  ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) (Some Material, MeshMap ())
   handleMaterial (Some @Material @ms material, meshes) = StateT $ \graphicsPipeline -> enterD "Material changed" Linear.do
 
     lift (descriptors material) >>= \case
@@ -215,12 +214,12 @@ render (RenderQueue renderQueue) = Core $ StateT $ \CoreState{frameCounter=fcoun
 
       -- For every mesh...
       --    (we still attach no data to the render queue, but we could, and it would be inplace of this unit)
-      (meshes', graphicsPipeline) <- runStateT (Data.traverse handleMesh meshes) graphicsPipeline
+      (meshes', graphicsPipeline) <- runStateT (Data.traverse handleMeshes meshes) graphicsPipeline
 
       return ((Some material'', meshes'), graphicsPipeline)
 
-  handleMesh :: (Some2 Mesh, ()) ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) (Some2 Mesh, ())
-  handleMesh (Some2 @Mesh @ts mesh0, ()) = StateT $ \graphicsPipeline -> enterD "Mesh changed" Linear.do
+  handleMeshes :: [(Some2 Mesh, ())] ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) [(Some2 Mesh, ())]
+  handleMeshes meshes = flip Data.traverse meshes $ \(Some2 @Mesh @ts mesh0, ()) -> StateT $ \graphicsPipeline -> enterD "Mesh changed" Linear.do
 
     logT "Drawing mesh"
 

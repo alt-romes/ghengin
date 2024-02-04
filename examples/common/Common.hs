@@ -64,6 +64,7 @@ newtype Time = Time Float
 
 type PipelineProps = [MousePos, Time]
 
+
 makeMainPipeline :: _ => ((Word32, Word32) -> G.ShaderPipeline _w) -> Renderer (RenderPipeline _w PipelineProps)
 makeMainPipeline shaderPipeline = makeRenderPipeline (shaderPipeline WINDOW_SIZE)
   ( DynamicBinding (Ur (MousePos $ vec2 0 0))

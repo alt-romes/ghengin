@@ -1,4 +1,5 @@
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Ghengin.Core.Shader
   ( module Ghengin.Core.Shader
@@ -8,7 +9,7 @@ module Ghengin.Core.Shader
   )
   where
 
-import Foreign.Storable
+import Graphics.Gl.Block
 import Data.Kind
 import GHC.TypeLits
 import Ghengin.Core.Shader.Canonical
@@ -21,7 +22,7 @@ import qualified FIR.Prim.Image as FIR
 import qualified SPIRV.Image as SPIRV
 import qualified SPIRV.ScalarTy
 
-import Ghengin.Core.Prelude (GHList(..), Float, undefined)
+import Ghengin.Core.Prelude (GHList(..), Float, undefined, Generic)
 
 import Math.Linear
 import qualified FIR
@@ -62,19 +63,15 @@ type FragmentShaderModule defs
 
 type StructFloat :: Symbol -> Type
 newtype StructFloat name = StructFloat Float
-  deriving newtype Storable
 
 type StructVec2 :: Symbol -> Type
 newtype StructVec2 name = StructVec2 Vec2
-  deriving newtype Storable
 
 type StructVec3 :: Symbol -> Type
 newtype StructVec3 name = StructVec3 Vec3
-  deriving newtype Storable
 
 type StructMat4 :: Symbol -> Type
 newtype StructMat4 name = StructMat4 Mat4
-  deriving newtype Storable
 
 instance ShaderData Float where
   type FirType Float = Float

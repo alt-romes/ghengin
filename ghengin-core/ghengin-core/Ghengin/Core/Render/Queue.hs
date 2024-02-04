@@ -23,7 +23,9 @@ See Note [Render Packet Key] and [Material Key]
 
 -- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 -}
-module Ghengin.Core.Render.Queue where
+module Ghengin.Core.Render.Queue
+  -- TODO: Dont' export things like editAtPipelineKey
+  where
 
 import qualified Prelude
 import Prelude.Linear hiding (insert)
@@ -36,6 +38,8 @@ import Data.Typeable
 import Data.Map (Map)
 import qualified Data.Map as M
 import qualified Data.Map.Linear as ML
+import qualified FIR.Pipeline
+import Data.Kind
 
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Render.Pipeline
@@ -49,8 +53,14 @@ import Data.Constraint
 import Unsafe.Coerce (unsafeCoerce)
 
 
-newtype RenderQueue a = RenderQueue (Map TypeRep (Some2 RenderPipeline, Map Unique (Some Material, [(Some2 Mesh, a)])))
+newtype RenderQueue a = RenderQueue (PipelineMap (MaterialMap (MeshMap a)))
   deriving (Prelude.Functor)
+
+type PipelineMap a = Map TypeRep (Some2 RenderPipeline, a)
+type MaterialMap a = Map Unique (Some Material, a)
+type MeshMap a = Map Unique [(Some2 Mesh, a)]
+-- ^ We need a list of meshes for a given mesh key because we may have more
+-- than one of the same mesh in the render queue.
 
 instance Semigroup (RenderQueue α) where
   (<>) = Unsafe.toLinear2 \(RenderQueue q) (RenderQueue q') ->
@@ -60,7 +70,7 @@ instance Semigroup (RenderQueue α) where
           Just
             (p1, M.mergeWithKey
                 (\_ (m1,meshes1) (_m2, meshes2) -> -- (m1 should be the same as m2)
-                  Just (m1, meshes1 ++ meshes2)
+                  Just (m1, M.unionWith (\a b -> a ++ b) meshes1 meshes2)
                 ) id id im1 im2)
         ) id id q q'
 
@@ -74,11 +84,14 @@ instance Monoid (RenderQueue α) where
 
 -- | ... We assume there are no two pipelines with the exact same shaders, so
 -- we can use TypeRep π to differentiate between them
-newtype PipelineKey π p = UnsafePipelineKey TypeRep
+type PipelineKey :: FIR.Pipeline.PipelineInfo -> [Type] -> Type
+data PipelineKey π p = UnsafePipelineKey !TypeRep
 
-newtype MaterialKey π p m = UnsafeMaterialKey (Unique, TypeRep)
+type MaterialKey :: FIR.Pipeline.PipelineInfo -> [Type] -> [Type] -> Type
+data MaterialKey π p ma = UnsafeMaterialKey !Unique !(PipelineKey π p)
 
-newtype MeshKey π p ma me v = UnsafeMeshKey (Unique, Unique, TypeRep) -- (mesh, mat, pipeline)
+type MeshKey :: FIR.Pipeline.PipelineInfo -> [Type] -> [Type] -> [Type] -> [Type] -> Type
+data MeshKey π p ma vertexAttributes meshProperties = UnsafeMeshKey !Unique !(MaterialKey π p ma)
 
 -- | Inserts a pipeline in a render queue, and returns a pipeline key indexing
 -- into that render queue.
@@ -112,12 +125,12 @@ insertMaterial (UnsafePipelineKey pkey)
               Just (p, mats) -> Just $
                 (p, M.insertWith (\_ _ -> error "Inserting a duplicate material??")
                       muid
-                      (Some mat1, [])
+                      (Some mat1, M.empty)
                       mats)
             )
             pkey
             q
-     in (RenderQueue rq', Ur $ UnsafeMaterialKey (muid, pkey))
+     in (RenderQueue rq', Ur $ UnsafeMaterialKey muid (UnsafePipelineKey pkey))
 
 insertMesh :: forall π p ma me vs a
             . Compatible vs me ma p π
@@ -125,10 +138,10 @@ insertMesh :: forall π p ma me vs a
            -> Mesh vs me
             ⊸ RenderQueue ()
             -- there might be more than one mesh with the same key in the
-            -- render queue (if multiple instances of the same meshes are added?)
+            -- render queue (if multiple instances of the same meshesnewtype are added?)
             -- although we might want to figure out a better way of re-using the same mesh multiple times... (big performance opportunities? batch mesh instancing and stuff)
-            ⊸ (RenderQueue (), Ur (MeshKey π p ma me vs))
-insertMesh (UnsafeMaterialKey (mkey, pkey))
+            ⊸ (RenderQueue (), Ur (MeshKey π p ma vs me))
+insertMesh (UnsafeMaterialKey mkey (UnsafePipelineKey pkey))
   = Unsafe.toLinear2 \mesh0 (RenderQueue q) -> -- unsafe bc of map insert
     let (Ur meid, mesh) = meshId mesh0
         rq = M.alter (\case
@@ -137,7 +150,7 @@ insertMesh (UnsafeMaterialKey (mkey, pkey))
                   (p, M.alter (\case
                           Nothing -> error "material not found??"
                           Just (mat, meshes) -> Just $
-                            (mat, (Some2 mesh, ()):meshes)
+                            (mat, M.insertWith (\a b -> a ++ b) meid [(Some2 mesh, ())] meshes)
                           )
                         mkey
                         mats
@@ -145,24 +158,74 @@ insertMesh (UnsafeMaterialKey (mkey, pkey))
               )
               pkey
               q
-     in (RenderQueue rq, Ur $ UnsafeMeshKey (meid, mkey, pkey))
+     in (RenderQueue rq, Ur $ UnsafeMeshKey meid (UnsafeMaterialKey mkey (UnsafePipelineKey pkey)))
 
 
-editPipeline :: PipelineKey π p -> RenderQueue () ⊸ (RenderPipeline π p ⊸ Renderer (RenderPipeline π p)) ⊸ Renderer (RenderQueue ())
-editPipeline (UnsafePipelineKey pkey) = 
-  -- Use withDict to avoid writing alterF with linear functor...
-  withDict (unsafeCoerce (Dict :: Dict (Functor Renderer)) :: Dict (Prelude.Functor Renderer)) go
-    where
-      go :: Prelude.Functor Renderer => RenderQueue () ⊸ (RenderPipeline π p ⊸ Renderer (RenderPipeline π p)) ⊸ Renderer (RenderQueue ())
-      go = Unsafe.toLinear2 \(RenderQueue q) edit ->
-        RenderQueue Prelude.<$>
-          M.alterF (\case Nothing -> error "pipeline key not in rq"
-                          Just (Some2 rp, materials) ->
-                            -- Key guarantees the type of the pipeline at that key is the same,
-                            -- so this is safe
-                            (\x -> Just (Some2 x, materials)) <$> edit (unsafeCoerce rp)
-                   ) pkey q
+-- | Edit a pipeline in a render queue typically using the @propertyAt@ lens
+editPipeline :: PipelineKey π p
+             -> RenderQueue ()
+              ⊸ (RenderPipeline π p ⊸ Renderer (RenderPipeline π p))
+              ⊸ Renderer (RenderQueue ())
+editPipeline pkey rq edit = editAtPipelineKey pkey rq (\(a,b) -> (,b) <$> edit a)
 
+-- | Edit a material in a render queue typically using the @propertyAt@ lens
+editMaterial :: MaterialKey π p ma
+             -> RenderQueue ()
+              ⊸ (Material ma ⊸ Renderer (Material ma))
+              ⊸ Renderer (RenderQueue ())
+editMaterial mkey rq edit =
+  editAtMaterialKey mkey rq (\(a,b) -> (,b) <$> edit a)
+
+-- | Edit all the meshes matching this mesh key in a render queue typically
+-- using the @propertyAt@ lens.
+-- Using this is simpler than "editMeshes'" since we don't have to worry about additional data (which is currently kind of fixed to unit)
+editMeshes :: MeshKey π p ma va me
+           -> RenderQueue ()
+            ⊸ ([Mesh va me] ⊸ Renderer [Mesh va me])
+            ⊸ Renderer (RenderQueue ())
+editMeshes key rq edit =
+  editMeshes' key rq (\ls -> map (,()) <$> edit (map (\(x,()) -> x) ls))
+
+-- | Edit all the meshes matching this mesh key in a render queue typically using the @propertyAt@ lens
+-- ROMES:TODO: maybe each mesh should have an individual key, even if they are
+-- inserted from the same "shared" mesh... will depend on examples and use cases.
+editMeshes' :: MeshKey π p ma va me
+           -> RenderQueue ()
+            ⊸ ([(Mesh va me, ())] ⊸ Renderer [(Mesh va me, ())])
+            ⊸ Renderer (RenderQueue ())
+editMeshes' (UnsafeMeshKey meid mkey) rq edit =
+  editAtMaterialKey mkey rq \(mat,meshmap) -> (mat,) <$>
+    ML.alterF
+      (\case Nothing -> Unsafe.toLinear (\_ -> error "mesh key not in rq") edit
+             Just meshes ->
+               -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
+               Just . map (\(x,y) -> (Some2 x, y)) <$> edit (map (\(Some2 m, a) -> (Unsafe.coerce m, a)) meshes)
+      ) meid meshmap
+
+editAtMaterialKey :: MaterialKey π p ma
+                  -> RenderQueue ()
+                   ⊸ ((Material ma, MeshMap ()) ⊸ Renderer (Material ma, MeshMap ()))
+                   ⊸ Renderer (RenderQueue ())
+editAtMaterialKey (UnsafeMaterialKey mkey pkey) rq edit = do
+  editAtPipelineKey pkey rq (\(pip,mats) -> (pip,) <$> ML.alterF
+    (\case Nothing -> Unsafe.toLinear (\_ -> error "material key not in rq") edit
+           Just (Some mat, meshes) ->
+             -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
+             (\(x, ms) -> Just (Some x, ms)) <$> edit (Unsafe.coerce mat, meshes)
+    ) mkey mats)
+
+editAtPipelineKey
+  :: PipelineKey π p
+  -> RenderQueue ()
+   ⊸ ((RenderPipeline π p, MaterialMap (MeshMap ())) ⊸ Renderer (RenderPipeline π p, MaterialMap (MeshMap ())))
+   ⊸ Renderer (RenderQueue ())
+editAtPipelineKey (UnsafePipelineKey pkey) (RenderQueue q) edit = RenderQueue <$>
+  ML.alterF (\case Nothing -> Unsafe.toLinear (\_ -> error "pipeline key not in rq") edit
+                   Just (Some2 rp, materials) ->
+                     -- Key guarantees the type of the pipeline at that key is the same,
+                     -- so this is safe
+                     (\(x, ms) -> Just (Some2 x, ms)) <$> edit (Unsafe.coerce rp, materials)
+            ) pkey q
 
 freeRenderQueue :: RenderQueue ()
                  ⊸ Renderer ()
@@ -173,9 +236,15 @@ freeRenderQueue (RenderQueue rq) = Linear.do
     -- For every material...
     matsunits <- DL.traverse (\(Some @Material @ms material, meshes) -> enterD "Freeing material" Linear.do
 
-      -- For every mesh...
-      meshunits <- DL.traverse (\(Some2 @Mesh @ts mesh, ()) -> enterD "Freeing mesh" $
-                                                              freeMesh mesh) meshes
+      -- For all meshes...
+      meshunits <- DL.traverse (\meshes' -> Linear.do
+        -- For every mesh with the same id...
+        meshunits' <- DL.traverse (\(Some2 @Mesh @ts mesh, ()) -> enterD "Freeing mesh" Linear.do
+          freeMesh mesh
+          ) meshes' -- a list of meshes with the same id
+        pure (consume meshunits')
+        ) meshes
+
       freeMaterial material
       pure (consume meshunits)
 

@@ -9,6 +9,7 @@ module Data.Map.Linear
   , M.empty
   ) where
 
+import Data.Constraint
 import Data.V.Linear.Internal (V(..))
 import qualified Data.Vector as V
 import qualified Prelude
@@ -22,6 +23,7 @@ import Data.Map.Internal (Map(..))
 import qualified Data.Map.Internal as M
 
 import Unsafe.Linear
+import Unsafe.Coerce
 
 -- | \(O(n+m)\). An unsafe general combining function.
 --
@@ -78,6 +80,24 @@ traverseWithKey f = toLinear go
     go (Bin s k v l r) = (flip (Bin s k)) <$> (go l) <*> (f k v) <*> (go r)
 {-# INLINE traverseWithKey #-}
 
+alterF :: ∀ f k a. (Functor f, Prelude.Ord k)
+       => (Maybe a ⊸ f (Maybe a))
+       -- ^ The edit function is also guaranteed to be used exactly once, since
+       -- it can only be called at the value matching the unique key in the map,
+       -- or on Nothing.
+        ⊸ k
+       -> Map k a
+        ⊸ f (Map k a)
+alterF = toLinear3 \edit key m ->
+  let
+    go :: Prelude.Functor f => f (Map k a)
+    go = M.alterF (Prelude.Linear.forget edit) key m
+  in
+  -- Use withDict to be able to use the original 'alterF' with the unrestricted
+  -- Functor instance, instead of copying over the implementation (harder to
+  -- tell that it is correct tho!)
+  withDict (unsafeCoerce (Dict :: Dict (Functor f)) :: Dict (Prelude.Functor f)) go
+
 instance Data.Linear.Functor (Map k) where
   fmap f = toLinear2 M.map (toLinear f)
   {-# INLINE fmap #-}
@@ -86,3 +106,7 @@ instance Data.Linear.Functor (Map k) where
 instance Data.Linear.Traversable (Map k) where
   traverse f = traverseWithKey (\_ -> f)
   {-# INLINE traverse #-}
+
+
+
+

@@ -8,6 +8,7 @@ module Ghengin.Core.Shader.Data
   ) where
 
 import Data.Kind
+import Data.Constraint
 import Type.Reflection
 import Graphics.Gl.Block
 import FIR.Prim.Types
@@ -31,8 +32,8 @@ import FIR.Layout as L
 -- We could also require both Poke and Block and poke @Base = write430 and poke @Extended = write140@
 --
 -- Or perhaps we don't need 'Poke' at all, because we don't need type level alignment, only size?
-class -- (∀ lay. Poke ty (lay :: Layout)) => -- ROMES:TODO: We can't migrate to 'Poke' yet, drop 'Syntactic' first.
-    Block ty =>
+class
+    -- Block ty => -- ROMES:TODO: Not yet.
     ShaderData ty where
 
   -- | The primitive FIR shader type whose memory representation matches the result
@@ -73,5 +74,5 @@ class -- (∀ lay. Poke ty (lay :: Layout)) => -- ROMES:TODO: We can't migrate t
   -- instances for those.
   --
   -- ROMES:TODO: I'm not sure how it will work with images... they don't instance 'Poke'.
-  proofSameSize :: PackedSize ty :~: L.SizeOf (FirType ty)
+  -- proofSameSize :: PackedSize ty :~: PackedSize (FirType ty)
 

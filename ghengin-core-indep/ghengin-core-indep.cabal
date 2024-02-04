@@ -110,6 +110,7 @@ library
 
                       gl-block,
                       geomancy,
+                      constraints,
 
                       linear-utils
 

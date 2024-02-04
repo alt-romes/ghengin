@@ -49,8 +49,8 @@ mesh during the game you must free it explicitly. TODO: Enforce it somehow: line
 
  -}
 
-type Mesh :: [Type] -- ^ Properties
-          -> [Type] -- ^ Vertex properties
+type Mesh :: [Type] -- ^ Vertex attributes
+          -> [Type] -- ^ Mesh properties
           -> Type
 data Mesh ts props where
   SimpleMesh :: !VertexBuffer -- ^ vertexBuffer, a vector of vertices in buffer format
@@ -64,7 +64,7 @@ data Mesh ts props where
   IndexedMesh :: !VertexBuffer -- ^ vertexBuffer, a vector of vertices in buffer format
                ⊸ !Index32Buffer
                ⊸ (Alias DescriptorSet, Alias ResourceMap) -- ^ Descriptors for property bindings
-               ⊸ Unique
+               ⊸ !Unique
               -> Mesh ts '[]
   MeshProperty :: forall p vs ps
                 . PropertyBinding p

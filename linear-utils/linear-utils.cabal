@@ -89,5 +89,6 @@ library
                       reference-counting,
                       containers,
                       vector,
+                      constraints,
                       bytestring
 

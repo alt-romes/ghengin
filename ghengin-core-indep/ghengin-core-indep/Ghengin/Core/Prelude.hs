@@ -6,6 +6,7 @@ module Ghengin.Core.Prelude
   -- * Re-exports
     module Prelude.Linear
   , module Data.Tuple.Linear
+  , module Data.Bifunctor.Linear
   , module Control.Functor.Linear
   , module Control.Monad.IO.Class.Linear
   , module System.IO.Linear

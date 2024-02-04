@@ -10,6 +10,7 @@ import Geomancy.Vec3
 import Geomancy.Mat4
 import Geomancy.Transform
 import Ghengin.Core
+import Ghengin.Core.Shader.Data
 import Ghengin.Core.Mesh
 import Ghengin.Core.Material
 import Ghengin.Core.Prelude as Linear
@@ -17,8 +18,11 @@ import Ghengin.Core.Render
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Queue
+import Data.List.Linear
 import qualified Data.Monoid.Linear as LMon
 import qualified Prelude
+import qualified Math.Linear as FIR
+import qualified FIR
 
 import Shaders
 
@@ -81,15 +85,20 @@ cubeVertices = [
     blue = vec3 0.1 0.1 0.8
     green = vec3 0.1 0.8 0.1
 
-gameLoop :: RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop rq = Linear.do
+gameLoop :: MeshKey _ _ _ _ '[Transform] -> Float -> RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop mkey rotY rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 
-  rq <- render rq
+  rq <- render rq 
+  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $ rotateY rotY)) ↑)
 
-  gameLoop rq
+  gameLoop mkey (rotY+0.01) rq
+
+-- Transform non-compositional instance, just for demo
+instance ShaderData Transform where
+  type FirType Transform = FIR.Struct '[ "m" 'FIR.:-> FIR.M 4 4 Float ]
 
 main :: Prelude.IO ()
 main = do
@@ -103,7 +112,7 @@ main = do
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-    rq <- gameLoop rq
+    rq <- gameLoop mshkey 0 rq
 
     (freeRenderQueue rq ↑)
 
