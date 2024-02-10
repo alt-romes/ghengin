@@ -111,6 +111,7 @@ library
                       gl-block,
                       geomancy,
                       constraints,
+                      ptrdiff,
 
                       linear-utils
 

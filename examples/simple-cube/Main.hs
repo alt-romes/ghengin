@@ -18,7 +18,7 @@ import Ghengin.Core.Render
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Queue
-import Data.List.Linear
+import Data.List.Linear ()
 import qualified Data.Monoid.Linear as LMon
 import qualified Prelude
 import qualified Math.Linear as FIR

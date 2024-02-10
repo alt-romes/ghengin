@@ -55,11 +55,9 @@ viewportIndices
     ]
 
 newtype MousePos = MousePos Vec2
-  deriving Storable
   deriving ShaderData via (StructVec2 "mousePos")
 
 newtype Time = Time Float
-  deriving Storable
   deriving ShaderData via (StructFloat "val")
 
 type PipelineProps = [MousePos, Time]

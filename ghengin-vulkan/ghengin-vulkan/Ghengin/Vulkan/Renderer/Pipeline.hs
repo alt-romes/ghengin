@@ -170,6 +170,7 @@ createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstan
                         , scissors      = [] -- Empty because it is dynamic
                         }
 
+    -- ROMES:TODO: Make things like CullMode configurable, perhaps with CPP?
     rasterizerInfo = Vk.PipelineRasterizationStateCreateInfo
                      { next  = ()
                      , flags = zero
@@ -178,10 +179,10 @@ createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstan
                      , polygonMode = Vk.POLYGON_MODE_FILL -- Fill the area of the polygon with fragments; VK_POLYGON_MODE_LINE: polygon edges drawn as lines (WIREFRAME?); VK_POLYGON_MODE_POINT: polygon vertices are drawn as points (other modes require GPU feature)
                      , lineWidth = 1 -- Thickness of lines in terms of number of fragments (Any >1 requires wideLines feature)
                        -- Face culling: https://learnopengl.com/Advanced-OpenGL/Face-culling
-                       -- cullMode = Vk.CULL_MODE_BACK_BIT    -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)
-                     , cullMode = Vk.CULL_MODE_NONE
-                       -- frontFace = Vk.FRONT_FACE_COUNTER_CLOCKWISE -- Default vertice front face to be defined clock wise
-                     , frontFace = Vk.FRONT_FACE_CLOCKWISE
+                     , cullMode = Vk.CULL_MODE_BACK_BIT    -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)
+                       -- cullMode = Vk.CULL_MODE_NONE
+                     , frontFace = Vk.FRONT_FACE_COUNTER_CLOCKWISE -- Default vertice front face to be defined clock wise
+                       -- frontFace = Vk.FRONT_FACE_CLOCKWISE
                      , depthBiasEnable = False -- Biasing depth values based on a fragment's slope (could be used for shadow mapping)
                      , depthBiasConstantFactor = 0
                      , depthBiasClamp = 0

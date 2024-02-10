@@ -53,6 +53,7 @@ import Prelude.Linear hiding ( IO, log
                              , fst, snd
                              -- For now, we don't adhere to the "better Num" from linear base
                              , Num(..), FromInteger(..), Ring(..), Additive(..), AddIdentity(..), AdditiveGroup(..), Multiplicative(..), MultIdentity(..), Semiring(..), Ring(..), FromInteger(..)
+                             , transpose
                              )
 import Control.Functor.Linear hiding (get,modify)
 import qualified Control.Functor.Linear as Linear
