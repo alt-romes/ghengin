@@ -28,6 +28,7 @@ import qualified Ghengin.Core.Shader as G
 -- * Colored Triangle Shader
 --------------------------------------------------------------------------------
 
+-- See FIR.Validation.Layout about locations/component layouts...
 type VertexInput
   = '[ Slot 0 0 ':-> V 3 Float
      , Slot 1 0 ':-> V 3 Float ]

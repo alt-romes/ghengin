@@ -18,6 +18,18 @@ import Foreign.Ptr.Diff (Diff(..), peekDiffOff, pokeDiffOff)
 import Foreign.Storable
 import Prelude
 
+
+-- ROMES:TODO: It turns out alignment for Vertices is even something else entirely!!!
+-- See FIR.Validation.Layout for information about the layout of vertice
+-- information in shaders, slots (locations, components), and references to the
+-- specification...
+-- https://sheaf.gitlab.io/fir/FIR-Validation-Layout.html
+--
+-- So I don't even know if it is possible to provide an instance for a vertex
+-- of any attributes. Maybe FIR's Poke can do it...
+--
+-- Otherwise, we may only allow V4 vertice data and align to that...
+
 data Vertex vs where
 
   -- | A vertex with a single property
@@ -83,7 +95,11 @@ instance (Block (Vertex (y:ys)), Block x) => Block (Vertex (x:y:ys)) where
     writePacked p (Diff o) (Sin a)
     writePacked p (Diff $ o + sizeOfPacked (Proxy @(Vertex '[x]))) b
 
--- deriving via () instance Storable (Vertex '[x])
+-- This isn't quite right since Vertices need to abide by the
+-- location/component layout specification... but since Std140 gives some
+-- padding this should work fine if you are using Vertices with Vector attributes only.
+deriving via (Std140 (Vertex '[x])) instance Block x => Storable (Vertex '[x])
+deriving via (Std140 (Vertex (x:y:ys))) instance (Block x, Block (Vertex (y:ys))) => Storable (Vertex (x:y:ys))
 
 instance Show x => Show (Vertex '[x]) where
   show (Sin x) = show x
