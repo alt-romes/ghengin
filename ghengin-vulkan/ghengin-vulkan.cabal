@@ -34,7 +34,7 @@ flag dev
 common common-flags
 
   if flag(enable-culling)
-    ghc-options: -DVULKAN_ENABLE_CULLING
+    cpp-options: -DVULKAN_ENABLE_CULLING
 
   if flag(dev)
     ghc-options: -Wall -O0

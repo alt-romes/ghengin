@@ -25,7 +25,7 @@ packages:
           -- ~/Developer/gl-block/
 
 package ghengin-vulkan
-  flags: -enable-culling
+  flags: +enable-culling
 
 package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3
