@@ -16,6 +16,7 @@ import Ghengin.Core.Shader.Canonical
 import Ghengin.Core.Shader.Pipeline
 import Geomancy.Vec2
 import Geomancy.Vec3
+import Geomancy.Vec4
 import Geomancy.Mat4
 
 import qualified FIR.Prim.Image as FIR
@@ -70,6 +71,9 @@ newtype StructVec2 name = StructVec2 Vec2
 type StructVec3 :: Symbol -> Type
 newtype StructVec3 name = StructVec3 Vec3
 
+type StructVec4 :: Symbol -> Type
+newtype StructVec4 name = StructVec4 Vec4
+
 type StructMat4 :: Symbol -> Type
 newtype StructMat4 name = StructMat4 Mat4
 
@@ -85,8 +89,14 @@ instance KnownSymbol name => ShaderData (StructVec2 name) where
 instance ShaderData Vec3 where
   type FirType Vec3 = V 3 Float
 
+instance ShaderData Vec4 where
+  type FirType Vec4 = V 4 Float
+
 instance KnownSymbol name => ShaderData (StructVec3 name) where
   type FirType (StructVec3 name) = FIR.Struct '[ name 'FIR.:-> V 3 Float ]
+
+instance KnownSymbol name => ShaderData (StructVec4 name) where
+  type FirType (StructVec4 name) = FIR.Struct '[ name 'FIR.:-> V 4 Float ]
 
 instance ShaderData Mat4 where
   type FirType Mat4 = M 4 4 Float

@@ -37,7 +37,7 @@ common common-flags
     ghengin-core, ghengin-vulkan, ghengin-geometry, ghengin-core-indep,
     ghengin-camera, mtl, vector, hsnoise, containers, random, linear-base,
     derive-storable, geomancy, vulkan >= 3.26, time, fir, filepath, text-short,
-    vector-sized, base >=4.19.0.0
+    vector-sized, base >=4.19.0.0, os-string
 
   if flag(debug)
     ghc-options: -Wall

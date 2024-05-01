@@ -17,11 +17,15 @@ packages:
 -------------------------------
 -- DEBUG PATCHES
 -------------------------------
+          -- ~/Developer/vulkan
           -- ~/Developer/vector/vector
           -- ~/Developer/vector/vector-stream/
           -- ~/Developer/linear-base-fork/
           -- ~/Developer/fir/
           -- ~/Developer/gl-block/
+
+package ghengin-vulkan
+  flags: -enable-culling
 
 package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3
@@ -29,7 +33,12 @@ package dear-imgui
 package fir
   flags: +internals +sop
 
+constraints:
+    linear-generics>0.2.2
+
 allow-newer:
+    fir:*,
+    linear-base:*,
     dear-imgui:*,
     vector-sized:vector,
     wavefront:base,
@@ -52,18 +61,13 @@ source-repository-package
   type:     git
   location: https://github.com/alt-romes/wavefront.git
 
-source-repository-package
-  type:     git
-  location: https://github.com/haskell-game/dear-imgui.hs.git
+-- source-repository-package
+--   type:     git
+--   location: https://github.com/haskell-game/dear-imgui.hs.git
 
 source-repository-package
   type:     git
   location: https://github.com/alt-romes/reference-counting.git
-
-source-repository-package
-  type:     git
-  location: https://github.com/alt-romes/linear-apecs.git
-  subdir:   linear-apecs
 
 -----------------------------
 -- GHC 9.8 support patches --

@@ -18,6 +18,11 @@ category:           Graphics
 build-type:         Simple
 extra-doc-files:    ../CHANGELOG.md
 
+flag enable-culling
+  default: True
+  manual: True
+  description: Use CULL_MODE_BACK_BIT if True, and CULL_MODE_NONE otherwise.
+
 flag dev
   default: True
   manual: True
@@ -27,6 +32,9 @@ flag dev
                -- Enable with -f+dev
 
 common common-flags
+
+  if flag(enable-culling)
+    ghc-options: -DVULKAN_ENABLE_CULLING
 
   if flag(dev)
     ghc-options: -Wall -O0

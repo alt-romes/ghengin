@@ -31,52 +31,52 @@ type CubeMesh = Mesh '[Vec3, Vec3] '[Transform]
 cubeVertices :: [Vertex '[Vec3, Vec3]]
 cubeVertices = [
   -- left face (white)
-  vec3 (-0.5) (-0.5) (-0.5) :&: white,
-  vec3 (-0.5) (0.5)  (0.5)  :&: white,
-  vec3 (-0.5) (-0.5) (0.5)  :&: white,
-  vec3 (-0.5) (-0.5) (-0.5) :&: white,
-  vec3 (-0.5) (0.5)  (-0.5) :&: white,
-  vec3 (-0.5) (0.5)  (0.5)  :&: white,
+  vec3 (-0.20) (-0.20) (-0.20) :&: white,
+  vec3 (-0.20) (0.20)  (0.20)  :&: white,
+  vec3 (-0.20) (-0.20) (0.20)  :&: white,
+  vec3 (-0.20) (-0.20) (-0.20) :&: white,
+  vec3 (-0.20) (0.20)  (-0.20) :&: white,
+  vec3 (-0.20) (0.20)  (0.20)  :&: white,
 
   -- right face (yellow)
-  vec3 0.5 (-0.5) (-0.5) :&: yellow,
-  vec3 0.5 (0.5)  (0.5)  :&: yellow,
-  vec3 0.5 (-0.5) (0.5)  :&: yellow,
-  vec3 0.5 (-0.5) (-0.5) :&: yellow,
-  vec3 0.5 (0.5)  (-0.5) :&: yellow,
-  vec3 0.5 (0.5)  (0.5)  :&: yellow,
+  vec3 0.20 (-0.20) (-0.20) :&: yellow,
+  vec3 0.20 (0.20)  (0.20)  :&: yellow,
+  vec3 0.20 (-0.20) (0.20)  :&: yellow,
+  vec3 0.20 (-0.20) (-0.20) :&: yellow,
+  vec3 0.20 (0.20)  (-0.20) :&: yellow,
+  vec3 0.20 (0.20)  (0.20)  :&: yellow,
 
   -- top face (orange, remember y axis points down)
-  vec3 (-0.5) (-0.5) (-0.5) :&: orange,
-  vec3 (0.5)  (-0.5) (0.5)  :&: orange,
-  vec3 (-0.5) (-0.5) (0.5)  :&: orange,
-  vec3 (-0.5) (-0.5) (-0.5) :&: orange,
-  vec3 (0.5)  (-0.5) (-0.5) :&: orange,
-  vec3 (0.5)  (-0.5) (0.5)  :&: orange,
+  vec3 (-0.20) (-0.20) (-0.20) :&: orange,
+  vec3 (0.20)  (-0.20) (0.20)  :&: orange,
+  vec3 (-0.20) (-0.20) (0.20)  :&: orange,
+  vec3 (-0.20) (-0.20) (-0.20) :&: orange,
+  vec3 (0.20)  (-0.20) (-0.20) :&: orange,
+  vec3 (0.20)  (-0.20) (0.20)  :&: orange,
 
   -- bottom face (red)
-  vec3 (-0.5) (0.5) (-0.5) :&: red,
-  vec3 (0.5)  (0.5) (0.5)  :&: red,
-  vec3 (-0.5) (0.5) (0.5)  :&: red,
-  vec3 (-0.5) (0.5) (-0.5) :&: red,
-  vec3 (0.5)  (0.5) (-0.5) :&: red,
-  vec3 (0.5)  (0.5) (0.5)  :&: red,
+  vec3 (-0.20) (0.20) (-0.20) :&: red,
+  vec3 (0.20)  (0.20) (0.20)  :&: red,
+  vec3 (-0.20) (0.20) (0.20)  :&: red,
+  vec3 (-0.20) (0.20) (-0.20) :&: red,
+  vec3 (0.20)  (0.20) (-0.20) :&: red,
+  vec3 (0.20)  (0.20) (0.20)  :&: red,
 
   -- nose face (blue)
-  vec3 (-0.5) (-0.5) (0.5) :&: blue,
-  vec3 (0.5)  (0.5)  (0.5) :&: blue,
-  vec3 (-0.5) (0.5)  (0.5) :&: blue,
-  vec3 (-0.5) (-0.5) (0.5) :&: blue,
-  vec3 (0.5)  (-0.5) (0.5) :&: blue,
-  vec3 (0.5)  (0.5)  (0.5) :&: blue,
+  vec3 (-0.20) (-0.20) (0.20) :&: blue,
+  vec3 (0.20)  (0.20)  (0.20) :&: blue,
+  vec3 (-0.20) (0.20)  (0.20) :&: blue,
+  vec3 (-0.20) (-0.20) (0.20) :&: blue,
+  vec3 (0.20)  (-0.20) (0.20) :&: blue,
+  vec3 (0.20)  (0.20)  (0.20) :&: blue,
 
   -- tail face (green)
-  vec3 (-0.5) (-0.5) (-0.5) :&: green,
-  vec3 (0.5)  (0.5)  (-0.5) :&: green,
-  vec3 (-0.5) (0.5)  (-0.5) :&: green,
-  vec3 (-0.5) (-0.5) (-0.5) :&: green,
-  vec3 (0.5)  (-0.5) (-0.5) :&: green,
-  vec3 (0.5)  (0.5)  (-0.5) :&: green]
+  vec3 (-0.20) (-0.20) (-0.20) :&: green,
+  vec3 (0.20)  (0.20)  (-0.20) :&: green,
+  vec3 (-0.20) (0.20)  (-0.20) :&: green,
+  vec3 (-0.20) (-0.20) (-0.20) :&: green,
+  vec3 (0.20)  (-0.20) (-0.20) :&: green,
+  vec3 (0.20)  (0.20)  (-0.20) :&: green]
   where
     white = vec3 0.9 0.9 0.9
     yellow = vec3 0.8 0.8 0.1
@@ -96,7 +96,7 @@ gameLoop mkey rotY rq = Linear.do
 
   gameLoop mkey (rotY+0.01) rq
 
--- Transform non-compositional instance, just for demo
+-- non-compositional instance for "Transform", just for demo
 instance ShaderData Transform where
   type FirType Transform = FIR.Struct '[ "m" 'FIR.:-> FIR.M 4 4 Float ]
 

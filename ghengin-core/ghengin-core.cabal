@@ -81,6 +81,13 @@ common common-flags
 library
     import:           common-flags
 
+
+    -- 9.8.2 seems to have changed something regarding compilation order which
+    -- makes vulkan fail to compile in an hs-boot module with an empty type
+    -- family declaration which is closed in the main module (Extends)
+    -- REPORT TO GHC that vulkan-3.26.1 builds with ghc 9.8.1 but not with 9.8.2
+    build-depends:    ghc == 9.8.1
+
     visibility:       public
 
     exposed-modules:  Ghengin.Core,
@@ -125,6 +132,7 @@ library
                       vulkan,
                       linear-base,
                       reference-counting,
+                      os-string,
 
                       containers,
                       mtl,
