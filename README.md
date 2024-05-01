@@ -3,6 +3,14 @@ A work in progress game engine.
 ## Demos
 
 See the executables from `ghegin-games.cabal` in the `examples/` directory.
+
+The working examples are the following. In sequence, they build up to a
+"user-space" higher-level engine using the Core of the engine only (`ghengin-core`).
+
+* `simple-triangle` is a simple 2D triangle
+* `simple-cube` is a simple 3D cube (no projections)
+* More to come...
+
 The few work in progress/unpolished executables are:
 * `ocean-waves`
 * `planets-core`
@@ -12,7 +20,7 @@ The few work in progress/unpolished executables are:
 
 ### Ocean waves
 
-Based on https://dl.acm.org/doi/abs/10.1145/15922.15894
+Based on https://dl.acm.org/doi/abs/10.1145/15922.15894 (not yet done)
 
 
 ## Unique? features:
@@ -21,8 +29,8 @@ Based on https://dl.acm.org/doi/abs/10.1145/15922.15894
     a lot of compile time validation and runtime data is based on the shader
 * Compile time validation of compatibility between the game defined materials,
     meshes and the game defined shader programs.
-* It's written in Haskell
-* ...
+* The core of the engine is all in the linear IO monad (Haskell + linear types).
+* Many more...
 
 ## Key ideas
 
