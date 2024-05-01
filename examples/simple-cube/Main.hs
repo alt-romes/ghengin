@@ -30,53 +30,54 @@ type CubeMesh = Mesh '[Vec3, Vec3] '[Transform]
 
 cubeVertices :: [Vertex '[Vec3, Vec3]]
 cubeVertices = [
+
   -- left face (white)
-  vec3 (-0.20) (-0.20) (-0.20) :&: white,
-  vec3 (-0.20) (0.20)  (0.20)  :&: white,
-  vec3 (-0.20) (-0.20) (0.20)  :&: white,
-  vec3 (-0.20) (-0.20) (-0.20) :&: white,
-  vec3 (-0.20) (0.20)  (-0.20) :&: white,
-  vec3 (-0.20) (0.20)  (0.20)  :&: white,
+  vec3 (-0.5) (-0.5) (-0.5) :&: white,
+  vec3 (-0.5) (-0.5) (0.5)  :&: white,
+  vec3 (-0.5) (0.5)  (0.5)  :&: white,
+  vec3 (-0.5) (0.5) (0.5) :&: white,
+  vec3 (-0.5) (0.5)  (-0.5)  :&: white,
+  vec3 (-0.5) (-0.5)  (-0.5) :&: white,
 
   -- right face (yellow)
-  vec3 0.20 (-0.20) (-0.20) :&: yellow,
-  vec3 0.20 (0.20)  (0.20)  :&: yellow,
-  vec3 0.20 (-0.20) (0.20)  :&: yellow,
-  vec3 0.20 (-0.20) (-0.20) :&: yellow,
-  vec3 0.20 (0.20)  (-0.20) :&: yellow,
-  vec3 0.20 (0.20)  (0.20)  :&: yellow,
+  vec3 (-0.5) (-0.5) (-0.5) :&: yellow,
+  vec3 0.5 (0.5)  (-0.5)  :&: yellow,
+  vec3 0.5 (-0.5) (-0.5)  :&: yellow,
+  vec3 (-0.5) (-0.5) (-0.5) :&: yellow,
+  vec3 (-0.5) (0.5)  (-0.5) :&: yellow,
+  vec3 0.5 (0.5)  (-0.5)  :&: yellow,
 
   -- top face (orange, remember y axis points down)
-  vec3 (-0.20) (-0.20) (-0.20) :&: orange,
-  vec3 (0.20)  (-0.20) (0.20)  :&: orange,
-  vec3 (-0.20) (-0.20) (0.20)  :&: orange,
-  vec3 (-0.20) (-0.20) (-0.20) :&: orange,
-  vec3 (0.20)  (-0.20) (-0.20) :&: orange,
-  vec3 (0.20)  (-0.20) (0.20)  :&: orange,
+  vec3 (-0.5) (-0.5) (-0.5) :&: orange,
+  vec3 (0.5) (-0.5) (-0.5)  :&: orange,
+  vec3 (0.5)  (-0.5) (0.5)  :&: orange,
+  vec3 (-0.5) (-0.5) (-0.5) :&: orange,
+  vec3 (0.5)  (-0.5) (0.5)  :&: orange,
+  vec3 (-0.5)  (-0.5) (0.5) :&: orange,
 
   -- bottom face (red)
-  vec3 (-0.20) (0.20) (-0.20) :&: red,
-  vec3 (0.20)  (0.20) (0.20)  :&: red,
-  vec3 (-0.20) (0.20) (0.20)  :&: red,
-  vec3 (-0.20) (0.20) (-0.20) :&: red,
-  vec3 (0.20)  (0.20) (-0.20) :&: red,
-  vec3 (0.20)  (0.20) (0.20)  :&: red,
+  vec3 (-0.5) (0.5) (-0.5) :&: red,
+  vec3 (-0.5) (0.5) (0.5)  :&: red,
+  vec3 (0.5)  (0.5) (0.5)  :&: red,
+  vec3 (-0.5) (0.5) (-0.5) :&: red,
+  vec3 (0.5)  (0.5) (0.5)  :&: red,
+  vec3 (0.5)  (0.5) (-0.5) :&: red,
 
   -- nose face (blue)
-  vec3 (-0.20) (-0.20) (0.20) :&: blue,
-  vec3 (0.20)  (0.20)  (0.20) :&: blue,
-  vec3 (-0.20) (0.20)  (0.20) :&: blue,
-  vec3 (-0.20) (-0.20) (0.20) :&: blue,
-  vec3 (0.20)  (-0.20) (0.20) :&: blue,
-  vec3 (0.20)  (0.20)  (0.20) :&: blue,
+  vec3 (0.5) (0.5) (-0.5) :&: blue,
+  vec3 (0.5)  (0.5)  (0.5) :&: blue,
+  vec3 (0.5) (-0.5)  (0.5) :&: blue,
+  vec3 (0.5) (-0.5) (0.5) :&: blue,
+  vec3 (0.5)  (-0.5) (-0.5) :&: blue,
+  vec3 (0.5)  (0.5)  (-0.5) :&: blue,
 
   -- tail face (green)
-  vec3 (-0.20) (-0.20) (-0.20) :&: green,
-  vec3 (0.20)  (0.20)  (-0.20) :&: green,
-  vec3 (-0.20) (0.20)  (-0.20) :&: green,
-  vec3 (-0.20) (-0.20) (-0.20) :&: green,
-  vec3 (0.20)  (-0.20) (-0.20) :&: green,
-  vec3 (0.20)  (0.20)  (-0.20) :&: green]
+  vec3 (-0.5) (0.5) (0.5) :&: green,
+  vec3 (-0.5) (-0.5)  (0.5) :&: green,
+  vec3 (0.5)  (0.5)  (0.5) :&: green,
+  vec3 (-0.5) (-0.5) (0.5) :&: green,
+  vec3 (0.5)  (-0.5)  (0.5) :&: green,
+  vec3 (0.5)  (0.5) (0.5) :&: green]
   where
     white = vec3 0.9 0.9 0.9
     yellow = vec3 0.8 0.8 0.1
@@ -86,15 +87,19 @@ cubeVertices = [
     green = vec3 0.1 0.8 0.1
 
 gameLoop :: MeshKey _ _ _ _ '[Transform] -> Float -> RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop mkey rotY rq = Linear.do
+gameLoop mkey rot rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 
   rq <- render rq 
-  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $ rotateY rotY)) ↑)
+  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
+    -- We're not using any projection of sorts, so we need to make the cube fit
+    -- in the xyz vulkan space, where x and y go from -1 to 1 but z goes from 0
+    -- to 1
+    scale 0.5 <> rotateY rot <> rotateX (-rot) <> translate 0 0 0.5)) ↑)
 
-  gameLoop mkey (rotY+0.01) rq
+  gameLoop mkey (rot+0.01) rq
 
 -- non-compositional instance for "Transform", just for demo
 instance ShaderData Transform where

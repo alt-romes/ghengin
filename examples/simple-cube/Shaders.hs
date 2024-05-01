@@ -48,10 +48,10 @@ type VertexDefs =
 
 vertex :: G.VertexShaderModule VertexDefs _
 vertex = shader do
-    ~(Vec3 x y _) <- #in_position
+    ~(Vec3 x y z) <- #in_position
     color         <- #in_color
     mat           <- use @(Name "transform" :.: Name "m")
-    #gl_Position .= mat !*^ (Vec4 x y 0 1)
+    #gl_Position .= mat !*^ (Vec4 x y z 1)
     #frag_color  .= color
 
 fragment :: G.FragmentShaderModule '["in_color" ':-> Input '[Location 0] (V 3 Float)] _
