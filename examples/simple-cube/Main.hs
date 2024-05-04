@@ -108,7 +108,7 @@ instance ShaderData Transform where
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (640, 480) Linear.do
+  runCore (640, 640) Linear.do
 
     pipeline <- (makeRenderPipeline shaderPipeline GHNil ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)

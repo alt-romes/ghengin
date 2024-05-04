@@ -35,16 +35,16 @@ import Shaders
 triangleVertices :: [Vertex '[Vec3]]
 triangleVertices =
   [ Sin $ vec3 0 (-0.5) 1
-  , Sin $ vec3 0.5 0.5 1
   , Sin $ vec3 (-0.5) 0.5 1
+  , Sin $ vec3 0.5 0.5 1
   ]
 
 -- We also fail to use Vec2 here because of alignment issues
 triangleVerticesWithColors :: [Vertex '[Vec3, Vec3]]
 triangleVerticesWithColors =
   [ vec3 0 (-0.5)   1 :&: vec3 1 0 0
-  , vec3 0.5 0.5    1 :&: vec3 0 1 0
   , vec3 (-0.5) 0.5 1 :&: vec3 0 0 1
+  , vec3 0.5 0.5    1 :&: vec3 0 1 0
   ]
 
 gameLoop :: RenderQueue () ⊸ Core (RenderQueue ())
@@ -63,7 +63,7 @@ main = do
   runCore (640, 480) Linear.do
 
     -- Use the simple or colored Triangle?
-    let simple = True
+    let simple = False
 
     if simple then Linear.do
       pipeline <- (makeRenderPipeline shaderPipelineSimple GHNil ↑)
