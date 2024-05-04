@@ -34,8 +34,8 @@ common common-flags
   build-depends: generics-sop
   build-depends:
     -- Can't depend on ghengin-core and friends without instancing them because of backpack
-    ghengin-core, ghengin-core:vulkan, ghengin-geometry, ghengin-core:backend-independent-bits,
-    ghengin-camera, mtl, vector, hsnoise, containers, random, linear-base,
+    ghengin-core, ghengin-core:vulkan, ghengin:geometry, ghengin-core:backend-independent-bits,
+    ghengin:camera, mtl, vector, hsnoise, containers, random, linear-base,
     derive-storable, geomancy, vulkan >= 3.26, time, fir, filepath, text-short,
     vector-sized, base >=4.19.0.0, os-string
 
@@ -112,7 +112,7 @@ common common-flags
                              )
   -- We need to instance ghengin-geometry too...
   -- That's quite awful? Maybe not... TODO: OPEN A TICKET
-  mixins:           ghengin-geometry
+  mixins:           ghengin:geometry
                     requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
                              , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
                              , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
@@ -124,7 +124,7 @@ common common-flags
                              , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
                              )
 
-  mixins:         ghengin-camera
+  mixins:         ghengin:camera
                   requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
                            , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
                            , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer

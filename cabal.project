@@ -1,15 +1,7 @@
 packages:
-          ./ghengin-dist-macos/
------------------------------
--- THE PACKAGES BELOW SHOULD
--- ONLY EXIST WHILE MULTILIBS
--- INSIDE CABAL + HLS +
--- BACKPACK DOESN'T WORK
------------------------------
+          ./packaging-macos/
           ./ghengin/
-          ./ghengin-camera/
           ./examples/
-          ./ghengin-geometry/
           ./ghengin-core/
           ./linear-utils/
 -------------------------------

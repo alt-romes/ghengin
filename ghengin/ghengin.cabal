@@ -215,7 +215,21 @@ library
 -- Sub-libraries for engine components
 --------------------------------------------------------------------------------
 
+library camera
+    import:           common-flags
+    visibility: public
+    exposed-modules:  Ghengin.Component.Camera
+    build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core:backend-independent-bits, linear-base, linear-utils, geomancy
+    hs-source-dirs:   ghengin-camera
+    default-language: GHC2021
 
+library geometry
+    import:           common-flags
+    visibility: public
+    exposed-modules:  Game.Geometry, Game.Geometry.Sphere
+    build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits, ghengin-core, vector, containers, split, geomancy
+    hs-source-dirs:   ghengin-geometry
+    default-language: GHC2021
 
 --------------------------------------------------------------------------------
 -- Testsuites and old examples

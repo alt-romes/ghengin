@@ -74,8 +74,6 @@ common common-flags
 library
     import:           common-flags
 
-    visibility:       public
-
     exposed-modules:  Data.IntMap.Linear,
                       Data.Map.Linear,
                       Data.Unrestricted.Linear.Orphans,
