@@ -5,7 +5,7 @@ name:               ghengin
 --                  | | | +--- code changes with no API change
 version:            0.1.0.0
 
-tested-with: GHC ==9.4.4 || ==9.6.1
+-- tested-with: GHC ==9.4.4 || ==9.6.1
 -- synopsis:
 -- description:
 license:            BSD-3-Clause
@@ -16,9 +16,9 @@ maintainer:         rodrigo.m.mesquita@gmail.com
 category:           Graphics
 build-type:         Simple
 extra-doc-files:    ../CHANGELOG.md
-extra-source-files:
-    cbits/imgui_extensions/*.cpp
-    cbits/imgui_extensions/*.hpp
+-- extra-source-files:
+--     cbits/imgui_extensions/*.cpp
+--     cbits/imgui_extensions/*.hpp
 
 flag dev
   default: True
@@ -35,7 +35,7 @@ common common-flags
 
                  -- Debugging symbols
                  --------------------
-                 -- -g2
+                 -- -g3
 
                  -- Linting
                  ----------
@@ -91,12 +91,6 @@ common common-flags
                       -- StrictData,
 
   default-language: GHC2021
-
---------------------------------------------------------------------------------
--- when backpack with HLS with multi-libs cabal is fixed, move library stanzas
--- from ghengin-core/ghengin-core.cabal and ghengin-vulkan/ghengin-vulkan.cabal
--- and the some of the other (all?) packages listed in cabal.project to here
---------------------------------------------------------------------------------
 
 library
     -- Import common warning flags.
@@ -155,13 +149,10 @@ library
     -- other-modules:
 
     -- cbits
-    include-dirs:       cbits/imgui_extensions
+    -- include-dirs:       cbits/imgui_extensions
     cxx-options:        -std=c++11
-    cxx-sources:        cbits/imgui_extensions/imgui_color_gradient.cpp
+    -- cxx-sources:        cbits/imgui_extensions/imgui_color_gradient.cpp
     -- extra-libraries:    stdc++
-    include-dirs:       cbits/imgui_extensions/
-    if os(darwin)
-      ghc-options:      -optcxx-std=c++11
     
     if flag(dev)
       cpp-options: -DDEVELOPMENT
@@ -220,6 +211,15 @@ library
     -- Directories containing source files.
     hs-source-dirs:   ghengin
 
+--------------------------------------------------------------------------------
+-- Sub-libraries for engine components
+--------------------------------------------------------------------------------
+
+
+
+--------------------------------------------------------------------------------
+-- Testsuites and old examples
+--------------------------------------------------------------------------------
 
 test-suite ghengin-test
     -- Import common warning flags.
