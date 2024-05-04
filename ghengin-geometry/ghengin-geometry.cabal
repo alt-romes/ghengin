@@ -21,7 +21,7 @@ library
     exposed-modules:  Game.Geometry, Game.Geometry.Sphere
     -- other-modules:
     -- other-extensions:
-    build-depends:    base >=4.19.0.0, ghengin-core-indep, ghengin-core, vector, containers, split, geomancy
+    build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits, ghengin-core, vector, containers, split, geomancy
     hs-source-dirs:   src
     default-language: GHC2021
 

@@ -34,7 +34,7 @@ common common-flags
   build-depends: generics-sop
   build-depends:
     -- Can't depend on ghengin-core and friends without instancing them because of backpack
-    ghengin-core, ghengin-vulkan, ghengin-geometry, ghengin-core-indep,
+    ghengin-core, ghengin-core:vulkan, ghengin-geometry, ghengin-core:backend-independent-bits,
     ghengin-camera, mtl, vector, hsnoise, containers, random, linear-base,
     derive-storable, geomancy, vulkan >= 3.26, time, fir, filepath, text-short,
     vector-sized, base >=4.19.0.0, os-string

@@ -18,7 +18,7 @@ common warnings
 library
     import:           warnings
     exposed-modules:  Ghengin.Component.Camera
-    build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core-indep, linear-base, linear-utils, geomancy
+    build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core:backend-independent-bits, linear-base, linear-utils, geomancy
     hs-source-dirs:   .
     default-language: GHC2021
     default-extensions:

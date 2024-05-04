@@ -37,8 +37,8 @@ common common-flags
 
     cc-options: -O0 -DDEBUG
     cpp-options: -DDEBUG
-                 -DDEBUG_TRACE
-                 -DTHINGS_ARE_GOING_THAT_BAD
+                 -- -DDEBUG_TRACE
+                 -- -DTHINGS_ARE_GOING_THAT_BAD
   else
     ghc-options: -Wall -O2
     cc-options: -O2
@@ -87,8 +87,6 @@ library
     -- family declaration which is closed in the main module (Extends)
     -- REPORT TO GHC that vulkan-3.26.1 builds with ghc 9.8.1 but not with 9.8.2
     build-depends:    ghc == 9.8.1
-
-    visibility:       public
 
     exposed-modules:  Ghengin.Core,
                       Ghengin.Core.Material,
@@ -141,7 +139,124 @@ library
 
                       gl-block,
 
-                      ghengin-core-indep,
+                      ghengin-core:backend-independent-bits,
                       linear-utils,
                       constraints
+
+-- A temporary sublibrary since you can't atm import modules from the package
+-- you are instantiating even if it is not an indefinite module?
+-- Workaround until #23322 is fixed
+library backend-independent-bits
+    import:           common-flags
+
+    visibility:       public
+
+    exposed-modules:  Ghengin.Core.Mesh.Vertex,
+
+                      Ghengin.Core.Type.Compatible,
+                      Ghengin.Core.Type.Sized,
+                      Ghengin.Core.Type.Utils,
+
+                      Ghengin.Core.Shader,
+                      Ghengin.Core.Shader.Data,
+                      Ghengin.Core.Shader.Pipeline,
+                      Ghengin.Core.Shader.Canonical,
+
+                      -- New modules
+                      Ghengin.Core.Prelude,
+                      Ghengin.Core.Log,
+
+    hs-source-dirs:   ghengin-core-indep
+
+    build-depends:    base,
+                      fir,
+                      -- TODO: NOT DEPEND ON VULKAN IN CORE INDEP
+                      vulkan,
+                      linear-base,
+                      reference-counting,
+
+                      containers,
+                      vector,
+                      bytestring,
+
+                      fast-logger,
+
+                      gl-block,
+                      geomancy,
+                      constraints,
+                      ptrdiff,
+
+                      linear-utils
+
+--------------------------------------------------------------------------------
+-- Backend implementations (Vulkan, for now that's all...)
+--------------------------------------------------------------------------------
+
+flag enable-culling
+  default: True
+  manual: True
+  description: Use CULL_MODE_BACK_BIT if True, and CULL_MODE_NONE otherwise.
+
+library vulkan
+    import:           common-flags
+
+    visibility:       public
+
+    if flag(enable-culling)
+      cpp-options: -DVULKAN_ENABLE_CULLING
+
+    exposed-modules:  Ghengin.Vulkan.Renderer.Kernel,
+                      Ghengin.Vulkan.Renderer.DescriptorSet,
+                      Ghengin.Vulkan.Renderer.Buffer,
+                      Ghengin.Vulkan.Renderer.Pipeline,
+                      Ghengin.Vulkan.Renderer.RenderPass,
+                      Ghengin.Vulkan.Renderer.Texture,
+
+                      -- To be an instance eventually
+                      Ghengin.Vulkan.Renderer,
+
+                      -- Don't know
+                      Ghengin.Vulkan.Renderer.ImmediateSubmit,
+                      Ghengin.Vulkan.Renderer.Image,
+                      Ghengin.Vulkan.Renderer.SwapChain,
+                      Ghengin.Vulkan.Renderer.Sampler,
+                      Ghengin.Vulkan.Renderer.Frame,
+
+                      -- Should soon enough be part of the required pieces
+                      Ghengin.Vulkan.Renderer.Command,
+                      -- Modules that don't instance signatures
+                      Ghengin.Vulkan.Renderer.Device,
+                      Ghengin.Vulkan.Renderer.Device.Instance,
+                      Ghengin.Vulkan.Renderer.GLFW.Window,
+                      Ghengin.Vulkan.Renderer.Synchronization,
+
+    hs-source-dirs:   ghengin-vulkan
+
+    build-depends:    base,
+                      fir,
+                      vulkan,
+                      GLFW-b,
+                      linear-base,
+                      reference-counting,
+                      -- ghengin-core MISTAKE!(#23322, could we depend on ghengin-core for non-indefinite modules only?)
+                      ghengin-core:backend-independent-bits,
+                      gl-block,
+
+                      -- For textures (consider adding to Core too)
+                      JuicyPixels,
+
+                      containers,
+                      bytestring,
+                      mtl,
+                      vector,
+                      linear-utils
+
+    -- Until #23322 is fixed?
+    -- Nope, also doesn't work. Perhaps we could support this sort of cyclic dependencies.
+    -- mixins:           ghengin:ghengin-core requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+    --                                                 , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+    --                                                 , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+    --                                                 , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+    --                                                 , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+    --                                                 )
 

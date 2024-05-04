@@ -196,9 +196,9 @@ library
                       lens >= 5.2,
                       linear-base,
                       reference-counting,
-                      ghengin-core-indep,
                       ghengin-core,
-                      ghengin-vulkan,
+                      ghengin-core:vulkan,
+                      ghengin-core:backend-independent-bits,
                       linear-utils
 
                       -- witch,
@@ -258,8 +258,8 @@ executable planets
         ghengin,
         -- Can't depend on this without instancing it because of backpack
         ghengin-core,
-        ghengin-vulkan,
-        ghengin-core-indep,
+        ghengin-core:vulkan,
+        ghengin-core:backend-independent-bits,
         mtl, vector, hsnoise, containers, random, linear-base,
         derive-storable
 
