@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -6,9 +7,13 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
+import Foreign.Storable.Generic -- we want to get rid of storable in favour of gl-block
+import GHC.Generics
 import Geomancy.Vec3
 import Geomancy.Mat4
 import Geomancy.Transform
+import Geomancy.Vulkan.View
+import Geomancy.Vulkan.Projection
 import Ghengin.Core
 import Ghengin.Core.Shader.Data
 import Ghengin.Core.Mesh
@@ -86,31 +91,43 @@ cubeVertices = [
     blue = vec3 0.1 0.1 0.8
     green = vec3 0.1 0.8 0.1
 
-gameLoop :: MeshKey _ _ _ _ '[Transform] -> Float -> RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop mkey rot rq = Linear.do
+data Camera
+  = Camera { view :: Mat4
+           , proj :: Mat4
+           }
+           deriving Generic
+           deriving anyclass GStorable
+
+
+defaultCamera :: Camera
+defaultCamera = Camera
+  { view = unTransform $ lookAt (vec3 0 0 0) (vec3 0 0 1) (vec3 0 1 0)
+  , proj = unTransform $ perspective 45 0.1 1000 640 480
+  }
+
+
+gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
+         -> MeshKey _ _ _ _ '[Transform] -- ^ rq key to cube mesh
+         -> Float -- ^ rotation
+         -> RenderQueue ()
+          ⊸ Core (RenderQueue ())
+gameLoop ckey mkey rot rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 
   rq <- render rq 
   rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
-    -- We're not using any projection of sorts, so we need to make the cube fit
-    -- in the xyz vulkan space, where x and y go from -1 to 1 but z goes from 0
-    -- to 1
-    scale 0.5 <> rotateY rot <> rotateX (-rot) <> translate 0 0 0.5)) ↑)
+    scale 5 <> rotateY rot <> rotateX (-rot) <> translate 0 0 10)) ↑)
 
-  gameLoop mkey (rot+0.01) rq
-
--- non-compositional instance for "Transform", just for demo
-instance ShaderData Transform where
-  type FirType Transform = FIR.Struct '[ "m" 'FIR.:-> FIR.M 4 4 Float ]
+  gameLoop ckey mkey (rot+0.01) rq
 
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (640, 640) Linear.do
+  runCore (640, 480) Linear.do
 
-    pipeline <- (makeRenderPipeline shaderPipeline GHNil ↑)
+    pipeline <- (makeRenderPipeline shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     (mesh :: CubeMesh, pipeline) <-
       (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) cubeVertices ↑)
@@ -118,9 +135,17 @@ main = do
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-    rq <- gameLoop mshkey 0 rq
+    rq <- gameLoop pkey mshkey 0 rq
 
     (freeRenderQueue rq ↑)
 
     return (Ur ())
 
+
+-- non-compositional instance for "Transform", just for demo
+instance ShaderData Transform where
+  type FirType Transform = FIR.Struct '[ "m" 'FIR.:-> FIR.M 4 4 Float ]
+
+instance ShaderData Camera where
+  type FirType Camera = FIR.Struct '[ "view_matrix" 'FIR.:-> FIR.M 4 4 Float
+                                    , "proj_matrix" 'FIR.:-> FIR.M 4 4 Float ]

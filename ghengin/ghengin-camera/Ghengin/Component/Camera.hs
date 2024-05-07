@@ -7,6 +7,10 @@ import Data.Word (Word32)
 import Geomancy.Mat4
 import Geomancy.Vec3
 
+
+import Geomancy.Vulkan.View
+import Geomancy.Vulkan.Projection
+
 -- It would also be better to have 1 type of camera for each projection x view,
 -- besides a generic completely-dynamic one whose projection and view can
 -- easily change... (although one might also be able to easily change the

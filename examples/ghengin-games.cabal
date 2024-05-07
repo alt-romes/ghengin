@@ -184,6 +184,10 @@ executable cube
     build-depends: ghengin-games
     hs-source-dirs: cube/
 
+--------------------------------------------------------------------------------
+-- User level engine
+--------------------------------------------------------------------------------
+
 executable simple-triangle
     import:        common-flags
     main-is:       Main.hs
@@ -197,3 +201,12 @@ executable simple-cube
     other-modules: Shaders
     build-depends: ghengin-games
     hs-source-dirs: simple-cube/
+
+executable simple-camera
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    build-depends: ghengin-games, derive-storable
+    hs-source-dirs: simple-camera/
+
+
