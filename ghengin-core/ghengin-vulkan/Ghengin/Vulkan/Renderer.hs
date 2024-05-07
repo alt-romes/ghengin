@@ -26,7 +26,6 @@ module Ghengin.Vulkan.Renderer
 import Ghengin.Vulkan.Renderer.Texture
 import Ghengin.Vulkan.Renderer.Sampler
 
-import GHC.TypeLits
 import qualified Prelude
 import Prelude.Linear hiding (zero, IO)
 import qualified Unsafe.Linear as Unsafe
@@ -34,12 +33,10 @@ import qualified Unsafe.Linear as Unsafe
 import Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data.Linear
 import Control.Monad.IO.Class.Linear
-import System.IO.Linear
 
 import Data.Bits
 import Data.Word
 
-import qualified Control.Exception
 import qualified Control.Monad
 
 import GHC.Ptr
@@ -101,9 +98,6 @@ runRenderer dimensions r = Linear.do
   (cmdBuffers, device, commandPool) <- createCommandBuffers @MAX_FRAMES_IN_FLIGHT_T device commandPool
 
   (frames, device) <- runStateT (Data.Linear.mapM (StateT . initVulkanFrameData) cmdBuffers) device
-
-  -- Can we get rid of these and the other IO refs in the game loop?
-  Ur frameInFlight <- newIORef (0 :: Int)
 
   -- (Ur logger,cleanupLogger)  <- newLogger (LogFileNoRotate "log.ghengin.log" defaultBufSize)
   (Ur logger,cleanupLogger)  <- newLogger (LogStdout defaultBufSize)
@@ -181,7 +175,7 @@ withCurrentFramePresent currentFrameIndex action = Linear.do
   -- Submit the recorded command buffer
   -- Present the swap chain image 
   unsafeUseDevice (\device -> do
-    Vk.waitForFences device [inFlightFence] True maxBound
+    _ <- Vk.waitForFences device [inFlightFence] True maxBound
     Vk.resetFences device [inFlightFence]
                   )
 

@@ -1,16 +1,8 @@
 -- | This module currently duplicates Buffer.hsig in ghengin-core, so it can be used in ghengin-vulkan
 module Ghengin.Vulkan.Renderer.Buffer where
 
-import Data.Word (Word, Word32)
-import Data.Int (Int32)
-import qualified Data.Vector.Storable as SV
--- TODO:Exchange Vk specific types to renderer agnostic enumerations
-import qualified Vulkan as Vk (DescriptorType, BufferUsageFlags, Buffer, DeviceMemory)
-
-import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
-import Ghengin.Core.Mesh.Vertex
-
-import Data.Linear.Alias (Aliasable)
+import Data.Word (Word32)
+import qualified Vulkan as Vk (Buffer, DeviceMemory)
 
 -------- Specific buffers --------------
 

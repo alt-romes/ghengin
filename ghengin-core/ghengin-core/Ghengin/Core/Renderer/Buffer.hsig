@@ -8,13 +8,13 @@ import qualified Vulkan as Vk (DescriptorType, BufferUsageFlags)
 
 import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Renderer.Kernel
+import Graphics.Gl.Block
 
 import Data.Linear.Alias (Aliasable)
 
 {-
 Note [Mapped vs Device-local Buffers]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 Mapped buffers are buffers of usage 'UNIFORM' (as in uniform buffer) which are
 mapped to a device-local buffer. Writing to a mapped buffer writes host-local
 memory which is synchronized automatically to the device-local memory.
@@ -29,6 +29,23 @@ to them seems much slower.
 
 In Vulkan at least. For some renderers this distinction might not exist...
 
+Note [Block vs Storable]
+~~~~~~~~~~~~~~~~~~~~~~~~
+We use `Block` constraint when we can make the call about which layout to use down the line.
+For MappedBuffer, the (for now) only constructor is Uniform buffer. When
+writing into uniform buffers we know what layout to use (std140).
+
+However, for `DeviceLocalBuffer`s, at the moment, we don't know its use, so we
+delegate the decision of what standard to use to the definition site of the
+`Storable` instance which should in theory be derived via `Std140` or `Std430`
+or `Packed` from `gl-block`.
+
+Furthermore, for Vertex buffers, given that (1) we use device local buffers and
+(2) when copying data from CPU to the device buffers it's useful to have
+storable vectors since they already have the data laid out in memory correctly
+and we can simpy memcopy it over. To have a storable vector, we use `Storable`
+rather than `Block` and delegate again the decision of what standard to use to
+the `Storable` definition site (for `Vertex (...)`, in this case).
 -}
 
 -------- Specific buffers --------------
@@ -66,6 +83,6 @@ instance Aliasable MappedBuffer
 
 -- | TODO: Drop dependency on Vulkan and make DescriptorType a data type renderer agnostic
 createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (Alias MappedBuffer)
-writeMappedBuffer :: ∀ α. SV.Storable α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
+writeMappedBuffer :: ∀ α. Block α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
 
 

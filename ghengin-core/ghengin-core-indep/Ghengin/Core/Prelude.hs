@@ -15,7 +15,7 @@ module Ghengin.Core.Prelude
 
   -- base
   , Generic(..), NE.NonEmpty(..), Type, Constraint
-  , Word32, IORef, KnownNat
+  , Word32, IORef, KnownNat, Proxy(..)
 
   -- linear-base
   , bimap, UrT(..)
@@ -31,6 +31,9 @@ module Ghengin.Core.Prelude
   -- reference-counting
   , Aliasable, Forgettable, Shareable, SomeAlias(..)
 
+  -- gl-block
+  , Block(..)
+
   -- * Re-exports under different names
   , (<$$>)
   -- ** With multiplicity generalization
@@ -45,6 +48,7 @@ module Ghengin.Core.Prelude
   )
   where
 
+import Data.Proxy
 import Data.Unrestricted.Linear
 import GHC.TypeLits
 -- Perhaps it would be better to re-export explicit modules instead of their prelude
@@ -82,6 +86,8 @@ import GHC.Generics
 import Data.Kind
 import Data.Word
 import Data.IORef (IORef)
+
+import Graphics.Gl.Block
 
 import Data.Linear.Alias as Alias
 

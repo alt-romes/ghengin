@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedLists #-}
 module Ghengin.Vulkan.Renderer.Buffer where
 
+import qualified Control.Category as Category
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Log
 import qualified Prelude
@@ -19,6 +20,7 @@ import Foreign.Ptr
 import Foreign.Marshal.Utils
 import Data.Bits
 import Vulkan.Zero (zero)
+import Graphics.Gl.Block
 import qualified Vulkan as Vk
 
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
@@ -49,8 +51,13 @@ data VertexBuffer where
   VertexBuffer :: !DeviceLocalBuffer
                 ⊸ Word32               -- ^ N vertices
                -> VertexBuffer
+-- NB: We use Std140 throughout this module for Vertex, which isn't quite
+-- right since vertices need to abide by the location/component layout
+-- specification... but since Std140 gives some padding this should work fine
+-- if you are using Vertices with Vector attributes only.
+-- Ghengin.Core.Mesh.Vertex also defines a Storable instance for vertices based on Std140
 
-createVertexBuffer :: ∀ αs. SV.Storable (Vertex αs) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
+createVertexBuffer :: ∀ αs. Storable (Vertex αs) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
 createVertexBuffer vv =
   flip VertexBuffer (fromIntegral $ SV.length vv) <$>
     createDeviceLocalBuffer @(Vertex αs) Vk.BUFFER_USAGE_VERTEX_BUFFER_BIT vv -- use Locations for vertex buffers
@@ -127,13 +134,14 @@ createMappedBuffer size descriptorType = Linear.do
 
     t -> error $ "Unexpected/unsupported storage class for descriptor: " <> show t
 
--- | Note how the storable must be the same as the storable of the uniform buffer so that the sizes match (ROMES:it seems I dropped the type parameter on the buffer, why?)
-writeMappedBuffer :: ∀ α. (SV.Storable α) => (Alias MappedBuffer) ⊸ α -> Renderer (Alias MappedBuffer)
--- writeMappedBuffer (UniformBuffer _ _ (castPtr -> ptr) s) x = assert (fromIntegral (sizeOf @α undefined) <= s) $ liftIO $ poke @α ptr x -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
+-- | Note how the storable must be the same as the storable of the uniform
+-- buffer so that the sizes match
+writeMappedBuffer :: ∀ α. Block α => (Alias MappedBuffer) ⊸ α -> Renderer (Alias MappedBuffer)
 writeMappedBuffer refcbuf x = enterD "writeMappedBuffer" Linear.do
   (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (Ur ptr) (Ur s)) ->
-    Unsafe.toLinear2 assert (fromIntegral (sizeOf @α undefined) Prelude.<= s) $ -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
-      Linear.do liftSystemIO $ poke @α (castPtr ptr) x
+    -- For uniform buffers we use std140 (extended layout)
+    Unsafe.toLinear2 assert (fromIntegral (sizeOf140 (Proxy @α)) Prelude.<= s) $ -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
+      Linear.do liftSystemIO $ write140 @α (castPtr ptr) Category.id x
                 pure (ub, ())
   pure ub
 

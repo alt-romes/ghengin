@@ -11,10 +11,9 @@ module Ghengin.Core.Mesh.Vertex
   ) where
 
 import GHC.TypeNats
-import Data.Kind
 import Data.Proxy
 import Graphics.Gl.Block
-import Foreign.Ptr.Diff (Diff(..), peekDiffOff, pokeDiffOff)
+import Foreign.Ptr.Diff (Diff(..))
 import Foreign.Storable
 import Prelude
 
@@ -24,6 +23,13 @@ import Prelude
 -- information in shaders, slots (locations, components), and references to the
 -- specification...
 -- https://sheaf.gitlab.io/fir/FIR-Validation-Layout.html
+--
+-- The vulkan docs for shader layouts:
+-- https://docs.vulkan.org/guide/latest/shader_memory_layout.html
+--
+-- std140 may be very slightly slower (?) if this were put under a lot of stress
+-- (though it never will) -- for that case we could use existing vulkan
+-- extensions to allow std430 for uniform buffers too (VK_KHR_uniform_buffer_standard_layout)
 --
 -- So I don't even know if it is possible to provide an instance for a vertex
 -- of any attributes. Maybe FIR's Poke can do it...
@@ -95,9 +101,9 @@ instance (Block (Vertex (y:ys)), Block x) => Block (Vertex (x:y:ys)) where
     writePacked p (Diff o) (Sin a)
     writePacked p (Diff $ o + sizeOfPacked (Proxy @(Vertex '[x]))) b
 
--- This isn't quite right since Vertices need to abide by the
--- location/component layout specification... but since Std140 gives some
--- padding this should work fine if you are using Vertices with Vector attributes only.
+-- NB: We use Std140 for Storable Vertex, which isn't quite right since
+-- vertices need to abide by the location/component layout, but is fine for now.
+-- Note Ghengin.Vulkan.Renderer.Buffer assumes this too.
 deriving via (Std140 (Vertex '[x])) instance Block x => Storable (Vertex '[x])
 deriving via (Std140 (Vertex (x:y:ys))) instance (Block x, Block (Vertex (y:ys))) => Storable (Vertex (x:y:ys))
 

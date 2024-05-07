@@ -12,9 +12,9 @@ module Ghengin.Core.Render.Property
   , GHList(..)
   ) where
 
+import Data.Proxy
 import GHC.TypeError
 import Ghengin.Core.Prelude as Linear
-import Foreign.Storable (Storable(sizeOf))
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer
 import Ghengin.Core.Render
@@ -23,6 +23,8 @@ import Ghengin.Core.Type.Utils
 import qualified Data.Linear.Alias as Alias
 import qualified Data.IntMap.Linear as IM
 import qualified Prelude
+
+import Graphics.Gl.Block
 
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 
@@ -36,15 +38,20 @@ import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific ren
 -- frame, you should use a 'DynamicBinding'.
 data PropertyBinding α where
 
+-- NB: Currently, we use std140 for uniform buffers, but this could eventually
+-- be std430 if we used VK_KHR_uniform_buffer_standard_layout. These layouts
+-- are provided by Block from gl-block (though this would require FIR to also
+-- line this up).
+
   -- | Write the property to a mapped buffer every frame
-  DynamicBinding :: ∀ α. (Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
+  DynamicBinding :: ∀ α. (Block α, PBInv α ~ Ur α) -- Block to write the buffers with proper standard
                  => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor every frame
                  -> PropertyBinding α
 
   -- | A static buffer is re-used (without being written to) every frame to bind this property.
   -- The static buffer is written when the property is edited, and only then.
   -- If you want data that updates frequently, use a 'DynamicBinding' instead
-  StaticBinding :: ∀ α. (Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
+  StaticBinding :: ∀ α. (Block α, PBInv α ~ Ur α) -- Block to write the buffers with proper standard
                 => Ur α
                 -> PropertyBinding α
 
@@ -129,19 +136,21 @@ makeResources = go_build 0
     go pb = case pb of
       DynamicBinding (Ur x) -> Linear.do
 
-        -- Allocate the associated buffers
-        mb <- createMappedBuffer (fromIntegral $ sizeOf x) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
+        -- Allocate the associated buffers. These buffers will be written to
+        -- every frame (unlike buffers underlying `StaticBinding`s)
+        mb <- createMappedBuffer (fromIntegral $ sizeOf140 (Proxy @β)) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
         pure (UniformResource mb, DynamicBinding (Ur x))
 
       StaticBinding (Ur x) -> Linear.do
 
         -- Allocate the associated buffers
-        mb <- createMappedBuffer (fromIntegral $ sizeOf x) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -- TODO: Should this be a deviceLocalBuffer?
-
-        -- Write the static information to this buffer right away
-        mb' <- writeMappedBuffer mb x
-
+        -- TODO: This be a deviceLocalBuffer
         -- TODO: instead -> createDeviceLocalBuffer Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT x
+        mb <- createMappedBuffer (fromIntegral $ sizeOf140 (Proxy @β)) Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
+
+        -- Write the static information to this buffer right away. It may be
+        -- later updated if the static property is edited with `editProperty`.
+        mb' <- writeMappedBuffer mb x
 
         pure (UniformResource mb', StaticBinding (Ur x))
         
@@ -166,11 +175,12 @@ makeResources = go_build 0
 writeProperty :: DescriptorResource ⊸ PropertyBinding α ⊸ Renderer (DescriptorResource, PropertyBinding α)
 writeProperty dr pb = case pb of
   StaticBinding x ->
-    -- Already has been written to, we simply bind it together with the rest of
-    -- the set at draw time and do nothing here.
+    -- The static binding is static, and has already has been written to (at
+    -- initialisation and eventually `editProperty`). We simply bind it
+    -- together with the rest of the set at draw time and do nothing here.
     pure (dr, StaticBinding x)
   Texture2DBinding t ->
-  --   -- As above. Static bindings don't get written every frame.
+    -- As above. Static bindings don't get written every frame.
     pure (dr, Texture2DBinding t)
   DynamicBinding (Ur (a :: α)) ->
     case dr of
@@ -377,11 +387,13 @@ editProperty prop update i dset resmap0 = Linear.do
     DynamicBinding (x :: Ur α) -> Linear.do
       Ur ux <- update x
 
-      (UniformResource bufref, resmap1) <- getDescriptorResource resmap0 i
+      -- We don't need to do the following update on editProperty since
+      -- `writeProperty` will already write the uniform buffer of dynamic
+      -- properties every frame.
+      -- (UniformResource bufref, resmap1) <- getDescriptorResource resmap0 i
+      -- writeDynamicBinding bufref ux >>= Alias.forget
 
-      writeDynamicBinding bufref ux >>= Alias.forget
-
-      pure (DynamicBinding (Ur ux), dset, resmap1)
+      pure (DynamicBinding (Ur ux), dset, resmap0)
 
     StaticBinding x -> Linear.do
       Ur ux <- update x
@@ -408,12 +420,9 @@ editProperty prop update i dset resmap0 = Linear.do
       pure (Texture2DBinding ux2, dset1, resmap0)
 
   where
-    writeDynamicBinding :: Storable α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
-    writeDynamicBinding = writeMappedBuffer @α
-
-    -- TODO: For now, static bindings use a mapped buffer as well, but perhaps
-    -- it'd be better to use a GPU local buffer to which we write only so often
-    writeStaticBinding :: Storable α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
+    -- TODO: For now, static bindings use a mapped buffer as well, but it'd be
+    -- better to use a GPU local buffer to which we write only so often (see createDeviceLocalBuffer)
+    writeStaticBinding :: Block α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
     writeStaticBinding = writeMappedBuffer @α
 
     -- | Overwrite the texture bound on a descriptor set at binding #n

@@ -1,6 +1,5 @@
 signature Ghengin.Core.Renderer.DescriptorSet where
 
-import Data.V.Linear (V)
 import Ghengin.Core.Prelude
 
 import Ghengin.Core.Shader.Pipeline

@@ -8,12 +8,10 @@ module Ghengin.Core.Render.Pipeline where
 -- import Geomancy.Mat4 ( Mat4 )
 -- import Control.Lens (Lens', lens)
 
-import Data.Functor.Compose
-import Data.V.Linear (V,make)
+import Data.V.Linear (make)
 import Ghengin.Core.Prelude as Linear
 
 import Data.Typeable
-import Foreign.Storable ( Storable(sizeOf) )
 
 import Ghengin.Core.Type.Compatible ( CompatiblePipeline )
 
@@ -142,7 +140,7 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
   (pipeline, simpleRenderPass2, dpool2) <- createGraphicsPipeline
                                      shaderPipeline simpleRenderPass dpool1
                                      -- ROMES:TODO: Update push constants! This is not it! (It's hardcoded, and things are never actually pushed)
-                                     [Vk.PushConstantRange { offset = 0 , size   = fromIntegral 64, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+                                     [Vk.PushConstantRange { offset = 0 , size = 64 :: Word32, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
 
   logT "Creating reference counted"
   dpool3 <- Alias.newAlias destroyDescriptorPool dpool2

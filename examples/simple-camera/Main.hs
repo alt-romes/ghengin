@@ -7,7 +7,6 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
-import Foreign.Storable.Generic -- we want to get rid of storable in favour of gl-block
 import GHC.Generics
 import Geomancy.Vec3
 import Geomancy.Mat4
@@ -96,7 +95,7 @@ data Camera
            , proj :: Mat4
            }
            deriving Generic
-           deriving anyclass GStorable
+           deriving anyclass Block
 
 
 defaultCamera :: Camera

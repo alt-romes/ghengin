@@ -10,13 +10,9 @@ signature Ghengin.Core.Renderer
   )
   where
 
-import qualified Data.IntMap.Linear as IM
-import Ghengin.Core.Log
 import Prelude.Linear
 
-import Control.Functor.Linear as Linear
 import System.IO.Linear as Linear
-import Control.Monad.IO.Class.Linear as Linear
 
 import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.Kernel
@@ -24,9 +20,6 @@ import Ghengin.Core.Renderer.DescriptorSet
 import Ghengin.Core.Renderer.Command
 import Ghengin.Core.Renderer.Texture
 import Ghengin.Core.Renderer.Sampler
-
-
-import qualified Data.Linear.Alias as Alias
 
 runRenderer :: (Int, Int)
             -- ^ Dimensions of the window to render on (width, height)

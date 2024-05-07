@@ -1,6 +1,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE DeriveAnyClass #-}
 module Common where
 
 import Data.Coerce
@@ -39,6 +40,7 @@ import qualified Ghengin.Core.Shader as G
 import qualified Math.Linear as FIR
 import qualified Prelude
 import Data.Typeable
+import Graphics.Gl.Block
 
 viewportVertices :: [ Vertex '[Vec3] ]
 viewportVertices =
@@ -56,11 +58,13 @@ viewportIndices
 
 newtype MousePos = MousePos Vec2
   deriving ShaderData via (StructVec2 "mousePos")
-  deriving Storable
+  deriving Generic
+  deriving anyclass Block
 
 newtype Time = Time Float
   deriving ShaderData via (StructFloat "val")
-  deriving Storable
+  deriving Generic
+  deriving anyclass Block
 
 type PipelineProps = [MousePos, Time]
 

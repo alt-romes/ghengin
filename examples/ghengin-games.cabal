@@ -37,8 +37,8 @@ common common-flags
     -- Can't depend on ghengin-core and friends without instancing them because of backpack
     ghengin-core, ghengin-core:vulkan, ghengin:geometry, ghengin-core:backend-independent-bits,
     ghengin:camera, mtl, vector, hsnoise, containers, random, linear-base,
-    derive-storable, geomancy, vulkan >= 3.26, time, fir, filepath, text-short,
-    vector-sized, base >=4.19.0.0, os-string
+    geomancy, vulkan >= 3.26, time, fir, filepath, text-short,
+    vector-sized, base >=4.19.0.0, os-string, gl-block
 
   if flag(debug)
     ghc-options: -Wall
@@ -206,7 +206,7 @@ executable simple-camera
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
-    build-depends: ghengin-games, derive-storable
+    build-depends: ghengin-games
     hs-source-dirs: simple-camera/
 
 

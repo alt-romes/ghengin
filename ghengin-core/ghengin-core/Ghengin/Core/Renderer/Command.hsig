@@ -2,7 +2,6 @@ signature Ghengin.Core.Renderer.Command where
 
 import Ghengin.Core.Prelude
 import Ghengin.Core.Log
-import Control.Monad.IO.Class.Linear
 import qualified Data.Functor.Linear as Data
 
 import Ghengin.Core.Renderer.Pipeline

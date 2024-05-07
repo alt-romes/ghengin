@@ -52,7 +52,7 @@ texture fp sampler = Linear.do
     Ur (Right dimage) -> textureFromImage dimage sampler
 
 freeTexture :: Texture2D ⊸ Renderer ()
-freeTexture = Unsafe.toLinear $ \t@(Texture2D img sampler) -> Linear.do
+freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> Linear.do
   -- ROMES:tODO: fix Image.hs so that this definition doesn't need to be unsafe.
   useDevice (\dev -> ((),) <$> (destroyImage dev img))
   Alias.forget sampler

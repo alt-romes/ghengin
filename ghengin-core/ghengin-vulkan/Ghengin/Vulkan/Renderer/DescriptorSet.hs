@@ -18,7 +18,6 @@
 {-# LANGUAGE QualifiedDo #-}
 module Ghengin.Vulkan.Renderer.DescriptorSet where
 
-import Debug.Trace
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Log
 import qualified Data.Functor.Linear as Data.Linear
@@ -27,7 +26,6 @@ import qualified Prelude
 import Data.Linear.Alias.Unsafe as Unsafe.Alias
 import qualified Unsafe.Linear as Unsafe
 
-import Data.Bifunctor.Linear
 import Data.Bits
 
 import qualified Data.List.NonEmpty as NonEmpty
@@ -36,7 +34,6 @@ import qualified Data.Set as S
 import qualified Data.Map.Strict as M
 import qualified Data.IntMap.Strict as IM
 import qualified Data.IntMap.Linear as IML
-import qualified Data.IntMap.Strict.Internal as IMI
 import qualified Data.Vector as V
 import qualified Data.V.Linear as VL
 
