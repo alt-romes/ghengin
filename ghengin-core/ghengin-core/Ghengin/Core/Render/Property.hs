@@ -26,19 +26,30 @@ import qualified Prelude
 
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 
--- ROMES: Can we avoid the Eq instance here? Depends on what we need the property binding eq instance for...
--- We were able to avoid it. Why did we previously need it? !!!
+-- |
+--
+-- === Example
+--
+-- If your game had a static camera which never moved, or rarely did, you
+-- should use a 'StaticBinding' to bind the camera matrix property. On the
+-- other hand, if your game had a first-person-camera which was updated every
+-- frame, you should use a 'DynamicBinding'.
 data PropertyBinding α where
 
+  -- | Write the property to a mapped buffer every frame
   DynamicBinding :: ∀ α. (Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
-                 => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
+                 => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor every frame
                  -> PropertyBinding α
 
+  -- | A static buffer is re-used (without being written to) every frame to bind this property.
+  -- The static buffer is written when the property is edited, and only then.
+  -- If you want data that updates frequently, use a 'DynamicBinding' instead
   StaticBinding :: ∀ α. (Storable α, PBInv α ~ Ur α) -- Storable to write the buffers
-                => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
+                => Ur α
                 -> PropertyBinding α
 
   Texture2DBinding :: Alias Texture2D ⊸ PropertyBinding Texture2D
+
 
 instance Forgettable Renderer (PropertyBinding α) where
   forget = \case
