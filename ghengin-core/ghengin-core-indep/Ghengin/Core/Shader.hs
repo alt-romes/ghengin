@@ -64,18 +64,28 @@ type FragmentShaderModule defs
 
 type StructFloat :: Symbol -> Type
 newtype StructFloat name = StructFloat Float
+  deriving Generic
+  deriving anyclass Block
 
 type StructVec2 :: Symbol -> Type
 newtype StructVec2 name = StructVec2 Vec2
+  deriving Generic
+  deriving anyclass Block
 
 type StructVec3 :: Symbol -> Type
 newtype StructVec3 name = StructVec3 Vec3
+  deriving Generic
+  deriving anyclass Block
 
 type StructVec4 :: Symbol -> Type
 newtype StructVec4 name = StructVec4 Vec4
+  deriving Generic
+  deriving anyclass Block
 
 type StructMat4 :: Symbol -> Type
 newtype StructMat4 name = StructMat4 Mat4
+  deriving Generic
+  deriving anyclass Block
 
 instance ShaderData Float where
   type FirType Float = Float

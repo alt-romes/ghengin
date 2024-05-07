@@ -14,27 +14,20 @@ import Graphics.Gl.Block
 import FIR.Prim.Types
 import FIR.Layout as L
 
--- ROMES:TODO: For now, we still define 'Compatible' by means of 'InternalType', but that should change! See 'ShaderData'.
-
 -- | The class which powers all of the serialization and compatibility logic
 -- between CPU and GPU data types.
 --
 -- If a type instances 'ShaderData', it means it can be serialized according to
--- the [Shader Memory Layout](https://docs.vulkan.org/guide/latest/shader_memory_layout.html) (using 'Poke') into
--- a primitive datatype ('PrimTy') such as @V 3 Float@, which has a matching
+-- the [Shader Memory Layout](https://docs.vulkan.org/guide/latest/shader_memory_layout.html) into
+-- a shader datatype such as @V 3 Float@, which has a matching
 -- [SPIRV type](https://registry.khronos.org/SPIR-V/specs/unified1/SPIRV.html#_types).
 --
--- You can derive @'Poke'@ instances automatically (provide this using
--- @gl-block@ (TODO: May be hard bc of top-level info)). Another simple way to
--- get a 'Poke' instance is to convert the type to its primitive representation
--- and then leverage that representation's 'Poke' instance.
---
--- We could also require both Poke and Block and poke @Base = write430 and poke @Extended = write140@
---
--- Or perhaps we don't need 'Poke' at all, because we don't need type level alignment, only size?
-class
-    -- Block ty => -- ROMES:TODO: Not yet.
-    ShaderData ty where
+-- The `Block` instance can be generically derived, typically with @deriving
+-- stock Generic; deriving anyclass Block@. Even though it is not needed for
+-- `ShaderData` per se, we include the super class constraint here for better
+-- user-guidance since otherwise it will be required elsewhere (eg in
+-- `DynamicBinding`), which could be more confusing.
+class Block ty => ShaderData ty where
 
   -- | The primitive FIR shader type whose memory representation matches the result
   -- of serializing this datatype using 'Poke'. This is the promise that if
