@@ -104,7 +104,6 @@ defaultCamera = Camera
   , proj = unTransform $ perspective 45 0.1 1000 640 480
   }
 
-
 gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
          -> MeshKey _ _ _ _ '[Transform] -- ^ rq key to cube mesh
          -> Float -- ^ rotation

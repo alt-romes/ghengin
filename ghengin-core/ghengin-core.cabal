@@ -9,7 +9,7 @@ cabal-version:      3.4
 
 name:               ghengin-core
 version:            0.1.0.0
-tested-with:        GHC ==9.8.1
+tested-with:        GHC ==9.8.2
 license:            BSD-3-Clause
 license-file:       ../LICENSE
 author:             romes
@@ -80,12 +80,7 @@ common common-flags
 library
     import:           common-flags
 
-
-    -- 9.8.2 seems to have changed something regarding compilation order which
-    -- makes vulkan fail to compile in an hs-boot module with an empty type
-    -- family declaration which is closed in the main module (Extends)
-    -- REPORT TO GHC that vulkan-3.26.1 builds with ghc 9.8.1 but not with 9.8.2
-    build-depends:    ghc == 9.8.1
+    build-depends:    ghc >= 9.8.1
 
     exposed-modules:  Ghengin.Core,
                       Ghengin.Core.Material,
