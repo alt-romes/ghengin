@@ -16,6 +16,14 @@ mkShell {
     # renderdoc           # Graphics debugger
     # tracy               # Graphics profiler
     vulkan-tools-lunarg # vkconfig
+
+    # bindings-GLFW
+    xorg.libX11
+    xorg.libXi
+    xorg.libXrandr
+    xorg.libXxf86vm
+    xorg.libXcursor
+    xorg.libXinerama
   ];
 
   buildInputs = with pkgs; [

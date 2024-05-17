@@ -254,7 +254,9 @@ deviceExtensions :: Vector ByteString
 deviceExtensions = [ Vk.KHR_SWAPCHAIN_EXTENSION_NAME
 
                      -- required at least from 1.3 with MoltenVk
+#if defined(darwin_HOST_OS)
                    , Vk.KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+#endif
                    ]
 
 rateFn :: Vk.SurfaceKHR -> DeviceRateFunction

@@ -67,7 +67,10 @@ createInstance validationLayers = Linear.liftSystemIO $ do
     instanceInfo glfwe
       = Vk.InstanceCreateInfo {..} where
           next  = ()
-          flags = Vk.InstanceCreateFlagBits 0 .|. Vk.INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR -- required at least on 1.3 w MoltenVk
+          flags = Vk.InstanceCreateFlagBits 0
+#if defined(darwin_HOST_OS)
+                    .|. Vk.INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR -- required at least on 1.3 w MoltenVk
+#endif
           applicationInfo = Just appInfo
           enabledLayerNames = validationLayers
           enabledExtensionNames = instanceExtensions <> glfwe
