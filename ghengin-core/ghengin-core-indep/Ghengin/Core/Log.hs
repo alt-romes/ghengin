@@ -81,6 +81,20 @@ enterD msg ma = G.do
 enterD _ x = x
 #endif
 
+-- | Log @message(show arg)@ and increase logging depth until action is left if debug level
+-- (@-DDEBUG@) is set
+enterDA :: HasLogger m => Show b => LogStr -> b -> m a ⊸ m a
+{-# INLINE enterDA #-}
+#ifdef DEBUG
+enterDA msg arg ma = G.do
+  () <- log (toLogStr "Entering: " <> msg <> toLogStr ("(" <> show arg <> ")"))
+  !a <- withLevelUp ma
+  () <- log "Done."
+  pure a
+#else
+enterDA _ _ x = x
+#endif
+
 -- | Log if trace level (@-DDEBUG_TRACE@) is set
 logT :: HasLogger m => LogStr -> m ()
 {-# INLINE logT #-}

@@ -41,8 +41,7 @@ common common-flags
     vector-sized, base >=4.19.0.0, os-string, gl-block
 
   if flag(debug)
-    ghc-options: -Wall
-                 -dasm-lint
+    ghc-options: -dasm-lint
                  -dcmm-lint
                  -dstg-lint
                  -- -dlint
@@ -54,17 +53,13 @@ common common-flags
     -- ghc-options: -g2 -rtsopts -debug
 
   if flag(dev)
-    ghc-options: -O0 -Wall
-
-    cc-options: -O0 -DDEBUG
+    cc-options: -DDEBUG
     cpp-options: -DDEBUG
-                 -DDEBUG_TRACE
-                 -DTHINGS_ARE_GOING_THAT_BAD
   else
-    ghc-options: -Wall -O2
+    ghc-options: -O2
     cc-options: -O2
 
-  ghc-options: -Wno-partial-type-signatures
+  ghc-options: -Wall -Wno-partial-type-signatures
 
   default-extensions: UnicodeSyntax,
                       MultiParamTypeClasses,

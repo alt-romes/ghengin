@@ -11,7 +11,6 @@ import qualified Prelude
 
 import Foreign.Storable
 
-import Control.Exception
 import Data.Int
 import qualified Data.Linear.Alias as Alias
 
@@ -20,7 +19,6 @@ import Foreign.Ptr
 import Foreign.Marshal.Utils
 import Data.Bits
 import Vulkan.Zero (zero)
-import Graphics.Gl.Block
 import qualified Vulkan as Vk
 
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
@@ -105,7 +103,8 @@ destroyDeviceLocalBuffer (DeviceLocalBuffer b dm) = enterD "destroyDeviceLocalBu
 -- require a staging buffer and a copy command to be written
 data MappedBuffer = UniformBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
                                   , devMem  :: {-# UNPACK #-} !Vk.DeviceMemory
-                                  , hostMem :: {-# UNPACK #-} !(Ur (Ptr ())) -- See comment on mapMemory wrapper
+                                  , hostMem :: {-# UNPACK #-} !(Ptr ())
+                                    -- ^ When `DeviceMemory` is mapped, we get a `hostMem` pointer to it.
                                   , bufSize :: {-# UNPACK #-} !(Ur Word)
                                   }
 instance Aliasable MappedBuffer where
@@ -113,11 +112,7 @@ instance Aliasable MappedBuffer where
   {-# INLINE countedFields #-}
 
 -- | Create a uniform buffer with a given size, but don't copy memory to it
--- yet. See 'writeUniformBuffer' for that yet. See 'writeUniformBuffer' for
--- that yet. See 'writeUniformBuffer' for that yet. See 'writeUniformBuffer'
--- for that.
---
--- The size is given by the type of the storable to store in the uniform buffer.
+-- yet. See 'writeUniformBuffer' for that.
 createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (Alias MappedBuffer)
 createMappedBuffer size descriptorType = enterD "createMappedBuffer" Linear.do
 
@@ -128,9 +123,10 @@ createMappedBuffer size descriptorType = enterD "createMappedBuffer" Linear.do
 
       (buf, devMem0) <- createBuffer bsize Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
-      (devMem1, Ur data') <- mapMemory devMem0 0 bsize zero
+      (devMem1, data') <- mapMemory devMem0 0 bsize zero
+      data' <- unsafeUse data' $ \d -> logT $ "Created mapped region: " <> toLogStr (show d)
 
-      Alias.newAlias destroyMappedBuffer (UniformBuffer buf devMem1 (Ur (castPtr data')) (Ur size))
+      Alias.newAlias destroyMappedBuffer (UniformBuffer buf devMem1 (Unsafe.toLinear castPtr data') (Ur size))
 
     t -> error $ "Unexpected/unsupported storage class for descriptor: " <> show t
 
@@ -138,14 +134,15 @@ createMappedBuffer size descriptorType = enterD "createMappedBuffer" Linear.do
 -- buffer so that the sizes match
 writeMappedBuffer :: ∀ α. Block α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
 writeMappedBuffer refcbuf x = enterD "writeMappedBuffer" Linear.do
-  (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (Ur ptr) (Ur s)) -> Linear.do
-    logT (fromString $ "Ptr: " ++ show ptr)
+  (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ ptr (Ur s)) -> Linear.do
+    logT $ fromString $
+      "Ptr: " ++ show ptr ++
+      "; size:" ++ show (sizeOf140 (Proxy @α)) ++
+      "; device memory size: " ++ show s
     -- For uniform buffers we use std140 (extended layout)
-    Unsafe.toLinear2 assert (fromIntegral (sizeOf140 (Proxy @α)) Prelude.<= s) $
-    -- \^ <= because the buffer size might be larger than needed due to alignment
-    -- constraints so the primTySize returned a size bigger than what we pass over
-      Linear.do liftSystemIO $ write140 @α (castPtr ptr) Category.id x
-                pure (ub, ())
+    liftSystemIO $ write140 @α (castPtr ptr) Category.id x
+    logT "Successfully wrote mapped buffer"
+    pure (ub, ())
   pure ub
 
 -------- Non-interface details ---------
@@ -189,14 +186,14 @@ withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
   (stagingBuffer0, stagingMem0) <- createBuffer bufferSize Vk.BUFFER_USAGE_TRANSFER_SRC_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
   
   -- Map the buffer memory into CPU accessible memory
-  (stagingMem1, Ur data'ptr) <- mapMemory stagingMem0 0 bufferSize zero
+  (stagingMem1, data'ptr) <- mapMemory stagingMem0 0 bufferSize zero
   -- Copy buffer data to data'ptr mapped device memory
-  liftSystemIO $ SV.unsafeWith bufferData $ \ptr -> do
-    copyBytes data'ptr (castPtr ptr) (fromIntegral bufferSize)
-    -- ROMES:TODO: Do I need to free data'ptr? I think not, it's host memory deallocated automatically somehow
+  data'ptr <- unsafeUse data'ptr $ \unsafeDataPtr ->
+    liftSystemIO $ SV.unsafeWith bufferData $ \ptr ->
+      copyBytes unsafeDataPtr (Unsafe.toLinear castPtr ptr) (fromIntegral bufferSize)
 
-  -- Unmap memory (doesn't free, just unmaps)
-  stagingMem2 <- unmapMemory stagingMem1
+  -- Unmap memory (doesn't free the device memory, just unmaps/frees the pointer to the mapped region)
+  stagingMem2 <- unmapMemory stagingMem1 data'ptr
 
   -- Use staging buffer
   -- ------------------
@@ -230,8 +227,8 @@ withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
 
 
 destroyMappedBuffer :: MappedBuffer ⊸ Renderer ()
-destroyMappedBuffer (UniformBuffer b dm (Ur _hostMemory) (Ur _size)) = enterD "destroyMappedBuffer" $ Linear.do
-  dm' <- unmapMemory dm
+destroyMappedBuffer (UniformBuffer b dm hostMemory (Ur _size)) = enterD "destroyMappedBuffer" $ Linear.do
+  dm' <- unmapMemory dm hostMemory -- unnecessary, freeMemory also unmaps it IUC
   freeMemory dm'
   destroyBuffer b
 
@@ -241,14 +238,19 @@ destroyMappedBuffer (UniformBuffer b dm (Ur _hostMemory) (Ur _size)) = enterD "d
 
 -- | Linear wrapper around Vk.mapMemory.
 --
--- It's a bit weird we dont' need to free the host memory, but until we (TODO) make sure, we return the host memory ptr as unrestricted
-mapMemory :: Vk.DeviceMemory ⊸ Vk.DeviceSize -> Vk.DeviceSize -> Vk.MemoryMapFlags -> Renderer (Vk.DeviceMemory, Ur (Ptr ()))
-mapMemory = Unsafe.toLinear $ \mem offset size flgs -> enterD "mapMemory" $ (mem,) <$> (unsafeUseDevice $ \dev -> Ur <$$> Vk.mapMemory dev mem offset size flgs)
+-- It's a bit weird we dont' need to free the host memory, but until we (TODO)
+-- make sure, we return the host memory ptr as unrestricted
+mapMemory :: Vk.DeviceMemory ⊸ Vk.DeviceSize -> Vk.DeviceSize -> Vk.MemoryMapFlags -> Renderer (Vk.DeviceMemory, (Ptr ()))
+mapMemory = Unsafe.toLinear $ \mem offset size flgs -> enterD "mapMemory" $ (mem,) <$> (unsafeUseDevice $ \dev -> Vk.mapMemory dev mem offset size flgs)
 
 -- | Linear wrapper for Vk.unmapMemory
-unmapMemory :: Vk.DeviceMemory ⊸ Renderer Vk.DeviceMemory
-unmapMemory = Unsafe.toLinear $ \stgMem -> enterD "unmapMemory" $ Linear.do
-  unsafeUseDevice $ \device -> Vk.unmapMemory device stgMem 
+unmapMemory :: Vk.DeviceMemory
+             ⊸ Ptr ()
+             -- ^ The pointer to the mapped region on the CPU
+             ⊸ Renderer Vk.DeviceMemory
+unmapMemory = Unsafe.toLinear2 $ \stgMem hostMem -> enterD "unmapMemory" $ Linear.do
+  unsafeUseDevice $ \device -> Vk.unmapMemory device stgMem
+  -- Host mem is not returned because it becomes unavailable after unmapping.
   pure stgMem
 
 -- -- | Linear wrapper for Vk.freeMemory
@@ -257,7 +259,7 @@ freeMemory = Unsafe.toLinear $ \mem -> enterD "freeMemory" $ unsafeUseDevice $ \
 
 -- -- | Linear wrapper for Vk.freeMemory
 destroyBuffer :: Vk.Buffer ⊸ Renderer ()
-destroyBuffer = Unsafe.toLinear $ \buffer -> enterD "destroyBuffer" $ unsafeUseDevice $ \device -> Vk.destroyBuffer device buffer Nothing 
+destroyBuffer = Unsafe.toLinear $ \buffer -> enterDA "destroyBuffer" buffer $ unsafeUseDevice $ \device -> Vk.destroyBuffer device buffer Nothing 
 
 
 -- TODO: Can't forget to call this to free buffer memories after meshes (or the related entities) die

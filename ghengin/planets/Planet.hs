@@ -77,7 +77,7 @@ type Planet = RenderPacket
 type PlanetProps = '[MinMax,Texture2D]
 
 data MinMax = MinMax !Float !Float
-  deriving (Prelude.Eq, Generic, Show)
+  deriving (Generic, Show)
 
 instance Syntactic MinMax where
   type Internal MinMax = FIR.Val (Struct '[ "min" ':-> Float, "max" ':-> Float ])

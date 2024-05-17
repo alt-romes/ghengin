@@ -42,10 +42,6 @@ data Texture2D = Texture2D { image          :: VulkanImage
 instance Aliasable Texture2D where
   countedFields (Texture2D _ s) = [SomeAlias s]
 
--- TODO: This isntance sholuldn't exist. just temporary... if you find this here later try to remove it. it's currenty being used to instance hashable to create the render key...
-instance Prelude.Eq Texture2D where
-  (==) _ _ = False
-
 texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
 texture fp sampler = enterD "Creating a texture" Linear.do
   liftSystemIOU (readImage fp) >>= \case

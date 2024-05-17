@@ -23,15 +23,14 @@ common common-flags
 
   if flag(dev)
     ghc-options:
-        -Wall
         -fno-ignore-asserts
         -dasm-lint
         -dcmm-lint
         -dstg-lint
-        -- -fcmm-thread-sanitizer
         -g3
         -rtsopts -debug
         -fcheck-prim-bounds
+        -- -fcmm-thread-sanitizer
 
     cpp-options:
         -DDEBUG
@@ -39,10 +38,12 @@ common common-flags
         -DTHINGS_ARE_GOING_THAT_BAD
 
   else
-    ghc-options: -Wall -O2 -threaded
+    ghc-options: -O2 -threaded
     cc-options: -O2
 
   ghc-options:
+    -Wall
+    -Wname-shadowing
     -Wno-partial-type-signatures
 
   default-extensions: UnicodeSyntax,

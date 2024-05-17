@@ -45,6 +45,7 @@ module Ghengin.Core.Prelude
   , vzipWith
 
   , assertM
+  , unsafeUse
   )
   where
 
@@ -204,6 +205,9 @@ assertM s b = if b then pure () else error ("Failed assertion: " ++ s)
 #else
 assertM _ _ = pure ()
 #endif
+
+unsafeUse :: Monad m => a ⊸ (a -> m ()) %l -> m a
+unsafeUse x f = Unsafe.toLinear (\y -> f y >> pure y) x
 
 --- More orphans
 

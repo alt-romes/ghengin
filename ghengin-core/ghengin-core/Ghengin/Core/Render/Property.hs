@@ -20,13 +20,9 @@ import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer
 import Ghengin.Core.Render
-import Ghengin.Core.Renderer.Texture
 import Ghengin.Core.Type.Utils
 import qualified Data.Linear.Alias as Alias
 import qualified Data.IntMap.Linear as IM
-import qualified Prelude
-
-import Graphics.Gl.Block
 
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 
@@ -81,14 +77,6 @@ type family PBInv α = r | r -> α where
   PBInv Texture2D = Alias Texture2D
   PBInv x         = Ur x
 
-instance Prelude.Eq α => Prelude.Eq (PropertyBinding (Ur α)) where
-  (==) (DynamicBinding (Ur x)) (DynamicBinding (Ur y)) = x == y
-  (==) (StaticBinding (Ur x))  (StaticBinding (Ur y))  = x == y
-  (==) x y = False
-
-instance Prelude.Eq (PropertyBinding Texture2D) where
-  (==) (Texture2DBinding x) (Texture2DBinding y) = False -- ROMES:TODO: Not False... what's this instance for again?
-
 type PropertyBindings α = GHList PropertyBinding α
 
 {-
@@ -110,7 +98,7 @@ We can generate a 'ResourceMap' from a list of property bindings. This resource
 map holds resources accessible by the GPU to which we must write in order to
 update and set our properties. Most of these resources must be deallocated exactly once.
 
-TODO: Mesh bindings at dset #2
+Likewise we have Mesh property bindings at dset #2
 
 -}
 
