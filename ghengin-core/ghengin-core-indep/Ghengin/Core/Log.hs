@@ -13,7 +13,7 @@ module Ghengin.Core.Log
 import Data.Bifunctor
 import Ghengin.Core.Prelude as G
 import System.Log.FastLogger
-import qualified Prelude (take)
+import qualified Prelude (take, return)
 
 
 #ifdef THINGS_ARE_GOING_THAT_BAD
@@ -55,7 +55,7 @@ log msg = getLogger >>= \(Ur logger) -> G.do
 #ifndef THINGS_ARE_GOING_THAT_BAD
     logger._log full_msg
 #else
-    do BS.putStr (fromLogStr full_msg); !_ <- System.IO.hFlush System.IO.stdout; return ()
+    do BS.putStr (fromLogStr full_msg); !_ <- System.IO.hFlush System.IO.stdout; Prelude.return ()
 #endif
 
 -- | Log if debug level (@-DDEBUG@) is set

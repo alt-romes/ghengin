@@ -182,10 +182,10 @@ instance HasProperties (RenderPipeline π) where
 
 
 destroyRenderPipeline :: RenderPipeline α τ ⊸ Renderer ()
-destroyRenderPipeline (RenderProperty b rp) = Linear.do
+destroyRenderPipeline (RenderProperty b rp) = enterD "Destroying render pipeline" Linear.do
   Alias.forget b
   destroyRenderPipeline rp
-destroyRenderPipeline (RenderPipeline gp rp (a,b,c) _) = Linear.do
+destroyRenderPipeline (RenderPipeline gp rp (a,b,c) _) = enterD "Destroying render pipeline" Linear.do
   Alias.forget a >> Alias.forget b >> Alias.forget c
   Alias.forget rp
   destroyPipeline gp

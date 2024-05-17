@@ -1,4 +1,5 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Ghengin.Core.Render.Property
   ( PropertyBinding(..)
@@ -14,6 +15,7 @@ module Ghengin.Core.Render.Property
 
 import Data.Proxy
 import GHC.TypeError
+import Ghengin.Core.Log
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer
@@ -123,7 +125,7 @@ TODO: Mesh bindings at dset #2
 -- counted:
 --  * Texture2D
 makeResources :: ∀ α. PropertyBindings α ⊸ Renderer (ResourceMap, PropertyBindings α)
-makeResources = go_build 0
+makeResources = enterD "makeResources" . go_build 0
   where
     go_build :: ∀ αs. Int -> PropertyBindings αs ⊸ Renderer (ResourceMap, PropertyBindings αs)
     go_build !_i GHNil        = pure (IM.empty, GHNil)
@@ -190,7 +192,6 @@ writeProperty dr pb = case pb of
         pure (UniformResource buf', DynamicBinding (Ur a))
       Texture2DResource t -> Alias.forget t >>
         error "writeProperty: one can't write a dynamic binding into a non-mapped-buffer resource"
-{-# INLINE writeProperty #-}
 
 
 -- | Class of types that have property bindings.

@@ -1,12 +1,5 @@
 cabal-version:      3.4
 
---------------------------------------------------------------------------------
--- this file is split off from ../ghengin.cabal
--- we had to split these libraries into a different package
--- to fix HLS when using backpack
--- when that's fixed, move the packages back together to the same cabal project file
---------------------------------------------------------------------------------
-
 name:               ghengin-core
 version:            0.1.0.0
 tested-with:        GHC ==9.8.2
@@ -29,20 +22,28 @@ flag dev
 common common-flags
 
   if flag(dev)
-    ghc-options: -Wall -O0
-                 -dasm-lint
-                 -dcmm-lint
-                 -dstg-lint
+    ghc-options:
+        -Wall
+        -fno-ignore-asserts
+        -dasm-lint
+        -dcmm-lint
+        -dstg-lint
+        -- -fcmm-thread-sanitizer
+        -g3
+        -rtsopts -debug
+        -fcheck-prim-bounds
 
-    cc-options: -O0 -DDEBUG
-    cpp-options: -DDEBUG
-                 -- -DDEBUG_TRACE
-                 -- -DTHINGS_ARE_GOING_THAT_BAD
+    cpp-options:
+        -DDEBUG
+        -DDEBUG_TRACE
+        -DTHINGS_ARE_GOING_THAT_BAD
+
   else
-    ghc-options: -Wall -O2
+    ghc-options: -Wall -O2 -threaded
     cc-options: -O2
 
-  ghc-options: -Wno-partial-type-signatures
+  ghc-options:
+    -Wno-partial-type-signatures
 
   default-extensions: UnicodeSyntax,
                       MultiParamTypeClasses,

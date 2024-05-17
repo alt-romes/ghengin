@@ -13,6 +13,7 @@ module Ghengin.Vulkan.Renderer.Texture
   , DynamicImage(..)
   ) where
 
+import Ghengin.Core.Log
 import Ghengin.Core.Prelude as Linear
 import qualified Prelude
 import qualified Unsafe.Linear as Unsafe
@@ -46,13 +47,13 @@ instance Prelude.Eq Texture2D where
   (==) _ _ = False
 
 texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
-texture fp sampler = Linear.do
+texture fp sampler = enterD "Creating a texture" Linear.do
   liftSystemIOU (readImage fp) >>= \case
     Ur (Left e      ) -> Alias.forget sampler >> liftSystemIO (Prelude.fail e)
     Ur (Right dimage) -> textureFromImage dimage sampler
 
 freeTexture :: Texture2D ⊸ Renderer ()
-freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> Linear.do
+freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture" Linear.do
   -- ROMES:tODO: fix Image.hs so that this definition doesn't need to be unsafe.
   useDevice (\dev -> ((),) <$> (destroyImage dev img))
   Alias.forget sampler

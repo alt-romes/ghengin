@@ -51,8 +51,6 @@ common common-flags
 
     cc-options: -DDEBUG
     cpp-options: -DDEBUG
-                 -DDEBUG_TRACE
-                 -DTHINGS_ARE_GOING_THAT_BAD
     -- ghc-options: -g2 -rtsopts -debug
 
   if flag(dev)

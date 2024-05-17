@@ -448,18 +448,18 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> en
 -- texture
 --
 freeDescriptorSets :: Alias DescriptorPool ⊸ V n DescriptorSet ⊸ Renderer ()
-freeDescriptorSets dpoolA dsets = Linear.do
+freeDescriptorSets dpoolA dsets = enterD "Freeing descriptor sets!" Linear.do
   (DescriptorPool{..}, f) <- Alias.get dpoolA
   dpool1 <- withDevice (Vk.freeDescriptorSets dpool (case VL.map (\(DescriptorSet ix dset) -> ix `lseq` dset) dsets of V v -> v))
   f (DescriptorPool{dpool=dpool1,..})
   return ()
 
 freeResourceMap :: ResourceMap ⊸ Renderer ()
-freeResourceMap = Alias.forget
+freeResourceMap = enterD "Freeing resource map!" . Alias.forget
 
 -- | Forget a descriptor resource. This might free the resource if it's the last reference to it
 -- (A DescriptorResource wraps a Reference Counted value)
 freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
 -- ROMES:TODO: Should I be ensuring this is the last reference here?
-freeDescriptorResource = Alias.forget
+freeDescriptorResource = enterD "Freeing descriptor resource!" . Alias.forget
 

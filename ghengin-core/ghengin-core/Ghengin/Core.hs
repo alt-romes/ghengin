@@ -281,17 +281,16 @@ writePropertiesToResources :: ∀ φ α ω. HasProperties φ => ResourceMap ⊸ 
 writePropertiesToResources rmap' fi
   = enterD "writePropertiesToResources"
     Linear.do (pbs, fi')     <- properties fi
-              logT "Going on rmap'"
               (rmap'', pbs') <- go rmap' 0 pbs
-              logT "Forgetting property bindings"
-              Alias.forget pbs'
+              enterD "Forgetting unnecessary aliases to property bindings" $
+                Alias.forget pbs'
               pure (rmap'', fi')
 
   where
     go :: ∀ β. ResourceMap ⊸ Int -> PropertyBindings β ⊸ Renderer (ResourceMap, PropertyBindings β)
     go rmap n = \case
-      GHNil -> pure (rmap, GHNil)
-      binding :## as -> Linear.do
+      GHNil -> logD "wptr:go: Done" >> pure (rmap, GHNil)
+      binding :## as -> enterD "wptr:go:" Linear.do
         (res, rmap'') <- getDescriptorResource rmap n
         (res', binding') <- writeProperty res binding -- TODO: We don't want to fetch the binding so often. Each propety could have its ID and fetch it if required
         Alias.forget res' -- gotten from rmap, def. not the last ref

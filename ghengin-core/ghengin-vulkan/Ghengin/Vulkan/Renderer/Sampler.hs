@@ -23,6 +23,7 @@ module Ghengin.Vulkan.Renderer.Sampler
 
   ) where
 
+import Ghengin.Core.Log
 import Ghengin.Core.Prelude as Linear
 
 import qualified Vulkan.Zero as Vk
@@ -49,7 +50,7 @@ instance Aliasable Sampler where
 -- * VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to edge, but instead uses the edge opposite to the closest edge.
 -- * VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when sampling beyond the dimensions of the image.
 createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer (Alias Sampler)
-createSampler filter addrMode = Linear.do
+createSampler filter addrMode = enterD "Creating Sampler" Linear.do
   let
       -- TODO: Make more flexible as needed
       info = Vk.SamplerCreateInfo { magFilter = filter
@@ -82,5 +83,5 @@ createSampler filter addrMode = Linear.do
 
 
 destroySampler :: Sampler ⊸ Renderer ()
-destroySampler (Sampler s) = Unsafe.toLinear (\s' -> unsafeUseDevice (\dev -> Vk.destroySampler dev s' Nothing)) s
+destroySampler (Sampler s) = Unsafe.toLinear (\s' -> enterD "destroySampler" $ unsafeUseDevice (\dev -> Vk.destroySampler dev s' Nothing)) s
 

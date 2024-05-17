@@ -74,7 +74,7 @@ data DeviceLocalBuffer where
 -- by first copying the data to a staging buffer and then running a buffer copy
 -- one-shot command.
 createDeviceLocalBuffer :: ∀ α. SV.Storable α => Vk.BufferUsageFlags -> SV.Vector α -> Renderer DeviceLocalBuffer
-createDeviceLocalBuffer flags bufferData =
+createDeviceLocalBuffer flags bufferData = enterD "createDeviceLocalBuffer" Linear.do
 
   withStagingBuffer bufferData $ \stagingBuffer bufferSize -> Linear.do
 
@@ -88,7 +88,7 @@ createDeviceLocalBuffer flags bufferData =
     pure $ DeviceLocalBuffer devBuffer' devMem
 
 destroyDeviceLocalBuffer :: DeviceLocalBuffer ⊸ Renderer ()
-destroyDeviceLocalBuffer (DeviceLocalBuffer b dm) = Linear.do
+destroyDeviceLocalBuffer (DeviceLocalBuffer b dm) = enterD "destroyDeviceLocalBuffer" Linear.do
   destroyBuffer b
   freeMemory dm
 
@@ -119,7 +119,7 @@ instance Aliasable MappedBuffer where
 --
 -- The size is given by the type of the storable to store in the uniform buffer.
 createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (Alias MappedBuffer)
-createMappedBuffer size descriptorType = Linear.do
+createMappedBuffer size descriptorType = enterD "createMappedBuffer" Linear.do
 
   case descriptorType of
     Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -> Linear.do
@@ -136,11 +136,14 @@ createMappedBuffer size descriptorType = Linear.do
 
 -- | Note how the storable must be the same as the storable of the uniform
 -- buffer so that the sizes match
-writeMappedBuffer :: ∀ α. Block α => (Alias MappedBuffer) ⊸ α -> Renderer (Alias MappedBuffer)
+writeMappedBuffer :: ∀ α. Block α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
 writeMappedBuffer refcbuf x = enterD "writeMappedBuffer" Linear.do
-  (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (Ur ptr) (Ur s)) ->
+  (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ (Ur ptr) (Ur s)) -> Linear.do
+    logT (fromString $ "Ptr: " ++ show ptr)
     -- For uniform buffers we use std140 (extended layout)
-    Unsafe.toLinear2 assert (fromIntegral (sizeOf140 (Proxy @α)) Prelude.<= s) $ -- <= because the buffer size might be larger than needed due to alignment constraints so the primTySize returned a size bigger than what we pass over
+    Unsafe.toLinear2 assert (fromIntegral (sizeOf140 (Proxy @α)) Prelude.<= s) $
+    -- \^ <= because the buffer size might be larger than needed due to alignment
+    -- constraints so the primTySize returned a size bigger than what we pass over
       Linear.do liftSystemIO $ write140 @α (castPtr ptr) Category.id x
                 pure (ub, ())
   pure ub
@@ -240,7 +243,7 @@ destroyMappedBuffer (UniformBuffer b dm (Ur _hostMemory) (Ur _size)) = enterD "d
 --
 -- It's a bit weird we dont' need to free the host memory, but until we (TODO) make sure, we return the host memory ptr as unrestricted
 mapMemory :: Vk.DeviceMemory ⊸ Vk.DeviceSize -> Vk.DeviceSize -> Vk.MemoryMapFlags -> Renderer (Vk.DeviceMemory, Ur (Ptr ()))
-mapMemory = Unsafe.toLinear $ \mem offset size flgs -> (mem,) <$> (unsafeUseDevice $ \dev -> Ur <$$> Vk.mapMemory dev mem offset size flgs)
+mapMemory = Unsafe.toLinear $ \mem offset size flgs -> enterD "mapMemory" $ (mem,) <$> (unsafeUseDevice $ \dev -> Ur <$$> Vk.mapMemory dev mem offset size flgs)
 
 -- | Linear wrapper for Vk.unmapMemory
 unmapMemory :: Vk.DeviceMemory ⊸ Renderer Vk.DeviceMemory
@@ -250,11 +253,11 @@ unmapMemory = Unsafe.toLinear $ \stgMem -> enterD "unmapMemory" $ Linear.do
 
 -- -- | Linear wrapper for Vk.freeMemory
 freeMemory :: Vk.DeviceMemory ⊸ Renderer ()
-freeMemory = Unsafe.toLinear $ \mem -> unsafeUseDevice $ \device -> Vk.freeMemory device mem Nothing 
+freeMemory = Unsafe.toLinear $ \mem -> enterD "freeMemory" $ unsafeUseDevice $ \device -> Vk.freeMemory device mem Nothing 
 
 -- -- | Linear wrapper for Vk.freeMemory
 destroyBuffer :: Vk.Buffer ⊸ Renderer ()
-destroyBuffer = Unsafe.toLinear $ \buffer -> unsafeUseDevice $ \device -> Vk.destroyBuffer device buffer Nothing 
+destroyBuffer = Unsafe.toLinear $ \buffer -> enterD "destroyBuffer" $ unsafeUseDevice $ \device -> Vk.destroyBuffer device buffer Nothing 
 
 
 -- TODO: Can't forget to call this to free buffer memories after meshes (or the related entities) die
