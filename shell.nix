@@ -5,6 +5,7 @@ mkShell {
   packages = [
     haskell.compiler.ghc98
     cabal-install
+    pkg-config
     glfw
     freetype
     vulkan-headers
