@@ -1,9 +1,10 @@
 with import <nixpkgs> {};
 
 mkShell {
-  name = "dotnet";
+  name = "ghengin";
   packages = [
-    dotnet-sdk_8
+    haskell.compiler.ghc98
+    cabal-install
     glfw
     freetype
     vulkan-headers
