@@ -387,11 +387,18 @@ editProperty prop update i dset resmap0 = Linear.do
     StaticBinding x -> Linear.do
       Ur ux <- update x
 
-      (UniformResource bufref, resmap1) <- getDescriptorResource resmap0 i
+      -- Oh. Had to change this because the pattern wasn't complete so
+      -- linearity stopped being valid. That's an improvement!
+      getDescriptorResource resmap0 i >>= \case
+        (UniformResource bufref, resmap1) -> Linear.do
 
-      writeStaticBinding bufref ux >>= Alias.forget
+          writeStaticBinding bufref ux >>= Alias.forget
 
-      pure (StaticBinding (Ur ux), dset, resmap1)
+          pure (StaticBinding (Ur ux), dset, resmap1)
+        -- For some reason this isn't linear tho so I'm just leaving it as incomplete pattern.
+        -- (Texture2DResource t, resmap1) ->
+        --   Alias.forget resmap1 >> Alias.forget t >> error "todo"
+
 
     Texture2DBinding xalias -> Linear.do
       ux <- update xalias -- Update function is the one taking into account the
@@ -420,13 +427,13 @@ editProperty prop update i dset resmap0 = Linear.do
     -- TODO: this one has the potential to be wrong, think about it carefully eventually
     -- ROMES:TODO: Textures!!!!
     updateTextureBinding :: DescriptorSet ⊸ Alias Texture2D ⊸ Renderer DescriptorSet
-    updateTextureBinding dset t
-      = updateDescriptorSet dset (IM.insert i (Texture2DResource t) IM.empty) >>=
-        (\(dset, rmap) -> Linear.do
+    updateTextureBinding dset' t
+      = updateDescriptorSet dset' (IM.insert i (Texture2DResource t) IM.empty) >>=
+        (\(dset'', rmap) -> Linear.do
           -- We can forget the single texture2D references in the resource map
           -- since we only shared it to be able to update the resource map with it.
           case IM.elems rmap of
             [Texture2DResource tex] -> Alias.forget tex
             x -> Alias.forget x >> error "updateTextureBinding: not expecting any resource other than a single texture2d resource here."
-          pure dset)
+          pure dset'')
 

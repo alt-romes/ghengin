@@ -352,11 +352,13 @@ allocateEmptyDescriptorSets ixs DescriptorPool{..} = enterD "allocateEmptyDescri
     withDevice (Vk.allocateDescriptorSets dpool (V @n (l2vec layouts))) -- @n since the partition takes @n@ integers (well, only if the integer list is disjoint...)
 
   -- Reconstruct things
-  (to_alloc_tups, Nothing) <- pure $ zip' (vec2l layouts) bindingsxs
-  (to_alloc, Nothing)      <- pure $ zip' keys to_alloc_tups
-  set_bindings  <- pure $ IML.unionWith (Unsafe.toLinear2 \_ _ -> error "impossible") (IML.fromList to_alloc) the_rest
+  case zip' (vec2l layouts) bindingsxs of
+   (to_alloc_tups, Nothing) ->
+     case zip' keys to_alloc_tups of
+       (to_alloc, Nothing) -> Linear.do
+         set_bindings  <- pure $ IML.unionWith (Unsafe.toLinear2 \_ _ -> error "impossible") (IML.fromList to_alloc) the_rest
 
-  pure (vzipWith DescriptorSet ixs dsets, DescriptorPool dpool set_bindings)
+         pure (vzipWith DescriptorSet ixs dsets, DescriptorPool dpool set_bindings)
   
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
 updateDescriptorSet :: DescriptorSet -- ^ The descriptor set we're updating with these resources

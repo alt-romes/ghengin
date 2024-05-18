@@ -110,11 +110,11 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( strides :: BindingStrides             )
                         .  PipelineConstraints info top descs strides
                         => ShaderPipeline info
+                        -> V.Vector Vk.PushConstantRange
                         -> RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
                          ⊸ DescriptorPool
-                         ⊸ V.Vector Vk.PushConstantRange
-                        -> Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
-createGraphicsPipeline = Unsafe.toLinearN @4 \ppstages renderP dpool pushConstantRanges -> enterD "createGraphicsPipeline" $ Linear.do
+                         ⊸ Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
+createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \renderP dpool -> enterD "createGraphicsPipeline" $ Linear.do
   Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ Prelude.fmap (Prelude.fst) (IM.elems dpool.set_bindings)
 
   Ur dev <- unsafeGetDevice

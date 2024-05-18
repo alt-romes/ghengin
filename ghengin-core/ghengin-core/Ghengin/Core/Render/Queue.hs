@@ -29,7 +29,6 @@ module Ghengin.Core.Render.Queue
 
 import qualified Prelude
 import Prelude.Linear hiding (insert)
-import Data.Unrestricted.Linear as Linear
 import Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as DL
 import qualified Unsafe.Linear as Unsafe
@@ -48,10 +47,6 @@ import Ghengin.Core.Mesh
 import Ghengin.Core.Log
 import Ghengin.Core.Type.Utils (Some2(..))
 import Ghengin.Core.Material hiding (material)
-
-import Data.Constraint
-import Unsafe.Coerce (unsafeCoerce)
-
 
 newtype RenderQueue a = RenderQueue (PipelineMap (MaterialMap (MeshMap a)))
   deriving (Prelude.Functor)
@@ -132,7 +127,7 @@ insertMaterial (UnsafePipelineKey pkey)
             q
      in (RenderQueue rq', Ur $ UnsafeMaterialKey muid (UnsafePipelineKey pkey))
 
-insertMesh :: forall π p ma me vs a
+insertMesh :: forall π p ma me vs
             . Compatible vs me ma p π
            => MaterialKey π p ma
            -> Mesh vs me
@@ -231,10 +226,10 @@ freeRenderQueue :: RenderQueue ()
                  ⊸ Renderer ()
 freeRenderQueue (RenderQueue rq) = Linear.do
   -- For every pipeline
-  pipesunit <- DL.traverse (\(Some2 @RenderPipeline @π @bs pipeline, materials) -> enterD "Freeing pipeline" Linear.do
+  pipesunit <- DL.traverse (\(Some2 @RenderPipeline @_π @_bs pipeline, materials) -> enterD "Freeing pipeline" Linear.do
 
     -- For every material...
-    matsunits <- DL.traverse (\(Some @Material @ms material, meshes) -> enterD "Freeing material" Linear.do
+    matsunits <- DL.traverse (\(Some @Material @_ms material, meshes) -> enterD "Freeing material" Linear.do
 
       -- For all meshes...
       meshunits <- DL.traverse (\meshes' -> Linear.do

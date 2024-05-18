@@ -123,7 +123,7 @@ render (RenderQueue renderQueue) = Core $ StateT $ \CoreState{frameCounter=fcoun
       -- they come, we should bind the pipeline once and each material once.
 
       -- I can prob make this linear simply by using mapAccumL
-      renderQueue' <- Data.traverse (Unsafe.toLinear \(Some2 @RenderPipeline @π @bs pipeline, materials) -> enterD "Traverse: pipeline" Linear.do
+      Data.traverse (Unsafe.toLinear \(Some2 @RenderPipeline @π @bs pipeline, materials) -> enterD "Traverse: pipeline" Linear.do
 
         -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
 
@@ -181,7 +181,6 @@ render (RenderQueue renderQueue) = Core $ StateT $ \CoreState{frameCounter=fcoun
               return (Some2 $ rebuildPipeline graphicsPipeline, materials')
 
         ) renderQueue
-      return renderQueue'
 
     -- We can return the unsafe queue after having rendered from it because
     -- rendering does not do anything to the resources in the render queue (it
@@ -190,80 +189,81 @@ render (RenderQueue renderQueue) = Core $ StateT $ \CoreState{frameCounter=fcoun
     pure ((RenderQueue renderQueue', CoreState{frameCounter=fcounter+1}), cmdBuffer')
     
  where
+-- What? Why did moving these things out of this where make `renderQueue` now be seen as used exactly once? For some reason 9.10 didn't before.
 
-  handleMaterial :: (Some Material, MeshMap ())
-                  ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) (Some Material, MeshMap ())
-  handleMaterial (Some @Material @ms material, meshes) = StateT $ \graphicsPipeline -> enterD "Material changed" Linear.do
+handleMaterial :: (Some Material, MeshMap ())
+                ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) (Some Material, MeshMap ())
+handleMaterial (Some @Material @ms material, meshes) = StateT $ \graphicsPipeline -> enterD "Material changed" Linear.do
 
-    lift (descriptors material) >>= \case
+  lift (descriptors material) >>= \case
 
-     (dset,rmap,material') -> Linear.do
+   (dset,rmap,material') -> Linear.do
 
-      -- These materials are necessarily compatible with this pipeline in
-      -- the set #1, so the 'descriptorSetBinding' buffer will always be
-      -- valid to write with the corresponding material binding
-      (rmap', material'') <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' material')
-      
-      -- static bindings will have to choose a different dset
-      -- Bind descriptor set #1
-      (dset', graphicsPipeline) <- Alias.useM dset (bindGraphicsDescriptorSet graphicsPipeline 1)
+    -- These materials are necessarily compatible with this pipeline in
+    -- the set #1, so the 'descriptorSetBinding' buffer will always be
+    -- valid to write with the corresponding material binding
+    (rmap', material'') <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' material')
+    
+    -- static bindings will have to choose a different dset
+    -- Bind descriptor set #1
+    (dset', graphicsPipeline) <- Alias.useM dset (bindGraphicsDescriptorSet graphicsPipeline 1)
 
-      lift $ Linear.do
-        Alias.forget dset'
-        Alias.forget rmap'
+    lift $ Linear.do
+      Alias.forget dset'
+      Alias.forget rmap'
 
-      -- For every mesh...
-      --    (we still attach no data to the render queue, but we could, and it would be inplace of this unit)
-      (meshes', graphicsPipeline) <- runStateT (Data.traverse handleMeshes meshes) graphicsPipeline
+    -- For every mesh...
+    --    (we still attach no data to the render queue, but we could, and it would be inplace of this unit)
+    (meshes', graphicsPipeline) <- runStateT (Data.traverse handleMeshes meshes) graphicsPipeline
 
-      return ((Some material'', meshes'), graphicsPipeline)
+    return ((Some material'', meshes'), graphicsPipeline)
 
-  handleMeshes :: [(Some2 Mesh, ())] ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) [(Some2 Mesh, ())]
-  handleMeshes meshes = flip Data.traverse meshes $ \(Some2 @Mesh @ts mesh0, ()) -> StateT $ \graphicsPipeline -> enterD "Mesh changed" Linear.do
+handleMeshes :: [(Some2 Mesh, ())] ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) [(Some2 Mesh, ())]
+handleMeshes meshes = flip Data.traverse meshes $ \(Some2 @Mesh @ts mesh0, ()) -> StateT $ \graphicsPipeline -> enterD "Mesh changed" Linear.do
 
-    logT "Drawing mesh"
+  logT "Drawing mesh"
 
-    -- Bind descriptor set #2 when we have that information in meshes
-    lift (descriptors mesh0) >>= \case
-     (dset,rmap,mesh1) -> Linear.do
+  -- Bind descriptor set #2 when we have that information in meshes
+  lift (descriptors mesh0) >>= \case
+   (dset,rmap,mesh1) -> Linear.do
 
-      -- These meshes are necessarily compatible with this pipeline
-      -- in the set #2, so the 'descriptorSetBinding' buffer will
-      -- always be valid to write with the corresponding mesh binding
-      (rmap', mesh2) <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' mesh1)
-      
-      -- static bindings will have to choose a different dset
-      -- Bind descriptor set #2
-      (dset', graphicsPipeline) <- Alias.useM dset (bindGraphicsDescriptorSet graphicsPipeline 2)
+    -- These meshes are necessarily compatible with this pipeline
+    -- in the set #2, so the 'descriptorSetBinding' buffer will
+    -- always be valid to write with the corresponding mesh binding
+    (rmap', mesh2) <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' mesh1)
+    
+    -- static bindings will have to choose a different dset
+    -- Bind descriptor set #2
+    (dset', graphicsPipeline) <- Alias.useM dset (bindGraphicsDescriptorSet graphicsPipeline 2)
 
-      lift $ Linear.do
-        Alias.forget dset'
-        Alias.forget rmap'
+    lift $ Linear.do
+      Alias.forget dset'
+      Alias.forget rmap'
 
-      -- TODO: No more push constants, for now!!!! They're being hardcoded to something but we don't codify what to push... allow push constants!
-      -- pLayout <- pushConstants graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
+    -- TODO: No more push constants, for now!!!! They're being hardcoded to something but we don't codify what to push... allow push constants!
+    -- pLayout <- pushConstants graphicsPipeline._pipelineLayout Vk.SHADER_STAGE_VERTEX_BIT mm
 
-      mesh3 <- renderMesh mesh2
+    mesh3 <- renderMesh mesh2
 
-      return ((Some2 mesh3, ()), graphicsPipeline)
-
-
+    return ((Some2 mesh3, ()), graphicsPipeline)
 
 
-  -- The region of the framebuffer that the output will be rendered to. We
-  -- render from (0,0) to (width, height) i.e. the whole framebuffer
-  -- Defines a transformation from image to framebuffer
-  viewport' extent = Vk.Viewport { x = 0.0
-                         , y = 0.0
-                         , width  = fromIntegral $ extent.width
-                         , height = fromIntegral $ extent.height
-                         , minDepth = 0
-                         , maxDepth = 1
-                         }
 
-  -- Defines the region in which pixels will actually be stored. Any pixels
-  -- outside of the scissor will be discarded. We keep it as the whole viewport
-  scissor' extent = Vk.Rect2D (Vk.Offset2D 0 0) extent
+
+-- The region of the framebuffer that the output will be rendered to. We
+-- render from (0,0) to (width, height) i.e. the whole framebuffer
+-- Defines a transformation from image to framebuffer
+viewport' extent = Vk.Viewport { x = 0.0
+                       , y = 0.0
+                       , width  = fromIntegral $ extent.width
+                       , height = fromIntegral $ extent.height
+                       , minDepth = 0
+                       , maxDepth = 1
+                       }
+
+-- Defines the region in which pixels will actually be stored. Any pixels
+-- outside of the scissor will be discarded. We keep it as the whole viewport
+scissor' extent = Vk.Rect2D (Vk.Offset2D 0 0) extent
 
 -- | Write a property value to its corresponding resource.
 --

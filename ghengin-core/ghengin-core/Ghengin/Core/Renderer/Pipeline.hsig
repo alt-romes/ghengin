@@ -49,9 +49,9 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( strides :: BindingStrides             )
                         .  PipelineConstraints info top descs strides
                         => ShaderPipeline info
+                        -> V.Vector Vk.PushConstantRange
                         -> RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
                          ⊸ DescriptorPool
-                         ⊸ V.Vector Vk.PushConstantRange
-                        -> Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
+                         ⊸ Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
 
 destroyPipeline :: RendererPipeline a ⊸ Renderer ()
