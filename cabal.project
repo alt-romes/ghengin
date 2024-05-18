@@ -27,6 +27,10 @@ constraints:
     linear-generics>0.2.2
 
 allow-newer:
+    base,
+    template-haskell,
+    ghc,
+    filepath,
     fir:*,
     linear-base:*,
     dear-imgui:*,
