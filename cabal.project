@@ -40,6 +40,10 @@ source-repository-package
   location: https://gitlab.com/sheaf/fir.git
 
 source-repository-package
+  type: git
+  location: https://github.com/ekmett/lens
+
+source-repository-package
   type:     git
   location: https://github.com/expipiplus1/vulkan.git
   tag: a1bb104c154a96955c2d1dc2a9e6ad96a3fc4b50
