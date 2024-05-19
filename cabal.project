@@ -29,7 +29,6 @@ constraints:
 allow-newer:
     base,
     template-haskell,
-    ghc,
     filepath,
     fir:*,
     linear-base:*,

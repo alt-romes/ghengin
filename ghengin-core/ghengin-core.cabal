@@ -82,7 +82,7 @@ common common-flags
 library
     import:           common-flags
 
-    build-depends:    ghc >= 9.8.1
+    build-depends:    ghc >= 9.10.1
 
     exposed-modules:  Ghengin.Core,
                       Ghengin.Core.Material,
