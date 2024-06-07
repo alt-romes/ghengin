@@ -1,7 +1,6 @@
 signature Ghengin.Core.Renderer.RenderPass where
 
 import Ghengin.Core.Renderer.Kernel
-import Data.Linear.Alias (Aliasable)
 
 -- import Ghengin.Vulkan.RenderPass
 --     ( createSimpleRenderPass,
@@ -9,8 +8,6 @@ import Data.Linear.Alias (Aliasable)
 --       VulkanRenderPass(_renderPass) )
 
 data RenderPass
-
-instance Aliasable RenderPass
 
 createSimpleRenderPass :: Renderer RenderPass -- If we always need this as a reference, it's easier to just return it as such here (avoids exposing a free function)
 destroyRenderPass :: RenderPass ⊸ Renderer ()

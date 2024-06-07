@@ -21,7 +21,6 @@ type ResourceMap = IntMap DescriptorResource
 data DescriptorResource where
   UniformResource   :: Alias MappedBuffer ⊸ DescriptorResource
   Texture2DResource :: Alias Texture2D ⊸ DescriptorResource
-instance Aliasable DescriptorResource
 instance Forgettable Renderer DescriptorResource
 instance Shareable m DescriptorResource
 
@@ -38,14 +37,12 @@ instance Shareable m DescriptorResource
 --       ResourceMap )
 
 data DescriptorPool
-instance Aliasable DescriptorPool
 
 createDescriptorPool :: ShaderPipeline info
                      -> Renderer DescriptorPool
 
 
 data DescriptorSet
-instance Aliasable DescriptorSet
 
 -- | Allocates a descriptor set whose layout is defined according to the shader
 -- pipeline information stored in the descriptor pool.

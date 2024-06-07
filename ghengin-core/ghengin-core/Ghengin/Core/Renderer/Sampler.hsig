@@ -2,12 +2,10 @@ signature Ghengin.Core.Renderer.Sampler where
 
 -- TODO: Define isomporphic types and remove vulkan dependency
 import qualified Vulkan as Vk
-import Data.Linear.Alias (Aliasable)
 
 import Ghengin.Core.Renderer.Kernel
 
 data Sampler
-instance Aliasable Sampler
 
 createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer (Alias Sampler)
 destroySampler :: Sampler ⊸ Renderer ()

@@ -83,11 +83,6 @@ data DescriptorResource where
   Texture2DResource :: Alias Texture2D ⊸ DescriptorResource
   deriving Generic
 
-instance Aliasable DescriptorResource where
-  -- Reliable automatic instance through generic still not working (TODO)
-  countedFields (UniformResource x) = [SomeAlias x]
-  countedFields (Texture2DResource x) = [SomeAlias x]
-
 instance Forgettable Renderer DescriptorResource where
   forget = \case
     UniformResource u -> Alias.forget u
@@ -222,10 +217,6 @@ data DescriptorPool =
                  , set_bindings :: IntMap (Vk.DescriptorSetLayout, BindingsMap)
                  }
 
-instance Aliasable DescriptorPool where
-  countedFields _ = []
-  {-# INLINE countedFields #-}
-
 -- | Todo: Linear Types. The created pool must be freed.
 --
 -- Creates a pool as described in Note [Pools].
@@ -290,10 +281,6 @@ data DescriptorSet
   = DescriptorSet { _ix :: Int
                   , _descriptorSet :: Vk.DescriptorSet
                   }
-
-instance Aliasable DescriptorSet where
-  countedFields _ = []
-  {-# INLINE countedFields #-}
 
 -- | Allocate a descriptor set from a descriptor pool. This descriptor pool has
 -- the information required to allocate a descriptor set based on its index in

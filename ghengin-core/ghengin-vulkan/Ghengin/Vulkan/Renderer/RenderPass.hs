@@ -54,10 +54,6 @@ data RenderPass = VulkanRenderPass { _renderPass :: Vk.RenderPass
                                    , _framebuffers :: Vector.Vector Vk.Framebuffer
                                    }
 
-instance Aliasable RenderPass where
-  countedFields _ = []
-  {-# INLINE countedFields #-}
-
 -- withSimpleRenderPass :: (RenderPass -> Renderer a) -> Renderer a
 -- withSimpleRenderPass f = rendererBracket createSimpleRenderPass destroyRenderPass f
 

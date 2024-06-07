@@ -107,9 +107,6 @@ data MappedBuffer = UniformBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
                                     -- ^ When `DeviceMemory` is mapped, we get a `hostMem` pointer to it.
                                   , bufSize :: {-# UNPACK #-} !(Ur Word)
                                   }
-instance Aliasable MappedBuffer where
-  countedFields _ = []
-  {-# INLINE countedFields #-}
 
 -- | Create a uniform buffer with a given size, but don't copy memory to it
 -- yet. See 'writeUniformBuffer' for that.

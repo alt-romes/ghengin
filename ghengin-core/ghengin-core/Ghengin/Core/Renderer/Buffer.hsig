@@ -10,8 +10,6 @@ import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Renderer.Kernel
 import Graphics.Gl.Block
 
-import Data.Linear.Alias (Aliasable)
-
 {-
 Note [Mapped vs Device-local Buffers]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -79,7 +77,6 @@ destroyDeviceLocalBuffer :: DeviceLocalBuffer ⊸ Renderer ()
 
 -- | A mapped (uniform) buffer. See Note [Mapped vs Device-local Buffers]
 data MappedBuffer
-instance Aliasable MappedBuffer
 
 -- | TODO: Drop dependency on Vulkan and make DescriptorType a data type renderer agnostic
 createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (Alias MappedBuffer)

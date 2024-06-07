@@ -1,13 +1,11 @@
 signature Ghengin.Core.Renderer.Texture where
 
 import Prelude (FilePath)
-import Data.Linear.Alias (Aliasable)
 
 import Ghengin.Core.Renderer.Sampler
 import Ghengin.Core.Renderer.Kernel
 
 data Texture2D
-instance Aliasable Texture2D
 
 texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
 

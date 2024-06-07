@@ -39,9 +39,6 @@ data Texture2D = Texture2D { image          :: VulkanImage
                            , sampler        :: Alias Sampler
                            } deriving Generic
 
-instance Aliasable Texture2D where
-  countedFields (Texture2D _ s) = [SomeAlias s]
-
 texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
 texture fp sampler = enterD "Creating a texture" Linear.do
   liftSystemIOU (readImage fp) >>= \case

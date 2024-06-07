@@ -29,7 +29,7 @@ module Ghengin.Core.Prelude
   , V.Vector
 
   -- reference-counting
-  , Aliasable, Forgettable, Shareable, SomeAlias(..)
+  , Forgettable, Shareable, SomeAlias(..)
 
   -- gl-block
   , Block(..)

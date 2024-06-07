@@ -35,9 +35,6 @@ import Ghengin.Vulkan.Renderer.Kernel
 import qualified Data.Linear.Alias as Alias
 
 newtype Sampler = Sampler { sampler :: Vk.Sampler }
-instance Aliasable Sampler where
-  countedFields _ = []
-  {-# INLINE countedFields #-}
 
 -- | Create a sampler with the given filter and sampler address mode
 --
