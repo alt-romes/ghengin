@@ -3,7 +3,7 @@ with import <nixpkgs> {};
 mkShell {
   name = "ghengin";
   packages = [
-    haskell.compiler.ghc98
+    haskell.compiler.ghc910
     cabal-install
     pkg-config
     glfw
@@ -24,6 +24,12 @@ mkShell {
     xorg.libXxf86vm
     xorg.libXcursor
     xorg.libXinerama
+
+    # debugging
+    gdb
+    libelf
+    libdwarf
+    elfutils
   ];
 
   buildInputs = with pkgs; [
