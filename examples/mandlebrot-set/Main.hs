@@ -42,7 +42,6 @@ pattern MAX_FRAME_TIME = 0.5
 
 newtype MousePos = MousePos Vec2
   deriving Storable
-  deriving FIR.Syntactic via (StructVec2 "mousePos")
 
 viewportVertices :: [ Vertex '[Vec3] ]
 viewportVertices =
