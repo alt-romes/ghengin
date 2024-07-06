@@ -79,8 +79,8 @@ makeMainPipeline shaderPipeline = makeRenderPipeline (shaderPipeline WINDOW_SIZE
 -- | we should be getting the window size dynamically (in ghengin utils we can even pass it automatically)
 -- pattern WINDOW_SIZE = (3840, 2160)
 -- pattern WINDOW_SIZE = (2560, 1600)
--- pattern WINDOW_SIZE = (1920, 1200)
-pattern WINDOW_SIZE = (640, 480)
+pattern WINDOW_SIZE = (1920, 1200)
+-- pattern WINDOW_SIZE = (640, 480)
 
 renderQueueWithViewport :: (Typeable w, Compatible '[Vec3] '[] '[] PipelineProps w, _) => ((Word32, Word32) -> G.ShaderPipeline w) -> Renderer (RenderQueue (), Ur (PipelineKey w PipelineProps))
 renderQueueWithViewport sp = Linear.do

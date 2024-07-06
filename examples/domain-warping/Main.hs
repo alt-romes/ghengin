@@ -51,7 +51,7 @@ gameLoop (WithVec2 previousPosX previousPosY) pkey rq = Linear.do
   Ur (double2Float -> newPosX, double2Float -> newPosY) <- (getMousePos ↑)
   liftSystemIO $ print (newPosX, newPosY)
 
-  let pos = vec2 (0.5 * (previousPosX + newPosX)) (0.5 * (previousPosY + newPosY))
+  let Ur pos = Ur $ vec2 (0.5 * (previousPosX + newPosX)) (0.5 * (previousPosY + newPosY))
 
   rq' <- (editPipeline pkey rq (propertyAt @1 (\(Ur (Time time)) -> pure $ Ur $ Time ((time+0.001))) <=< propertyAt @0 (\(Ur _) -> pure $ Ur $ MousePos pos)) ↑)
 
