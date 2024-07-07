@@ -24,18 +24,18 @@ common common-flags
   if flag(dev)
     ghc-options:
         -fno-ignore-asserts
-        -dasm-lint
-        -dcmm-lint
-        -dstg-lint
-        -g3
-        -rtsopts -debug
-        -fcheck-prim-bounds
+        -- -dasm-lint
+        -- -dcmm-lint
+        -- -dstg-lint
+        -- -g3
+        -- -rtsopts -debug
+        -- -fcheck-prim-bounds
         -- -fcmm-thread-sanitizer
 
     cpp-options:
         -DDEBUG
-        -DDEBUG_TRACE
-        -DTHINGS_ARE_GOING_THAT_BAD
+        -- -DDEBUG_TRACE
+        -- -DTHINGS_ARE_GOING_THAT_BAD
 
   else
     ghc-options: -O2 -threaded
@@ -43,7 +43,7 @@ common common-flags
 
   ghc-options:
     -Wall
-    -Wname-shadowing
+    -Wno-name-shadowing
     -Wno-partial-type-signatures
 
   default-extensions: UnicodeSyntax,
@@ -82,8 +82,6 @@ common common-flags
 library
     import:           common-flags
 
-    build-depends:    ghc >= 9.10.1
-
     exposed-modules:  Ghengin.Core,
                       Ghengin.Core.Material,
                       Ghengin.Core.Mesh,
@@ -120,11 +118,11 @@ library
 
     hs-source-dirs:   ghengin-core
 
-    build-depends:    base,
+    build-depends:    base >= 4.20, ghc >= 9.10,
                       fir,
                       -- TODO: NOT DEPEND ON VULKAN IN CORE
-                      vulkan,
-                      linear-base,
+                      vulkan >= 3.26.2,
+                      linear-base >= 0.4.0,
                       reference-counting,
                       os-string,
 
@@ -137,7 +135,10 @@ library
 
                       ghengin-core:backend-independent-bits,
                       linear-utils,
-                      constraints
+                      constraints,
+
+                      -- force this indirect dependency's version
+                      ghc-tcplugins-extra >= 0.4.6
 
 -- A temporary sublibrary since you can't atm import modules from the package
 -- you are instantiating even if it is not an indefinite module?

@@ -17,6 +17,7 @@ module Ghengin.Core.Shader.Pipeline
   , FIR.PrimitiveTopology(..), FIR.PrimitiveConnectedness(..)
   ) where
 
+import Prelude (type (~))
 import Data.Coerce
 import Data.Kind
 import FIR.ProgramState (EntryPointInfo(..), Definedness(..))

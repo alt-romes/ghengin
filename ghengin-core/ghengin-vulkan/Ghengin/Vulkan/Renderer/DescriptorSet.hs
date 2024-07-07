@@ -16,6 +16,7 @@
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE QualifiedDo #-}
+{-# OPTIONS_GHC -Wno-orphans #-} -- BindingsMap/IntMap
 module Ghengin.Vulkan.Renderer.DescriptorSet where
 
 import Ghengin.Core.Prelude as Linear
@@ -419,7 +420,7 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> en
   writeInfos <- IML.traverseWithKey (Unsafe.toLinear2 makeDescriptorWriteInfo) resources
   -- How can I do this well? It's really not immediatly clear
 
-  useDevice (Unsafe.toLinear Vk.updateDescriptorSets (l2vec $ IML.elems writeInfos) [])
+  withDevice (Unsafe.toLinear Vk.updateDescriptorSets (l2vec $ IML.elems writeInfos) [])
   pure (DescriptorSet uix dset, resources)
 
 -- | Destroy a descriptor set 

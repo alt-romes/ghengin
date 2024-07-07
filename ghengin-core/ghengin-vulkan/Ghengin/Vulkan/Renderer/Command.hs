@@ -72,7 +72,6 @@ import Data.Word
 import Foreign.Storable
 import Foreign.Marshal.Alloc
 import Foreign.Ptr
-import Data.Vector (Vector)
 import qualified Data.Vector as Vector
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
@@ -82,7 +81,6 @@ import Ghengin.Vulkan.Renderer.Device
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.RenderPass
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Pipeline
-import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Buffer
 
 import Ghengin.Core.Type.Utils (w32)
@@ -266,7 +264,7 @@ renderPassCmd' rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Comma
   Linear.liftSystemIO $ Vk.cmdEndRenderPass buf
 
   return a
-{-# INLINE renderPassCmd #-}
+{-# INLINEABLE renderPassCmd' #-}
 
 bindGraphicsPipeline' :: Linear.MonadIO m => Vk.Pipeline ⊸ RenderPassCmdM m Vk.Pipeline
 bindGraphicsPipeline' pp = unsafeRenderPassCmd pp (\buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_GRAPHICS)
@@ -494,6 +492,7 @@ bindGraphicsDescriptorSet (VulkanPipeline pipelay layout) ix (DescriptorSet dix 
 renderPassCmd :: Linear.MonadIO m => Int -- ^ needs a good explanation...
               -> RenderPass -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
 renderPassCmd currentImage = Unsafe.toLinear \rpass renderAreaExtent rpcmds -> renderPassCmd' rpass._renderPass (rpass._framebuffers Vector.! currentImage) renderAreaExtent rpcmds
+{-# INLINABLE renderPassCmd #-}
 
 ----- Linear Unsafe Utils
 

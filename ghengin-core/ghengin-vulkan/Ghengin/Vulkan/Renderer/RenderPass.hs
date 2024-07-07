@@ -12,7 +12,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Vulkan.Renderer.RenderPass where
 
--- TODO: DSL
+-- TODO: eDSL
 
 import Ghengin.Core.Log
 import Data.Proxy
@@ -38,8 +38,6 @@ import Ghengin.Vulkan.Renderer.SwapChain
 import Ghengin.Vulkan.Renderer.Kernel
 
 import qualified Unsafe.Linear as Unsafe
-
-import Data.Linear.Alias
 
 data RenderPass = VulkanRenderPass { _renderPass :: Vk.RenderPass
                                    -- | We bundle framebuffer with the 

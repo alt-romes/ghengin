@@ -18,7 +18,7 @@ module Ghengin.Core.Prelude
   , Word32, IORef, KnownNat, Proxy(..)
 
   -- linear-base
-  , bimap, UrT(..)
+  , UrT(..)
   -- linear vectors
   , VL.V(..)
 
@@ -57,7 +57,7 @@ import Prelude.Linear hiding ( IO, log
                              , Semigroup(..), Monoid(..), mappend, mconcat
                              , fst, snd
                              -- For now, we don't adhere to the "better Num" from linear base
-                             , Num(..), FromInteger(..), Ring(..), Additive(..), AddIdentity(..), AdditiveGroup(..), Multiplicative(..), MultIdentity(..), Semiring(..), Ring(..), FromInteger(..)
+                             , Num(..), FromInteger(..), Additive(..), AddIdentity(..), AdditiveGroup(..), Multiplicative(..), MultIdentity(..), Semiring, Ring, FromInteger(..)
                              , transpose
                              )
 import Control.Functor.Linear hiding (get,modify)

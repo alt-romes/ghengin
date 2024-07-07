@@ -17,7 +17,6 @@ module Ghengin.Vulkan.Renderer.GLFW.Window
 import GHC.Int (Int32)
 import qualified Prelude
 import Prelude.Linear
-import qualified Prelude.Linear as Linear (IO(..))
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
 import qualified Unsafe.Linear as Unsafe

@@ -8,10 +8,7 @@ module Ghengin.Core.Shader.Data
   ) where
 
 import Data.Kind
-import Data.Constraint
-import Type.Reflection
 import Graphics.Gl.Block
-import FIR.Prim.Types
 import FIR.Layout as L
 
 -- | The class which powers all of the serialization and compatibility logic

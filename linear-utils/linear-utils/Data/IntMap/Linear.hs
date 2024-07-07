@@ -59,6 +59,7 @@ lookupM = toLinear2 \k m ->
   case IM.lookup k m of
     Nothing -> pure (Nothing, m)
     Just x  -> share x >>= toLinear \case (x1,_x2) -> pure (Just x1,m)
+{-# INLINE lookupM #-} -- MonadIO should be specialised, but we can also just inline this
 
 -- | \(O(n)\). Partition the map according to some predicate. The first
 -- map contains all elements that satisfy the predicate, the second all

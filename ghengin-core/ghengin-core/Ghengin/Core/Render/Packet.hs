@@ -1,23 +1,14 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
 
-module Ghengin.Core.Render.Packet {-# DEPRECATED "Packets are registered through the RenderQueues, see that module instead" #-} where
+-- | Packets are registered through the RenderQueues, see that module instead
+-- This only ever be needed when writing internals of the engine
+module Ghengin.Core.Render.Packet where
 
-import Debug.Trace ( trace )
 import Type.Reflection ()
-import Data.Typeable ( Typeable, Proxy(Proxy), typeRep, TypeRep )
-import Data.Unique ( Unique, newUnique )
-import Ghengin.Core.Material ( Material )
-import Ghengin.Core.Mesh ( Mesh )
+import Data.Typeable ( Typeable, TypeRep )
+import Data.Unique ( Unique )
 import Ghengin.Core.Type.Compatible ( Compatible )
-import Ghengin.Core.Render.Pipeline
-import Ghengin.Core.Render.Queue
-
-import qualified Prelude
-import Prelude.Linear
-
-import Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear
 
 {-|
 

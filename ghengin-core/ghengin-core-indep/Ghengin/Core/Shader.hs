@@ -19,15 +19,10 @@ import Geomancy.Vec3
 import Geomancy.Vec4
 import Geomancy.Mat4
 
-import qualified FIR.Prim.Image as FIR
-import qualified SPIRV.Image as SPIRV
-import qualified SPIRV.ScalarTy
-
-import Ghengin.Core.Prelude (GHList(..), Float, undefined, Generic)
+import Ghengin.Core.Prelude (Float, Generic)
 
 import Math.Linear
 import qualified FIR
-import qualified FIR.AST as FIR
 import qualified Data.Type.Map as M
 
 import Ghengin.Core.Shader.Data

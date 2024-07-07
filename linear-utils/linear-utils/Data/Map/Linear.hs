@@ -10,15 +10,11 @@ module Data.Map.Linear
   ) where
 
 import Data.Constraint
-import Data.V.Linear.Internal (V(..))
-import qualified Data.Vector as V
 import qualified Prelude
-import Data.Linear.Alias as Alias
 
 import Prelude.Linear
 import Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data.Linear
-import Control.Monad.IO.Class.Linear
 import Data.Map.Internal (Map(..))
 import qualified Data.Map.Internal as M
 

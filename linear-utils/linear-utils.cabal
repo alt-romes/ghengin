@@ -29,14 +29,14 @@ flag dev
 common common-flags
 
   if flag(dev)
-    ghc-options: -Wall -O0
-                 -dasm-lint
-                 -dcmm-lint
-                 -dstg-lint
+    ghc-options: -Wall
+                 -- -dasm-lint
+                 -- -dcmm-lint
+                 -- -dstg-lint
 
-    cc-options: -O0 -DDEBUG
+    cc-options:  -DDEBUG
     cpp-options: -DDEBUG
-                 -DDEBUG_TRACE
+                 -- -DDEBUG_TRACE
   else
     ghc-options: -Wall -O2
     cc-options: -O2

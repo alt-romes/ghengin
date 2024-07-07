@@ -6,14 +6,11 @@ which one expresses more high-level game-engine and rendering abstractions, like
  -}
 module Ghengin.Core where
 
-import qualified Prelude
 import Ghengin.Core.Prelude
 import Ghengin.Core.Log
-import qualified Data.V.Linear as V
 
 import Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data
-import Control.Monad.IO.Class.Linear as Linear
 
 import Ghengin.Core.Render.Queue
 import Ghengin.Core.Renderer.Pipeline
@@ -23,7 +20,6 @@ import Ghengin.Core.Renderer
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render
 
-import Ghengin.Core.Render.Packet
 import Ghengin.Core.Mesh
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Material

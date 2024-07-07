@@ -6,7 +6,6 @@ import GHC.TypeNats
 import qualified Prelude as Unrestricted
 import Prelude.Linear
 import qualified Prelude
-import qualified Control.Monad.IO.Class as Unrestricted
 import qualified System.IO.Linear
 import qualified Data.Functor.Linear as Data.Linear
 import Control.Functor.Linear as Linear
@@ -84,10 +83,6 @@ runRenderer' l renv (Renderer rend) = runStateT (runReaderT rend (Ur (RREnv l)))
 
 useVulkanDevice :: (VulkanDevice %1 -> System.IO.Linear.IO (a, VulkanDevice)) %1 -> Renderer a
 useVulkanDevice f = renderer $ \(REnv{..}) -> f _vulkanDevice >>= \case (a, d') -> pure (a, REnv{_vulkanDevice=d',..})
-
-{-# DEPRECATED useDevice "for withDevice" #-}
-useDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
-useDevice = withDevice
 
 withDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
 withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d

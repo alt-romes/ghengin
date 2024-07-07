@@ -1,7 +1,6 @@
 {-# LANGUAGE RoleAnnotations #-}
 module Ghengin.Vulkan.Renderer.Kernel where
 
-import qualified Data.Functor.Linear as Data.Linear
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
 import Ghengin.Core.Prelude
