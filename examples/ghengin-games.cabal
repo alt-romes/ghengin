@@ -8,7 +8,7 @@ cabal-version:      3.4
 --------------------------------------------------------------------------------
 
 name:               ghengin-games
-tested-with:        GHC ==9.8.2
+tested-with:        GHC ==9.10.1
 version:            0.1.0.0
 license:            BSD-3-Clause
 license-file:       ../LICENSE

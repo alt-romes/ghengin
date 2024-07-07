@@ -5,7 +5,7 @@ name:               ghengin
 --                  | | | +--- code changes with no API change
 version:            0.1.0.0
 
-tested-with:        GHC ==9.8.2
+tested-with:        GHC ==9.10.1
 -- synopsis:
 -- description:
 license:            BSD-3-Clause
