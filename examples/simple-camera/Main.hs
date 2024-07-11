@@ -7,6 +7,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
+import qualified Prelude
 import GHC.Generics
 import Geomancy.Vec3
 import Geomancy.Mat4
@@ -28,67 +29,10 @@ import qualified Prelude
 import qualified Math.Linear as FIR
 import qualified FIR
 
+import Game.Geometry.Cube (coloredCube)
 import Shaders
 
 type CubeMesh = Mesh '[Vec3, Vec3] '[Transform]
-
-cubeVertices :: [Vertex '[Vec3, Vec3]]
-cubeVertices = [
-
-  -- left face (white)
-  vec3 (-0.5) (-0.5) (-0.5) :&: white,
-  vec3 (-0.5) (-0.5) (0.5)  :&: white,
-  vec3 (-0.5) (0.5)  (0.5)  :&: white,
-  vec3 (-0.5) (0.5) (0.5) :&: white,
-  vec3 (-0.5) (0.5)  (-0.5)  :&: white,
-  vec3 (-0.5) (-0.5)  (-0.5) :&: white,
-
-  -- right face (yellow)
-  vec3 (-0.5) (-0.5) (-0.5) :&: yellow,
-  vec3 0.5 (0.5)  (-0.5)  :&: yellow,
-  vec3 0.5 (-0.5) (-0.5)  :&: yellow,
-  vec3 (-0.5) (-0.5) (-0.5) :&: yellow,
-  vec3 (-0.5) (0.5)  (-0.5) :&: yellow,
-  vec3 0.5 (0.5)  (-0.5)  :&: yellow,
-
-  -- top face (orange, remember y axis points down)
-  vec3 (-0.5) (-0.5) (-0.5) :&: orange,
-  vec3 (0.5) (-0.5) (-0.5)  :&: orange,
-  vec3 (0.5)  (-0.5) (0.5)  :&: orange,
-  vec3 (-0.5) (-0.5) (-0.5) :&: orange,
-  vec3 (0.5)  (-0.5) (0.5)  :&: orange,
-  vec3 (-0.5)  (-0.5) (0.5) :&: orange,
-
-  -- bottom face (red)
-  vec3 (-0.5) (0.5) (-0.5) :&: red,
-  vec3 (-0.5) (0.5) (0.5)  :&: red,
-  vec3 (0.5)  (0.5) (0.5)  :&: red,
-  vec3 (-0.5) (0.5) (-0.5) :&: red,
-  vec3 (0.5)  (0.5) (0.5)  :&: red,
-  vec3 (0.5)  (0.5) (-0.5) :&: red,
-
-  -- nose face (blue)
-  vec3 (0.5) (0.5) (-0.5) :&: blue,
-  vec3 (0.5)  (0.5)  (0.5) :&: blue,
-  vec3 (0.5) (-0.5)  (0.5) :&: blue,
-  vec3 (0.5) (-0.5) (0.5) :&: blue,
-  vec3 (0.5)  (-0.5) (-0.5) :&: blue,
-  vec3 (0.5)  (0.5)  (-0.5) :&: blue,
-
-  -- tail face (green)
-  vec3 (-0.5) (0.5) (0.5) :&: green,
-  vec3 (-0.5) (-0.5)  (0.5) :&: green,
-  vec3 (0.5)  (0.5)  (0.5) :&: green,
-  vec3 (-0.5) (-0.5) (0.5) :&: green,
-  vec3 (0.5)  (-0.5)  (0.5) :&: green,
-  vec3 (0.5)  (0.5) (0.5) :&: green]
-  where
-    white = vec3 0.9 0.9 0.9
-    yellow = vec3 0.8 0.8 0.1
-    orange = vec3 0.9 0.6 0.1
-    red = vec3 0.8 0.1 0.1
-    blue = vec3 0.1 0.1 0.8
-    green = vec3 0.1 0.8 0.1
 
 data Camera
   = Camera { view :: Mat4
@@ -128,7 +72,7 @@ main = do
     pipeline <- (makeRenderPipeline shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     (mesh :: CubeMesh, pipeline) <-
-      (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) cubeVertices ↑)
+      (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) coloredCube ↑)
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)

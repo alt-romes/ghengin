@@ -187,7 +187,7 @@ createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \render
                      , cullMode = Vk.CULL_MODE_NONE
 #endif
 
-                     , frontFace = Vk.FRONT_FACE_COUNTER_CLOCKWISE -- Default vertice front face to be defined clock wise
+                     , frontFace = Vk.FRONT_FACE_COUNTER_CLOCKWISE -- Default vertice front face to be defined counter clock wise
                      -- , frontFace = Vk.FRONT_FACE_CLOCKWISE
                      , depthBiasEnable = False -- Biasing depth values based on a fragment's slope (could be used for shadow mapping)
                      , depthBiasConstantFactor = 0

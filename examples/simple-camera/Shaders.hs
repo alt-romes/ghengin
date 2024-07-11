@@ -36,8 +36,8 @@ shaderPipeline
   G.:>-> fragment
 
 type VertexDefs =
-  '[ "in_position"  ':-> Input      '[ Location 0 ] (V 3 Float)
-   , "in_color"     ':-> Input      '[ Location 1 ] (V 3 Float)
+  '[ "in_position"  ':-> Input      '[ Location 1 ] (V 3 Float) -- position comes after color (location=1)
+   , "in_color"     ':-> Input      '[ Location 0 ] (V 3 Float) -- color comes first (location=0)
    , "frag_color"   ':-> Output     '[ Location 0 ] (V 3 Float)
    , "model"    ':-> Uniform    '[ DescriptorSet 2, Binding 0 ] (Struct '[ "m" ':-> M 4 4 Float ])
    , "camera"       ':-> Uniform    '[ DescriptorSet 0, Binding 0 ]

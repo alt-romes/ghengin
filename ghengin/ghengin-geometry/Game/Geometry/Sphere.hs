@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-name-shadowing -Wno-incomplete-uni-patterns #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BlockArguments #-}
@@ -18,7 +19,6 @@ import qualified Data.Vector.Storable as SV
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
 
-import Data.Foldable (foldl')
 import Data.List (sort)
 import Data.List.Split (chunksOf)
 

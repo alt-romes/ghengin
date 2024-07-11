@@ -226,7 +226,8 @@ library camera
 library geometry
     import:           common-flags
     visibility: public
-    exposed-modules:  Game.Geometry, Game.Geometry.Sphere
+    exposed-modules:  Game.Geometry, Game.Geometry.Sphere, Game.Geometry.Cube,
+                      Game.Geometry.Transform
     build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits, ghengin-core, vector, containers, split, geomancy
     hs-source-dirs:   ghengin-geometry
     default-language: GHC2021

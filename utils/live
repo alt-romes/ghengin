@@ -2,4 +2,3 @@
 
 ghcid --test "Main.main" --command "cabal repl --semaphore --ghc-options=-fno-ghci-sandbox $@"
 
-

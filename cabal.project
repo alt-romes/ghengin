@@ -14,9 +14,9 @@ packages:
           -- ~/Developer/fir/
           -- ~/Developer/gl-block/
 
-profiling: true
-package *
-    profiling-detail: late
+-- profiling: true
+-- package *
+--     profiling-detail: late
 
 package ghengin-core
   flags: +enable-culling
