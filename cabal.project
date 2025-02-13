@@ -28,7 +28,8 @@ package fir
   flags: +internals +sop
 
 constraints:
-    linear-generics>0.2.2
+    linear-generics>0.2.2,
+    QuickCheck>=2.15
 
 allow-newer:
     base,
