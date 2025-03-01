@@ -2,7 +2,8 @@
   import <nixpkgs> {
     overlays = [
       (import ./nix/vulkan-validation-layers-overlay.nix)
-    ]; }}:
+    ];
+    }}:
 with pkgs;
 mkShell {
   name = "ghengin";
@@ -17,11 +18,30 @@ mkShell {
     vulkan-loader
     vulkan-validation-layers
     vulkan-tools      # <-- vulkaninfo
-  ];
+  ]
+  ++ (pkgs.lib.optionals pkgs.stdenv.isLinux [
+    # Linux only pkgs
+    freetype
+    shaderc             # GLSL to SPIRV compiler - glslc
+    # renderdoc           # Graphics debugger
+    # tracy               # Graphics profiler
+    vulkan-tools-lunarg # vkconfig
 
-  buildInputs = with pkgs; [
-    glfw
-  ];
+    # bindings-GLFW
+    xorg.libX11
+    xorg.libXi
+    xorg.libXrandr
+    xorg.libXxf86vm
+    xorg.libXcursor
+    xorg.libXinerama
+
+    # debugging
+    gdb
+    libelf
+    libdwarf
+    elfutils
+  ])
+  ;
 
   # See "Set up the runtime environment manually"
   # in https://vulkan.lunarg.com/doc/sdk/1.4.304.1/mac/getting_started.html
@@ -35,4 +55,9 @@ mkShell {
 
   # Validation layers
   VK_LAYER_PATH = "${vulkan-validation-layers}/share/vulkan/explicit_layer.d";
+
+} // pkgs.lib.mkIf pkgs.stdenv.isLinux {
+
+  # To find vulkan at load time on linux
+  LD_LIBRARY_PATH = "${glfw}/lib:${freetype}/lib:${vulkan-loader}/lib:${vulkan-validation-layers}/lib";
 }
