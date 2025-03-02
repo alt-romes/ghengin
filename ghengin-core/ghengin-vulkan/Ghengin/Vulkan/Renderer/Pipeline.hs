@@ -96,14 +96,12 @@ type PipelineConstraints info top descs strides =
           , Known BindingStrides             strides
           )
 
--- | Create a pipeline given a vertex shader and a fragment shader (in this
--- order)
+-- | Create a graphics pipeline based off of a given 'ShaderPipeline'
 --
 -- Note that the returned vulkan pipeline must be managed in a structure that
 -- ensures each pipeline renders all related items in sequence instead of
 -- jumping in between pipeline
-createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fragdefs)
-                        -- (CompilableProgram v, CompilableProgram f)
+createGraphicsPipeline  ::
                         ∀  ( info    :: PipelineInfo               )
                            ( top     :: PrimitiveTopology Nat      )
                            ( descs   :: VertexLocationDescriptions )
@@ -140,7 +138,10 @@ createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \render
 
     shaderStages = V.fromList $ map VkC.SomeStruct shaderStageInfos :: V.Vector (VkC.SomeStruct Vk.PipelineShaderStageCreateInfo)
 
-    (assemblyInfo, vertexInputInfo) = assemblyAndVertexInputStateInfo @info
+    (primTop, vertexInputInfo) = topologyAndVertexInputStateInfo @info
+
+    assemblyStateInfo = assemblyInfo primTop
+    mbTessellationStateInfo = tessellationInfo primTop
 
     -- Fixed functions configuration
     dynamicStateInfo = Vk.PipelineDynamicStateCreateInfo zero dynamicStates
@@ -272,11 +273,11 @@ createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \render
   let 
     pipelineInfo = Vk.GraphicsPipelineCreateInfo { next = ()
                                                  , flags = Vk.PipelineCreateFlagBits 0
-                                                 , stageCount = 2
+                                                 , stageCount = fromIntegral $ V.length shaderStages
                                                  , stages = shaderStages
                                                  , vertexInputState = Just (VkC.SomeStruct vertexInputInfo)
-                                                 , inputAssemblyState = Just assemblyInfo
-                                                 , tessellationState = Nothing -- still no tesselation
+                                                 , inputAssemblyState = Just assemblyStateInfo
+                                                 , tessellationState = VkC.SomeStruct Prelude.<$> mbTessellationStateInfo
                                                  , viewportState = Just (VkC.SomeStruct viewportStateInfo)
                                                  , rasterizationState = Just (VkC.SomeStruct rasterizerInfo)
                                                  , multisampleState = Just (VkC.SomeStruct multisamplingInfo)
@@ -340,8 +341,12 @@ compileFIRShader m = liftSystemIO do
 destroyShaderModule :: Vk.Device ⊸ Vk.ShaderModule ⊸ System.IO.Linear.IO Vk.Device
 destroyShaderModule = Unsafe.toLinear2 \d sm -> d <$ liftSystemIO (Vk.destroyShaderModule d sm Nothing)
 
-
+--------------------------------------------------------------------------------
+-- FIR shader info reification functions
+--------------------------------------------------------------------------------
+-- To some extent, FIR is doing exactly what I should be doing but better.
 -- From https://gitlab.com/sheaf/fir/-/blob/master/fir-examples/src/Vulkan/Pipeline.hs
+-- At some point, uniformise with it ^^^
 
 shaderInfo
   :: FIR.Shader
@@ -424,16 +429,26 @@ topology (Triangle AdjacencyList ) = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_AD
 topology (Triangle AdjacencyStrip) = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY
 topology (PatchesOfSize         _) = Vk.PRIMITIVE_TOPOLOGY_PATCH_LIST
 
-makeAssemblyInfo
+assemblyInfo
   :: FIR.PrimitiveTopology n -> Vk.PipelineInputAssemblyStateCreateInfo
-makeAssemblyInfo primTop =
+assemblyInfo primTop =
   Vk.PipelineInputAssemblyStateCreateInfo
     { Vk.flags                  = zero
     , Vk.topology               = topology primTop
     , Vk.primitiveRestartEnable = False
     }
 
-assemblyAndVertexInputStateInfo
+tessellationInfo
+  :: PrimitiveTopology Word32 -> Maybe ( Vk.PipelineTessellationStateCreateInfo '[] )
+tessellationInfo (PatchesOfSize pts) = Just $
+  Vk.PipelineTessellationStateCreateInfo
+    { Vk.next               = ()
+    , Vk.flags              = zero
+    , Vk.patchControlPoints = fromIntegral pts
+    }
+
+
+topologyAndVertexInputStateInfo
   :: ∀
       ( info    :: PipelineInfo               )
       ( top     :: PrimitiveTopology Nat      )
@@ -444,8 +459,8 @@ assemblyAndVertexInputStateInfo
     , Known VertexLocationDescriptions descs
     , Known BindingStrides             strides
     )
-  => ( Vk.PipelineInputAssemblyStateCreateInfo, Vk.PipelineVertexInputStateCreateInfo '[] )
-assemblyAndVertexInputStateInfo =
+  => ( PrimitiveTopology Word32, Vk.PipelineVertexInputStateCreateInfo '[] )
+topologyAndVertexInputStateInfo =
   let
     primTop :: FIR.PrimitiveTopology Word32
     primTop = knownValue @top
@@ -490,7 +505,7 @@ assemblyAndVertexInputStateInfo =
         , Vk.vertexAttributeDescriptions = V.fromList vertexAttributeDescriptions
         }
 
-   in (makeAssemblyInfo primTop, vertexInputStateInfo)
+   in (primTop, vertexInputStateInfo)
 
 ----------------------
 ---- Vulkan Utils ----
