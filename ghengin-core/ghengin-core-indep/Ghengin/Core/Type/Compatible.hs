@@ -152,8 +152,6 @@ type family DSetBindings'' set info i x where
   DSetBindings'' n info i ('Just x) = x ': DSetBindings' n info (i+1)
 
 -- | Find descriptor set #set and binding #binding in any of the pipeline stages inputs
---
--- This assumes this order as the only valid one. Perhaps it should say so in the error message (TODO).
 type family DSetBinding (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Maybe Type where
   DSetBinding set binding (VertexInputInfo _ _ _) = 'Nothing
   DSetBinding set binding (infos `Into` '(_name, 'EntryPointInfo _ defs _)) =
@@ -167,6 +165,7 @@ type family DSetBinding' (set :: Nat) (binding :: Nat) (info :: PipelineInfo) ::
 type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [TLInterfaceVariable]) :: Maybe Type where
   FindDSetInput set binding '[] = 'Nothing
   FindDSetInput set binding ('( '[DescriptorSet set, Binding binding], ty) ': inputs) = 'Just ty
+  FindDSetInput set binding ('( '[Binding binding, DescriptorSet set], ty) ': inputs) = 'Just ty
   FindDSetInput set binding (_ ': inputs) = FindDSetInput set binding inputs
 
 

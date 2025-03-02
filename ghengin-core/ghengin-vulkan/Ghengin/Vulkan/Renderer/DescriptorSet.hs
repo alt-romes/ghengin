@@ -118,10 +118,6 @@ instance Show SomeDefs where
 -- | Creates a mapping from descriptor set indexes to a list of their bindings
 -- (corresponding binding type, size, shader stage flags) solely from the shader
 -- pipeline definition.
---
--- This might be a slow
--- function so one should be careful calling it too often.  A more performant
--- less simple alternative should be added...
 createDescriptorSetBindingsMap :: ShaderPipeline info -> DescriptorSetMap
 createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempty ppstages)
                                             -- If any of the descriptor sets is
@@ -218,8 +214,6 @@ data DescriptorPool =
                  , set_bindings :: IntMap (Vk.DescriptorSetLayout, BindingsMap)
                  }
 
--- | Todo: Linear Types. The created pool must be freed.
---
 -- Creates a pool as described in Note [Pools].
 --
 -- TODO: Right amount of descriptors. For now we simply multiply 1000 by the
