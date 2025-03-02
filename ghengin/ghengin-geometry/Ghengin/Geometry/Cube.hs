@@ -13,11 +13,11 @@
 -- * Using triangle list primitive topology
 --
 -- * Using COUNTER_CLOCKWISE order for front facing triangles
-module Game.Geometry.Cube where
+module Ghengin.Geometry.Cube where
 
 import Prelude -- We often don't need linearity here.
 import Ghengin.Core.Mesh.Vertex
-import Game.Geometry.Transform
+import Ghengin.Geometry.Transform
 
 -- | A unit cube centered at (0,0,0).
 cube :: [Vertex '[Vec3]]

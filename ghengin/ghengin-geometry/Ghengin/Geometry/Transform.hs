@@ -1,4 +1,4 @@
-module Game.Geometry.Transform
+module Ghengin.Geometry.Transform
   ( transform
   , module Geomancy.Transform
   , module Geomancy.Vec3

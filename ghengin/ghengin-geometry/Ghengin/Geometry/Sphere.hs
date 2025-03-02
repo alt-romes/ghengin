@@ -3,7 +3,7 @@
 {-# LANGUAGE ViewPatterns #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
-module Game.Geometry.Sphere where
+module Ghengin.Geometry.Sphere where
 
 import Prelude
 import Ghengin.Core.Prelude (GHList(..))

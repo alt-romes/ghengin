@@ -31,7 +31,7 @@ import qualified Prelude
 import qualified Math.Linear as FIR
 import qualified FIR
 
-import Game.Geometry.Cube (coloredCube)
+import Ghengin.Geometry.Cube (coloredCube)
 import Shaders
 
 type CubeMesh = Mesh '[Vec3, Vec3] '[Transform]
@@ -43,11 +43,10 @@ data Camera
            deriving Generic
            deriving anyclass Block
 
-
 defaultCamera :: Camera
 defaultCamera = Camera
   { view = unTransform $ lookAt (vec3 0 0 0) (vec3 0 0 1) (vec3 0 1 0)
-  , proj = unTransform $ perspective 45 0.1 1000 640 480
+  , proj = unTransform $ perspective @Int 45 0.1 1000 640 480
   }
 
 gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
