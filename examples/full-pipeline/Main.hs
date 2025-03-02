@@ -34,8 +34,6 @@ import Ghengin.Camera
 import qualified Prelude
 import Shaders
 
--- TODO: WILL NEED SHADER_STAGE_TESELATION_EVALUATION_BIT to be set in engine when shader pipeline includes those things NO??
-
 type IcosahedronMesh = Mesh '[Vec3, Vec3] '[]
 
 icosahedronVerts :: [Vertex '[Vec3, Vec3]]

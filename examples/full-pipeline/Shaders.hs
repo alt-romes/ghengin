@@ -45,7 +45,7 @@ vertex = shader @"main" @VertexShader @VertexDefs do
     view_p <- use @(Name "ubo" :.: Name "view")
     proj_p <- use @(Name "ubo" :.: Name "proj")
     put @"out_colour"  (Vec4 r g b 1)
-    put @"gl_Position" ( (proj_p !*! view_p) !*^ Vec4 x y z 1 )
+    put @"gl_Position" ( (proj_p !*! view_p) !*^ Vec4 x y (z+6) 1 )
 
 ------------------------------------------------
 -- tessellation control
