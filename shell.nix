@@ -14,12 +14,14 @@ mkShell {
     zlib
     glfw
     # SDL2 # optionally, for debugging FIR. We don't support SDL2 yet
-    moltenvk
     vulkan-headers
     vulkan-loader
     vulkan-validation-layers
     vulkan-tools      # <-- vulkaninfo
   ]
+  ++ (pkgs.lib.optionals pkgs.stdenv.isDarwin [
+    moltenvk
+  ])
   ++ (pkgs.lib.optionals pkgs.stdenv.isLinux [
     # Linux only pkgs
     freetype
@@ -44,13 +46,6 @@ mkShell {
   ])
   ;
 
-  # See "Set up the runtime environment manually"
-  # in https://vulkan.lunarg.com/doc/sdk/1.4.304.1/mac/getting_started.html
-  DYLD_LIBRARY_PATH="${glfw}/lib:${vulkan-loader}/lib";
-
-  # Tell the Vulkan Loader where to find a Vulkan driver:
-  VK_ICD_FILENAMES="${moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
-
   # Not really used, I think. But here are the headers.
   VULKAN_SDK = "${vulkan-headers}";
 
@@ -61,4 +56,12 @@ mkShell {
 
   # To find vulkan at load time on linux
   LD_LIBRARY_PATH = "${glfw}/lib:${freetype}/lib:${vulkan-loader}/lib:${vulkan-validation-layers}/lib";
+} // pkgs.lib.mkIf pkgs.stdenv.isDarwin {
+
+  # See "Set up the runtime environment manually"
+  # in https://vulkan.lunarg.com/doc/sdk/1.4.304.1/mac/getting_started.html
+  DYLD_LIBRARY_PATH="${glfw}/lib:${vulkan-loader}/lib";
+
+  # Tell the Vulkan Loader where to find a Vulkan driver:
+  VK_ICD_FILENAMES="${moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
 }

@@ -14,12 +14,12 @@ self: super:
     ]
     ++ super.lib.optionals super.stdenv.hostPlatform.isLinux [
       super.wayland
-      super.libX11
-      super.libXau
-      super.libXdmcp
-      super.libXrandr
+      super.xorg.libX11
+      super.xorg.libXau
+      super.xorg.libXdmcp
+      super.xorg.libXrandr
+      super.xorg.libxcb
       super.libffi
-      super.libxcb
     ];
 
     meta.platforms = super.lib.platforms.all;
