@@ -200,4 +200,10 @@ executable simple-camera
     other-modules: Shaders
     hs-source-dirs: simple-camera/
 
+executable full-pipeline
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    hs-source-dirs: full-pipeline
+
 
