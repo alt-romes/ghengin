@@ -395,9 +395,10 @@ editProperty prop update i dset resmap0 = Linear.do
           writeStaticBinding bufref ux >>= Alias.forget
 
           pure (StaticBinding (Ur ux), dset, resmap1)
-        -- For some reason this isn't linear tho so I'm just leaving it as incomplete pattern.
-        -- (Texture2DResource t, resmap1) ->
-        --   Alias.forget resmap1 >> Alias.forget t >> error "todo"
+
+        (Texture2DResource t, resmap1) ->
+          Alias.forget resmap1 >> Alias.forget t >>
+          error "is this right?" dset
 
 
     Texture2DBinding xalias -> Linear.do

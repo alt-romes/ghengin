@@ -106,23 +106,26 @@ instance HasProperties (Mesh vs) where
 
       -- TODO: Various kinds of meshes: indexed meshes, strip meshes, just triangles...
 
--- | Create a Mesh given a vector of vertices
+-- | Create a 'Mesh' given a list of 'Vertex's, where each 'Vertex' has a set
+-- of properties of types @ts@ (e.g. a Vec3 for position and a Vec3 for color).
 --
--- Outdated:
--- Initially there exist no references to this mesh, and if we never assign it
--- to a render entity it will never be freed. However, when a mesh is added to
--- a render packet using 'renderPacket', a reference count is added.
+-- The 'Mesh' must be compatible with the given 'RenderPipeline', and should only
+-- be rendered using the same render pipeline (in a render queue, this means
+-- you should only 'insertMesh' onto a material group that is under this same
+-- render pipeline)
 --
--- A mesh will only be freed when its reference count reaches zero.
 --
--- If you delete/change meshes at runtime you must ensure they are freed
--- because we simply free them at the end. One must free the same meshes as
--- many times as they are shared for they will only be freed with the last
--- reference
+-- TBH, I'm not sure what happens if you somehow try to render the mesh under a
+-- different graphics pipeline. But when the mesh is created, we allocate a
+-- descriptor set for the mesh from the descriptor set pool associated with
+-- this pipeline, so they are at least that tied.
 createMesh :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
            => RenderPipeline π bs
+            -- ^ The render pipeline
             ⊸ PropertyBindings props
+            -- ^ The 'PropertyBindings' for the properties of this mesh (the second type argument to 'Mesh')
             ⊸ [Vertex ts]
+            -- ^ Vertices
            -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMesh (RenderProperty pr rps) props0 vs = createMesh rps props0 vs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
 createMesh (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) props0 (SV.fromList -> vs) = enterD "createMesh" Linear.do
@@ -135,17 +138,21 @@ createMesh (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) props0 (SV.
        , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders
        )
 
+-- | Like 'createMesh', but create the mesh using a vertex buffer created from
+-- the vertices and an indexbuffer created from the indices
 createMeshWithIxs :: HasCallStack => (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
                   => RenderPipeline π bs
                    ⊸ PropertyBindings props
                    ⊸ [Vertex ts]
-                  -> [Int]
+                  -- ^ Vertices
+                  -> [Int32]
+                  -- ^ Indices
                   -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMeshWithIxs (RenderProperty pr rps) props0 vs ixs = createMeshWithIxs rps props0 vs ixs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
 createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) props0 (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "createMeshWithIxs" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vertices
-  indexBuffer  <- createIndex32Buffer (SV.map fromIntegral ixs)
+  indexBuffer  <- createIndex32Buffer ixs
 
   (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes dpool0 props0
 
@@ -153,12 +160,10 @@ createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) prop
        , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders
        )
 
--- | Util
 mkMesh :: ∀ t b. Mesh t '[] ⊸ PropertyBindings b ⊸ Mesh t b
 mkMesh x GHNil = x
 mkMesh x (p :## pl) = MeshProperty p (mkMesh x pl)
 
--- | Util
 allocateDescriptorsForMeshes :: Alias DescriptorPool ⊸ PropertyBindings props ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool, PropertyBindings props)
 allocateDescriptorsForMeshes dpool0 props0 = Linear.do
   -- Mostly just the same as in 'material' in Ghengin.Core.Material
@@ -193,5 +198,4 @@ freeMesh mesh = Linear.do
     MeshProperty prop xs ->
       Alias.forget prop >> freeMesh xs
 
-
--- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)
+-- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)?

@@ -15,7 +15,7 @@ module Ghengin.Core.Prelude
 
   -- base
   , Generic(..), NE.NonEmpty(..), Type, Constraint
-  , Word32, IORef, KnownNat, Proxy(..)
+  , Word32, Int32, IORef, KnownNat, Proxy(..)
 
   -- linear-base
   , UrT(..)
@@ -86,6 +86,7 @@ import qualified Data.V.Linear.Internal.Instances ()
 import GHC.Generics
 import Data.Kind
 import Data.Word
+import Data.Int
 import Data.IORef (IORef)
 
 import Graphics.Gl.Block

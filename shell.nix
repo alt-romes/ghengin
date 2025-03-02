@@ -13,6 +13,7 @@ mkShell {
     pkg-config
     zlib
     glfw
+    # SDL2 # optionally, for debugging FIR. We don't support SDL2 yet
     moltenvk
     vulkan-headers
     vulkan-loader

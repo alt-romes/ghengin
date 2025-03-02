@@ -6,7 +6,7 @@
 module Ghengin.Geometry.Sphere where
 
 import Prelude
-import Ghengin.Core.Prelude (GHList(..))
+import Ghengin.Core.Prelude (GHList(..), Int32)
 import Control.Monad
 import Geomancy.Vec3
 
@@ -27,7 +27,7 @@ data UnitFace = UF { positions :: [Vec3]
                    }
 
 data UnitSphere = UnitSphere { positions :: [ Vertex '[Vec3, Vec3, Vec3] ]
-                             , indices   :: [Int]
+                             , indices   :: [Int32]
                              }
 
 newUnitFace :: Int  -- ^ Resolution
@@ -69,7 +69,7 @@ newUnitSphere res color =
       ns = calculateSmoothNormals is ps
       cls = maybe (map ((^/2) . (+ vec3 1 1 1)) ns) (\x -> map (const x) ns) color
    in
-      UnitSphere (zipWith3 (\a b c -> a :& b :&: c) ps ns cls) is
+      UnitSphere (zipWith3 (\a b c -> a :& b :&: c) ps ns cls) (map fromIntegral is)
 
 newSphereMesh :: CompatibleVertex [Vec3, Vec3, Vec3] π
               => RenderPipeline π bs
