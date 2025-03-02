@@ -40,8 +40,6 @@ import Ghengin.Core.Type.Compatible ( CompatiblePipeline )
 
 import qualified FIR.Pipeline
 
-import qualified Vulkan as Vk
-
 import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Core.Render.Property
@@ -75,9 +73,6 @@ data SomePipeline = ∀ α β. Typeable β => SomePipeline (RenderPipeline α β
 -- TODO: PushConstants must also be inferred from the shader code
 -- Add them as possible alternative to descritpor set #2?
 -- ROMES:TODO:PushConstants automatically used alongside dset #2
--- How can I delete this and this still is correct? :D
--- newtype PushConstantData = PushConstantData { pos_offset :: () -- Mat4
---                                             } deriving Storable
 
 -- Shader pipeline and buffers are only be created once and reused across
 -- render packets that use the same one (Note that render packets store
@@ -114,7 +109,8 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
   -- dsetsSet@((dsetf,dpool):|_) <- mapM (const (createPipelineDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
 
   -- The pipeline should only allocate a descriptor set #0 to be used by render
-  -- properties
+  -- properties.
+  -- Each Material and Mesh then allocates additional descriptor sets from this pool on creation.
 
   logT "Creating descriptor pool"
   dpool0 <- createDescriptorPool shaderPipeline
@@ -140,7 +136,8 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
   (pipeline, simpleRenderPass2, dpool2) <- createGraphicsPipeline
                                      shaderPipeline
                                      -- ROMES:TODO: Update push constants! This is not it! (It's hardcoded, and things are never actually pushed)
-                                     [Vk.PushConstantRange { offset = 0 , size = 64 :: Word32, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+                                     -- [Vk.PushConstantRange { offset = 0 , size = 64 :: Word32, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+                                     []
                                      simpleRenderPass dpool1
 
   logT "Creating reference counted"

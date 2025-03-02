@@ -59,7 +59,7 @@ gameLoop ckey mkey rot rq = Linear.do
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 
-  rq <- render rq 
+  rq <- render rq
   rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
     scale 5 <> rotateY rot <> rotateX (-rot) <> translate 0 0 10)) ↑)
 
