@@ -126,6 +126,7 @@ library
                       reference-counting,
                       os-string,
 
+                      template-haskell,
                       containers,
                       mtl,
                       vector,
@@ -172,6 +173,7 @@ library backend-independent-bits
                       linear-base,
                       reference-counting,
 
+                      template-haskell,
                       containers,
                       vector,
                       bytestring,

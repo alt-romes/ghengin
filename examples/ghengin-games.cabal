@@ -185,21 +185,19 @@ executable simple-triangle
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
-    build-depends: ghengin-games
     hs-source-dirs: simple-triangle/
 
 executable simple-cube
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
-    build-depends: ghengin-games
     hs-source-dirs: simple-cube/
 
 executable simple-camera
     import:        common-flags
+    build-depends: template-haskell
     main-is:       Main.hs
     other-modules: Shaders
-    build-depends: ghengin-games
     hs-source-dirs: simple-camera/
 
 

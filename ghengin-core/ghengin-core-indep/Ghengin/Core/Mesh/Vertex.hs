@@ -1,11 +1,6 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE UndecidableInstances #-}
--- Using template Haskell will break build, because the dynlinker dependencies are not quite right.
--- I think this may be solved with my fix for vulkan-utils (https://github.com/expipiplus1/vulkan/pull/502)
--- I've fixed this locally by adding an rpath to dylib..., but it turns out
--- that we don't need template haskell because deriveGeneric is not supported
--- for existentials...
--- {-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TemplateHaskell #-}
 module Ghengin.Core.Mesh.Vertex
   ( Vertex(Sin,(:&),(:&:))
   ) where
@@ -16,6 +11,10 @@ import Graphics.Gl.Block
 import Foreign.Ptr.Diff (Diff(..))
 import Foreign.Storable
 import Prelude
+import Language.Haskell.TH.Syntax
+
+-- for orphan instances while they aren't upstreamed
+import Geomancy.Vec3
 
 
 -- ROMES:TODO: It turns out alignment for Vertices is even something else entirely!!!
@@ -115,4 +114,18 @@ instance (Show (Vertex (y : xs)), Show x) => Show (Vertex (x : y : xs)) where
   show (x :& xs) = show x <> " :& " <> show xs
   {-# INLINE show #-}
 
+instance Lift x => Lift (Vertex '[x]) where
+    lift (Sin x) = [| Sin $(lift x) |]
+    liftTyped (Sin x) = [|| Sin $$(liftTyped x) ||]
 
+instance (Lift (Vertex (y : xs)), Lift x) => Lift (Vertex (x : y : xs)) where
+    lift (x :& xs) = [| $(lift x) :& $(lift xs) |]
+    liftTyped (x :& xs) = [|| $$(liftTyped x) :& $$(liftTyped xs) ||]
+
+--------------------------------------------------------------------------------
+-- Orphans
+--------------------------------------------------------------------------------
+
+instance Lift Vec3 where
+    lift (WithVec3 a b c) = [| vec3 $(lift a) $(lift b) $(lift c) |]
+    liftTyped (WithVec3 a b c) = [|| vec3 $$(liftTyped a) $$(liftTyped b) $$(liftTyped c) ||]

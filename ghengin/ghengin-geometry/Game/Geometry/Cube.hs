@@ -1,5 +1,9 @@
 -- |
 --
+-- TODO: Since these are procedurally generated, it would be great if we
+-- encouraged users to lift them with TemplateHaskell when the parameters are
+-- statically known to make sure the static procedural parts happen at compile time.
+--
 -- Assumptions:
 --
 -- * Using a cartesian coordinate space XYZ where Y points "up" and Z points "outwards":

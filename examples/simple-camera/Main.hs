@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE TemplateHaskell #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -7,6 +8,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
+import qualified Language.Haskell.TH.Syntax as TH
 import qualified Prelude
 import GHC.Generics
 import Geomancy.Vec3
@@ -72,7 +74,8 @@ main = do
     pipeline <- (makeRenderPipeline shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     (mesh :: CubeMesh, pipeline) <-
-      (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) coloredCube ↑)
+      -- Also displays how TH can be used to create procedural meshes at compile time when the parameters are statically known
+      (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) ($$(TH.liftTyped coloredCube)) ↑)
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
