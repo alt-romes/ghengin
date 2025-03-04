@@ -446,7 +446,7 @@ tessellationInfo (PatchesOfSize pts) = Just $
     , Vk.flags              = zero
     , Vk.patchControlPoints = fromIntegral pts
     }
-
+tessellationInfo _ = Nothing
 
 topologyAndVertexInputStateInfo
   :: ∀
