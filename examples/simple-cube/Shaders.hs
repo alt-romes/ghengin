@@ -24,7 +24,7 @@ import Math.Linear
 -- ghengin
 import qualified Ghengin.Core.Shader as G
 
--- See FIR.Validation.Layout about locations/component layouts...
+-- See FIR.Validation.Layout about locations/component layouts about 'Slot'.
 type VertexInput
   = '[ Slot 0 0 ':-> V 3 Float
      , Slot 1 0 ':-> V 3 Float ]
@@ -39,6 +39,7 @@ type VertexDefs =
   '[ "in_position"  ':-> Input      '[ Location 0 ] (V 3 Float)
    , "in_color"     ':-> Input      '[ Location 1 ] (V 3 Float)
    , "frag_color"   ':-> Output     '[ Location 0 ] (V 3 Float)
+
    , "transform"    ':-> Uniform    '[ DescriptorSet 2, Binding 0 ] (Struct '[ "m" ':-> M 4 4 Float ])
    ]
 
@@ -54,7 +55,9 @@ vertex = shader do
     #gl_Position .= mat !*^ (Vec4 x y z 1)
     #frag_color  .= color
 
-fragment :: G.FragmentShaderModule '["in_color" ':-> Input '[Location 0] (V 3 Float)] _
+fragment :: G.FragmentShaderModule '[
+                "in_color" ':-> Input '[Location 0] (V 3 Float)
+                ] _
 fragment = shader do
   ~(Vec3 r g b) <- #in_color
   #out_colour .= Vec4 r g b 1

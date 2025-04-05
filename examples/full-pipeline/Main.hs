@@ -88,8 +88,6 @@ gameLoop ckey mkey rq = Linear.do
   (pollWindowEvents ↑)
 
   rq <- render rq
-  -- rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
-  --   scale 5 <> rotateY rot <> rotateX (-rot) <> translate 0 0 10)) ↑)
 
   gameLoop ckey mkey rq
 

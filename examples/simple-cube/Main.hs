@@ -92,7 +92,7 @@ gameLoop mkey rot rq = Linear.do
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 
-  rq <- render rq 
+  rq <- render rq
   rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
     -- We're not using any projection of sorts, so we need to make the cube fit
     -- in the xyz vulkan space, where x and y go from -1 to 1 but z goes from 0
@@ -111,9 +111,12 @@ main = do
   runCore (640, 640) Linear.do
 
     pipeline <- (makeRenderPipeline shaderPipeline GHNil ↑)
+
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
+
     (mesh :: CubeMesh, pipeline) <-
       (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) cubeVertices ↑)
+
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
