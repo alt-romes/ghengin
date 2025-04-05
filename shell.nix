@@ -5,7 +5,7 @@
     ];
     }}:
 with pkgs;
-mkShell {
+mkShell ({
   name = "ghengin";
   packages = [
     haskell.compiler.ghc910
@@ -52,11 +52,11 @@ mkShell {
   # Validation layers
   VK_LAYER_PATH = "${vulkan-validation-layers}/share/vulkan/explicit_layer.d";
 
-} // pkgs.lib.mkIf pkgs.stdenv.isLinux {
+} // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
 
   # To find vulkan at load time on linux
   LD_LIBRARY_PATH = "${glfw}/lib:${freetype}/lib:${vulkan-loader}/lib:${vulkan-validation-layers}/lib";
-} // pkgs.lib.mkIf pkgs.stdenv.isDarwin {
+} // pkgs.lib.optionalAttrs pkgs.stdenv.isDarwin {
 
   # See "Set up the runtime environment manually"
   # in https://vulkan.lunarg.com/doc/sdk/1.4.304.1/mac/getting_started.html
@@ -64,4 +64,4 @@ mkShell {
 
   # Tell the Vulkan Loader where to find a Vulkan driver:
   VK_ICD_FILENAMES="${moltenvk}/share/vulkan/icd.d/MoltenVK_icd.json";
-}
+})
