@@ -316,11 +316,15 @@ shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
 pollWindowEvents :: Renderer ()
 pollWindowEvents = liftSystemIO $ GLFW.pollEvents
 
+withWindow :: (GLFW.Window ⊸ Linear.IO GLFW.Window) -> Renderer ()
+withWindow f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+  w' <- f (_vulkanWindow._window)
+  pure ((), renv{_vulkanWindow = renv._vulkanWindow{_window = w'}})
 
 getMousePos :: Renderer (Ur (Double, Double))
 getMousePos = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
   p <- liftSystemIOU (GLFW.getCursorPos _vulkanWindow._window)
-  pure $ (p, renv)
+  pure (p, renv)
 
 -- :| Utils |:
 

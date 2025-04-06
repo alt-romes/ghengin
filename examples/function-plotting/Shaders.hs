@@ -51,7 +51,7 @@ type VertexDefs =
    , "in_apply"     ':-> Uniform '[DescriptorSet 2, Binding 1] (Struct '[ "b" ':-> Float ])
    --- ^ whether to apply function. FALSE for grid lines.
    , "projection"   ':-> Uniform '[DescriptorSet 0, Binding 0] (Struct '[ "proj" ':-> M 4 4 Float ])
-   , "scale"        ':-> Uniform '[DescriptorSet 0, Binding 1] (Struct '[ "proj" ':-> M 4 4 Float ])
+   , "scale"        ':-> Uniform '[DescriptorSet 0, Binding 1] (Struct '[ "sproj" ':-> M 4 4 Float ])
    --- ^ projection matrix
    ]
 
@@ -61,7 +61,7 @@ vertexSimple f = shader do
 
     apply <- use @(Name "in_apply" :.: Name "b")
     projection <- use @(Name "projection" :.: Name "proj")
-    scale_proj <- use @(Name "scale" :.: Name "proj")
+    scale_proj <- use @(Name "scale" :.: Name "sproj")
 
     let y = if apply == Lit DO_APPLY then
               f x

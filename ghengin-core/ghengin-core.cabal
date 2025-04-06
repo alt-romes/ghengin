@@ -138,6 +138,9 @@ library
                       linear-utils,
                       constraints,
 
+                      -- we use this for now directly in some hacky bits...
+                      GLFW-b,
+
                       -- force this indirect dependency's version
                       ghc-tcplugins-extra >= 0.4.6
 

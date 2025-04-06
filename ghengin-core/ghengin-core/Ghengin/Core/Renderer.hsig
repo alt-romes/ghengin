@@ -21,6 +21,8 @@ import Ghengin.Core.Renderer.Command
 import Ghengin.Core.Renderer.Texture
 import Ghengin.Core.Renderer.Sampler
 
+import qualified Graphics.UI.GLFW as GLFW -- ugh...
+
 runRenderer :: (Int, Int)
             -- ^ Dimensions of the window to render on (width, height)
             -> Renderer a ⊸ Linear.IO a
@@ -37,5 +39,5 @@ withCurrentFramePresent :: Int -- ^ Current frame index
 shouldCloseWindow :: Renderer Bool
 pollWindowEvents :: Renderer ()
 getMousePos :: Renderer (Ur (Double, Double))
-
+withWindow :: (GLFW.Window ⊸ Linear.IO GLFW.Window) -> Renderer ()
 

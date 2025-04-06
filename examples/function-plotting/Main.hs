@@ -8,8 +8,10 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
-import GHC.Float.RealFracMethods
+import GHC.Float
 import Geomancy
+import Control.Monad.STM
+import Control.Concurrent.STM.TChan
 import qualified Geomancy.Transform as T
 import Geomancy.Vulkan.Projection
 import Ghengin.Core.Shader.Data
@@ -27,6 +29,8 @@ import qualified Prelude as P
 
 import Shaders
 import qualified FIR
+import qualified Graphics.UI.GLFW as GLFW
+import qualified Unsafe.Linear as Unsafe -- GLFW shenanigans
 
 width, height :: Num a => a
 width = 1920
@@ -39,18 +43,33 @@ sampleVertices :: Float {-^ Start -} -> Float {-^ Increment -} -> [Vertex '[Vec3
 sampleVertices start increment = go start where
   go !i = Sin (vec3 i 0 0) : go (i+increment)
 
-gameLoop :: RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop rq = Linear.do
+gameLoop :: TChan Double -- ^ YScroll
+         -> PipelineKey _ '[InStruct "proj" Mat4, InStruct "sproj" Mat4]
+         -> RenderQueue ()
+          ⊸ Core (RenderQueue ())
+gameLoop keys pipkey rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 
+  Ur mkey <- liftSystemIOU $ atomically $ tryReadTChan keys
+  rq <- case mkey of
+    Just yscroll -> Linear.do
+      (editPipeline pipkey rq (propertyAt @1 @(InStruct "sproj" Mat4) (\(Ur (InStruct pscale)) -> pure $ Ur $
+        InStruct $ unTransform (T.scale (double2Float (if yscroll > 0 then yscroll else 1/yscroll))) <> pscale)) ↑)
+    _        -> return rq
+
   rq <- render rq
 
-  gameLoop rq
+  gameLoop keys pipkey rq
+
+scrollBack :: TChan Double -> GLFW.ScrollCallback
+scrollBack chan _ _ yoffset = do
+  atomically $ writeTChan chan yoffset
 
 main :: Prelude.IO ()
 main = do
+  chan <- newTChanIO
 
   let samples :: Num a => a
       samples = 100000
@@ -67,7 +86,7 @@ main = do
   let line_props = StaticBinding (Ur (InStruct @"c" $ vec3 0.4 0.76 0.33)) :##
                    StaticBinding (Ur (InStruct @"b" DO_APPLY)) :##
                    GHNil
-  let grid_props = StaticBinding (Ur (InStruct @"c" $ vec3 0.3 0.3 0.3)) :##
+  let grid_props = StaticBinding (Ur (InStruct @"c" $ vec3 0.2 0.2 0.2)) :##
                    StaticBinding (Ur (InStruct @"b" DONT_APPLY)) :##
                    GHNil
   let axis_props = StaticBinding (Ur (InStruct @"c" $ vec3 1 1 1)) :##
@@ -76,8 +95,8 @@ main = do
   let verts  = Prelude.take samples (sampleVertices (-width) (width*2/samples))
   let shader = shaderPipelineSimple @(FIR.Line FIR.Strip) weierstrass
 
-  let scaleN = 70
-  let scaleProj = InStruct @"proj" (unTransform $ T.scale scaleN)
+  let scaleN = 10
+  let scaleProj = InStruct @"sproj" (unTransform $ T.scale scaleN)
   let pipeline_props = StaticBinding (Ur projection) :##
                        StaticBinding (Ur scaleProj) :##
                        GHNil
@@ -90,6 +109,11 @@ main = do
 
   withLinearIO $
    runCore (width, height) Linear.do
+
+     (withWindow (Unsafe.toLinear $ \w -> Linear.do
+      liftSystemIO (GLFW.setScrollCallback w (Just (scrollBack chan)))
+      return w) ↑)
+
      pipeline <- (makeRenderPipeline shader pipeline_props ↑)
      (emptyMat, pipeline) <- (material GHNil pipeline ↑)
      (gridMeshX, pipeline) <- (createMesh pipeline grid_props (gridVertsX gw gh) ↑)
@@ -101,9 +125,9 @@ main = do
      (rq, Ur _gmk)    <- pure (insertMesh mkey gridMeshX rq)
      (rq, Ur _gmk)    <- pure (insertMesh mkey gridMeshY rq)
      (rq, Ur _gmk)    <- pure (insertMesh mkey axisMesh rq)
-     (rq, Ur _mshk)   <- pure (insertMesh mkey functionMesh rq)
+     (rq, Ur _mshk)    <- pure (insertMesh mkey functionMesh rq)
 
-     rq <- gameLoop rq
+     rq <- gameLoop chan pkey rq
 
      (freeRenderQueue rq ↑)
 
