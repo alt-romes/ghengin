@@ -8,7 +8,9 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
+import GHC.Float.RealFracMethods
 import Geomancy
+import qualified Geomancy.Transform as T
 import Geomancy.Vulkan.Projection
 import Ghengin.Core.Shader.Data
 import Ghengin.Core
@@ -21,6 +23,7 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Queue
 import qualified Data.Monoid.Linear as LMon
 import qualified Prelude
+import qualified Prelude as P
 
 import Shaders
 import qualified FIR
@@ -61,37 +64,44 @@ main = do
             a = FIR.Lit 0.6
             b = FIR.Lit 11
 
-  -- Line from -x to +x and -y to y
-  let grid_x = [ Sin (vec3 (-width/2) 0 0)
-               , Sin (vec3 (width/2) 0 0)
-               ]
-  let grid_y = [ Sin (vec3 0 (-height/2) 0)
-               , Sin (vec3 0 (height/2) 0)
-               ]
-
   let line_props = StaticBinding (Ur (InStruct @"c" $ vec3 0.4 0.76 0.33)) :##
                    StaticBinding (Ur (InStruct @"b" DO_APPLY)) :##
                    GHNil
-  let grid_props = StaticBinding (Ur (InStruct @"c" $ vec3 1 1 1)) :##
+  let grid_props = StaticBinding (Ur (InStruct @"c" $ vec3 0.3 0.3 0.3)) :##
+                   StaticBinding (Ur (InStruct @"b" DONT_APPLY)) :##
+                   GHNil
+  let axis_props = StaticBinding (Ur (InStruct @"c" $ vec3 1 1 1)) :##
                    StaticBinding (Ur (InStruct @"b" DONT_APPLY)) :##
                    GHNil
   let verts  = Prelude.take samples (sampleVertices (-width) (width*2/samples))
-  let shader = shaderPipelineSimple @(FIR.Line FIR.Strip) g
+  let shader = shaderPipelineSimple @(FIR.Line FIR.Strip) weierstrass
 
-  let pipeline_props = StaticBinding (Ur projection) :## GHNil
+  let scaleN = 70
+  let scaleProj = InStruct @"proj" (unTransform $ T.scale scaleN)
+  let pipeline_props = StaticBinding (Ur projection) :##
+                       StaticBinding (Ur scaleProj) :##
+                       GHNil
+
+  -- let gw = ceilingFloatInt $ width / scaleN
+  -- let gh = ceilingFloatInt $ height / scaleN
+  -- no need ^; verts don't need to be in the bounding volume to be culled; the whole frag probably needs to be
+  let gw = width
+  let gh = height
 
   withLinearIO $
-   runCore (1920, 1080) Linear.do
+   runCore (width, height) Linear.do
      pipeline <- (makeRenderPipeline shader pipeline_props ↑)
      (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-     (gridMeshX, pipeline) <- (createMesh pipeline grid_props grid_x ↑)
-     (gridMeshY, pipeline) <- (createMesh pipeline grid_props grid_y ↑)
-     (mesh, pipeline) <- (createMesh pipeline line_props verts ↑)
+     (gridMeshX, pipeline) <- (createMesh pipeline grid_props (gridVertsX gw gh) ↑)
+     (gridMeshY, pipeline) <- (createMesh pipeline grid_props (gridVertsY gw gh) ↑)
+     (axisMesh, pipeline) <- (createMesh pipeline axis_props (axisVerts width height) ↑)
+     (functionMesh, pipeline) <- (createMesh pipeline line_props verts ↑)
      (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
      (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
      (rq, Ur _gmk)    <- pure (insertMesh mkey gridMeshX rq)
      (rq, Ur _gmk)    <- pure (insertMesh mkey gridMeshY rq)
-     (rq, Ur _mshk)   <- pure (insertMesh mkey mesh rq)
+     (rq, Ur _gmk)    <- pure (insertMesh mkey axisMesh rq)
+     (rq, Ur _mshk)   <- pure (insertMesh mkey functionMesh rq)
 
      rq <- gameLoop rq
 
@@ -99,3 +109,31 @@ main = do
 
      return (Ur ())
 
+--------------------------------------------------------------------------------
+-- Grid
+--------------------------------------------------------------------------------
+
+gridVertsX :: Int -> Int -> [Vertex '[Vec3]]
+gridVertsX w h = do
+  x <- [-w..w]
+  (a,b) <-
+    if P.even x then do
+      [(x, -h), (x, h), (x, -h)]
+    else do
+      [(-x, -h), (-x, h), (-x, -h)]
+  P.return (Sin (vec3 (fromIntegral a) (fromIntegral b) 1))
+
+gridVertsY :: Int -> Int -> [Vertex '[Vec3]]
+gridVertsY w h = do
+  y <- [-h..h]
+  (a,b) <-
+    if P.even y then do
+      [(-w, y), (w, y), (-w, y)]
+    else do
+      [(-w, -y), (w, -y), (-w, -y)]
+  P.return (Sin (vec3 (fromIntegral a) (fromIntegral b) 1))
+
+axisVerts :: Int -> Int -> [Vertex '[Vec3]]
+axisVerts w h = do
+  (a, b) <- [(-w, 0), (w, 0), (0,0), (0, h), (0, -h)]
+  P.return (Sin (vec3 (fromIntegral a) (fromIntegral b) 0))
