@@ -8,9 +8,8 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
-import Text.Read (readMaybe)
-import System.Environment (getArgs)
-import Geomancy.Vec3
+import Geomancy
+import Geomancy.Vulkan.Projection
 import Ghengin.Core.Shader.Data
 import Ghengin.Core
 import Ghengin.Core.Mesh
@@ -26,9 +25,16 @@ import qualified Prelude
 import Shaders
 import qualified FIR
 
+width, height :: Num a => a
+width = 1920
+height = 1080
+
+projection :: InStruct "proj" Mat4
+projection = InStruct $ unTransform $ orthoOffCenter 0 100 width (height :: Int)
+
 sampleVertices :: Float {-^ Start -} -> Float {-^ Increment -} -> [Vertex '[Vec3]] -- ToDo: could be a single Int (must check it works)
 sampleVertices start increment = go start where
-  go !i = Sin (vec3 i 0 1) : go (i+increment)
+  go !i = Sin (vec3 i 0 0) : go (i+increment)
 
 gameLoop :: RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop rq = Linear.do
@@ -40,42 +46,27 @@ gameLoop rq = Linear.do
 
   gameLoop rq
 
-{-
-We use Vulkan's clipping volume directly:
-
-       z ∈ [0, 1]
-      /
-     /
-    *------> x ∈ [-1, 1]
-    |
-    |
-    v
-    y ∈ [-1, 1]
--}
-
-
 main :: Prelude.IO ()
 main = do
-  args <- getArgs
 
-  let samples :: (Read a, Num a) => a
-      samples = case args of
-        (ns:_) 
-          | Just n <- readMaybe ns
-          -> n
-        _ -> 10000
+  let samples :: Num a => a
+      samples = 100000
 
   -- Function to Plot
   let f x = (FIR.sin x) FIR.* x
-  let xbound = 20
-  let ybound = 20
+  let g x = x FIR.* FIR.Lit 2 FIR.+ FIR.Lit 1
+  let weierstrass x
+        = Prelude.foldl' (\acc (FIR.Lit -> n) -> (a FIR.** n FIR.* FIR.cos (b FIR.** n FIR.* FIR.pi FIR.* x)) FIR.+ acc) (FIR.Lit 0) [0..10]
+          where
+            a = FIR.Lit 0.6
+            b = FIR.Lit 11
 
   -- Line from -x to +x and -y to y
-  let grid_x = [ Sin (vec3 (-xbound) 0 1)
-               , Sin (vec3 xbound 0 1)
+  let grid_x = [ Sin (vec3 (-width/2) 0 0)
+               , Sin (vec3 (width/2) 0 0)
                ]
-  let grid_y = [ Sin (vec3 0 (-ybound) 1)
-               , Sin (vec3 0 (ybound) 1)
+  let grid_y = [ Sin (vec3 0 (-height/2) 0)
+               , Sin (vec3 0 (height/2) 0)
                ]
 
   let line_props = StaticBinding (Ur (InStruct @"c" $ vec3 0.4 0.76 0.33)) :##
@@ -84,12 +75,14 @@ main = do
   let grid_props = StaticBinding (Ur (InStruct @"c" $ vec3 1 1 1)) :##
                    StaticBinding (Ur (InStruct @"b" DONT_APPLY)) :##
                    GHNil
-  let verts  = Prelude.take samples (sampleVertices (-xbound) (xbound*2/samples))
-  let shader = shaderPipelineSimple @(FIR.Line FIR.Strip) xbound ybound f
+  let verts  = Prelude.take samples (sampleVertices (-width) (width*2/samples))
+  let shader = shaderPipelineSimple @(FIR.Line FIR.Strip) g
+
+  let pipeline_props = StaticBinding (Ur projection) :## GHNil
 
   withLinearIO $
    runCore (1920, 1080) Linear.do
-     pipeline <- (makeRenderPipeline shader GHNil ↑)
+     pipeline <- (makeRenderPipeline shader pipeline_props ↑)
      (emptyMat, pipeline) <- (material GHNil pipeline ↑)
      (gridMeshX, pipeline) <- (createMesh pipeline grid_props grid_x ↑)
      (gridMeshY, pipeline) <- (createMesh pipeline grid_props grid_y ↑)

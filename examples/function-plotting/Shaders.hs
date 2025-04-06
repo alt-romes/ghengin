@@ -39,45 +39,41 @@ type VertexInput
  
 shaderPipelineSimple :: forall top.
                         Known (PrimitiveTopology Nat) top
-                     => Float {-^ x bound -}
-                     -> Float {-^ y bound -}
-                     -> (Code Float -> Code Float)
+                     => (Code Float -> Code Float)
                      -> G.ShaderPipeline _
-shaderPipelineSimple xb yb f
+shaderPipelineSimple f
   = G.ShaderPipeline (StructInput @VertexInput @top)
-  G.:>-> vertexSimple xb yb f
+  G.:>-> vertexSimple f
   G.:>-> fragmentSimple
 
 type VertexDefs =
   '[ "in_position"  ':-> Input '[ Location 0 ] (V 3 Float)
    , "in_apply"     ':-> Uniform '[DescriptorSet 2, Binding 1] (Struct '[ "b" ':-> Float ])
    --- ^ whether to apply function. FALSE for grid lines.
+   , "projection"   ':-> Uniform '[DescriptorSet 0, Binding 0] (Struct '[ "proj" ':-> M 4 4 Float ])
+   --- ^ projection matrix
    ]
 
-vertexSimple :: Float -> Float -> (Code Float -> Code Float) -> G.VertexShaderModule VertexDefs _
-vertexSimple xb yb f = shader do
-    ~(Vec3 x orig_y _) <- get @"in_position"
+vertexSimple :: (Code Float -> Code Float) -> G.VertexShaderModule VertexDefs _
+vertexSimple f = shader do
+    ~(Vec3 x orig_y z) <- get @"in_position"
 
     apply <- use @(Name "in_apply" :.: Name "b")
+    projection <- use @(Name "projection" :.: Name "proj")
 
     let y = if apply == Lit DO_APPLY then
               f x
             else
               orig_y
 
-    let pos = graphProjection xb yb (Vec4 x y 0 1)
+    let pos_canonical = projection !*^ (Vec4 x (-y{-vulkan y is down-}) z 1)
 
-    put @"gl_Position" pos
+    put @"gl_Position" pos_canonical
 
 fragmentSimple :: G.FragmentShaderModule '[
      "in_color"     ':-> Uniform '[DescriptorSet 2, Binding 0] (Struct '[ "c" ':-> V 3 Float ])
   ] _
 fragmentSimple = shader do
   ~(Vec3 r g b) <- use @(Name "in_color" :.: Name "c")
-  #out_colour .= Vec4 r g b 1
-
-graphProjection :: Float -> Float -> Code (V 4 Float) -> Code (V 4 Float)
-graphProjection xbound ybound (Vec4 x y z a) =
-  -- negate y because y points down in vulkan coords
-  Vec4 (x/Lit xbound) (-y/Lit ybound) z a
+  put @"out_colour" (Vec4 r g b 1)
 
