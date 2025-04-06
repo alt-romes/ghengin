@@ -335,7 +335,7 @@ compileFIRShader :: FIR.CompilableProgram prog => prog -> IO ShaderByteCode
 compileFIRShader m = liftSystemIO do
   FIR.compile [] m Prelude.>>= \case
     Right (Just (FIR.ModuleBinary bs), _) -> Prelude.pure (SBC bs)
-    Left e -> error $ show e
+    Left e -> error $ "Failed to compiler Shader:\n" ++ show e
     _      -> error "Couldn't generate module binary when compiling"
 
 destroyShaderModule :: Vk.Device ⊸ Vk.ShaderModule ⊸ System.IO.Linear.IO Vk.Device

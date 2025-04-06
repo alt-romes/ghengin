@@ -26,6 +26,10 @@ import Math.Linear
 -- ghengin
 import qualified Ghengin.Core.Shader as G
 
+pattern DO_APPLY, DONT_APPLY :: Float
+pattern DO_APPLY = 1
+pattern DONT_APPLY = 0
+
 --------------------------------------------------------------------------------
 -- * Simple Plotting Shader
 --------------------------------------------------------------------------------
@@ -35,54 +39,45 @@ type VertexInput
  
 shaderPipelineSimple :: forall top.
                         Known (PrimitiveTopology Nat) top
-                     => V 3 Float {-^ Color -}
-                     -> Float {-^ x bound -}
+                     => Float {-^ x bound -}
                      -> Float {-^ y bound -}
                      -> (Code Float -> Code Float)
                      -> G.ShaderPipeline _
-shaderPipelineSimple col xb yb f
+shaderPipelineSimple xb yb f
   = G.ShaderPipeline (StructInput @VertexInput @top)
   G.:>-> vertexSimple xb yb f
-  G.:>-> fragmentSimple col
+  G.:>-> fragmentSimple
 
 type VertexDefs =
   '[ "in_position"  ':-> Input '[ Location 0 ] (V 3 Float)
+   , "in_apply"     ':-> Uniform '[DescriptorSet 2, Binding 1] (Struct '[ "b" ':-> Float ])
+   --- ^ whether to apply function. FALSE for grid lines.
    ]
 
 vertexSimple :: Float -> Float -> (Code Float -> Code Float) -> G.VertexShaderModule VertexDefs _
 vertexSimple xb yb f = shader do
-    ~(Vec3 x _ _) <- get @"in_position"
+    ~(Vec3 x orig_y _) <- get @"in_position"
 
-    let y  = f x
+    apply <- use @(Name "in_apply" :.: Name "b")
+
+    let y = if apply == Lit DO_APPLY then
+              f x
+            else
+              orig_y
 
     let pos = graphProjection xb yb (Vec4 x y 0 1)
 
     put @"gl_Position" pos
 
-fragmentSimple :: (V 3 Float) -> G.FragmentShaderModule '[] _
-fragmentSimple (V3 x y z) = shader do
-  #out_colour .= Vec4 (Lit x) (Lit y) (Lit z) 1
+fragmentSimple :: G.FragmentShaderModule '[
+     "in_color"     ':-> Uniform '[DescriptorSet 2, Binding 0] (Struct '[ "c" ':-> V 3 Float ])
+  ] _
+fragmentSimple = shader do
+  ~(Vec3 r g b) <- use @(Name "in_color" :.: Name "c")
+  #out_colour .= Vec4 r g b 1
 
 graphProjection :: Float -> Float -> Code (V 4 Float) -> Code (V 4 Float)
 graphProjection xbound ybound (Vec4 x y z a) =
   -- negate y because y points down in vulkan coords
   Vec4 (x/Lit xbound) (-y/Lit ybound) z a
 
-gridShaderPipeline :: forall top.
-                        Known (PrimitiveTopology Nat) top
-                     => V 3 Float {-^ Color -}
-                     -> Float {-^ x bound -}
-                     -> Float {-^ y bound -}
-                     -> G.ShaderPipeline _
-gridShaderPipeline col xb yb
-  = G.ShaderPipeline (StructInput @VertexInput @top)
-  G.:>-> gridVertex xb yb
-  G.:>-> fragmentSimple col
-
-gridVertex :: Float -> Float -> G.VertexShaderModule VertexDefs _
-gridVertex xb yb = shader do
-    ~(Vec3 x y _) <- get @"in_position"
-
-    let pos = graphProjection xb yb (Vec4 x y 0 1)
-
-    put @"gl_Position" pos
