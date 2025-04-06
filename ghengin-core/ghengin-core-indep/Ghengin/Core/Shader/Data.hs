@@ -1,14 +1,19 @@
-{-# LANGUAGE QuantifiedConstraints #-}
+{-# LANGUAGE QuantifiedConstraints, DeriveAnyClass, UndecidableInstances #-}
 -- | This module defines the main class which powers all of the serialization
 -- and compatibility logic between CPU and GPU data types.
 module Ghengin.Core.Shader.Data
   ( ShaderData(..)
+  , InStruct(..)
     -- ** Re-exports
   , Poke(..), Layout(..)
   ) where
 
+import Prelude
+import GHC.TypeLits
+import GHC.Generics
 import Data.Kind
 import Graphics.Gl.Block
+import qualified FIR as FIR
 import FIR.Layout as L
 
 -- | The class which powers all of the serialization and compatibility logic
@@ -65,4 +70,24 @@ class Block ty => ShaderData ty where
   --
   -- ROMES:TODO: I'm not sure how it will work with images... they don't instance 'Poke'.
   -- proofSameSize :: PackedSize ty :~: PackedSize (FirType ty)
+
+--------------------------------------------------------------------------------
+-- * 'InStruct'
+--------------------------------------------------------------------------------
+
+-- | A utility to wrap any type @a@ in a Struct with a single @field@ mapping to @FirType a@
+newtype InStruct (field :: Symbol) a = InStruct a
+  deriving stock Generic
+
+deriving anyclass instance (KnownNat (PackedSize a), Block a) => Block (InStruct field a)
+
+instance (KnownNat (PackedSize a), Block a) => ShaderData (InStruct field a) where
+  type FirType (InStruct field a) = FIR.Struct '[ field 'FIR.:-> FirType a ]
+
+--------------------------------------------------------------------------------
+-- * Basic instances
+--------------------------------------------------------------------------------
+
+instance ShaderData Bool where
+  type FirType Bool = Bool
 

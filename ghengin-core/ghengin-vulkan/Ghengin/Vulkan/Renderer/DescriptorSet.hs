@@ -94,9 +94,9 @@ instance Shareable m DescriptorResource where
     UniformResource u -> bimap UniformResource UniformResource <$> Alias.share u
     Texture2DResource t -> bimap Texture2DResource Texture2DResource <$> Alias.share t
 
--- | Mapping from each binding to corresponding binding type, size, shader stage
+-- | Mapping from each binding to corresponding binding type, shader stage
 -- We have a maybe word because not every binding has a layout in memory (images don't)
-type BindingsMap = IntMap (Vk.DescriptorType, Maybe Word, Vk.ShaderStageFlags)
+type BindingsMap = IntMap (Vk.DescriptorType, Vk.ShaderStageFlags)
 
 instance Consumable BindingsMap where
   consume = Unsafe.toLinear \_bm -> ()
@@ -143,10 +143,9 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempt
                 SomeDefs @defs ->
                   -- For each descriptor we compute the buffer size from  the known definitionn
                   -- let tsize = getDescriptorBindingSize @defs descriptorSetIx bindingIx
-                  let tsize = sizeOfPrimTy primTy
 
-                   in IM.insertWith mergeSameDS descriptorSetIx
-                                (IM.singleton bindingIx (descriptorType pt, tsize, stageFlag shader))
+                   IM.insertWith mergeSameDS descriptorSetIx
+                                (IM.singleton bindingIx (descriptorType pt, stageFlag shader))
                                 acc
             _ -> acc -- we keep folding. currently we don't validate anything futher
           ) acc' ls
@@ -155,7 +154,7 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempt
     mergeSameDS :: BindingsMap
                 -> BindingsMap
                 -> BindingsMap
-    mergeSameDS = IM.mergeWithKey (\_ (dt,ss,sf) (dt',_ss',sf') -> if dt Prelude.== dt' then Just (dt, ss, sf .|. sf')
+    mergeSameDS = IM.mergeWithKey (\_ (dt,sf) (dt',sf') -> if dt Prelude.== dt' then Just (dt, sf .|. sf')
                                                                                 else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id -- TODO: Could pattern match on type equality too?
 
 
@@ -166,13 +165,6 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempt
 --   FindDescriptorType set binding '[] = TypeError (Text "Error computing descriptor type")
 
 -- What I couldn't do: Prove that the type family application results in a type that always instances a certain class.
-
--- ROMES:TODO: Drop this completely, the size type is unused and even wrong since not all things have a prim ty size like this?
--- Delete the corresponding entry from "BindingsMap" too
-sizeOfPrimTy :: SPIRV.PrimTy -> Maybe Word
-sizeOfPrimTy x = case FIR.Layout.primTySizeAndAli FIR.Layout.Extended x of
-                   Left e -> Nothing
-                   Right (size,_alignment) -> Just (fromIntegral size)
 
 
 descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType
@@ -227,7 +219,7 @@ createDescriptorPool sp = enterD "createDescriptorPool" $
 
       let 
         descriptorsAmounts :: [(Vk.DescriptorType, Int)] -- ^ For each type, its amount
-        descriptorsAmounts = Prelude.map (\(t :| ls) -> (t, 1000 * (Prelude.length ls + 1))) Prelude.. NonEmpty.group Prelude.. L.sort $ Prelude.foldMap (Prelude.foldr (\(ty,_,_) -> (ty:)) Prelude.mempty) dsetmap
+        descriptorsAmounts = Prelude.map (\(t :| ls) -> (t, 1000 * (Prelude.length ls + 1))) Prelude.. NonEmpty.group Prelude.. L.sort $ Prelude.foldMap (Prelude.foldr (\(ty,_) -> (ty:)) Prelude.mempty) dsetmap
         poolsSizes = Prelude.map (\(t,fromIntegral -> a) -> Vk.DescriptorPoolSize {descriptorCount = a, type' = t}) descriptorsAmounts
 
         setsAmount = fromIntegral $ Prelude.length dsetmap
@@ -252,7 +244,7 @@ createDescriptorSetLayout :: BindingsMap -- ^ Binding, type and stage flags for 
                           -> Renderer Vk.DescriptorSetLayout
 createDescriptorSetLayout bindingsMap = enterD "createDescriptorSetLayout" $
   let
-      makeBinding bindingIx (descriptorType',_ss,sflags) =
+      makeBinding bindingIx (descriptorType',sflags) =
         Vk.DescriptorSetLayoutBinding { binding = fromIntegral bindingIx
                                       , descriptorType = descriptorType'
                                       , descriptorCount = 1 -- if this binding was an array of multiple items this number would be larger
