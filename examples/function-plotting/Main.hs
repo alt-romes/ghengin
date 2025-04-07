@@ -44,8 +44,8 @@ sampleVertices start increment = go start where
   go !i = Sin (vec3 i 0 0) : go (i+increment)
 
 gameLoop :: Float -- ^ Zoom
-         -> TChan Double -- ^ YScroll
-         -> PipelineKey _ '[InStruct "proj" Mat4]
+         -> TChan (Either Double GLFW.Key) -- ^ YScroll or Key
+         -> PipelineKey _ '[InStruct "proj" Mat4, InStruct "x" Float]
          -> RenderQueue ()
           ⊸ Core (RenderQueue ())
 gameLoop zoom keys pipkey rq = Linear.do
@@ -53,25 +53,40 @@ gameLoop zoom keys pipkey rq = Linear.do
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 
-
   Ur mkey <- liftSystemIOU $ atomically $ tryReadTChan keys
   (rq, Ur zoom) <- case mkey of
-    Just yscroll
+    Just (Left yscroll)
       | let zoom' = zoom + double2Float yscroll
       , zoom' P.>= 1
       , zoom' P.<= 100 -> Linear.do
         rq <- (editPipeline pipkey rq (propertyAt @0 @(InStruct "proj" Mat4) (\(Ur (InStruct _proj)) -> pure $ Ur $
           projection zoom')) ↑)
         return (rq, Ur zoom')
+    Just (Right key)
+      | let n = if zoom P.< 10 then 10 {- move faster at low zoom -} else 1
+      , Just adjust <- case key of
+          GLFW.Key'Right -> Just (+n)
+          GLFW.Key'D     -> Just (+n)
+          GLFW.Key'Left  -> Just (P.-n)
+          GLFW.Key'A     -> Just (P.-n)
+          _              -> Nothing
+      -> Linear.do
+        rq <- (editPipeline pipkey rq (propertyAt @1 @(InStruct "x" Float) (\(Ur (InStruct off)) -> pure $ Ur $
+          InStruct $ adjust off)) ↑)
+        return (rq, Ur zoom)
     _        -> return (rq, Ur zoom)
 
   rq <- render rq
 
   gameLoop zoom keys pipkey rq
 
-scrollBack :: TChan Double -> GLFW.ScrollCallback
+scrollBack :: TChan (Either Double GLFW.Key) -> GLFW.ScrollCallback
 scrollBack chan _ _ yoffset = do
-  atomically $ writeTChan chan yoffset
+  atomically $ writeTChan chan (Left yoffset)
+
+keyPress :: TChan (Either Double GLFW.Key) -> GLFW.KeyCallback
+keyPress keys _ key _ _ _ = do
+  atomically $ writeTChan keys (Right key)
 
 main :: Prelude.IO ()
 main = do
@@ -91,17 +106,21 @@ main = do
 
   let line_props = StaticBinding (Ur (InStruct @"c" $ vec3 0.4 0.76 0.33)) :##
                    StaticBinding (Ur (InStruct @"b" DO_APPLY)) :##
+                   StaticBinding (Ur (InStruct @"bo" DO_APPLY_TO_FUN)) :##
                    GHNil
   let grid_props = StaticBinding (Ur (InStruct @"c" $ vec3 0.2 0.2 0.2)) :##
                    StaticBinding (Ur (InStruct @"b" DONT_APPLY)) :##
+                   StaticBinding (Ur (InStruct @"bo" DONT_APPLY)) :##
                    GHNil
   let axis_props = StaticBinding (Ur (InStruct @"c" $ vec3 1 1 1)) :##
                    StaticBinding (Ur (InStruct @"b" DONT_APPLY)) :##
+                   StaticBinding (Ur (InStruct @"bo" DO_APPLY_TO_VERT)) :##
                    GHNil
   let verts  = Prelude.take samples (sampleVertices (-width) (width*2/samples))
-  let shader = shaderPipelineSimple @(FIR.Line FIR.Strip) weierstrass
+  let shader = shaderPipelineSimple @(FIR.Line FIR.Strip)
 
   let pipeline_props = StaticBinding (Ur (projection 10)) :##
+                       StaticBinding (Ur (InStruct @"x" @Float 0)) :##
                        GHNil
 
   -- let gw = ceilingFloatInt $ width / scaleN
@@ -114,10 +133,12 @@ main = do
    runCore (width, height) Linear.do
 
      (withWindow (Unsafe.toLinear $ \w -> Linear.do
-      liftSystemIO (GLFW.setScrollCallback w (Just (scrollBack chan)))
+      liftSystemIO $ do
+        GLFW.setScrollCallback w (Just (scrollBack chan))
+        GLFW.setKeyCallback w (Just (keyPress chan)) 
       return w) ↑)
 
-     pipeline <- (makeRenderPipeline shader pipeline_props ↑)
+     pipeline <- (makeRenderPipeline (shader f) pipeline_props ↑)
      (emptyMat, pipeline) <- (material GHNil pipeline ↑)
      (gridMeshX, pipeline) <- (createMesh pipeline grid_props (gridVertsX gw gh) ↑)
      (gridMeshY, pipeline) <- (createMesh pipeline grid_props (gridVertsY gw gh) ↑)
