@@ -8,11 +8,11 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
+import GHC.Float.RealFracMethods
 import GHC.Float
 import Geomancy
 import Control.Monad.STM
 import Control.Concurrent.STM.TChan
-import qualified Geomancy.Transform as T
 import Geomancy.Vulkan.Projection
 import Ghengin.Core.Shader.Data
 import Ghengin.Core
@@ -36,32 +36,38 @@ width, height :: Num a => a
 width = 1920
 height = 1080
 
-projection :: InStruct "proj" Mat4
-projection = InStruct $ unTransform $ orthoOffCenter 0 100 width (height :: Int)
+projection :: Float {-^ zoom -} -> InStruct "proj" Mat4
+projection zoom = InStruct $ unTransform $ orthoOffCenter 0 100 (roundFloatInt $ width/zoom) (roundFloatInt $ height/zoom)
 
 sampleVertices :: Float {-^ Start -} -> Float {-^ Increment -} -> [Vertex '[Vec3]] -- ToDo: could be a single Int (must check it works)
 sampleVertices start increment = go start where
   go !i = Sin (vec3 i 0 0) : go (i+increment)
 
-gameLoop :: TChan Double -- ^ YScroll
-         -> PipelineKey _ '[InStruct "proj" Mat4, InStruct "sproj" Mat4]
+gameLoop :: Float -- ^ Zoom
+         -> TChan Double -- ^ YScroll
+         -> PipelineKey _ '[InStruct "proj" Mat4]
          -> RenderQueue ()
           ⊸ Core (RenderQueue ())
-gameLoop keys pipkey rq = Linear.do
+gameLoop zoom keys pipkey rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 
+
   Ur mkey <- liftSystemIOU $ atomically $ tryReadTChan keys
-  rq <- case mkey of
-    Just yscroll -> Linear.do
-      (editPipeline pipkey rq (propertyAt @1 @(InStruct "sproj" Mat4) (\(Ur (InStruct pscale)) -> pure $ Ur $
-        InStruct $ unTransform (T.scale (double2Float (if yscroll > 0 then yscroll else 1/yscroll))) <> pscale)) ↑)
-    _        -> return rq
+  (rq, Ur zoom) <- case mkey of
+    Just yscroll
+      | let zoom' = zoom + double2Float yscroll
+      , zoom' P.>= 1
+      , zoom' P.<= 100 -> Linear.do
+        rq <- (editPipeline pipkey rq (propertyAt @0 @(InStruct "proj" Mat4) (\(Ur (InStruct _proj)) -> pure $ Ur $
+          projection zoom')) ↑)
+        return (rq, Ur zoom')
+    _        -> return (rq, Ur zoom)
 
   rq <- render rq
 
-  gameLoop keys pipkey rq
+  gameLoop zoom keys pipkey rq
 
 scrollBack :: TChan Double -> GLFW.ScrollCallback
 scrollBack chan _ _ yoffset = do
@@ -72,7 +78,7 @@ main = do
   chan <- newTChanIO
 
   let samples :: Num a => a
-      samples = 100000
+      samples = 1000000
 
   -- Function to Plot
   let f x = (FIR.sin x) FIR.* x
@@ -95,10 +101,7 @@ main = do
   let verts  = Prelude.take samples (sampleVertices (-width) (width*2/samples))
   let shader = shaderPipelineSimple @(FIR.Line FIR.Strip) weierstrass
 
-  let scaleN = 10
-  let scaleProj = InStruct @"sproj" (unTransform $ T.scale scaleN)
-  let pipeline_props = StaticBinding (Ur projection) :##
-                       StaticBinding (Ur scaleProj) :##
+  let pipeline_props = StaticBinding (Ur (projection 10)) :##
                        GHNil
 
   -- let gw = ceilingFloatInt $ width / scaleN
@@ -127,7 +130,7 @@ main = do
      (rq, Ur _gmk)    <- pure (insertMesh mkey axisMesh rq)
      (rq, Ur _mshk)    <- pure (insertMesh mkey functionMesh rq)
 
-     rq <- gameLoop chan pkey rq
+     rq <- gameLoop 1 chan pkey rq
 
      (freeRenderQueue rq ↑)
 
