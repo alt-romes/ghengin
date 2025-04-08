@@ -123,12 +123,6 @@ main = do
                        StaticBinding (Ur (InStruct @"x" @Float 0)) :##
                        GHNil
 
-  -- let gw = ceilingFloatInt $ width / scaleN
-  -- let gh = ceilingFloatInt $ height / scaleN
-  -- no need ^; verts don't need to be in the bounding volume to be culled; the whole frag probably needs to be
-  let gw = width
-  let gh = height
-
   withLinearIO $
    runCore (width, height) Linear.do
 
@@ -140,8 +134,8 @@ main = do
 
      pipeline <- (makeRenderPipeline (shader f) pipeline_props ↑)
      (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-     (gridMeshX, pipeline) <- (createMesh pipeline grid_props (gridVertsX gw gh) ↑)
-     (gridMeshY, pipeline) <- (createMesh pipeline grid_props (gridVertsY gw gh) ↑)
+     (gridMeshX, pipeline) <- (createMesh pipeline grid_props (gridVertsX width height) ↑)
+     (gridMeshY, pipeline) <- (createMesh pipeline grid_props (gridVertsY width height) ↑)
      (axisMesh, pipeline) <- (createMesh pipeline axis_props (axisVerts width height) ↑)
      (functionMesh, pipeline) <- (createMesh pipeline line_props verts ↑)
      (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)

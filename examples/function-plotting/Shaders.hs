@@ -52,9 +52,7 @@ type VertexDefs =
   '[ "in_position"  ':-> Input '[ Location 0 ] (V 3 Float)
    , "in_apply"     ':-> Uniform '[DescriptorSet 2, Binding 1] (Struct '[ "b" ':-> Float ])
    , "in_apply_offset" ':-> Uniform '[DescriptorSet 2, Binding 2] (Struct '[ "bo" ':-> Float ])
-   --- ^ whether to apply function. FALSE for grid lines.
    , "projection"   ':-> Uniform '[DescriptorSet 0, Binding 0] (Struct '[ "proj" ':-> M 4 4 Float ])
-   --- ^ projection matrix
    , "offset"       ':-> Uniform '[DescriptorSet 0, Binding 1] (Struct '[ "x" ':-> Float ])
    ]
 
