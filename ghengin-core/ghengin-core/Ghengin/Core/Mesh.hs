@@ -128,14 +128,14 @@ createMesh :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex
             -- ^ Vertices
            -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMesh (RenderProperty pr rps) props0 vs = createMesh rps props0 vs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMesh (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) props0 (SV.fromList -> vs) = enterD "createMesh" Linear.do
+createMesh (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders uq) props0 (SV.fromList -> vs) = enterD "createMesh" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vs
 
   (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes dpool0 props0
 
   pure ( mkMesh (SimpleMesh vertexBuffer (dset0, rmap0) uniq) props1
-       , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders
+       , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders uq
        )
 
 -- | Like 'createMesh', but create the mesh using a vertex buffer created from
@@ -149,7 +149,7 @@ createMeshWithIxs :: HasCallStack => (CompatibleMesh props π, CompatibleVertex 
                   -- ^ Indices
                   -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMeshWithIxs (RenderProperty pr rps) props0 vs ixs = createMeshWithIxs rps props0 vs ixs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) props0 (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "createMeshWithIxs" Linear.do
+createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders uq) props0 (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "createMeshWithIxs" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vertices
   indexBuffer  <- createIndex32Buffer ixs
@@ -157,7 +157,7 @@ createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders) prop
   (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes dpool0 props0
 
   pure ( mkMesh (IndexedMesh vertexBuffer indexBuffer (dset0, rmap0) uniq) props1
-       , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders
+       , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders uq
        )
 
 mkMesh :: ∀ t b. Mesh t '[] ⊸ PropertyBindings b ⊸ Mesh t b

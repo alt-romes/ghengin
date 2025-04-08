@@ -3,7 +3,7 @@
 
 -- | Packets are registered through the RenderQueues, see that module instead
 -- This only ever be needed when writing internals of the engine
-module Ghengin.Core.Render.Packet where
+module Ghengin.Core.Render.Packet () where
 
 import Type.Reflection ()
 import Data.Typeable ( Typeable, TypeRep )
@@ -85,24 +85,7 @@ For a material binding to be compatible with a descriptor, the type of the
 binding and of the descriptor must have the same size through FIR.Layout.SizeOf
 described in bytes.
 
-
- -}
-
--- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
--- Alternative: Meshes, Materials and RenderPipelines have an Ord instance and we make a 3-layer map <-- this is what we've done...
-
--- | Render packet wrapper that creates the key identifier.
--- {-# DEPRECATED renderPacket "FIXME: Compute materialUID" #-}
--- renderPacket :: ∀ π ξ β α μ. (Compatible α β ξ π, Typeable α, Typeable β, Typeable ξ, Typeable π, MonadIO μ)
---              => Mesh α
---               ⊸ Ref (Material β)
---               ⊸ Ref (RenderPipeline π ξ)
---               ⊸ μ RenderPacket
--- renderPacket mesh material pipeline = Linear.do
-
---   Ur uniq <- liftSystemIOU newUnique
---   pure $
---     RenderPacket mesh material pipeline (typeRep (Proxy @π), trace "Compute id <materialUID material>" uniq)
+-}
 
 {-
 Note [Render Packet Key]

@@ -134,6 +134,8 @@ render (RenderQueue renderQueue) = Core $ StateT $ \CoreState{frameCounter=fcoun
         renderPassCmd currentImage rp extent $ Linear.do
 
           -- then
+          setViewport viewport
+          setScissor  scissor
 
           logT "Binding pipeline"
           (graphicsPipeline, rebuildPipeline) <- pure $ getGraphicsPipeline pipeline
@@ -141,9 +143,6 @@ render (RenderQueue renderQueue) = Core $ StateT $ \CoreState{frameCounter=fcoun
           -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
           -- Bind the pipeline
           graphicsPipeline <- bindGraphicsPipeline graphicsPipeline
-          setViewport viewport
-          setScissor  scissor
-
           lift (descriptors $ rebuildPipeline graphicsPipeline) >>= \case
             (dset, rmap, pipeline') -> Linear.do
 
@@ -306,7 +305,7 @@ renderMesh = \case
   MeshProperty p xs -> MeshProperty p <$> renderMesh xs
 
 getGraphicsPipeline :: ∀ α info. RenderPipeline info α ⊸ (RendererPipeline Graphics, RendererPipeline Graphics ⊸ RenderPipeline info α)
-getGraphicsPipeline (RenderPipeline rpg a b c) = (rpg, \rg -> RenderPipeline rg a b c)
+getGraphicsPipeline (RenderPipeline rpg a b c d) = (rpg, \rg -> RenderPipeline rg a b c d)
 getGraphicsPipeline (RenderProperty p rp) = case getGraphicsPipeline rp of (rg, rpf) -> (rg, \rg' -> RenderProperty p (rpf rg'))
 
 -- completely unsafe things, todo:fix
@@ -315,6 +314,6 @@ unsafeGetRenderPass :: ∀ α info. RenderPipeline info α ⊸ Ur (Alias RenderP
 unsafeGetRenderPass = Unsafe.toLinear $ \x -> Ur (get' x)
   where
     get' :: ∀ b. RenderPipeline info b -> Alias RenderPass
-    get' (RenderPipeline _ rp _ _) = rp
+    get' (RenderPipeline _ rp _ _ _) = rp
     get' (RenderProperty _ rp) = get' rp
 

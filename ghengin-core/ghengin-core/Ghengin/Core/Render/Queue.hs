@@ -51,7 +51,7 @@ import Ghengin.Core.Material hiding (material)
 newtype RenderQueue a = RenderQueue (PipelineMap (MaterialMap (MeshMap a)))
   deriving (Prelude.Functor)
 
-type PipelineMap a = Map TypeRep (Some2 RenderPipeline, a)
+type PipelineMap a = Map Unique (Some2 RenderPipeline, a)
 type MaterialMap a = Map Unique (Some Material, a)
 type MeshMap a = Map Unique [(Some2 Mesh, a)]
 -- ^ We need a list of meshes for a given mesh key because we may have more
@@ -77,10 +77,8 @@ instance Monoid (RenderQueue α) where
 -- fromList = foldr ((<>) . (`insert` mempty)) mempty :)
 -- {-# INLINE fromList #-}
 
--- | ... We assume there are no two pipelines with the exact same shaders, so
--- we can use TypeRep π to differentiate between them
 type PipelineKey :: FIR.Pipeline.PipelineInfo -> [Type] -> Type
-data PipelineKey π p = UnsafePipelineKey !TypeRep
+data PipelineKey π p = UnsafePipelineKey !Unique
 
 type MaterialKey :: FIR.Pipeline.PipelineInfo -> [Type] -> [Type] -> Type
 data MaterialKey π p ma = UnsafeMaterialKey !Unique !(PipelineKey π p)
@@ -96,12 +94,12 @@ insertPipeline :: forall π p a. (Typeable π, CompatiblePipeline p π)
                 ⊸ (RenderQueue a, Ur (PipelineKey π p))
 insertPipeline 
   -- Map.insert isn't linear still, so...
-  = Unsafe.toLinear2 \pipeline (RenderQueue q) ->
-    let pkey = typeRep (Proxy @π)
+  = Unsafe.toLinear2 \pipeline0 (RenderQueue q) ->
+    let (Ur pkey, pipeline1) = pipelineUID pipeline0
         rq'  = M.insertWith
                   (\_ _ -> error "Inserting a duplicate pipeline??")
                   pkey
-                  (Some2 pipeline, M.empty)
+                  (Some2 pipeline1, M.empty)
                   q
      in (RenderQueue rq', Ur $ UnsafePipelineKey pkey)
 
