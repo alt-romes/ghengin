@@ -86,6 +86,9 @@ import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Buffer
 import Ghengin.Core.Type.Utils (w32)
 import Ghengin.Core.Log
 
+import qualified Data.Linear.Alias as Alias
+import qualified Data.Linear.Alias.Unsafe as Unsafe
+
 import qualified Unsafe.Linear as Unsafe
 
 -- TODO: We define these commands in terms of Vk.layouts and such, it'd be
@@ -122,7 +125,7 @@ A Command is an action run in an environment in which a command buffer is availa
 --
 -- @
 -- recordCommand eng.vkCommandBuffer $ do
---  renderPass eng.vkRenderPass (eng.vkSwapChainFramebuffers V.! i) eng.vkSwapChainExtent $ do
+--  renderPassCmd eng.vkRenderPass (eng.vkSwapChainFramebuffers V.! i) eng.vkSwapChainExtent $ do
 --    bindGraphicsPipeline eng.vkPipeline
 --    setViewport viewport
 --    setScissor  scissor
@@ -246,25 +249,35 @@ recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
   Linear.pure buf
 {-# INLINE recordCommandOneShot #-}
 
--- | Make a render pass part a command blueprint that can be further composed with other commands
-renderPassCmd' :: Linear.MonadIO m => Vk.RenderPass -> Vk.Framebuffer -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
-renderPassCmd' rpass frameBuffer renderAreaExtent (RenderPassCmd rpcmds) = Command $ ReaderT \buf -> Linear.do
-  let
-    renderPassInfo = Vk.RenderPassBeginInfo { next = ()
-                                            , renderPass  = rpass
-                                            , framebuffer = frameBuffer
-                                            , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
-                                            , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 1 0]
-                                            }
+-- | Make a render pass part a command blueprint
+--
+-- :: WARNING ::
+-- The graphics pipelines bound in this render pass command MUST have a reference to the same render pass, or, at least be compatible.
+renderPassCmd :: Linear.MonadIO m
+              => Int -- ^ needs a good explanation...
+              -> Vk.Extent2D
+              -> Alias.Alias m RenderPass
+               ⊸ RenderPassCmdM m a
+               ⊸ CommandM m a
+renderPassCmd currentImage renderAreaExtent
+ = Unsafe.toLinear2 \(Unsafe.get -> VulkanRenderPass rpass ((Vector.! currentImage) -> frameBuffer)) (RenderPassCmd rpcmds) ->
+   Command $ ReaderT \buf -> Linear.do
+    let
+      renderPassInfo = Vk.RenderPassBeginInfo { next = ()
+                                              , renderPass  = rpass
+                                              , framebuffer = frameBuffer
+                                              , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
+                                              , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 1 0]
+                                              }
 
-  Linear.liftSystemIO $ Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
+    Linear.liftSystemIO $ Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
 
-  a <- runReaderT rpcmds buf
+    a <- runReaderT rpcmds buf
 
-  Linear.liftSystemIO $ Vk.cmdEndRenderPass buf
+    Linear.liftSystemIO $ Vk.cmdEndRenderPass buf
 
-  return a
-{-# INLINEABLE renderPassCmd' #-}
+    return a
+{-# INLINEABLE renderPassCmd #-}
 
 bindGraphicsPipeline' :: Linear.MonadIO m => Vk.Pipeline ⊸ RenderPassCmdM m Vk.Pipeline
 bindGraphicsPipeline' pp = unsafeRenderPassCmd pp (\buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_GRAPHICS)
@@ -366,12 +379,6 @@ createCommandBuffers = Unsafe.toLinear2 \dev cpool ->
 
 destroyCommandBuffers :: Linear.MonadIO m => VulkanDevice ⊸ Vk.CommandPool ⊸ V.V n Vk.CommandBuffer ⊸ m (VulkanDevice, Vk.CommandPool)
 destroyCommandBuffers = Unsafe.toLinear3 \dev pool (VI.V bufs) -> (dev,pool) Linear.<$ Linear.liftSystemIO (Vk.freeCommandBuffers dev._device pool bufs)
-
--- | A peculiar function to be sure. Best used with 'cmapM' from apecs
--- Hard with linearity.... reconsider
--- embed :: Linear.MonadIO m => ((x -> m ()) -> m ()) -> ((x -> RenderPassCmd m) -> RenderPassCmd m)
--- embed g h = RenderPassCmd $ ask >>= \buf -> lift $ g (fmap (\case RenderPassCmd act -> runReaderT act buf) h)
-
 
 -- :| Images |: --
 
@@ -488,11 +495,6 @@ bindGraphicsDescriptorSet (VulkanPipeline pipelay layout) ix (DescriptorSet dix 
   (layout', dset') <- bindGraphicsDescriptorSet' layout ix dset
   return (DescriptorSet dix dset', VulkanPipeline pipelay layout')
 {-# INLINE bindGraphicsDescriptorSet #-}
-
-renderPassCmd :: Linear.MonadIO m => Int -- ^ needs a good explanation...
-              -> RenderPass -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a
-renderPassCmd currentImage = Unsafe.toLinear \rpass renderAreaExtent rpcmds -> renderPassCmd' rpass._renderPass (rpass._framebuffers Vector.! currentImage) renderAreaExtent rpcmds
-{-# INLINABLE renderPassCmd #-}
 
 ----- Linear Unsafe Utils
 

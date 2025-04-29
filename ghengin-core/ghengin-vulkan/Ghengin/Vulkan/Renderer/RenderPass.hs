@@ -24,6 +24,8 @@ import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
 import Data.Bifunctor.Linear
 
+import qualified Data.Linear.Alias as Alias
+
 import Data.Bits
 import qualified Data.Vector as Vector
 import qualified Data.V.Linear as V
@@ -55,7 +57,7 @@ data RenderPass = VulkanRenderPass { _renderPass :: Vk.RenderPass
 -- withSimpleRenderPass :: (RenderPass -> Renderer a) -> Renderer a
 -- withSimpleRenderPass f = rendererBracket createSimpleRenderPass destroyRenderPass f
 
-createSimpleRenderPass :: Renderer RenderPass
+createSimpleRenderPass :: Renderer (Alias RenderPass)
 createSimpleRenderPass = enterD "createSimpleRenderPass" $ Linear.do
   logT "Creating render pass"
   renderPass <- renderer $ Unsafe.toLinear $ \renv -> Linear.do
@@ -131,7 +133,7 @@ createSimpleRenderPass = enterD "createSimpleRenderPass" $ Linear.do
                                 (VI.V @n unsafeRenv._vulkanSwapChain._imageViews)
 
       Unsafe.toLinear2 (\_ _ -> pure ()) imageViews' depthImage' -- forget, their part of the unsafeRenv which wasn't changed
-      pure $ (VulkanRenderPass renderPass' framebuffers)
+      Alias.newAlias destroyRenderPass (VulkanRenderPass renderPass' framebuffers)
 
 destroyRenderPass :: RenderPass ⊸ Renderer ()
 destroyRenderPass = Unsafe.toLinear $ \(VulkanRenderPass rp framebuffers) -> enterD "destroyRenderPass" $ Linear.do

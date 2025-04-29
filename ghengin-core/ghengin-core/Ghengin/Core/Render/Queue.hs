@@ -88,6 +88,11 @@ data MeshKey π p ma vertexAttributes meshProperties = UnsafeMeshKey !Unique !(M
 
 -- | Inserts a pipeline in a render queue, and returns a pipeline key indexing
 -- into that render queue.
+--
+-- :: NOTE ::
+-- All the render pipelines in the render queue must share the same render pass.
+-- If you need to use different render passes, read the definition of "render"
+-- and define a similar custom render function yourself.
 insertPipeline :: forall π p a. (Typeable π, CompatiblePipeline p π)
                => RenderPipeline π p
                 ⊸ RenderQueue a

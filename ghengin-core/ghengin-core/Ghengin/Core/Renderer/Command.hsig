@@ -3,6 +3,7 @@ signature Ghengin.Core.Renderer.Command where
 import Ghengin.Core.Prelude
 import Ghengin.Core.Log
 import qualified Data.Functor.Linear as Data
+import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Core.Renderer.Pipeline
 import Ghengin.Core.Renderer.Buffer
@@ -47,6 +48,8 @@ instance Linear.MonadTrans RenderPassCmdM
 -- the command buffer comes from the leaky
 recordCommand :: Linear.MonadIO m => CommandBuffer ⊸ CommandM m a ⊸ m (a, CommandBuffer)
 
+renderPassCmd :: Linear.MonadIO m => Int -> Vk.Extent2D -> Alias.Alias m RenderPass ⊸ RenderPassCmdM m a ⊸ CommandM m a
+
 -- TODO: Cleanup the API
 
 drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderPassCmdM m VertexBuffer
@@ -63,6 +66,3 @@ bindGraphicsDescriptorSet :: Linear.MonadIO m
 setViewport :: Linear.MonadIO m => Vk.Viewport -> RenderPassCmd m
 setScissor :: Linear.MonadIO m => Vk.Rect2D -> RenderPassCmd m
 
-renderPassCmd :: Linear.MonadIO m
-              => Int -- ^ needs a good explanation...
-              -> RenderPass -> Vk.Extent2D -> RenderPassCmdM m a -> CommandM m a

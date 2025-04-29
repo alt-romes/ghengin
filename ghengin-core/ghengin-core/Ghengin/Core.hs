@@ -61,15 +61,15 @@ runCore dimensions (Core st)
 (↑)      = Core . lift
 liftCore = Core . lift
 
-render :: RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
+render :: Alias RenderPass -- ^ The render pass under which all pipelines in the queue will be rendered (must be compatible with the pipelines declared renderpass!)
+        ⊸ RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
         ⊸ Core (RenderQueue ())
-render rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
+render rp rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
   Ur fcounter    <- pure (move fcounter')
 
-  -- ROMES:TODO: This might cause flickering once every frame overflow due to ... overflows?
-  -- Need to consider what happens if it overflows. For now, good enough, it's
-  -- unlikely the frame count overflows, with 60 frames per second the game
-  -- would have to run for years to overflow a 64 bit integer
+  -- This could in principle overflow... For now, good enough. It's
+  -- unlikely the frame count overflows with only 60 frames per second.
+  -- The game would have to run for years to overflow a 64 bit integer
   let frameIndex = fcounter `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
 
   -- Some required variables
@@ -83,23 +83,9 @@ render rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render
 
     (x, cmdBuffer') <- recordCommand cmdBuffer $ Linear.do
 
-      -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
+      renderPassCmd currentImage extent rp $ Linear.do
 
-      {-
-         We'll likely want to do some pre-processing of user-defined render passes,
-         but let's keep it simple and working for now.
-      -}
-
-      Ur rp' <- pure $ unsafeGetRenderPass pipeline
-      let rp = Unsafe.Alias.get rp' -- nice and unsafe
-
-      -- IMPORTNAT: TODO: The renderPassCmd should be bound once and then every graphics pipeline bound within that render pass.
-      -- What we're doing is not good: we start one new render pass PER graphics pipeline.
-      -- This is only a consequence of storing the render pass datatypes in the
-      -- render pipeline. We need to store it in the renderer state instead and then it will be much easier to do right.
-      renderPassCmd currentImage rp extent $ Linear.do
-
-        -- then
+        -- this could be changed dynamically...
         setViewport viewport
         setScissor  scissor
 
@@ -110,6 +96,7 @@ render rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render
     -- only draws the scene specified by it) It is rather edited by the game,
     -- in the loops before rendering
     pure ((x, CoreState{frameCounter=fcounter+1}), cmdBuffer')
+
 
 {- |
    Here's a rundown of the draw function for each frame in flight:
@@ -252,8 +239,6 @@ handleMeshes meshes = flip Data.traverse meshes $ \(Some2 @Mesh @ts mesh0, ()) -
     return ((Some2 mesh3, ()), graphicsPipeline)
 
 
-
-
 -- The region of the framebuffer that the output will be rendered to. We
 -- render from (0,0) to (width, height) i.e. the whole framebuffer
 -- Defines a transformation from image to framebuffer
@@ -315,13 +300,4 @@ renderMesh = \case
 getGraphicsPipeline :: ∀ α info. RenderPipeline info α ⊸ (RendererPipeline Graphics, RendererPipeline Graphics ⊸ RenderPipeline info α)
 getGraphicsPipeline (RenderPipeline rpg a b c d) = (rpg, \rg -> RenderPipeline rg a b c d)
 getGraphicsPipeline (RenderProperty p rp) = case getGraphicsPipeline rp of (rg, rpf) -> (rg, \rg' -> RenderProperty p (rpf rg'))
-
--- completely unsafe things, todo:fix
-
-unsafeGetRenderPass :: ∀ α info. RenderPipeline info α ⊸ Ur (Alias RenderPass)
-unsafeGetRenderPass = Unsafe.toLinear $ \x -> Ur (get' x)
-  where
-    get' :: ∀ b. RenderPipeline info b -> Alias RenderPass
-    get' (RenderPipeline _ rp _ _ _) = rp
-    get' (RenderProperty _ rp) = get' rp
 

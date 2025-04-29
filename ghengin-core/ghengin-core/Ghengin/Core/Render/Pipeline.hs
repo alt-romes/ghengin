@@ -86,10 +86,9 @@ makeRenderPipeline :: forall τ info tops descs strides
                       )
                    => ShaderPipeline info
                    -> PropertyBindings τ
+                    ⊸ Alias RenderPass
                     ⊸ Renderer (RenderPipeline info τ)
-makeRenderPipeline shaderPipeline props0 = Linear.do
-
-  logT "Making render pass"
+makeRenderPipeline shaderPipeline props0 renderPass = Linear.do
 
   -- Create the descriptor sets and graphics pipeline based on the shader
   -- pipeline
@@ -132,24 +131,25 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
 
   -- Create the graphics pipeline
   logT "Creating graphics pipeline"
-  (pipeline, simpleRenderPass2, dpool2) <- createGraphicsPipeline
-                                     shaderPipeline
-                                     -- ROMES:TODO: Update push constants! This is not it! (It's hardcoded, and things are never actually pushed)
-                                     -- [Vk.PushConstantRange { offset = 0 , size = 64 :: Word32, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
-                                     []
-                                     dpool1
+  (renderPass, (pipeline, dpool2))
+    <- Alias.useM renderPass $
+        createGraphicsPipeline
+           shaderPipeline
+           -- ROMES:TODO: Update push constants! This is not it! (It's hardcoded, and things are never actually pushed)
+           -- [Vk.PushConstantRange { offset = 0 , size = 64 :: Word32, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
+           []
+           dpool1
 
   logT "Creating reference counted"
   dpool3 <- Alias.newAlias destroyDescriptorPool dpool2
   (dpool4,dpool5) <- Alias.share dpool3
   dset2 <- Alias.newAlias (\s -> freeDescriptorSets dpool4 (make s)) dset1
   resources2 <- Alias.newAlias freeResourceMap resources1
-  simpleRenderPass3 <- Alias.newAlias destroyRenderPass simpleRenderPass2
 
   -- Make the unique identifier for this pipeline reference
   Ur uniq <- liftSystemIOU newUnique
 
-  pure $ mkRP (RenderPipeline pipeline simpleRenderPass3 (dset2, resources2, dpool5) shaderPipeline uniq) props1
+  pure $ mkRP (RenderPipeline pipeline renderPass (dset2, resources2, dpool5) shaderPipeline uniq) props1
     where
       mkRP :: ∀ info (b :: [Type]). RenderPipeline info '[] ⊸ PropertyBindings b ⊸ RenderPipeline info b
       mkRP x GHNil = x

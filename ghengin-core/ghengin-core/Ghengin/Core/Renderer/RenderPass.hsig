@@ -9,7 +9,7 @@ import Ghengin.Core.Renderer.Kernel
 
 data RenderPass
 
-createSimpleRenderPass :: Renderer RenderPass -- If we always need this as a reference, it's easier to just return it as such here (avoids exposing a free function)
+createSimpleRenderPass :: Renderer (Alias RenderPass) -- If we always need this as a reference, it's easier to just return it as such here (avoids exposing a free function)
 destroyRenderPass :: RenderPass ⊸ Renderer ()
 
 

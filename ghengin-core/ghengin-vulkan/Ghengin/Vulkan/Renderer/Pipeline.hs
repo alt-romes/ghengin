@@ -109,10 +109,10 @@ createGraphicsPipeline  ::
                         .  PipelineConstraints info top descs strides
                         => ShaderPipeline info
                         -> V.Vector Vk.PushConstantRange
-                        -> RenderPass -- ^ Must be reference counted since the graphics pipeline keeps an alias to it
-                         ⊸ DescriptorPool
-                         ⊸ Renderer (RendererPipeline Graphics, RenderPass, DescriptorPool)
-createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \renderP dpool -> enterD "createGraphicsPipeline" $ Linear.do
+                        -> DescriptorPool
+                         ⊸ RenderPass
+                         ⊸ Renderer (RenderPass, (RendererPipeline Graphics, DescriptorPool))
+createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \dpool renderP -> enterD "createGraphicsPipeline" $ Linear.do
   Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ Prelude.fmap (Prelude.fst) (IM.elems dpool.set_bindings)
 
   Ur dev <- unsafeGetDevice
@@ -300,7 +300,7 @@ createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \render
   devs <- Data.Linear.traverse (liftIO . destroyShaderModule dev) shaderModules -- destroy shader modules after creating the pipeline
   Unsafe.toLinear (\_ -> pure ()) devs -- forget dev aliases
 
-  pure (VulkanPipeline pipeline unsafePipelineLayout, renderP, dpool)
+  pure (renderP, (VulkanPipeline pipeline unsafePipelineLayout, dpool))
 
 
 
