@@ -32,7 +32,6 @@ import qualified Data.Linear.Alias as Alias
 
 import qualified Vulkan as Vk
 
-import qualified Data.Linear.Alias.Unsafe as Unsafe.Alias
 import qualified Unsafe.Linear as Unsafe
 
 data CoreState
