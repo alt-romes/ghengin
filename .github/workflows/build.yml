@@ -1,0 +1,17 @@
+on: [push]
+name: build
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest # or macOS-latest, or windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: haskell-actions/setup@v2
+        with:
+          ghc-version: '9.10'
+          cabal-version: 'latest'
+      - run: |
+          cabal update
+          cabal build all
