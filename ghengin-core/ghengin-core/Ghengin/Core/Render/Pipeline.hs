@@ -90,7 +90,6 @@ makeRenderPipeline :: forall τ info tops descs strides
 makeRenderPipeline shaderPipeline props0 = Linear.do
 
   logT "Making render pass"
-  !simpleRenderPass <- createSimpleRenderPass
 
   -- Create the descriptor sets and graphics pipeline based on the shader
   -- pipeline
@@ -138,7 +137,7 @@ makeRenderPipeline shaderPipeline props0 = Linear.do
                                      -- ROMES:TODO: Update push constants! This is not it! (It's hardcoded, and things are never actually pushed)
                                      -- [Vk.PushConstantRange { offset = 0 , size = 64 :: Word32, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
                                      []
-                                     simpleRenderPass dpool1
+                                     dpool1
 
   logT "Creating reference counted"
   dpool3 <- Alias.newAlias destroyDescriptorPool dpool2

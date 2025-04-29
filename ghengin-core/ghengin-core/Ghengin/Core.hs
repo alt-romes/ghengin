@@ -61,11 +61,9 @@ runCore dimensions (Core st)
 (↑)      = Core . lift
 liftCore = Core . lift
 
-render :: RenderQueue ()
-          -- ^ The unit type parameter is data attached to each item in the
-          -- render queue, we could eventually use it for something relevant...
+render :: RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
         ⊸ Core (RenderQueue ())
-render (RenderQueue renderQueue) = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
+render rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
   Ur fcounter    <- pure (move fcounter')
 
   -- ROMES:TODO: This might cause flickering once every frame overflow due to ... overflows?
@@ -81,111 +79,121 @@ render (RenderQueue renderQueue) = Core $ StateT $ \CoreState{frameCounter=fcoun
   let viewport = viewport' extent
       scissor  = scissor' extent
 
-  {-
-     Here's a rundown of the draw function for each frame in flight:
+  withCurrentFramePresent frameIndex $ \cmdBuffer currentImage -> enterD "withCurrentFramePresent" $ Linear.do
 
-     ∀ pipeline ∈ registeredPipelines do
-        bind global descriptor set at set #0
+    (x, cmdBuffer') <- recordCommand cmdBuffer $ Linear.do
 
-        ∀ material ∈ pipeline.registeredMaterials do
-          bind material descriptor set at set #1
+      -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
 
-          ∀ object that uses material do
+      {-
+         We'll likely want to do some pre-processing of user-defined render passes,
+         but let's keep it simple and working for now.
+      -}
 
-            bind object descriptor set at set #2
-            bind object model (vertex buffer)
-            draw object
+      Ur rp' <- pure $ unsafeGetRenderPass pipeline
+      let rp = Unsafe.Alias.get rp' -- nice and unsafe
 
-      This makes the descriptor set #0 bound once per pipeline
-                 the descriptor set #1 bound once per material
-                 the descriptor set #2 bound once per object
+      -- IMPORTNAT: TODO: The renderPassCmd should be bound once and then every graphics pipeline bound within that render pass.
+      -- What we're doing is not good: we start one new render pass PER graphics pipeline.
+      -- This is only a consequence of storing the render pass datatypes in the
+      -- render pipeline. We need to store it in the renderer state instead and then it will be much easier to do right.
+      renderPassCmd currentImage rp extent $ Linear.do
 
-      The data bound globally for the pipeline must be compatible with the descriptor set #0 layout
-      All materials bound in a certain pipeline must be compatible with the descriptor set #1 layout
-      All object data bound in a certain pipeline must be compatible with descriptor set #2 layout
-      All object's vertex buffers bound in a certain pipeline must be compatible with the vertex input of that pipeline
+        -- then
+        setViewport viewport
+        setScissor  scissor
 
-      In practice, the code doesn't look exactly like this. We bind the
-      descriptor sets and pipelines linearly because the ordering of the render
-      queue ensures that the GPU state changes will be minimized and hence the
-      iteration will actually look a bit like the described above
-   -}
-
-  withCurrentFramePresent frameIndex $ \cmdBuffer currentImage -> enterD "closure passed to withCurrentFramePresent" $ Linear.do
-
-    (renderQueue', cmdBuffer') <- recordCommand cmdBuffer $ Linear.do
-
-      -- Now, render the renderable entities from the render queue in the given order.
-      -- If everything works as expected, if we blindly bind the descriptor sets as
-      -- they come, we should bind the pipeline once and each material once.
-
-      -- I can prob make this linear simply by using mapAccumL
-      Data.traverse (Unsafe.toLinear \(Some2 @RenderPipeline @π @bs pipeline, materials) -> enterD "Traverse: pipeline" Linear.do
-
-        -- Whenever we have a new pipeline, start its renderpass (lifting RenderPassCmd to Command)
-
-        {-
-           We'll likely want to do some pre-processing of user-defined render passes,
-           but let's keep it simple and working for now.
-        -}
-
-        Ur rp' <- pure $ unsafeGetRenderPass pipeline
-        let rp = Unsafe.Alias.get rp' -- nice and unsafe
-        renderPassCmd currentImage rp extent $ Linear.do
-
-          -- then
-          setViewport viewport
-          setScissor  scissor
-
-          logT "Binding pipeline"
-          (graphicsPipeline, rebuildPipeline) <- pure $ getGraphicsPipeline pipeline
-
-          -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
-          -- Bind the pipeline
-          graphicsPipeline <- bindGraphicsPipeline graphicsPipeline
-          lift (descriptors $ rebuildPipeline graphicsPipeline) >>= \case
-            (dset, rmap, pipeline') -> Linear.do
-
-              -- These render properties are necessarily compatible with this
-              -- pipeline in the set #0, so the 'descriptorSetBinding' buffer
-              -- will always be valid to write with the corresponding
-              -- material binding
-              (rmap', pipeline'') <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' pipeline')
-
-              (graphicsPipeline, rebuildPipeline) <- pure $ getGraphicsPipeline pipeline''
-              
-              -- Bind descriptor set #0
-              (dset', graphicsPipeline) <- Alias.useM dset (bindGraphicsDescriptorSet graphicsPipeline 0)
-
-              lift $ Linear.do
-                Alias.forget dset'
-                Alias.forget rmap'
-
-              -- For every material...
-              (materials', graphicsPipeline) <- runStateT (Data.traverse handleMaterial materials) graphicsPipeline
-
-              {-
-                We'll likely want to do some post-processing of user-defined
-                 render passes, but let's keep it simple and working for now. We'll
-                 get back to a clean dear-imgui add-on to ghengin-core later.
-                 (For each pipeline)
-              -}
-
-              -- Draw UI (TODO: Special render pass...?)
-              -- liftSystemIO IM.getDrawData >>= IM.renderDrawData
-
-              return (Some2 $ rebuildPipeline graphicsPipeline, materials')
-
-        ) renderQueue
+        renderQueueCmd rq
 
     -- We can return the unsafe queue after having rendered from it because
     -- rendering does not do anything to the resources in the render queue (it
     -- only draws the scene specified by it) It is rather edited by the game,
     -- in the loops before rendering
-    pure ((RenderQueue renderQueue', CoreState{frameCounter=fcounter+1}), cmdBuffer')
-    
- where
--- What? Why did moving these things out of this where make `renderQueue` now be seen as used exactly once? For some reason 9.10 didn't before.
+    pure ((x, CoreState{frameCounter=fcounter+1}), cmdBuffer')
+
+{- |
+   Here's a rundown of the draw function for each frame in flight:
+
+   ∀ pipeline ∈ registeredPipelines do
+      bind global descriptor set at set #0
+
+      ∀ material ∈ pipeline.registeredMaterials do
+        bind material descriptor set at set #1
+
+        ∀ object that uses material do
+
+          bind object descriptor set at set #2
+          bind object model (vertex buffer)
+          draw object
+
+    This makes the descriptor set #0 bound once per pipeline
+               the descriptor set #1 bound once per material
+               the descriptor set #2 bound once per object
+
+    The data bound globally for the pipeline must be compatible with the descriptor set #0 layout
+    All materials bound in a certain pipeline must be compatible with the descriptor set #1 layout
+    All object data bound in a certain pipeline must be compatible with descriptor set #2 layout
+    All object's vertex buffers bound in a certain pipeline must be compatible with the vertex input of that pipeline
+
+    In practice, the code doesn't look exactly like this. We bind the
+    descriptor sets and pipelines linearly because the ordering of the render
+    queue ensures that the GPU state changes will be minimized and hence the
+    iteration will actually look a bit like the described above
+ -}
+renderQueueCmd :: RenderQueue ()
+               -- ^ The unit type parameter is data attached to each item in the
+               -- render queue, we could eventually use it for something relevant...
+                ⊸ RenderPassCmdM Renderer (RenderQueue ())
+renderQueueCmd (RenderQueue renderQueue) = RenderQueue Linear.<$> Linear.do
+
+  -- Render the renderable entities from the render queue in the given order.
+  -- If everything works as expected, if we blindly bind the descriptor sets as
+  -- they come, we should bind the pipeline once and each material once.
+
+  -- I can prob make this linear simply by using mapAccumL
+  Data.traverse (Unsafe.toLinear \(Some2 @RenderPipeline @π @bs pipeline, materials) -> enterD "Traverse: pipeline" Linear.do
+
+      logT "Binding pipeline"
+      (graphicsPipeline, rebuildPipeline) <- pure $ getGraphicsPipeline pipeline
+
+      -- The render pass for this pipeline has been bound already. Later on the render pass might not be necessarily coupled to the pipeline
+      -- Bind the pipeline
+      graphicsPipeline <- bindGraphicsPipeline graphicsPipeline
+      lift (descriptors $ rebuildPipeline graphicsPipeline) >>= \case
+        (dset, rmap, pipeline') -> Linear.do
+
+          -- These render properties are necessarily compatible with this
+          -- pipeline in the set #0, so the 'descriptorSetBinding' buffer
+          -- will always be valid to write with the corresponding
+          -- material binding
+          (rmap', pipeline'') <- lift $ Alias.useM rmap (\rmap' -> writePropertiesToResources rmap' pipeline')
+
+          (graphicsPipeline, rebuildPipeline) <- pure $ getGraphicsPipeline pipeline''
+          
+          -- Bind descriptor set #0
+          (dset', graphicsPipeline) <- Alias.useM dset (bindGraphicsDescriptorSet graphicsPipeline 0)
+
+          lift $ Linear.do
+            Alias.forget dset'
+            Alias.forget rmap'
+
+          -- For every material...
+          (materials', graphicsPipeline) <- runStateT (Data.traverse handleMaterial materials) graphicsPipeline
+
+          {-
+            We'll likely want to do some post-processing of user-defined
+             render passes, but let's keep it simple and working for now. We'll
+             get back to a clean dear-imgui add-on to ghengin-core later.
+             (For each pipeline)
+          -}
+
+          -- Draw UI (TODO: Special render pass...?)
+          -- liftSystemIO IM.getDrawData >>= IM.renderDrawData
+
+          return (Some2 $ rebuildPipeline graphicsPipeline, materials')
+
+    ) renderQueue
+
 
 handleMaterial :: (Some Material, MeshMap ())
                 ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) (Some Material, MeshMap ())
