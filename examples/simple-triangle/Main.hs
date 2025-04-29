@@ -16,7 +16,7 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Queue
 import qualified Data.Monoid.Linear as LMon
 import qualified Prelude
-
+import qualified Data.Linear.Alias as Alias
 import Shaders
 
 -- ROMES:TODO: Using Vec2 instead of Vec3 breaks the simple triangle drawing.
@@ -47,46 +47,47 @@ triangleVerticesWithColors =
   , vec3 0.5 0.5    1 :&: vec3 0 1 0
   ]
 
-gameLoop :: RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop rq = Linear.do
+gameLoop :: Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
- if should_close then return rq else Linear.do
+ if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
-  rq <- render rq
+  (rp, rq) <- render rp rq
 
-  gameLoop rq
+  gameLoop rp rq
 
 main :: Prelude.IO ()
 main = do
  withLinearIO $
   runCore (640, 480) Linear.do
+    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
     -- Use the simple or colored Triangle?
     let simple = False
 
     if simple then Linear.do
-      pipeline <- (makeRenderPipeline shaderPipelineSimple GHNil ↑)
+      pipeline <- (makeRenderPipeline rp1 shaderPipelineSimple GHNil ↑)
       (emptyMat, pipeline) <- (material GHNil pipeline ↑)
       (mesh, pipeline) <- (createMesh pipeline GHNil triangleVertices ↑)
       (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
       (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
       (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-      rq <- gameLoop rq
+      rq <- gameLoop rp2 rq
 
       (freeRenderQueue rq ↑)
 
     else Linear.do
 
-      pipeline <- (makeRenderPipeline shaderPipelineColors GHNil ↑)
+      pipeline <- (makeRenderPipeline rp1 shaderPipelineColors GHNil ↑)
       (emptyMat, pipeline) <- (material GHNil pipeline ↑)
       (mesh, pipeline) <- (createMeshWithIxs pipeline GHNil triangleVerticesWithColors [0, 1, 2] ↑)
       (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
       (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
       (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-      rq <- gameLoop rq
+      rq <- gameLoop rp2 rq
 
       (freeRenderQueue rq ↑)
       -- In fact, freeing these again is a type error. Woho!

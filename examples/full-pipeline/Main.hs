@@ -7,14 +7,8 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
-import GHC.Generics
 import Geomancy.Vec3
-import Geomancy.Mat4
-import Geomancy.Transform
-import Geomancy.Vulkan.View
-import Geomancy.Vulkan.Projection
 import Ghengin.Core
-import Ghengin.Core.Shader.Data
 import Ghengin.Core.Mesh
 import Ghengin.Core.Material
 import Ghengin.Core.Prelude as Linear
@@ -25,13 +19,11 @@ import Ghengin.Core.Render.Queue
 import Data.List.Linear ()
 import qualified Data.Monoid.Linear as LMon
 import qualified Prelude
-import qualified Math.Linear as FIR
-import qualified FIR
+import qualified Data.Linear.Alias as Alias
 
 -- ghengin:camera
 import Ghengin.Camera
 
-import qualified Prelude
 import Shaders
 
 type IcosahedronMesh = Mesh '[Vec3, Vec3] '[]
@@ -80,22 +72,25 @@ icosahedronIndices
 
 gameLoop :: PipelineKey _ '[Camera "view" "proj"] -- ^ rq key to camera
          -> MeshKey _ _ _ _ '[] -- ^ rq key to cube mesh
-         -> RenderQueue ()
+         -> Alias RenderPass
+          ⊸ RenderQueue ()
           ⊸ Core (RenderQueue ())
-gameLoop ckey mkey rq = Linear.do
+gameLoop ckey mkey rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
- if should_close then return rq else Linear.do
+ if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
-  rq <- render rq
+  (rp, rq) <- render rp rq
 
-  gameLoop ckey mkey rq
+  gameLoop ckey mkey rp rq
 
 main :: Prelude.IO ()
 main = 
  withLinearIO $
   runCore (640, 480) Linear.do
-    pipeline :: RenderPipeline π ps <- (makeRenderPipeline shaderPipeline (StaticBinding (Ur (defaultCamera @"view" @"proj")) :## GHNil) ↑)
+    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+
+    pipeline :: RenderPipeline π ps <- (makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur (defaultCamera @"view" @"proj")) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     (mesh :: IcosahedronMesh, pipeline) <- (createMeshWithIxs pipeline GHNil icosahedronVerts icosahedronIndices ↑)
 
@@ -103,7 +98,7 @@ main =
     (rq, Ur mkey)    <- pure (insertMaterial @π @ps pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh @π @ps mkey mesh rq)
 
-    rq <- gameLoop pkey mshkey rq
+    rq <- gameLoop pkey mshkey rp2 rq
 
     (freeRenderQueue rq ↑)
 

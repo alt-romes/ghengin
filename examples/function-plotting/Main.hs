@@ -134,9 +134,8 @@ main = do
         GLFW.setKeyCallback w (Just (keyPress chan)) 
       return w) ↑)
 
-     rp <- (createSimpleRenderPass ↑)
-     (rp1, rp2) <- (Alias.share rp ↑)
-     pipeline <- (makeRenderPipeline (shader f) pipeline_props rp1 ↑)
+     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+     pipeline <- (makeRenderPipeline rp1 (shader f) pipeline_props ↑)
      (emptyMat, pipeline) <- (material GHNil pipeline ↑)
      (gridMeshX, pipeline) <- (createMesh pipeline grid_props (gridVertsX width height) ↑)
      (gridMeshY, pipeline) <- (createMesh pipeline grid_props (gridVertsY width height) ↑)

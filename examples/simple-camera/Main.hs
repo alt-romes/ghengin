@@ -27,9 +27,9 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Queue
 import Data.List.Linear ()
 import qualified Data.Monoid.Linear as LMon
-import qualified Prelude
 import qualified Math.Linear as FIR
 import qualified FIR
+import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Geometry.Cube (coloredCube)
 import Shaders
@@ -52,25 +52,27 @@ defaultCamera = Camera
 gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
          -> MeshKey _ _ _ _ '[Transform] -- ^ rq key to cube mesh
          -> Float -- ^ rotation
-         -> RenderQueue ()
+         -> Alias RenderPass
+          ⊸ RenderQueue ()
           ⊸ Core (RenderQueue ())
-gameLoop ckey mkey rot rq = Linear.do
+gameLoop ckey mkey rot rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
- if should_close then return rq else Linear.do
+ if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
-  rq <- render rq
+  (rp, rq) <- render rp rq
   rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
     scale 5 <> rotateY rot <> rotateX (-rot) <> translate 0 0 10)) ↑)
 
-  gameLoop ckey mkey (rot+0.01) rq
+  gameLoop ckey mkey (rot+0.01) rp rq
 
 main :: Prelude.IO ()
 main = do
  withLinearIO $
   runCore (640, 480) Linear.do
 
-    pipeline <- (makeRenderPipeline shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
+    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+    pipeline <- (makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     (mesh :: CubeMesh, pipeline) <-
       -- Also displays how TH can be used to create procedural meshes at compile time when the parameters are statically known
@@ -79,7 +81,7 @@ main = do
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-    rq <- gameLoop pkey mshkey 0 rq
+    rq <- gameLoop pkey mshkey 0 rp2 rq
 
     (freeRenderQueue rq ↑)
 

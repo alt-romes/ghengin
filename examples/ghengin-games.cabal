@@ -131,55 +131,55 @@ common common-flags
                            , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
                            )
 
-library
-  import: common-flags
-  exposed-modules: Common, Common.Shader
-  hs-source-dirs: common
+-- library
+--   import: common-flags
+--   exposed-modules: Common, Common.Shader
+--   hs-source-dirs: common
 
-executable planets-core
-    import:        common-flags
-    main-is:       Main.hs
-    other-modules: Camera, Planet, Shaders
-    build-depends: ghengin-games
-    hs-source-dirs:   planets-core
-
-executable fir-juliaset
-    import:        common-flags
-    main-is:       Main.hs
-    other-modules: Shaders
-    build-depends: ghengin-games
-    hs-source-dirs:   fir-juliaset
-
-executable mandlebrot-set
-    import:        common-flags
-    main-is:       Main.hs
-    other-modules: Shaders
-    build-depends: ghengin-games
-    hs-source-dirs:   mandlebrot-set
-
-executable domain-warping
-    import:        common-flags
-    main-is:       Main.hs
-    other-modules: Shaders
-    build-depends: ghengin-games
-    hs-source-dirs:   domain-warping
-
-executable ocean-waves
-    import:        common-flags
-    main-is:       Main.hs
-    other-modules: Shaders
-    build-depends: ghengin-games
-    hs-source-dirs: ocean-waves/
-
-executable cube
-    import:        common-flags
-    main-is:       Main.hs
-    other-modules: Shaders
-    build-depends: ghengin-games
-    hs-source-dirs: cube/
+-- executable planets-core
+--     import:        common-flags
+--     main-is:       Main.hs
+--     other-modules: Camera, Planet, Shaders
+--     build-depends: ghengin-games
+--     hs-source-dirs:   planets-core
+-- 
+-- executable fir-juliaset
+--     import:        common-flags
+--     main-is:       Main.hs
+--     other-modules: Shaders
+--     build-depends: ghengin-games
+--     hs-source-dirs:   fir-juliaset
+-- 
+-- executable mandlebrot-set
+--     import:        common-flags
+--     main-is:       Main.hs
+--     other-modules: Shaders
+--     build-depends: ghengin-games
+--     hs-source-dirs:   mandlebrot-set
+-- 
+-- executable domain-warping
+--     import:        common-flags
+--     main-is:       Main.hs
+--     other-modules: Shaders
+--     build-depends: ghengin-games
+--     hs-source-dirs:   domain-warping
+-- 
+-- executable ocean-waves
+--     import:        common-flags
+--     main-is:       Main.hs
+--     other-modules: Shaders
+--     build-depends: ghengin-games
+--     hs-source-dirs: ocean-waves/
+-- 
+-- executable cube
+--     import:        common-flags
+--     main-is:       Main.hs
+--     other-modules: Shaders
+--     build-depends: ghengin-games
+--     hs-source-dirs: cube/
 
 --------------------------------------------------------------------------------
--- User level engine
+-- Demos in increasing level of complexity
 --------------------------------------------------------------------------------
 
 executable simple-triangle
