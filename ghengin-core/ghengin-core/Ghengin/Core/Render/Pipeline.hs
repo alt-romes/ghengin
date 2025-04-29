@@ -84,11 +84,11 @@ makeRenderPipeline :: forall τ info tops descs strides
                     . ( PipelineConstraints info tops descs strides
                       , CompatiblePipeline τ info
                       )
-                   => ShaderPipeline info
+                   => Alias RenderPass
+                    ⊸ ShaderPipeline info
                    -> PropertyBindings τ
-                    ⊸ Alias RenderPass
                     ⊸ Renderer (RenderPipeline info τ)
-makeRenderPipeline shaderPipeline props0 renderPass = Linear.do
+makeRenderPipeline renderPass shaderPipeline props0 = Linear.do
 
   -- Create the descriptor sets and graphics pipeline based on the shader
   -- pipeline
