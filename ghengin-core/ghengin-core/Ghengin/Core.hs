@@ -63,7 +63,7 @@ liftCore = Core . lift
 
 render :: Alias RenderPass -- ^ The render pass under which all pipelines in the queue will be rendered (must be compatible with the pipelines declared renderpass!)
         ⊸ RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
-        ⊸ Core (RenderQueue ())
+        ⊸ Core (Alias RenderPass, RenderQueue ())
 render rp rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
   Ur fcounter    <- pure (move fcounter')
 
@@ -79,11 +79,14 @@ render rp rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "ren
   let viewport = viewport' extent
       scissor  = scissor' extent
 
+  (rp1, rp2) <- Alias.share rp
+
   withCurrentFramePresent frameIndex $ \cmdBuffer currentImage -> enterD "withCurrentFramePresent" $ Linear.do
 
+    -- TODO: Allow custom Command or RenderPassCmd rather than hardcoding it in render.
     (x, cmdBuffer') <- recordCommand cmdBuffer $ Linear.do
 
-      renderPassCmd currentImage extent rp $ Linear.do
+      renderPassCmd currentImage extent rp1 $ Linear.do
 
         -- this could be changed dynamically...
         setViewport viewport
@@ -95,7 +98,7 @@ render rp rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "ren
     -- rendering does not do anything to the resources in the render queue (it
     -- only draws the scene specified by it) It is rather edited by the game,
     -- in the loops before rendering
-    pure ((x, CoreState{frameCounter=fcounter+1}), cmdBuffer')
+    pure (((rp2, x), CoreState{frameCounter=fcounter+1}), cmdBuffer')
 
 
 {- |

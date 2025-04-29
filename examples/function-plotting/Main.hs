@@ -26,6 +26,7 @@ import Ghengin.Core.Render.Queue
 import qualified Data.Monoid.Linear as LMon
 import qualified Prelude
 import qualified Prelude as P
+import qualified Data.Linear.Alias as Alias
 
 import Shaders
 import qualified FIR
@@ -46,11 +47,12 @@ sampleVertices start increment = go start where
 gameLoop :: Float -- ^ Zoom
          -> TChan (Either Double GLFW.Key) -- ^ YScroll or Key
          -> PipelineKey _ '[InStruct "proj" Mat4, InStruct "x" Float]
-         -> RenderQueue ()
+         -> Alias RenderPass
+          ⊸ RenderQueue ()
           ⊸ Core (RenderQueue ())
-gameLoop zoom keys pipkey rq = Linear.do
+gameLoop zoom keys pipkey rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
- if should_close then return rq else Linear.do
+ if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
   Ur mkey <- liftSystemIOU $ atomically $ tryReadTChan keys
@@ -76,9 +78,9 @@ gameLoop zoom keys pipkey rq = Linear.do
         return (rq, Ur zoom)
     _        -> return (rq, Ur zoom)
 
-  rq <- render rq
+  (rp', rq) <- render rp rq
 
-  gameLoop zoom keys pipkey rq
+  gameLoop zoom keys pipkey rp' rq
 
 scrollBack :: TChan (Either Double GLFW.Key) -> GLFW.ScrollCallback
 scrollBack chan _ _ yoffset = do
@@ -132,7 +134,9 @@ main = do
         GLFW.setKeyCallback w (Just (keyPress chan)) 
       return w) ↑)
 
-     pipeline <- (makeRenderPipeline (shader f) pipeline_props ↑)
+     rp <- (createSimpleRenderPass ↑)
+     (rp1, rp2) <- (Alias.share rp ↑)
+     pipeline <- (makeRenderPipeline (shader f) pipeline_props rp1 ↑)
      (emptyMat, pipeline) <- (material GHNil pipeline ↑)
      (gridMeshX, pipeline) <- (createMesh pipeline grid_props (gridVertsX width height) ↑)
      (gridMeshY, pipeline) <- (createMesh pipeline grid_props (gridVertsY width height) ↑)
@@ -145,7 +149,7 @@ main = do
      (rq, Ur _gmk)    <- pure (insertMesh mkey axisMesh rq)
      (rq, Ur _mshk)    <- pure (insertMesh mkey functionMesh rq)
 
-     rq <- gameLoop 1 chan pkey rq
+     rq <- gameLoop 1 chan pkey rp2 rq
 
      (freeRenderQueue rq ↑)
 

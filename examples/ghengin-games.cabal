@@ -38,7 +38,8 @@ common common-flags
     ghengin-core, ghengin-core:vulkan, ghengin:geometry, ghengin-core:backend-independent-bits,
     ghengin:camera, mtl, vector, hsnoise, containers, random, linear-base,
     geomancy, vulkan >= 3.26, time, fir, filepath, text-short,
-    vector-sized, base >=4.19.0.0, os-string, gl-block, GLFW-b, stm
+    vector-sized, base >=4.19.0.0, os-string, gl-block, GLFW-b, stm,
+    reference-counting
 
   if flag(debug)
     ghc-options: -dasm-lint
