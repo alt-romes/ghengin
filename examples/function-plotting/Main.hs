@@ -47,10 +47,11 @@ sampleVertices start increment = go start where
 gameLoop :: Float -- ^ Zoom
          -> TChan (Either Double GLFW.Key) -- ^ YScroll or Key
          -> PipelineKey _ '[InStruct "proj" Mat4, InStruct "x" Float]
+         -> PipelineKey _ '[InStruct "proj" Mat4, InStruct "x" Float]
          -> Alias RenderPass
           ⊸ RenderQueue ()
           ⊸ Core (RenderQueue ())
-gameLoop zoom keys pipkey rp rq = Linear.do
+gameLoop zoom keys pipkey pipkey2 rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
@@ -62,6 +63,8 @@ gameLoop zoom keys pipkey rp rq = Linear.do
       , zoom' P.>= 1
       , zoom' P.<= 100 -> Linear.do
         rq <- (editPipeline pipkey rq (propertyAt @0 @(InStruct "proj" Mat4) (\(Ur (InStruct _proj)) -> pure $ Ur $
+          projection zoom')) ↑)
+        rq <- (editPipeline pipkey2 rq (propertyAt @0 @(InStruct "proj" Mat4) (\(Ur (InStruct _proj)) -> pure $ Ur $
           projection zoom')) ↑)
         return (rq, Ur zoom')
     Just (Right key)
@@ -75,12 +78,14 @@ gameLoop zoom keys pipkey rp rq = Linear.do
       -> Linear.do
         rq <- (editPipeline pipkey rq (propertyAt @1 @(InStruct "x" Float) (\(Ur (InStruct off)) -> pure $ Ur $
           InStruct $ adjust off)) ↑)
+        rq <- (editPipeline pipkey2 rq (propertyAt @1 @(InStruct "x" Float) (\(Ur (InStruct off)) -> pure $ Ur $
+          InStruct $ adjust off)) ↑)
         return (rq, Ur zoom)
     _        -> return (rq, Ur zoom)
 
   (rp', rq) <- render rp rq
 
-  gameLoop zoom keys pipkey rp' rq
+  gameLoop zoom keys pipkey pipkey2 rp' rq
 
 scrollBack :: TChan (Either Double GLFW.Key) -> GLFW.ScrollCallback
 scrollBack chan _ _ yoffset = do
@@ -99,7 +104,7 @@ main = do
 
   -- Function to Plot
   let f x = (FIR.sin x) FIR.* x
-  let g x = x FIR.* FIR.Lit 2 FIR.+ FIR.Lit 1
+  let g x = x FIR.** FIR.Lit 2 FIR.+ FIR.Lit 1
   let weierstrass x
         = Prelude.foldl' (\acc (FIR.Lit -> n) -> (a FIR.** n FIR.* FIR.cos (b FIR.** n FIR.* FIR.pi FIR.* x)) FIR.+ acc) (FIR.Lit 0) [0..10]
           where
@@ -148,7 +153,15 @@ main = do
      (rq, Ur _gmk)    <- pure (insertMesh mkey axisMesh rq)
      (rq, Ur _mshk)    <- pure (insertMesh mkey functionMesh rq)
 
-     rq <- gameLoop 1 chan pkey rp2 rq
+     (rp3, rp4) <- (Alias.share rp2 ↑)
+     pipeline2 <- (makeRenderPipeline rp3 (shader weierstrass) pipeline_props ↑)
+     (emptyMat, pipeline2) <- (material GHNil pipeline2 ↑)
+     (functionMesh, pipeline2) <- (createMesh pipeline2 line_props verts ↑)
+     (rq, Ur pkey2)    <- pure (insertPipeline pipeline2 rq)
+     (rq, Ur mkey2)    <- pure (insertMaterial pkey2 emptyMat rq)
+     (rq, Ur _)        <- pure (insertMesh mkey2 functionMesh rq)
+
+     rq <- gameLoop 1 chan pkey pkey2 rp4 rq
 
      (freeRenderQueue rq ↑)
 
