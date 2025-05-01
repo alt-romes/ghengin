@@ -1,5 +1,7 @@
 A work in progress game engine.
 
+Status of building all examples: ![CI build badge](https://github.com/alt-romes/ghengin/actions/workflows/build.yml/badge.svg)
+
 ## Demos
 
 See the executables from `ghegin-games.cabal` in the `examples/` directory.
