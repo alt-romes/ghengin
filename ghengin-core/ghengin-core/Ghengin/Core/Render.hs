@@ -3,6 +3,7 @@ module Ghengin.Core.Render
   ( module Ghengin.Core.Render
   , module Ghengin.Core.Renderer
   , module Ghengin.Core.Renderer.Kernel
+  , module Ghengin.Core.Renderer.Pipeline
   , module Ghengin.Core.Renderer.RenderPass
   )
   where
@@ -16,6 +17,7 @@ import Control.Functor.Linear as Linear
 import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.RenderPass
+import Ghengin.Core.Renderer.Pipeline
 import Ghengin.Core.Renderer
 
 import qualified Data.Linear.Alias as Alias

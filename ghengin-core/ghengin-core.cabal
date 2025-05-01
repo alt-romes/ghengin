@@ -194,18 +194,10 @@ library backend-independent-bits
 -- Backend implementations (Vulkan, for now that's all...)
 --------------------------------------------------------------------------------
 
-flag enable-culling
-  default: True
-  manual: True
-  description: Use CULL_MODE_BACK_BIT if True, and CULL_MODE_NONE otherwise.
-
 library vulkan
     import:           common-flags
 
     visibility:       public
-
-    if flag(enable-culling)
-      cpp-options: -DVULKAN_ENABLE_CULLING
 
     exposed-modules:  Ghengin.Vulkan.Renderer.Kernel,
                       Ghengin.Vulkan.Renderer.DescriptorSet,

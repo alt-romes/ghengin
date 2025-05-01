@@ -72,6 +72,20 @@ data RendererPipeline (t :: PipelineType)
 -- ROMES:TODO: Type data
 data PipelineType = Graphics | Compute
 
+--------------------------------------------------------------------------------
+-- TODO: unfortunately this has to be duplicated in the hsig.
+
+data GraphicsPipelineSettings = GPS
+      { cullMode :: CullMode
+      }
+
+data CullMode = CullBack | CullFront | CullNone
+
+defaultGraphicsPipelineSettings :: GraphicsPipelineSettings
+defaultGraphicsPipelineSettings = GPS CullBack
+
+--------------------------------------------------------------------------------
+
 dynamicStates :: V.Vector Vk.DynamicState
 dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT -- TODO: Eventually only the viewport needs to be dynamic right?
                 , Vk.DYNAMIC_STATE_SCISSOR ]
@@ -107,12 +121,13 @@ createGraphicsPipeline  ::
                            ( descs   :: VertexLocationDescriptions )
                            ( strides :: BindingStrides             )
                         .  PipelineConstraints info top descs strides
-                        => ShaderPipeline info
+                        => GraphicsPipelineSettings
+                        -> ShaderPipeline info
                         -> V.Vector Vk.PushConstantRange
                         -> DescriptorPool
                          ⊸ RenderPass
                          ⊸ Renderer (RenderPass, (RendererPipeline Graphics, DescriptorPool))
-createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \dpool renderP -> enterD "createGraphicsPipeline" $ Linear.do
+createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dpool renderP -> enterD "createGraphicsPipeline" $ Linear.do
   Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ Prelude.fmap (Prelude.fst) (IM.elems dpool.set_bindings)
 
   Ur dev <- unsafeGetDevice
@@ -172,7 +187,6 @@ createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \dpool 
                         , scissors      = [] -- Empty because it is dynamic
                         }
 
-    -- ROMES:TODO: Make things like CullMode configurable, perhaps with CPP?
     rasterizerInfo = Vk.PipelineRasterizationStateCreateInfo
                      { next  = ()
                      , flags = zero
@@ -182,12 +196,10 @@ createGraphicsPipeline ppstages pushConstantRanges = Unsafe.toLinearN @2 \dpool 
                      , lineWidth = 1 -- Thickness of lines in terms of number of fragments (Any >1 requires wideLines feature)
                        -- Face culling: https://learnopengl.com/Advanced-OpenGL/Face-culling
                      -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)
-#ifdef VULKAN_ENABLE_CULLING
-                     , cullMode = Vk.CULL_MODE_BACK_BIT
-#else
-                     , cullMode = Vk.CULL_MODE_NONE
-#endif
-
+                     , cullMode = case gps.cullMode of
+                                    CullBack  -> Vk.CULL_MODE_BACK_BIT
+                                    CullFront -> Vk.CULL_MODE_FRONT_BIT
+                                    CullNone  -> Vk.CULL_MODE_NONE
                      , frontFace = Vk.FRONT_FACE_COUNTER_CLOCKWISE -- Default vertice front face to be defined counter clock wise
                      -- , frontFace = Vk.FRONT_FACE_CLOCKWISE
                      , depthBiasEnable = False -- Biasing depth values based on a fragment's slope (could be used for shadow mapping)

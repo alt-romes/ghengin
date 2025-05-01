@@ -88,7 +88,19 @@ makeRenderPipeline :: forall τ info tops descs strides
                     ⊸ ShaderPipeline info
                    -> PropertyBindings τ
                     ⊸ Renderer (RenderPipeline info τ)
-makeRenderPipeline renderPass shaderPipeline props0 = Linear.do
+makeRenderPipeline = makeRenderPipelineWith defaultGraphicsPipelineSettings
+
+-- | 'makeRenderPipeline' with explicit settings
+makeRenderPipelineWith :: forall τ info tops descs strides
+                    . ( PipelineConstraints info tops descs strides
+                      , CompatiblePipeline τ info
+                      )
+                   => GraphicsPipelineSettings
+                   -> Alias RenderPass
+                    ⊸ ShaderPipeline info
+                   -> PropertyBindings τ
+                    ⊸ Renderer (RenderPipeline info τ)
+makeRenderPipelineWith gps renderPass shaderPipeline props0 = Linear.do
 
   -- Create the descriptor sets and graphics pipeline based on the shader
   -- pipeline
@@ -133,7 +145,7 @@ makeRenderPipeline renderPass shaderPipeline props0 = Linear.do
   logT "Creating graphics pipeline"
   (renderPass, (pipeline, dpool2))
     <- Alias.useM renderPass $
-        createGraphicsPipeline
+        createGraphicsPipeline gps
            shaderPipeline
            -- ROMES:TODO: Update push constants! This is not it! (It's hardcoded, and things are never actually pushed)
            -- [Vk.PushConstantRange { offset = 0 , size = 64 :: Word32, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant

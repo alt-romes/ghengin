@@ -48,10 +48,24 @@ createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fra
                            ( descs   :: VertexLocationDescriptions )
                            ( strides :: BindingStrides             )
                         .  PipelineConstraints info top descs strides
-                        => ShaderPipeline info
+                        => GraphicsPipelineSettings
+                        -> ShaderPipeline info
                         -> V.Vector Vk.PushConstantRange
                         -> DescriptorPool
                          ⊸ RenderPass
                          ⊸ Renderer (RenderPass, (RendererPipeline Graphics, DescriptorPool))
 
 destroyPipeline :: RendererPipeline a ⊸ Renderer ()
+
+--------------------------------------------------------------------------------
+-- Settings
+--------------------------------------------------------------------------------
+
+data GraphicsPipelineSettings = GPS
+      { cullMode :: CullMode
+      }
+
+data CullMode = CullBack | CullFront | CullNone
+
+defaultGraphicsPipelineSettings :: GraphicsPipelineSettings
+

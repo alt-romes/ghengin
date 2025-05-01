@@ -102,11 +102,12 @@ render rp rq = do
 --
 --     renderQueueCmd rq
 --      
---     draw 0
+--     draw 3
 -- @
 -- This example issues a draw call after calling 'renderQueueCmd' because the
 -- render queue has no meshes, but we still want to draw the pipelines that
--- command will bind.
+-- command will bind. It uses gl_VertexIndex in the vertex shader.
+-- See https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/ for instance
 renderWith :: CommandM Renderer a ⊸ Core a
 renderWith command = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
   Ur fcounter    <- pure (move fcounter')
