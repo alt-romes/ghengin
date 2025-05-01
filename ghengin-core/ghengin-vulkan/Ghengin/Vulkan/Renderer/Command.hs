@@ -38,8 +38,6 @@ module Ghengin.Vulkan.Renderer.Command
   , drawIndexed
   , drawVertexBuffer
   , drawVertexBufferIndexed
-  , withCmdBuffer
-  , makeRenderPassCmd
 
   , createCommandPool
   , destroyCommandPool
@@ -147,12 +145,20 @@ type Command m = CommandM m ()
 -- @
 type RenderPassCmd m = RenderPassCmdM m ()
 
-
-newtype CommandM m a = Command (ReaderT Vk.CommandBuffer m a)
+newtype CommandM m a = Command (ReaderT CmdInfo m a)
   deriving (Data.Linear.Functor, Linear.Functor)
 
-newtype RenderPassCmdM m a = RenderPassCmd (ReaderT Vk.CommandBuffer m a)
-  deriving (Data.Linear.Functor, Linear.Functor)
+newtype RenderPassCmdM m a = RenderPassCmd (CommandM m a)
+  deriving (Data.Linear.Functor, Linear.Functor, Data.Linear.Applicative, Linear.Applicative, Linear.Monad, Linear.MonadTrans, Linear.MonadIO, HasLogger)
+
+data CmdInfo = CmdInfo
+      { buf :: Vk.CommandBuffer
+
+      -- | Because we have multiple frames in flight in our swapchain, we need
+      -- to index the corresponding auxiliary structures on the right frame
+      -- index. For instance, we need this Ix to pick the right framebuffer to
+      -- use in the renderpass command.
+      , currentImageIx :: Int }
 
 -- This interface is safe because the only ways to record the command
 -- (recordCommand, recordCommandOneShot) guarantee the command buffer is
@@ -176,36 +182,12 @@ instance Linear.Monad m => Linear.Monad (CommandM m) where
   Command (ReaderT fma) >>= f = Command $ ReaderT $ Unsafe.toLinear \r -> fma r Linear.>>= (\case (Command (ReaderT m)) -> m r) Linear.. f
   {-# INLINE (>>=) #-}
 
-instance Linear.Applicative m => Linear.Applicative (RenderPassCmdM m) where
-  pure x = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> Linear.pure x
-  RenderPassCmd (ReaderT fff) <*> RenderPassCmd (ReaderT ffa) = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> fff r Linear.<*> ffa r
-  {-# INLINE pure #-}
-  {-# INLINE (<*>) #-}
-
-instance Data.Linear.Applicative m => Data.Linear.Applicative (RenderPassCmdM m) where
-  pure x = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> Data.Linear.pure x
-  RenderPassCmd (ReaderT fff) <*> RenderPassCmd (ReaderT ffa) = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> fff r Data.Linear.<*> ffa r
-  {-# INLINE pure #-}
-  {-# INLINE (<*>) #-}
-
-instance Linear.Monad m => Linear.Monad (RenderPassCmdM m) where
-  RenderPassCmd (ReaderT fma) >>= f = RenderPassCmd $ ReaderT $ Unsafe.toLinear \r -> fma r Linear.>>= (\case (RenderPassCmd (ReaderT m)) -> m r) Linear.. f
-  {-# INLINE (>>=) #-}
-
 instance Linear.MonadTrans CommandM where
   lift x = Command $ ReaderT $ Unsafe.toLinear $ \r -> x
   {-# INLINE lift #-}
 
-instance Linear.MonadTrans RenderPassCmdM where
-  lift x = RenderPassCmd $ ReaderT $ Unsafe.toLinear $ \r -> x
-  {-# INLINE lift #-}
-
 instance Linear.MonadIO m => Linear.MonadIO (CommandM m) where
   liftIO x = Command $ ReaderT $ Unsafe.toLinear $ \r -> Linear.liftIO x
-  {-# INLINE liftIO #-}
-
-instance Linear.MonadIO m => Linear.MonadIO (RenderPassCmdM m) where
-  liftIO x = RenderPassCmd $ ReaderT $ Unsafe.toLinear $ \r -> Linear.liftIO x
   {-# INLINE liftIO #-}
 
 instance HasLogger m => HasLogger (CommandM m) where
@@ -214,17 +196,10 @@ instance HasLogger m => HasLogger (CommandM m) where
   {-# INLINE getLogger #-}
   {-# INLINE withLevelUp #-}
 
--- Perhaps we can instance this generically for MonadTrans
-instance HasLogger m => HasLogger (RenderPassCmdM m) where
-  getLogger = RenderPassCmd $ ReaderT $ Unsafe.toLinear $ \r -> getLogger
-  withLevelUp (RenderPassCmd (ReaderT fma)) = RenderPassCmd $ ReaderT \r -> withLevelUp (fma r)
-  {-# INLINE getLogger #-}
-  {-# INLINE withLevelUp #-}
-
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
-recordCommand :: Linear.MonadIO m => Vk.CommandBuffer ⊸ CommandM m a ⊸ m (a, Vk.CommandBuffer)
-recordCommand = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
+recordCommand :: Linear.MonadIO m => Int {-^ Current frame index -} -> Vk.CommandBuffer ⊸ CommandM m a ⊸ m (a, Vk.CommandBuffer)
+recordCommand ix = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.zero
                                             , inheritanceInfo = Nothing }
 
@@ -232,7 +207,7 @@ recordCommand = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
   Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
 
   -- Record commands
-  a <- runReaderT cmds buf
+  a <- runReaderT cmds (CmdInfo buf ix)
 
   -- Finish recording
   Linear.liftSystemIO $ Vk.endCommandBuffer buf
@@ -244,7 +219,7 @@ recordCommandOneShot :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m ⊸ m
 recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, inheritanceInfo = Nothing }
   Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
-  runReaderT cmds buf
+  runReaderT cmds (CmdInfo buf (error "one shot command tried to begin render pass but no frame is selected?"))
   Linear.liftSystemIO $ Vk.endCommandBuffer buf
   Linear.pure buf
 {-# INLINE recordCommandOneShot #-}
@@ -254,25 +229,24 @@ recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
 -- :: WARNING ::
 -- The graphics pipelines bound in this render pass command MUST have a reference to the same render pass, or, at least be compatible.
 renderPassCmd :: Linear.MonadIO m
-              => Int -- ^ needs a good explanation...
-              -> Vk.Extent2D
+              => Vk.Extent2D
               -> Alias.Alias m RenderPass
                ⊸ RenderPassCmdM m a
                ⊸ CommandM m a
-renderPassCmd currentImage renderAreaExtent
- = Unsafe.toLinear2 \(Unsafe.get -> VulkanRenderPass rpass ((Vector.! currentImage) -> frameBuffer)) (RenderPassCmd rpcmds) ->
-   Command $ ReaderT \buf -> Linear.do
+renderPassCmd renderAreaExtent
+ = Unsafe.toLinear2 \(Unsafe.get -> VulkanRenderPass rpass (frameBuffers)) (RenderPassCmd (Command rpcmds)) ->
+   Command $ ReaderT \(CmdInfo buf currentImage) -> Linear.do
     let
       renderPassInfo = Vk.RenderPassBeginInfo { next = ()
                                               , renderPass  = rpass
-                                              , framebuffer = frameBuffer
+                                              , framebuffer = frameBuffers Vector.! currentImage
                                               , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
                                               , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 1 0]
                                               }
 
     Linear.liftSystemIO $ Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
 
-    a <- runReaderT rpcmds buf
+    a <- runReaderT rpcmds (CmdInfo buf currentImage)
 
     Linear.liftSystemIO $ Vk.cmdEndRenderPass buf
 
@@ -337,20 +311,6 @@ bindGraphicsDescriptorSet' :: Linear.MonadIO m
 bindGraphicsDescriptorSet' pipelay ix dset =
   unsafeRenderPassCmd (pipelay,dset) (\buf (pip',dset') -> Vk.cmdBindDescriptorSets buf Vk.PIPELINE_BIND_POINT_GRAPHICS pip' ix [dset'] []) -- offsets array not used
 {-# INLINE bindGraphicsDescriptorSet' #-}
-
--- | Lift a function that uses a command buffer to a Command
--- Get back to this: not trivial with linearity. Probably unsafe will have to be called outside
--- Or this function will be called unsafeWithCmdBuffer
---
--- This is an unsafe function because the command buffer can be used
--- unrestrictedly! Make sure you don't free it.
-withCmdBuffer :: Linear.MonadIO m => (Vk.CommandBuffer -> m ()) -> Command m
-withCmdBuffer f = Command $ ReaderT f
-
--- As above
-makeRenderPassCmd :: Linear.MonadIO m => (Vk.CommandBuffer -> m ()) -> RenderPassCmd m
-makeRenderPassCmd f = RenderPassCmd $ ReaderT f
-
 
 -- :| Creation and Destruction |:
 
@@ -502,17 +462,17 @@ bindGraphicsDescriptorSet (VulkanPipeline pipelay layout) ix (DescriptorSet dix 
 -- often this function will be a Vulkan function which isn't linear.
 
 unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> (Ur (Command m), a)
-unsafeCmd = Unsafe.toLinear \a f -> (Ur $ Command $ ReaderT \buf -> Linear.liftSystemIO (f buf a), a)
+unsafeCmd = Unsafe.toLinear \a f -> (Ur $ Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf a), a)
 
 unsafeCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> Command m
-unsafeCmd_ = Unsafe.toLinear \f -> (Command $ ReaderT \buf -> Linear.liftSystemIO (f buf))
+unsafeCmd_ = Unsafe.toLinear \f -> (Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf))
 
 -- | Unsafe for lots of reasons
 unsafeRenderPassCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> RenderPassCmdM m a
-unsafeRenderPassCmd = Unsafe.toLinear \a f -> (RenderPassCmd $ ReaderT \buf -> a Linear.<$ Linear.liftSystemIO (f buf a))
+unsafeRenderPassCmd = Unsafe.toLinear \a f -> (RenderPassCmd $ Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf a))
 
 unsafeRenderPassCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> RenderPassCmd m
-unsafeRenderPassCmd_ = Unsafe.toLinear \f -> (RenderPassCmd $ ReaderT \buf -> Linear.liftSystemIO (f buf))
+unsafeRenderPassCmd_ = Unsafe.toLinear \f -> (RenderPassCmd $ Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf))
 
 -- ghengin-vulkan can't yet depend on ghengin-core because of backpack bugs
 -- (TODO: Report that ghc bug)

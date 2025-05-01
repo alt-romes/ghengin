@@ -83,9 +83,9 @@ render rp rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "ren
   withCurrentFramePresent frameIndex $ \cmdBuffer currentImage -> enterD "withCurrentFramePresent" $ Linear.do
 
     -- TODO: Allow custom Command or RenderPassCmd rather than hardcoding it in render.
-    (x, cmdBuffer') <- recordCommand cmdBuffer $ Linear.do
+    (x, cmdBuffer') <- recordCommand currentImage cmdBuffer $ Linear.do
 
-      renderPassCmd currentImage extent rp1 $ Linear.do
+      renderPassCmd extent rp1 $ Linear.do
 
         -- this could be changed dynamically...
         setViewport viewport
@@ -101,33 +101,39 @@ render rp rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "ren
 
 
 {- |
-   Here's a rundown of the draw function for each frame in flight:
+Here's a rundown of the draw function for each frame in flight:
 
-   ∀ pipeline ∈ registeredPipelines do
-      bind global descriptor set at set #0
+∀ pipeline ∈ registeredPipelines do
+  bind global descriptor set at set #0
 
-      ∀ material ∈ pipeline.registeredMaterials do
-        bind material descriptor set at set #1
+  ∀ material ∈ pipeline.registeredMaterials do
+    bind material descriptor set at set #1
 
-        ∀ object that uses material do
+    ∀ object that uses material do
 
-          bind object descriptor set at set #2
-          bind object model (vertex buffer)
-          draw object
+      bind object descriptor set at set #2
+      bind object model (vertex buffer)
+      draw object
 
-    This makes the descriptor set #0 bound once per pipeline
-               the descriptor set #1 bound once per material
-               the descriptor set #2 bound once per object
+This makes the descriptor set #0 bound once per pipeline
+           the descriptor set #1 bound once per material
+           the descriptor set #2 bound once per object
 
-    The data bound globally for the pipeline must be compatible with the descriptor set #0 layout
-    All materials bound in a certain pipeline must be compatible with the descriptor set #1 layout
-    All object data bound in a certain pipeline must be compatible with descriptor set #2 layout
-    All object's vertex buffers bound in a certain pipeline must be compatible with the vertex input of that pipeline
+The data bound globally for the pipeline must be compatible with the descriptor set #0 layout
+All materials bound in a certain pipeline must be compatible with the descriptor set #1 layout
+All object data bound in a certain pipeline must be compatible with descriptor set #2 layout
+All object's vertex buffers bound in a certain pipeline must be compatible with the vertex input of that pipeline
 
-    In practice, the code doesn't look exactly like this. We bind the
-    descriptor sets and pipelines linearly because the ordering of the render
-    queue ensures that the GPU state changes will be minimized and hence the
-    iteration will actually look a bit like the described above
+In practice, the code doesn't look exactly like this. We bind the
+descriptor sets and pipelines linearly because the ordering of the render
+queue ensures that the GPU state changes will be minimized and hence the
+iteration will actually look a bit like the described above
+
+:: Warning ::
+Draw commands are only issued for meshes. If there are no meshes, but you still
+want to draw (e.g. if your fragment shader does all the work), you need to call
+`draw 0` (0 for zero vertices) explicitly as part of the Cmd/RenderPassCmd
+passed to `render`.
  -}
 renderQueueCmd :: RenderQueue ()
                -- ^ The unit type parameter is data attached to each item in the
@@ -287,7 +293,6 @@ writePropertiesToResources rmap' fi
         Alias.forget res' -- gotten from rmap, def. not the last ref
         (rmap''', bs) <- go rmap'' (n+1) as
         pure (rmap''', binding':##bs)
-
 
 renderMesh :: (Functor m, MonadIO m) => Mesh vs a ⊸ RenderPassCmdM m (Mesh vs a)
 renderMesh = \case

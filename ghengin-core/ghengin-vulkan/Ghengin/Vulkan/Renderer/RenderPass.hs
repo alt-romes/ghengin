@@ -41,21 +41,16 @@ import Ghengin.Vulkan.Renderer.Kernel
 
 import qualified Unsafe.Linear as Unsafe
 
-data RenderPass = VulkanRenderPass { _renderPass :: Vk.RenderPass
-                                   -- | We bundle framebuffer with the 
-                                   -- RenderPass because in rendering we have 
-                                   -- a fixed SwapChain so the Framebuffer is
-                                   -- differentiated just from the rendering pass.
-                                   -- That means that we have to create a
-                                   -- framebuffer for all of the images
-                                   -- in the swap chain and use the one
-                                   -- that corresponds to the retrieved
-                                   -- image at drawing time.
-                                   , _framebuffers :: Vector.Vector Vk.Framebuffer
-                                   }
+data RenderPass = VulkanRenderPass
+      { _renderPass :: Vk.RenderPass
 
--- withSimpleRenderPass :: (RenderPass -> Renderer a) -> Renderer a
--- withSimpleRenderPass f = rendererBracket createSimpleRenderPass destroyRenderPass f
+      -- | We bundle framebuffers with the RenderPass.
+      --
+      -- We need many framebuffers, one per image in the swap chain. When
+      -- issuing a render pass command, the framebuffer matching the frame
+      -- being rendered must be used.
+      , _framebuffers :: Vector.Vector Vk.Framebuffer
+      }
 
 createSimpleRenderPass :: Renderer (Alias RenderPass)
 createSimpleRenderPass = enterD "createSimpleRenderPass" $ Linear.do
@@ -146,7 +141,6 @@ destroyRenderPass = Unsafe.toLinear $ \(VulkanRenderPass rp framebuffers) -> ent
 createFramebuffers :: KnownNat n => Vk.RenderPass ⊸ Vk.ImageView ⊸ V.V n Vk.ImageView ⊸ Renderer ((V.V n Vk.Framebuffer, V.V n Vk.ImageView), (Vk.RenderPass, Vk.ImageView))
 createFramebuffers rp depthImgV imgVs = runStateT ((Unsafe.toLinear \case (VI.V fbsimgs) -> bimap VI.V VI.V (Vector.unzip fbsimgs)) <$> Data.Linear.traverse createFramebufferState imgVs) (rp, depthImgV)
   where
-    -- Hope this threading doesn't impact performance too much. TODO: Benchmarks....
     createFramebufferState :: Vk.ImageView ⊸ StateT (Vk.RenderPass, Vk.ImageView) Renderer (Vk.Framebuffer, Vk.ImageView)
     createFramebufferState imageView = StateT (\(rp', depthImgV') -> createFramebuffer rp' depthImgV' imageView >>= \case (fb, (rp'',dimgv',imgv')) -> pure ((fb, imgv'), (rp'', dimgv')))
 -- ROMES:force inline everywhere with this stateT?

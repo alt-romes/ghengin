@@ -46,9 +46,9 @@ instance HasLogger m          => HasLogger (RenderPassCmdM m)
 instance Linear.MonadTrans RenderPassCmdM
 
 -- the command buffer comes from the leaky
-recordCommand :: Linear.MonadIO m => CommandBuffer ⊸ CommandM m a ⊸ m (a, CommandBuffer)
+recordCommand :: Linear.MonadIO m => Int {-^ Current frame index -} -> CommandBuffer ⊸ CommandM m a ⊸ m (a, CommandBuffer)
 
-renderPassCmd :: Linear.MonadIO m => Int -> Vk.Extent2D -> Alias.Alias m RenderPass ⊸ RenderPassCmdM m a ⊸ CommandM m a
+renderPassCmd :: Linear.MonadIO m => Vk.Extent2D -> Alias.Alias m RenderPass ⊸ RenderPassCmdM m a ⊸ CommandM m a
 
 -- TODO: Cleanup the API
 
