@@ -60,10 +60,55 @@ runCore dimensions (Core st)
 (↑)      = Core . lift
 liftCore = Core . lift
 
+-- | Renders a render queue under the given render pass.
+--
+-- For more fine-grained control of the render command to run see 'renderWith'
 render :: Alias RenderPass -- ^ The render pass under which all pipelines in the queue will be rendered (must be compatible with the pipelines declared renderpass!)
         ⊸ RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
         ⊸ Core (Alias RenderPass, RenderQueue ())
-render rp rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
+render rp rq = do
+
+  renderWith $ Linear.do
+
+    (rp1, rp2) <- lift (Alias.share rp)
+
+    Ur extent <- lift getRenderExtent
+    let viewport = viewport' extent
+        scissor  = scissor' extent
+    
+    renderPassCmd extent rp1 $ Linear.do
+
+      -- this can be changed dynamically...
+      setViewport viewport
+      setScissor  scissor
+
+      rq <- renderQueueCmd rq
+
+      return (rp2, rq)
+
+
+-- | Render a frame with the given command
+--
+-- === __Example__
+--
+-- @
+-- renderWith $ Linear.do
+--
+--   renderPassCmd extent rp $ Linear.do
+--
+--     -- this could be changed dynamically...
+--     setViewport viewport
+--     setScissor  scissor
+--
+--     renderQueueCmd rq
+--      
+--     draw 0
+-- @
+-- This example issues a draw call after calling 'renderQueueCmd' because the
+-- render queue has no meshes, but we still want to draw the pipelines that
+-- command will bind.
+renderWith :: CommandM Renderer a ⊸ Core a
+renderWith command = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
   Ur fcounter    <- pure (move fcounter')
 
   -- This could in principle overflow... For now, good enough. It's
@@ -71,33 +116,16 @@ render rp rq = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "ren
   -- The game would have to run for years to overflow a 64 bit integer
   let frameIndex = fcounter `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
 
-  -- Some required variables
-  -- TODO: instead, use defaults and provide functions to change viewport and scissor
-  -- if so desired
-  Ur extent <- getRenderExtent
-  let viewport = viewport' extent
-      scissor  = scissor' extent
-
-  (rp1, rp2) <- Alias.share rp
-
   withCurrentFramePresent frameIndex $ \cmdBuffer currentImage -> enterD "withCurrentFramePresent" $ Linear.do
 
     -- TODO: Allow custom Command or RenderPassCmd rather than hardcoding it in render.
-    (x, cmdBuffer') <- recordCommand currentImage cmdBuffer $ Linear.do
-
-      renderPassCmd extent rp1 $ Linear.do
-
-        -- this could be changed dynamically...
-        setViewport viewport
-        setScissor  scissor
-
-        renderQueueCmd rq
+    (x, cmdBuffer') <- recordCommand currentImage cmdBuffer command
 
     -- We can return the unsafe queue after having rendered from it because
     -- rendering does not do anything to the resources in the render queue (it
     -- only draws the scene specified by it) It is rather edited by the game,
     -- in the loops before rendering
-    pure (((rp2, x), CoreState{frameCounter=fcounter+1}), cmdBuffer')
+    pure ((x, CoreState{frameCounter=fcounter+1}), cmdBuffer')
 
 
 {- |

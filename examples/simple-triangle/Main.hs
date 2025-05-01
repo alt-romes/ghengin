@@ -67,6 +67,7 @@ main = do
     let simple = False
 
     if simple then Linear.do
+
       pipeline <- (makeRenderPipeline rp1 shaderPipelineSimple GHNil ↑)
       (emptyMat, pipeline) <- (material GHNil pipeline ↑)
       (mesh, pipeline) <- (createMesh pipeline GHNil triangleVertices ↑)
