@@ -54,6 +54,8 @@ renderPassCmd :: Linear.MonadIO m => Vk.Extent2D -> Alias.Alias m RenderPass ⊸
 
 drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderPassCmdM m VertexBuffer
 drawVertexBufferIndexed :: Linear.MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderPassCmdM m (VertexBuffer, Index32Buffer)
+draw :: Linear.MonadIO m => Word32 -> RenderPassCmd m
+drawIndexed :: Linear.MonadIO m => Word32 -> RenderPassCmd m
 
 bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ RenderPassCmdM m (RendererPipeline Graphics)
 
