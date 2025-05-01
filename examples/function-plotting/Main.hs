@@ -46,12 +46,11 @@ sampleVertices start increment = go start where
 
 gameLoop :: Float -- ^ Zoom
          -> TChan (Either Double GLFW.Key) -- ^ YScroll or Key
-         -> PipelineKey _ '[InStruct "proj" Mat4, InStruct "x" Float]
-         -> PipelineKey _ '[InStruct "proj" Mat4, InStruct "x" Float]
+         -> [PipelineKey a '[InStruct "proj" Mat4, InStruct "x" Float]]
          -> Alias RenderPass
           ⊸ RenderQueue ()
           ⊸ Core (RenderQueue ())
-gameLoop zoom keys pipkey pipkey2 rp rq = Linear.do
+gameLoop zoom keys pipkeys rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
@@ -61,11 +60,11 @@ gameLoop zoom keys pipkey pipkey2 rp rq = Linear.do
     Just (Left yscroll)
       | let zoom' = zoom + double2Float yscroll
       , zoom' P.>= 1
-      , zoom' P.<= 100 -> Linear.do
-        rq <- (editPipeline pipkey rq (propertyAt @0 @(InStruct "proj" Mat4) (\(Ur (InStruct _proj)) -> pure $ Ur $
-          projection zoom')) ↑)
-        rq <- (editPipeline pipkey2 rq (propertyAt @0 @(InStruct "proj" Mat4) (\(Ur (InStruct _proj)) -> pure $ Ur $
-          projection zoom')) ↑)
+      , zoom' P.<= 100 -> liftCore $ Linear.do
+        rq <- foldl' (\mrq (Ur pipkey) -> Linear.do
+          rq <- mrq
+          editPipeline pipkey rq (propertyAt @0 @(InStruct "proj" Mat4) (\(Ur (InStruct _proj)) ->
+            pure $ Ur $ projection zoom'))) (pure rq) (P.map Ur pipkeys)
         return (rq, Ur zoom')
     Just (Right key)
       | let n = if zoom P.< 10 then 10 {- move faster at low zoom -} else 1
@@ -75,17 +74,17 @@ gameLoop zoom keys pipkey pipkey2 rp rq = Linear.do
           GLFW.Key'Left  -> Just (P.-n)
           GLFW.Key'A     -> Just (P.-n)
           _              -> Nothing
-      -> Linear.do
-        rq <- (editPipeline pipkey rq (propertyAt @1 @(InStruct "x" Float) (\(Ur (InStruct off)) -> pure $ Ur $
-          InStruct $ adjust off)) ↑)
-        rq <- (editPipeline pipkey2 rq (propertyAt @1 @(InStruct "x" Float) (\(Ur (InStruct off)) -> pure $ Ur $
-          InStruct $ adjust off)) ↑)
+      -> liftCore $ Linear.do
+        rq <- foldl' (\mrq (Ur pipkey) -> Linear.do
+          rq <- mrq
+          editPipeline pipkey rq (propertyAt @1 @(InStruct "x" Float) (\(Ur (InStruct off)) -> pure $ Ur $
+            InStruct $ adjust off))) (pure rq) (P.map Ur pipkeys)
         return (rq, Ur zoom)
     _        -> return (rq, Ur zoom)
 
   (rp', rq) <- render rp rq
 
-  gameLoop zoom keys pipkey pipkey2 rp' rq
+  gameLoop zoom keys pipkeys rp' rq
 
 scrollBack :: TChan (Either Double GLFW.Key) -> GLFW.ScrollCallback
 scrollBack chan _ _ yoffset = do
@@ -161,7 +160,7 @@ main = do
      (rq, Ur mkey2)    <- pure (insertMaterial pkey2 emptyMat rq)
      (rq, Ur _)        <- pure (insertMesh mkey2 functionMesh rq)
 
-     rq <- gameLoop 1 chan pkey pkey2 rp4 rq
+     rq <- gameLoop 1 chan [pkey, pkey2] rp4 rq
 
      (freeRenderQueue rq ↑)
 

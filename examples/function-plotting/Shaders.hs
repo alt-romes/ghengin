@@ -60,10 +60,10 @@ vertexSimple :: (Code Float -> Code Float) -> G.VertexShaderModule VertexDefs _
 vertexSimple f = shader do
     ~(Vec3 orig_x orig_y z) <- get @"in_position"
 
-    apply <- use @(Name "in_apply" :.: Name "b")
+    apply        <- use @(Name "in_apply" :.: Name "b")
     apply_offset <- use @(Name "in_apply_offset" :.: Name "bo")
-    projection <- use @(Name "projection" :.: Name "proj")
-    offset <- use @(Name "offset" :.: Name "x")
+    projection   <- use @(Name "projection" :.: Name "proj")
+    offset       <- use @(Name "offset" :.: Name "x")
 
     let x = if apply_offset == Lit DO_APPLY_TO_VERT then
               orig_x - offset
