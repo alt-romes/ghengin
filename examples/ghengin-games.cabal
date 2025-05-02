@@ -179,7 +179,7 @@ common common-flags
 --     hs-source-dirs: cube/
 
 --------------------------------------------------------------------------------
--- Demos in increasing level of complexity
+-- Some demos in increasing level of complexity
 --------------------------------------------------------------------------------
 
 executable simple-triangle
@@ -212,3 +212,14 @@ executable function-plotting
     main-is:       Main.hs
     other-modules: Shaders
     hs-source-dirs: function-plotting/
+
+--------------------------------------------------------------------------------
+-- Examples from The Book Of Shaders https://thebookofshaders.com/
+--------------------------------------------------------------------------------
+
+-- https://thebookofshaders.com/
+executable book-of-shaders-3
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    hs-source-dirs: book-of-shaders/uniforms/

@@ -8,6 +8,8 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
+-- Inspired by "Algorithmic Drawing" in The Book Of Shaders: https://thebookofshaders.com/05/
+
 import GHC.Float.RealFracMethods
 import GHC.Float
 import Geomancy
