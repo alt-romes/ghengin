@@ -71,7 +71,7 @@ newUnitSphere res color =
    in
       UnitSphere (zipWith3 (\a b c -> a :& b :&: c) ps ns cls) (map fromIntegral is)
 
-newSphereMesh :: CompatibleVertex [Vec3, Vec3, Vec3] π
+newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3, Vec3] π)
               => RenderPipeline π bs
               -> Int -- ^ Resolution
               -> Maybe Vec3 -- ^ Color, use the normals if Nothing

@@ -43,28 +43,21 @@ type Compatible :: [Type]       -- ^ Vertex properties
                 -> PipelineInfo -- ^ The pipeline against which the properties must be compatible
                 -> Constraint
 type family Compatible αs δs βs ξs π where
-  Compatible as ds bs cs p
-    = ( MatchPropertiesSize (Length as) (Length (InputLocations p))
-                            (Text " mesh vertex properties in vertex " :<>: ShowType as)
-                            (Text " inputs in the vertex shader.")
-      , MatchPropertiesSize (Length ds) (Length (DSetBindings 2 p))
-                            (Text " mesh properties in mesh " :<>: ShowType ds)
-                            (Text " descriptors in descriptor set #2.")
-      , MatchPropertiesSize (Length bs) (Length (DSetBindings 1 p))
-                            (Text " material properties in material " :<>: ShowType bs)
-                            (Text " descriptors in descriptor set #1.")
-      , MatchPropertiesSize (Length cs) (Length (DSetBindings 0 p))
-                            (Text " render properties in render pipeline properties " :<>: ShowType cs)
-                            (Text " descriptors in descriptor set #0.")
-      , CompatibleVertex   as p
-      , CompatibleMesh     ds p
-      , CompatibleMaterial bs p
-      , CompatiblePipeline cs p
+  Compatible as bs cs ds p
+    = ( CompatibleVertex   as p
+      , CompatibleMesh     bs p
+      , CompatibleMaterial cs p
+      , CompatiblePipeline ds p
       )
 
 -- | 'CompatibleVertex' validates the vertices types against the vertices the
 -- shader pipeline expects.
-type CompatibleVertex as p = CompatibleVertex' (Zip (NumbersFromTo 0 (Length as)) as) p
+type CompatibleVertex as p
+      = ( MatchPropertiesSize as (InputLocations p)
+                              (Text " mesh vertex properties in vertex " :<>: ShowType as)
+                              (Text " inputs in the vertex shader.")
+        , CompatibleVertex' (Zip (NumbersFromTo 0 (Length as)) as) p
+        )
 type CompatibleVertex' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleVertex' as p where
   CompatibleVertex' '[] _ = ()
@@ -79,7 +72,12 @@ type family CompatibleVertex' as p where
 
 -- | 'CompatibleMesh' validates the mesh properties againsts the
 -- properties expected in the descriptor set #2 by the shader pipeline.
-type CompatibleMesh ds p = CompatibleMesh' (Zip (NumbersFromTo 0 (Length ds)) ds) p
+type CompatibleMesh ds p
+      = ( MatchPropertiesSize ds (DSetBindings 2 p)
+                              (Text " mesh properties in mesh " :<>: ShowType ds)
+                              (Text " descriptors in descriptor set #2.")
+        , CompatibleMesh' (Zip (NumbersFromTo 0 (Length ds)) ds) p
+        )
 type CompatibleMesh' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleMesh' as p where
   CompatibleMesh' '[] _ = ()
@@ -93,7 +91,12 @@ type family CompatibleMesh' as p where
 
 -- | 'CompatibleMaterial' validates the material properties againsts the
 -- properties expected in the descriptor set #1 by the shader pipeline.
-type CompatibleMaterial bs p = CompatibleMaterial' (Zip (NumbersFromTo 0 (Length bs)) bs) p
+type CompatibleMaterial bs p
+      = ( MatchPropertiesSize bs (DSetBindings 1 p)
+                              (Text " material properties in material " :<>: ShowType bs)
+                              (Text " descriptors in descriptor set #1.")
+        , CompatibleMaterial' (Zip (NumbersFromTo 0 (Length bs)) bs) p
+        )
 type CompatibleMaterial' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatibleMaterial' as p where
   CompatibleMaterial' '[] _ = ()
@@ -107,7 +110,12 @@ type family CompatibleMaterial' as p where
 
 -- | 'CompatiblePipeline' validates the render pipeline properties againsts the
 -- properties expected in the descriptor set #0 by the shader pipeline.
-type CompatiblePipeline cs p = CompatiblePipeline' (Zip (NumbersFromTo 0 (Length cs)) cs) p
+type CompatiblePipeline cs p
+      = ( MatchPropertiesSize cs (DSetBindings 0 p)
+                              (Text " render properties in render pipeline properties " :<>: ShowType cs)
+                              (Text " descriptors in descriptor set #0.")
+        , CompatiblePipeline' (Zip (NumbersFromTo 0 (Length cs)) cs) p
+        )
 type CompatiblePipeline' :: [(Nat,Type)] -> PipelineInfo -> Constraint
 type family CompatiblePipeline' as p where
   CompatiblePipeline' '[] p = ()
@@ -131,10 +139,14 @@ type family Match a b e where
   Match x x _ = ()
   Match _ _ e = TypeError e
 
-type MatchPropertiesSize :: Nat -> Nat -> ErrorMessage -> ErrorMessage -> Constraint
-type family MatchPropertiesSize t t' e e' where
-  MatchPropertiesSize x x _ _ = ()
-  MatchPropertiesSize x y s1 s2
+type MatchPropertiesSize :: [a] -> [b] -> ErrorMessage -> ErrorMessage -> Constraint
+type family MatchPropertiesSize l l' e e' where
+  MatchPropertiesSize l l' e e' = MatchPropertiesSize' (Length l) (Length l') e e'
+
+type MatchPropertiesSize' :: Nat -> Nat -> ErrorMessage -> ErrorMessage -> Constraint
+type family MatchPropertiesSize' t t' e e' where
+  MatchPropertiesSize' x x _ _ = ()
+  MatchPropertiesSize' x y s1 s2
     = TypeError (Text "There are " :<>: ShowType x :<>: s1 :<>: Text " but " :<>: ShowType y :<>: s2)
 
 
