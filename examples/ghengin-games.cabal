@@ -188,6 +188,12 @@ executable simple-triangle
     other-modules: Shaders
     hs-source-dirs: simple-triangle/
 
+executable simple-triangle-colored
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    hs-source-dirs: simple-triangle-colored/
+
 executable simple-cube
     import:        common-flags
     main-is:       Main.hs
