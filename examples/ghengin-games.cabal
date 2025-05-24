@@ -213,11 +213,19 @@ executable full-pipeline
     other-modules: Shaders
     hs-source-dirs: full-pipeline
 
+--------------------------------------------------------------------------------
+
 executable function-plotting
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
     hs-source-dirs: function-plotting/
+
+executable function-drawing
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    hs-source-dirs: function-drawing/
 
 --------------------------------------------------------------------------------
 -- Examples from The Book Of Shaders https://thebookofshaders.com/
