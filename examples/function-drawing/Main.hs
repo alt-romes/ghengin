@@ -55,11 +55,11 @@ gameLoop rp rq = Linear.do
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (1000, 1000) Linear.do
+  runCore (720, 720) Linear.do
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
-    let sides = Sides {x=1, y=1, off_x=(-0.5), off_y=(-0.5)}
+    let sides = Sides {x=10, y=10, off_x=(-5), off_y=(-5)}
 
     pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullBack} rp1 shaderPipelineSimple (DynamicBinding (Ur sides) :## GHNil) ↑)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)

@@ -25,6 +25,18 @@ import Math.Linear
 import qualified Ghengin.Core.Shader as G
 
 --------------------------------------------------------------------------------
+-- Utils
+
+-- mix() performs a linear interpolation between x and y using a to weight between them
+mix :: (ValidDim v d n, Semimodule d v,  CancellativeAdditiveMonoid (Scalar v))
+    => OfDim v d n -> OfDim v d n -> Scalar v -> OfDim v d n
+mix x y a = x ^* (1-a) ^+^ y^*a
+
+mixColor (Vec4 br bb bg _) (Vec4 cr cb cg ca) alpha =
+  let Vec3 r g b = mix (Vec3 br bb bg) (Vec3 cr cb cg) (alpha * ca)
+   in Vec4 r g b 1
+
+--------------------------------------------------------------------------------
 -- Book of Shader: Shaping functions
 --
 -- Bufferless rendering as seen in:
@@ -52,8 +64,12 @@ vertexSimple = shader do
 -- Fragment
 --------------------------------------------------------------------------------
 
-plot :: Code Float -> Code Float -> Code Float
-plot iy y = smoothstep (y-0.005) y iy - smoothstep y (y+0.005) iy
+plot :: Code Float -- ^ Y value normalized (wrt y-side) to [0, 1]
+     -> Code Float -- ^ The Y position in the quad (iy)
+     -> Code Float -- ^ Near 1 when iy is near Y position, 0 otherwise
+plot ynorm iy =
+  -- if abs (ynorm - iy) < 0.003 then 1 else 0
+  smoothstep (ynorm - 0.003) ynorm iy - smoothstep ynorm (ynorm + 0.003) iy
 
 smoothstep edge0 edge1 x0 = do
   let x = clamp ((x0-edge0) / (edge1 - edge0))
@@ -78,22 +94,32 @@ fragmentSimple = shader do
   -- * sx, sy arbitrary length and height
   -- * function input is scaled by sx (ie. ix*sx)
   -- * get the resulting y coord in [0, 1] by dividing by sy
-  -- * plot y in [0,1] with `plot iy y`.
+  -- * plot y in [0,1] with `plot y iy`.
 
   let
     x    = ix * sx + ox
+    gy   = iy*sy + oy
     y f  = (f x - oy) / sy
-    calc f = plot iy (y f)
+    calc f = plot (y f) iy
     pct1 = calc f1
     pct2 = calc f2
     pct3 = calc f3
+    fract a = a - floor a
 
     Vec3 r g b
       = pct1*^(Vec3 0 1 0) ^+^ pct2*^(Vec3 1 0 0) ^+^ pct3*^(Vec3 0 0 1)
 
-  #out_colour .= Vec4 r g b 1
+    bg = mix (Vec4 1 1 1 1) (Vec4 0.5 0.5 0.5 1)
+             ((norm ((Vec2 0.5 0.5) ^-^ (Vec2 ix iy)) * 1.2) ** 3.5)
+    grid = if min (fract x) (fract gy) < 0.005
+             then Vec4 0 0 0 0.3
+             else bg
+  
+  #out_colour .= mix grid (Vec4 r g b 1) (r + g + b)
 
   where
     f1 x = x
-    f2 = smoothstep 0.1 0.9
+    -- f2 = smoothstep 0.1 0.9
+    f2 x = -x
     f3 x = sin (2*pi*x) / 2 + 0.5
+
