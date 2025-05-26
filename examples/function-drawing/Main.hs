@@ -59,7 +59,7 @@ main = do
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
-    let sides = Sides {x=10, y=10, off_x=(-5), off_y=(-5)}
+    let sides = Sides {x=2, y=2, off_x=(-1), off_y=(-1)}
 
     pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullBack} rp1 shaderPipelineSimple (DynamicBinding (Ur sides) :## GHNil) ↑)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)

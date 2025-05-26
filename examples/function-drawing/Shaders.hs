@@ -111,7 +111,7 @@ fragmentSimple = shader do
 
     bg = mix (Vec4 1 1 1 1) (Vec4 0.5 0.5 0.5 1)
              ((norm ((Vec2 0.5 0.5) ^-^ (Vec2 ix iy)) * 1.2) ** 3.5)
-    grid = if min (fract x) (fract gy) < 0.005
+    grid = if (fract x) < (0.001*sx) || (fract gy) < (0.001*sy)
              then Vec4 0 0 0 0.3
              else bg
   
