@@ -307,6 +307,8 @@ rateFn surface d = do
         isSuitablePresent  i = Vk.getPhysicalDeviceSurfaceSupportKHR pd (Prelude.fromIntegral i) sr
 
 -- :| Windowing with GLFW |:
+-- TODO: Should really be in Ghengin.Core.Input, and the Window should be part
+-- of Core? maybe not so simple to then use it here.
 
 shouldCloseWindow :: Renderer Bool
 shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
