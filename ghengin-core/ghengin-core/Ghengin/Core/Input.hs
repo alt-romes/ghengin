@@ -31,11 +31,11 @@ newtype CharStream = CS (TChan Char)
 
 -- | Register the 'CharCallback' as an action which produces to a 'CharStream'
 -- that can be easily consumed with 'readCharInput'.
-registerCharStream :: Core CharStream
+registerCharStream :: Core (Ur CharStream)
 registerCharStream = Linear.do
   Ur chan <- liftSystemIOU newTChanIO
   setCharCallback (Just (\c -> atomically $ writeTChan chan c))
-  return (CS chan)
+  return (Ur (CS chan))
 
 -- | Read a 'Char' user input -- returns Nothing if nothing was input rather
 -- than blocking.
@@ -46,11 +46,11 @@ newtype ScrollStream = SS (TChan (Double, Double))
 
 -- | Register the 'ScrollCallback' as an action which produces to a 'ScrollStream'
 -- that can be easily consumed with 'readScrollInput'.
-registerScrollStream :: Core ScrollStream
+registerScrollStream :: Core (Ur ScrollStream)
 registerScrollStream = Linear.do
   Ur chan <- liftSystemIOU newTChanIO
   setScrollCallback (Just (\x y -> atomically $ writeTChan chan (x,y)))
-  return (SS chan)
+  return (Ur (SS chan))
 
 -- | Returns True if the user scrolled, and nothing otherwise (rather than blocking).
 -- See See <http://www.glfw.org/docs/3.3/input.html#scrolling Scroll Input>

@@ -9,6 +9,7 @@ module Main where
 
 import Geomancy.Vec3
 import Ghengin.Core
+import Ghengin.Core.Input
 import Ghengin.Core.Mesh
 import Ghengin.Core.Material
 import Ghengin.Core.Prelude as Linear
@@ -30,11 +31,25 @@ import qualified FIR
 --  https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 --------------------------------------------------------------------------------
 
-gameLoop :: Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop rp rq = Linear.do
+gameLoop :: CharStream -> PipelineKey a '[ Sides ]
+         -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop cs pkey rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
+
+  Ur mci <- readCharInput cs
+  rq <- case mci of
+
+    Just '+' -> liftCore $
+      editPipeline pkey rq $ propertyAt @0 @Sides $ \(Ur sides) ->
+        pure (Ur sides{s=sides.s*2, off_x=sides.off_x*2, off_y=sides.off_y*2})
+
+    Just '-' -> liftCore $
+      editPipeline pkey rq $ propertyAt @0 @Sides $ \(Ur sides) ->
+        pure (Ur sides{s=sides.s/2, off_x=sides.off_x/2, off_y=sides.off_y/2})
+
+    _ -> pure rq
 
   (rp, rq) <- renderWith $ Linear.do
 
@@ -50,34 +65,34 @@ gameLoop rp rq = Linear.do
 
       return (rp2, rq)
 
-  gameLoop rp rq
+  gameLoop cs pkey rp rq
 
 main :: Prelude.IO ()
 main = do
  withLinearIO $
   runCore (720, 720) Linear.do
+    Ur cs <- registerCharStream
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
-    let sides = Sides {x=2, y=2, off_x=(-1), off_y=(-1)}
+    let sides = Sides {s=2, off_x=(-1), off_y=(-1)}
 
     pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullBack} rp1 shaderPipelineSimple (DynamicBinding (Ur sides) :## GHNil) ↑)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
-    rq <- gameLoop rp2 rq
+    rq <- gameLoop cs pkey rp2 rq
 
     (freeRenderQueue rq ↑)
 
     return (Ur ())
 
-data Sides = Sides { x :: Float, y :: Float, off_x :: Float, off_y :: Float }
+data Sides = Sides { s :: Float, off_x :: Float, off_y :: Float }
   deriving Generic
   deriving anyclass Block
 
 instance ShaderData Sides where
   type FirType Sides
-            = FIR.Struct '[ "x" 'FIR.:-> Float
-                          , "y" 'FIR.:-> Float
+            = FIR.Struct '[ "s" 'FIR.:-> Float
                           , "off_x" 'FIR.:-> Float
                           , "off_y" 'FIR.:-> Float
                           ]

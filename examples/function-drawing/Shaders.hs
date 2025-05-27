@@ -80,26 +80,25 @@ clamp x = min 1 $ max 0 x
 fragmentSimple :: G.FragmentShaderModule '[
     "in_uv" ':-> Input '[ Location 0 ] (V 2 Float)
   , "sides" ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
-                  (Struct '[ "x" ':-> Float, "y" ':-> Float
+                  (Struct '[ "s" ':-> Float
                            , "off_x" ':-> Float, "off_y" ':-> Float ])
   ] _
 fragmentSimple = shader do
   ~(Vec2 ix iy) <- #in_uv
-  sx <- use @(Name "sides" :.: Name "x") -- size of x and
-  sy <- use @(Name "sides" :.: Name "y") -- size of y sides
+  ss <- use @(Name "sides" :.: Name "s") -- size of side and
   ox <- use @(Name "sides" :.: Name "off_x") -- offset x and
   oy <- use @(Name "sides" :.: Name "off_y") -- offset y
 
   -- * ix, iy ∈ [0,1]
-  -- * sx, sy arbitrary length and height
-  -- * function input is scaled by sx (ie. ix*sx)
-  -- * get the resulting y coord in [0, 1] by dividing by sy
+  -- * ss arbitrary length and height
+  -- * function input is scaled by ss (ie. ix*ss)
+  -- * get the resulting y coord in [0, 1] by dividing by ss
   -- * plot y in [0,1] with `plot y iy`.
 
   let
-    x    = ix * sx + ox
-    gy   = iy*sy + oy
-    y f  = (f x - oy) / sy
+    x    = ix * ss + ox
+    gy   = iy*ss + oy
+    y f  = (f x - oy) / ss
     calc f = plot (y f) iy
     pct1 = calc f1
     pct2 = calc f2
@@ -111,7 +110,7 @@ fragmentSimple = shader do
 
     bg = mix (Vec4 1 1 1 1) (Vec4 0.5 0.5 0.5 1)
              ((norm ((Vec2 0.5 0.5) ^-^ (Vec2 ix iy)) * 1.2) ** 3.5)
-    grid = if (fract x) < (0.001*sx) || (fract gy) < (0.001*sy)
+    grid = if (fract x) < (0.001*ss) || (fract gy) < (0.001*ss)
              then Vec4 0 0 0 0.3
              else bg
   
