@@ -64,12 +64,13 @@ vertexSimple = shader do
 -- Fragment
 --------------------------------------------------------------------------------
 
-plot :: Code Float -- ^ Y value normalized (wrt y-side) to [0, 1]
+plot :: Code Float -- ^ Side
+     -> Code Float -- ^ Y value normalized (wrt y-side) to [0, 1]
      -> Code Float -- ^ The Y position in the quad (iy)
      -> Code Float -- ^ Near 1 when iy is near Y position, 0 otherwise
-plot ynorm iy =
+plot ss ynorm iy =
   -- if abs (ynorm - iy) < 0.003 then 1 else 0
-  smoothstep (ynorm - 0.003) ynorm iy - smoothstep ynorm (ynorm + 0.003) iy
+  smoothstep (ynorm - 0.001*ss) ynorm iy - smoothstep ynorm (ynorm + 0.001*ss) iy
 
 smoothstep edge0 edge1 x0 = do
   let x = clamp ((x0-edge0) / (edge1 - edge0))
@@ -82,12 +83,15 @@ fragmentSimple :: G.FragmentShaderModule '[
   , "sides" ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                   (Struct '[ "s" ':-> Float
                            , "off_x" ':-> Float, "off_y" ':-> Float ])
+  , "time" ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
+                  (Struct '[ "t" ':-> Float ])
   ] _
 fragmentSimple = shader do
   ~(Vec2 ix iy) <- #in_uv
   ss <- use @(Name "sides" :.: Name "s") -- size of side and
   ox <- use @(Name "sides" :.: Name "off_x") -- offset x and
   oy <- use @(Name "sides" :.: Name "off_y") -- offset y
+  t  <- use @(Name "time" :.: Name "t") -- offset y
 
   -- * ix, iy ∈ [0,1]
   -- * ss arbitrary length and height
@@ -96,10 +100,15 @@ fragmentSimple = shader do
   -- * plot y in [0,1] with `plot y iy`.
 
   let
+    f1 x = x*log (2 ** sin (x + t))
+    -- f2 = smoothstep 0.1 0.9
+    f2 x = sin(t) * x
+    f3 x = sin (2*pi*(x+t)) / 2 + 0.5
+
     x    = ix * ss + ox
     gy   = iy*ss + oy
     y f  = (f x - oy) / ss
-    calc f = plot (y f) iy
+    calc f = plot ss (y f) iy
     pct1 = calc f1
     pct2 = calc f2
     pct3 = calc f3
@@ -115,10 +124,3 @@ fragmentSimple = shader do
              else bg
   
   #out_colour .= mix grid (Vec4 r g b 1) (r + g + b)
-
-  where
-    f1 x = x
-    -- f2 = smoothstep 0.1 0.9
-    f2 x = -x
-    f3 x = sin (2*pi*x) / 2 + 0.5
-

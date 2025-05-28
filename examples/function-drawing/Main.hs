@@ -31,7 +31,7 @@ import qualified FIR
 --  https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 --------------------------------------------------------------------------------
 
-gameLoop :: CharStream -> PipelineKey a '[ Sides ]
+gameLoop :: CharStream -> PipelineKey a '[ Sides, InStruct "t" Float ]
          -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop cs pkey rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
@@ -50,6 +50,10 @@ gameLoop cs pkey rp rq = Linear.do
         pure (Ur sides{s=sides.s/2, off_x=sides.off_x/2, off_y=sides.off_y/2})
 
     _ -> pure rq
+
+  rq <- liftCore $
+    editPipeline pkey rq $ propertyAt @1 @(InStruct "t" Float) $ \(Ur (InStruct time)) ->
+      pure (Ur (InStruct (time+0.016)))
 
   (rp, rq) <- renderWith $ Linear.do
 
@@ -76,8 +80,9 @@ main = do
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
     let sides = Sides {s=2, off_x=(-1), off_y=(-1)}
+        time = 0
 
-    pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullBack} rp1 shaderPipelineSimple (DynamicBinding (Ur sides) :## GHNil) ↑)
+    pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullBack} rp1 shaderPipelineSimple (DynamicBinding (Ur sides) :## DynamicBinding (Ur (InStruct time)) :## GHNil) ↑)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
     rq <- gameLoop cs pkey rp2 rq
