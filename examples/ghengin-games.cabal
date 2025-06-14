@@ -215,17 +215,26 @@ executable full-pipeline
 
 --------------------------------------------------------------------------------
 
+-- This example is pretty hacked through.
 executable function-plotting
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
     hs-source-dirs: function-plotting/
 
+-- Neat function drawing on a grid
 executable function-drawing
     import:        common-flags
     main-is:       Main.hs
     other-modules: Shaders
     hs-source-dirs: function-drawing/
+
+-- An XY oscilloscope; TODO: NOT FINISHED
+executable oscilloscope
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    hs-source-dirs: oscilloscope/
 
 --------------------------------------------------------------------------------
 -- Examples from The Book Of Shaders https://thebookofshaders.com/

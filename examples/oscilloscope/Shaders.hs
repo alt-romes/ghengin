@@ -32,9 +32,19 @@ mix :: (ValidDim v d n, Semimodule d v,  CancellativeAdditiveMonoid (Scalar v))
     => OfDim v d n -> OfDim v d n -> Scalar v -> OfDim v d n
 mix x y a = x ^* (1-a) ^+^ y^*a
 
+-- erf from https://madebyevan.com/shaders/fast-rounded-rectangle-shadows/
+-- vec2 erf(vec2 x) {
+--   vec2 s = sign(x), a = abs(x);
+--   x = 1.0 + (0.278393 + (0.230389 + 0.078108 * (a * a)) * a) * a;
+--   x *= x;
+--   return s - s / (x * x);
+-- }
+-- erf :: V 2 Float -> V 2 Float
+-- erf x = do
+--   let'
+  
+
 --------------------------------------------------------------------------------
--- Book of Shader: Shaping functions
---
 -- Bufferless rendering as seen in:
 --  https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 --------------------------------------------------------------------------------
@@ -60,65 +70,50 @@ vertexSimple = shader do
 -- Fragment
 --------------------------------------------------------------------------------
 
-plot :: Code Float -- ^ Side
-     -> Code Float -- ^ Y value normalized (wrt y-side) to [0, 1]
-     -> Code Float -- ^ The Y position in the quad (iy)
-     -> Code Float -- ^ Near 1 when iy is near Y position, 0 otherwise
-plot ss ynorm iy =
-  -- if abs (ynorm - iy) < 0.003 then 1 else 0
-  smoothstep (ynorm - 0.001*ss) ynorm iy - smoothstep ynorm (ynorm + 0.001*ss) iy
-
-smoothstep :: (Ord a, DivisionRing a) => a -> a -> a -> a
-smoothstep edge0 edge1 x0 = do
-  let x = clamp ((x0-edge0) / (edge1 - edge0))
-      {-# NOINLINE x #-}
-   in x * x * (3 - 2*x)
-clamp :: (Ord a, AdditiveMonoid a) => a -> a
-clamp x = min 1 $ max 0 x
-
 fragmentSimple :: G.FragmentShaderModule '[
     "in_uv" ':-> Input '[ Location 0 ] (V 2 Float)
-  , "sides" ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
-                  (Struct '[ "s" ':-> Float
-                           , "off_x" ':-> Float, "off_y" ':-> Float ])
-  , "time" ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
-                  (Struct '[ "t" ':-> Float ])
+  , "time"  ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
+                 (Struct '[ "t" ':-> Float ])
   ] _
 fragmentSimple = shader do
   ~(Vec2 ix iy) <- #in_uv
-  ss <- use @(Name "sides" :.: Name "s") -- size of side and
-  ox <- use @(Name "sides" :.: Name "off_x") -- offset x and
-  oy <- use @(Name "sides" :.: Name "off_y") -- offset y
-  t  <- use @(Name "time" :.: Name "t") -- offset y
+  t <- use @(Name "time" :.: Name "t")
 
-  -- * ix, iy ∈ [0,1]
-  -- * ss arbitrary length and height
-  -- * function input is scaled by ss (ie. ix*ss)
-  -- * get the resulting y coord in [0, 1] by dividing by ss
-  -- * plot y in [0,1] with `plot y iy`.
+  let side = 2
+  let sigma = 0.005
 
-  let
-    f1 x = x*log (2 ** sin (x + t))
-    -- f2 = smoothstep 0.1 0.9
-    f2 x = sin(t) * x
-    f3 x = sin (2*pi*(x+t)) / 2 + 0.5
+  let f a = sin (t+a)
 
-    x    = ix * ss + ox
-    gy   = iy*ss + oy
-    y f  = (f x - oy) / ss
-    calc f = plot ss (y f) iy
-    pct1 = calc f1
-    pct2 = calc f2
-    pct3 = calc f3
-    fract a = a - floor a
+  let plot g = (g (ix*side - side/2) + (side/2)) / side
 
-    Vec3 r g b
-      = pct1*^(Vec3 0 1 0) ^+^ pct2*^(Vec3 1 0 0) ^+^ pct3*^(Vec3 0 0 1)
+  -- pos in [0,1]x[0,1]
+  let pos = Vec2 (plot f) (plot (\x -> sin(t+pi/2+x)))
 
-    bg = mix (Vec4 1 1 1 1) (Vec4 0.5 0.5 0.5 1)
-             ((norm ((Vec2 0.5 0.5) ^-^ (Vec2 ix iy)) * 1.2) ** 3.5)
-    grid = if (fract x) < (0.001*ss) || (fract gy) < (0.001*ss)
-             then Vec4 0 0 0 0.3
-             else bg
-  
-  #out_colour .= mix grid (Vec4 r g b 1) (r + g + b)
+  let dist = distance pos (Vec2 ix iy)
+
+  let intensity = (1/(sigma*sqrt(2*pi)))*exp(-((dist**2)/(2*sigma**2)))
+  -- let cumulative = _
+
+  let col = Vec4 0 intensity 0 1
+
+  #out_colour .= col
+
+-- TODO: THIS IS NOT DONE YET!
+
+-- erf :: Code (V 4 Float) -> _
+-- erf x =
+--   let s = sign(x)
+--       a = abs(x)
+--   in _
+
+sign :: Code (V 4 Float) -> Code (V 4 Float)
+sign (Vec4 a b c d) = Vec4 (f a) (f b) (f c) (f d)
+  where
+    f :: Code Float -> Code Float
+    f x =
+      if      x > 0 then  1
+      else if x < 0 then -1
+      else                0
+
+abs4 :: Code (V 4 Float) -> Code (V 4 Float)
+abs4 (Vec4 a b c d) = Vec4 (abs a) (abs b) (abs c) (abs d)
