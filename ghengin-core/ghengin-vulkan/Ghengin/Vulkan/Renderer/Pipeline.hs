@@ -76,13 +76,16 @@ data PipelineType = Graphics | Compute
 -- TODO: unfortunately this has to be duplicated in the hsig.
 
 data GraphicsPipelineSettings = GPS
-      { cullMode :: CullMode
+      { cullMode  :: CullMode
+      , blendMode :: BlendMode
       }
 
 data CullMode = CullBack | CullFront | CullNone
 
+data BlendMode = BlendAdd | BlendAlpha | BlendNone
+
 defaultGraphicsPipelineSettings :: GraphicsPipelineSettings
-defaultGraphicsPipelineSettings = GPS CullBack
+defaultGraphicsPipelineSettings = GPS CullBack BlendNone
 
 --------------------------------------------------------------------------------
 
@@ -228,19 +231,6 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
     -- The most common way to use color blending is to implement alpha blending,
     -- where we want the new color to be blended with the old color based on its
     -- opacity.
-    -- We're not doing this but the parameters for it are in the tutorial
-
-    -- Disabled color blending
-    colorBlendAttachment = Vk.PipelineColorBlendAttachmentState
-                           { colorWriteMask = Vk.COLOR_COMPONENT_R_BIT .|. Vk.COLOR_COMPONENT_G_BIT .|. Vk.COLOR_COMPONENT_B_BIT .|. Vk.COLOR_COMPONENT_A_BIT
-                           , blendEnable = False
-                           , srcColorBlendFactor = Vk.BLEND_FACTOR_ONE
-                           , dstColorBlendFactor = Vk.BLEND_FACTOR_ZERO
-                           , colorBlendOp = Vk.BLEND_OP_ADD
-                           , srcAlphaBlendFactor = Vk.BLEND_FACTOR_ONE
-                           , dstAlphaBlendFactor = Vk.BLEND_FACTOR_ZERO
-                           , alphaBlendOp = Vk.BLEND_OP_ADD
-                           }
 
     colorBlendingInfo = Vk.PipelineColorBlendStateCreateInfo
                         { next  = ()
@@ -248,7 +238,7 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
                         , logicOpEnable = False
                         , logicOp = Vk.LOGIC_OP_COPY
                         , attachmentCount = 1
-                        , attachments = [colorBlendAttachment]
+                        , attachments = [colorBlendAttachment (blendMode gps)]
                         , blendConstants = (0,0,0,0)
                         }
 
@@ -352,6 +342,34 @@ compileFIRShader m = liftSystemIO do
 
 destroyShaderModule :: Vk.Device ⊸ Vk.ShaderModule ⊸ System.IO.Linear.IO Vk.Device
 destroyShaderModule = Unsafe.toLinear2 \d sm -> d <$ liftSystemIO (Vk.destroyShaderModule d sm Nothing)
+
+--------------------------------------------------------------------------------
+-- Pipeline configuration
+--------------------------------------------------------------------------------
+
+colorBlendAttachment BlendNone = (colorBlendAttachment BlendAdd){Vk.blendEnable = False}
+colorBlendAttachment BlendAdd =
+  Vk.PipelineColorBlendAttachmentState
+     { colorWriteMask = Vk.COLOR_COMPONENT_R_BIT .|. Vk.COLOR_COMPONENT_G_BIT .|. Vk.COLOR_COMPONENT_B_BIT .|. Vk.COLOR_COMPONENT_A_BIT
+     , blendEnable = True
+     , srcColorBlendFactor = Vk.BLEND_FACTOR_SRC_ALPHA
+     , dstColorBlendFactor = Vk.BLEND_FACTOR_ONE
+     , colorBlendOp = Vk.BLEND_OP_ADD
+     , srcAlphaBlendFactor = Vk.BLEND_FACTOR_ONE
+     , dstAlphaBlendFactor = Vk.BLEND_FACTOR_ZERO
+     , alphaBlendOp = Vk.BLEND_OP_ADD
+     }
+colorBlendAttachment BlendAlpha =
+  Vk.PipelineColorBlendAttachmentState
+     { colorWriteMask = Vk.COLOR_COMPONENT_R_BIT .|. Vk.COLOR_COMPONENT_G_BIT .|. Vk.COLOR_COMPONENT_B_BIT .|. Vk.COLOR_COMPONENT_A_BIT
+     , blendEnable = True
+     , srcColorBlendFactor = Vk.BLEND_FACTOR_SRC_ALPHA
+     , dstColorBlendFactor = Vk.BLEND_FACTOR_ONE_MINUS_SRC_ALPHA
+     , colorBlendOp = Vk.BLEND_OP_ADD
+     , srcAlphaBlendFactor = Vk.BLEND_FACTOR_ONE
+     , dstAlphaBlendFactor = Vk.BLEND_FACTOR_ZERO
+     , alphaBlendOp = Vk.BLEND_OP_ADD
+     }
 
 --------------------------------------------------------------------------------
 -- FIR shader info reification functions

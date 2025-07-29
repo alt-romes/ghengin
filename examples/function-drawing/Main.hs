@@ -77,12 +77,12 @@ main = do
   runCore (720, 720) Linear.do
     Ur cs <- registerCharStream
 
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+    (rp1, rp2) <- (Alias.share =<< createRenderPassFromSettings RenderPassSettings{keepColor=True} ↑)
 
     let sides = Sides {s=2, off_x=(-1), off_y=(-1)}
         time = 0
 
-    pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullBack} rp1 shaderPipelineSimple (DynamicBinding (Ur sides) :## DynamicBinding (Ur (InStruct time)) :## GHNil) ↑)
+    pipeline      <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullBack} rp1 shaderPipelineSimple (DynamicBinding (Ur sides) :## DynamicBinding (Ur (InStruct time)) :## GHNil) ↑)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
     rq <- gameLoop cs pkey rp2 rq

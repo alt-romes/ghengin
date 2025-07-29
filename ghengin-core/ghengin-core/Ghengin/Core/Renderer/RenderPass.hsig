@@ -1,5 +1,6 @@
 signature Ghengin.Core.Renderer.RenderPass where
 
+import Data.Bool
 import Ghengin.Core.Renderer.Kernel
 
 -- import Ghengin.Vulkan.RenderPass
@@ -9,7 +10,13 @@ import Ghengin.Core.Renderer.Kernel
 
 data RenderPass
 
+data RenderPassSettings = RenderPassSettings
+      { keepColor :: !Bool
+      -- ^ Whether to keep the previous frame color attachment or clear it (=False)
+      }
+
 createSimpleRenderPass :: Renderer (Alias RenderPass) -- If we always need this as a reference, it's easier to just return it as such here (avoids exposing a free function)
+createRenderPassFromSettings :: RenderPassSettings -> Renderer (Alias RenderPass)
 destroyRenderPass :: RenderPass ⊸ Renderer ()
 
 

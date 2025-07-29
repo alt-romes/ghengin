@@ -3,7 +3,7 @@ module Ghengin.Vulkan.Renderer.RenderPass where
 import qualified Vulkan as Vk
 import qualified Data.Vector as Vector
 
-data RenderPass = VulkanRenderPass { _renderPass :: Vk.RenderPass
+data RenderPass = VulkanRenderPass { _renderPass :: !Vk.RenderPass
                                    -- | We bundle framebuffer with the 
                                    -- RenderPass because in rendering we have 
                                    -- a fixed SwapChain so the Framebuffer is

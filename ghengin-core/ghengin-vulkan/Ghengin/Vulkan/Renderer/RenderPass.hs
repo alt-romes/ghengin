@@ -42,7 +42,7 @@ import Ghengin.Vulkan.Renderer.Kernel
 import qualified Unsafe.Linear as Unsafe
 
 data RenderPass = VulkanRenderPass
-      { _renderPass :: Vk.RenderPass
+      { _renderPass :: !Vk.RenderPass
 
       -- | We bundle framebuffers with the RenderPass.
       --
@@ -52,8 +52,17 @@ data RenderPass = VulkanRenderPass
       , _framebuffers :: Vector.Vector Vk.Framebuffer
       }
 
+data RenderPassSettings = RenderPassSettings
+      { keepColor :: !Bool
+      -- ^ Whether to keep the previous frame color attachment or clear it (=False)
+      }
+
 createSimpleRenderPass :: Renderer (Alias RenderPass)
-createSimpleRenderPass = enterD "createSimpleRenderPass" $ Linear.do
+createSimpleRenderPass = enterD "createSimpleRenderPass" $
+  createRenderPassFromSettings RenderPassSettings{keepColor=False}
+
+createRenderPassFromSettings :: RenderPassSettings -> Renderer (Alias RenderPass)
+createRenderPassFromSettings RenderPassSettings{..} = Linear.do
   logT "Creating render pass"
   renderPass <- renderer $ Unsafe.toLinear $ \renv -> Linear.do
 
@@ -61,7 +70,8 @@ createSimpleRenderPass = enterD "createSimpleRenderPass" $ Linear.do
                               flags   = Vk.AttachmentDescriptionFlagBits 0
                               format  = renv._vulkanSwapChain._surfaceFormat.format
                               samples = Vk.SAMPLE_COUNT_1_BIT
-                              loadOp  = Vk.ATTACHMENT_LOAD_OP_CLEAR
+                              loadOp  = if keepColor then Vk.ATTACHMENT_LOAD_OP_LOAD
+                                                     else Vk.ATTACHMENT_LOAD_OP_CLEAR
                               storeOp = Vk.ATTACHMENT_STORE_OP_STORE
                               stencilLoadOp  = Vk.ATTACHMENT_LOAD_OP_DONT_CARE
                               stencilStoreOp = Vk.ATTACHMENT_STORE_OP_DONT_CARE

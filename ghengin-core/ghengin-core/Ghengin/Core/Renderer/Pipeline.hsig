@@ -62,10 +62,13 @@ destroyPipeline :: RendererPipeline a ⊸ Renderer ()
 --------------------------------------------------------------------------------
 
 data GraphicsPipelineSettings = GPS
-      { cullMode :: CullMode
+      { cullMode  :: CullMode
+      , blendMode :: BlendMode
       }
 
 data CullMode = CullBack | CullFront | CullNone
+
+data BlendMode = BlendAdd | BlendAlpha | BlendNone
 
 defaultGraphicsPipelineSettings :: GraphicsPipelineSettings
 
