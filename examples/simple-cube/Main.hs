@@ -93,20 +93,7 @@ gameLoop mkey rot rp rq = Linear.do
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
-  -- (rp, rq) <- render rp rq
-
-  (rp, rq) <- renderWith $ Linear.do
-
-    (rp1, rp2) <- lift (Alias.share rp)
-
-    Ur extent <- lift getRenderExtent
- 
-    renderPassCmd extent rp1 $ Linear.do
-
-      rq <- renderQueueCmd rq
-
-      return (rp2, rq)
-
+  (rp, rq) <- render rp rq
   rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
     -- We're not using any projection of sorts, so we need to make the cube fit
     -- in the xyz vulkan space, where x and y go from -1 to 1 but z goes from 0
@@ -123,22 +110,9 @@ main :: Prelude.IO ()
 main = do
  withLinearIO $
   runCore (640, 640) Linear.do
-    (rp1, rp2) <- (Alias.share =<< createRenderPassFromSettings RenderPassSettings{keepColor=True} ↑)
+    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
-    let clear_image rp1 = renderWith $ Linear.do
-          (rp3, rp4) <- lift (Alias.share rp1)
-
-          Ur extent <- lift getRenderExtent
-          renderPassCmd extent rp3 $ Linear.do
-            clearColorImage 0 0 0 1
-            return rp4
-    
-    rp1 <- clear_image rp1
-    rp1 <- clear_image rp1
-    rp1 <- clear_image rp1
-    rp1 <- clear_image rp1
-
-    pipeline <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{blendMode=BlendAlpha} rp1 shaderPipeline GHNil ↑)
+    pipeline <- (makeRenderPipeline rp1 shaderPipeline GHNil ↑)
 
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
 
