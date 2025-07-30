@@ -80,7 +80,8 @@ fragmentSimple :: G.FragmentShaderModule '[
     "in_uv" ':-> Input '[ Location 0 ] (V 2 Float)
   , "sides" ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                   (Struct '[ "s" ':-> Float
-                           , "off_x" ':-> Float, "off_y" ':-> Float ])
+                           , "off_x" ':-> Float
+                           , "off_y" ':-> Float ])
   , "time" ':-> Uniform '[ DescriptorSet 0, Binding 1 ]
                   (Struct '[ "t" ':-> Float ])
   ] _
@@ -116,7 +117,7 @@ fragmentSimple = shader do
       = pct1*^(Vec3 0 1 0) ^+^ pct2*^(Vec3 1 0 0) ^+^ pct3*^(Vec3 0 0 1)
 
     bg = mix (Vec4 1 1 1 1) (Vec4 0.5 0.5 0.5 1)
-             ((norm ((Vec2 0.5 0.5) ^-^ (Vec2 ix iy)) * 1.2) ** 3.5)
+             ((norm ((Vec2 0.5 0.5) ^-^ (Vec2 ix iy)) * 1.2) ** 3.5) -- vignett
     grid = if (fract x) < (0.001*ss) || (fract gy) < (0.001*ss)
              then Vec4 0 0 0 0.3
              else bg
