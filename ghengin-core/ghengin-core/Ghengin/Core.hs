@@ -218,6 +218,24 @@ renderQueueCmd (RenderQueue renderQueue) = RenderQueue Linear.<$> Linear.do
 
     ) renderQueue
 
+-- | Clears all images in the swapchain to the given color
+clearImages :: Alias RenderPass ⊸ Core (Alias RenderPass)
+clearImages rp = Linear.do
+
+  let clear_image :: Alias RenderPass ⊸ Core (Alias RenderPass)
+      clear_image rp1 = renderWith $ Linear.do
+        (rp3, rp4) <- lift (Alias.share rp1)
+
+        Ur extent <- lift getRenderExtent
+        renderPassCmd extent rp3 $ Linear.do
+          clearColorImage 0 0 0 1
+          return rp4
+
+  rp <- clear_image rp
+  rp <- clear_image rp
+  rp <- clear_image rp
+  rp <- clear_image rp
+  return rp
 
 handleMaterial :: (Some Material, MeshMap ())
                 ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) (Some Material, MeshMap ())

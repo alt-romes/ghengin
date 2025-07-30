@@ -66,9 +66,11 @@ main = do
  withLinearIO $
   runCore (720, 720) Linear.do
 
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+    (rp1, rp2) <- (Alias.share =<< createRenderPassFromSettings RenderPassSettings{keepColor = True} ↑)
 
-    pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullBack} rp1 shaderPipelineSimple (DynamicBinding (Ur (InStruct 0)) :## GHNil) ↑)
+    rp1 <- clearImages rp1
+
+    pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullBack, blendMode=BlendAdd} rp1 shaderPipelineSimple (DynamicBinding (Ur (InStruct 0)) :## GHNil) ↑)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
     rq <- gameLoop pkey rp2 rq
