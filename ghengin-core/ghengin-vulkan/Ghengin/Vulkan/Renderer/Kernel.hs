@@ -11,6 +11,7 @@ import qualified Data.Functor.Linear as Data.Linear
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
 import qualified Data.V.Linear as V
+import qualified Data.Vector as Vector
 
 import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Vulkan.Renderer.Command (Command, copyFullBuffer)
@@ -102,6 +103,12 @@ unsafeUseVulkanDevice :: (VulkanDevice -> Unrestricted.IO b) -> Renderer b
 unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
   b <- liftSystemIO $ f _vulkanDevice
   pure $ (b, renv)
+
+unsafeUseImage :: Int -> (Vk.Image -> Prelude.IO b) -> Renderer b
+unsafeUseImage i f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+  b <- liftSystemIO $ f Prelude.=<< (\(_,imgs) -> imgs Vector.! i) Prelude.<$>
+    Vk.getSwapchainImagesKHR _vulkanDevice._device _vulkanSwapChain._swapchain
+  pure (b, renv)
 
 unsafeGetDevice :: Renderer (Ur Vk.Device)
 unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv._vulkanDevice._device, renv)

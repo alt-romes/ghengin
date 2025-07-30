@@ -25,3 +25,4 @@ instance HasLogger Renderer
 copyBuffer :: Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> Renderer (Vk.Buffer, Vk.Buffer)
 unsafeUseVulkanDevice :: (VulkanDevice -> Prelude.IO b) -> Renderer b
 unsafeUseDevice :: (Vk.Device -> Prelude.IO b) -> Renderer b
+unsafeUseImage :: Int -> (Vk.Image -> Prelude.IO b) -> Renderer b

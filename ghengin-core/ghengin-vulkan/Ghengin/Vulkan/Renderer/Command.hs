@@ -50,6 +50,8 @@ module Ghengin.Vulkan.Renderer.Command
   -- * Images
   , copyFullBufferToImage
   , transitionImageLayout
+
+  , clearColorImage
   ) where
 
 import GHC.TypeLits
@@ -76,6 +78,7 @@ import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
 import Ghengin.Vulkan.Renderer.Device
+import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel (Renderer, unsafeUseImage)
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.RenderPass
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Pipeline
@@ -272,6 +275,21 @@ setViewport viewport = unsafeRenderPassCmd_ (\buf -> Vk.cmdSetViewport buf 0 [vi
 setScissor :: Linear.MonadIO m => Vk.Rect2D -> RenderPassCmd m
 setScissor scissor = unsafeRenderPassCmd_ (\buf -> Vk.cmdSetScissor buf 0 [scissor])
 {-# INLINE setScissor #-}
+
+clearColorImage :: Float -> Float -> Float -> Float -> RenderPassCmd Renderer
+clearColorImage r g b a = (Unsafe.toLinear \f -> (RenderPassCmd $ Command $ ReaderT \CmdInfo{buf, currentImageIx} -> (f buf currentImageIx))) (\buf currentImageIx -> Linear.do
+  unsafeUseImage currentImageIx $ \img ->
+    Vk.cmdClearColorImage buf img
+      Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+      (Vk.Float32 r g b a)
+      [Vk.ImageSubresourceRange
+        { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
+        , baseMipLevel = 0
+        , levelCount = Vk.REMAINING_MIP_LEVELS
+        , baseArrayLayer = 0
+        , layerCount = Vk.REMAINING_ARRAY_LAYERS
+        }]
+  )
 
 bindVertexBuffers :: Linear.MonadIO m => Word32 -> V.V n Vk.Buffer ⊸ V.V n Vk.DeviceSize -> RenderPassCmdM m (V.V n Vk.Buffer)
 bindVertexBuffers i bufs (VI.V offsets) = unsafeRenderPassCmd bufs (\cmdbuf (VI.V bufs') -> Vk.cmdBindVertexBuffers cmdbuf i bufs' offsets)
