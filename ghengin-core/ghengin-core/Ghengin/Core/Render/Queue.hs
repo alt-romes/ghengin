@@ -86,6 +86,8 @@ data MaterialKey π p ma = UnsafeMaterialKey !Unique !(PipelineKey π p)
 type MeshKey :: FIR.Pipeline.PipelineInfo -> [Type] -> [Type] -> [Type] -> [Type] -> Type
 data MeshKey π p ma vertexAttributes meshProperties = UnsafeMeshKey !Unique !(MaterialKey π p ma)
 
+--------------------------------------------------------------------------------
+
 -- | Inserts a pipeline in a render queue, and returns a pipeline key indexing
 -- into that render queue.
 --
@@ -158,6 +160,7 @@ insertMesh (UnsafeMaterialKey mkey (UnsafePipelineKey pkey))
               q
      in (RenderQueue rq, Ur $ UnsafeMeshKey meid (UnsafeMaterialKey mkey (UnsafePipelineKey pkey)))
 
+--------------------------------------------------------------------------------
 
 -- | Edit a pipeline in a render queue typically using the @propertyAt@ lens
 editPipeline :: PipelineKey π p
@@ -176,22 +179,23 @@ editMaterial mkey rq edit =
 
 -- | Edit all the meshes matching this mesh key in a render queue typically
 -- using the @propertyAt@ lens.
--- Using this is simpler than "editMeshes'" since we don't have to worry about additional data (which is currently kind of fixed to unit)
+-- Using this is simpler than "editAtMeshesKey" since we don't have to worry about additional data (which is currently kind of fixed to unit)
 editMeshes :: MeshKey π p ma va me
            -> RenderQueue ()
             ⊸ ([Mesh va me] ⊸ Renderer [Mesh va me])
             ⊸ Renderer (RenderQueue ())
 editMeshes key rq edit =
-  editMeshes' key rq (\ls -> map (,()) <$> edit (map (\(x,()) -> x) ls))
+  editAtMeshesKey key rq (\ls -> map (,()) <$> edit (map (\(x,()) -> x) ls))
+
+--------------------------------------------------------------------------------
 
 -- | Edit all the meshes matching this mesh key in a render queue typically using the @propertyAt@ lens
--- ROMES:TODO: maybe each mesh should have an individual key, even if they are
--- inserted from the same "shared" mesh... will depend on examples and use cases.
-editMeshes' :: MeshKey π p ma va me
-           -> RenderQueue ()
-            ⊸ ([(Mesh va me, ())] ⊸ Renderer [(Mesh va me, ())])
-            ⊸ Renderer (RenderQueue ())
-editMeshes' (UnsafeMeshKey meid mkey) rq edit =
+-- ToDo: Perhaps we should have a key per mesh rather than a key for a list of meshes
+editAtMeshesKey :: MeshKey π p ma va me
+                -> RenderQueue ()
+                 ⊸ ([(Mesh va me, ())] ⊸ Renderer [(Mesh va me, ())])
+                 ⊸ Renderer (RenderQueue ())
+editAtMeshesKey (UnsafeMeshKey meid mkey) rq edit =
   editAtMaterialKey mkey rq \(mat,meshmap) -> (mat,) <$>
     ML.alterF
       (\case Nothing -> Unsafe.toLinear (\_ -> error "mesh key not in rq") edit
@@ -225,6 +229,8 @@ editAtPipelineKey (UnsafePipelineKey pkey) (RenderQueue q) edit = RenderQueue <$
                      (\(x, ms) -> Just (Some2 x, ms)) <$> edit (Unsafe.coerce rp, materials)
             ) pkey q
 
+--------------------------------------------------------------------------------
+
 freeRenderQueue :: RenderQueue ()
                  ⊸ Renderer ()
 freeRenderQueue (RenderQueue rq) = Linear.do
@@ -253,3 +259,4 @@ freeRenderQueue (RenderQueue rq) = Linear.do
     ) rq
   pure (consume pipesunit)
 
+--------------------------------------------------------------------------------

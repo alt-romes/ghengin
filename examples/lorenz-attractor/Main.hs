@@ -33,13 +33,14 @@ import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Camera
 import Shaders
+import qualified Data.List as List
 
 type Points = Mesh '[Vec3] '[]
 
 myCamera :: Camera "view_matrix" "proj_matrix"
 myCamera = Camera
-  { view = orthoFitScreen 1 1 1 1 -- noop
-  , proj = unTransform $ orthoOffCenter @Int 0 50 50 50
+  { view = orthoFitScreen 1920 1080 600 600
+  , proj = unTransform $ orthoOffCenter @Int 0 100 100 100
   }
 
 gameLoop :: PipelineKey _ '[Camera "view_matrix" "proj_matrix"] -- ^ rq key to camera
@@ -66,9 +67,10 @@ gameLoop ckey matkey mkey last rp rq = Linear.do
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (640, 480) Linear.do
+  runCore (1920, 1080) Linear.do
 
-    let start_points = [Sin (vec3 0 1 0), Sin (tupleToVec3 $ lorenzNext (0, 1, 0))]
+    let start_points = List.map (Sin Prelude.. tupleToVec3) $
+          List.take 50000 $ List.iterate' lorenzNext (0, 1, 0) -- [Sin (vec3 0 1 0), Sin (tupleToVec3 $ lorenzNext (0, 1, 0))]
 
     (clearRenderImages 0 0 0 1 ↑)
 

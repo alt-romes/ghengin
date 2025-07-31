@@ -39,6 +39,8 @@ defaultCamera = Camera
   , proj = unTransform $ perspective @Int 45 0.1 1000 640 480
   }
 
+--------------------------------------------------------------------------------
+
 instance ShaderData (Camera view_field proj_field) where
   type FirType (Camera view_field proj_field)
             = FIR.Struct '[ view_field 'FIR.:-> FIR.M 4 4 Float
