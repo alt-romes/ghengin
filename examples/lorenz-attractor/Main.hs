@@ -31,49 +31,44 @@ import qualified Math.Linear as FIR
 import qualified FIR
 import qualified Data.Linear.Alias as Alias
 
-import Ghengin.Geometry.Sphere
 import Ghengin.Camera
 import Shaders
 
-type SphereMesh = Mesh '[Vec3, Vec3, Vec3] '[Transform]
+type Points = Mesh '[Vec3] '[]
 
 myCamera :: Camera "view_matrix" "proj_matrix"
 myCamera = Camera
-  { view = orthoFitScreen 640 480 100 100 -- unTransform $ lookAt (vec3 100 0 0) (vec3 0 0 1) (vec3 0 1 0)
-  , proj = unTransform $ orthoOffCenter @Int 0 100 640 480
+  { view = orthoFitScreen 1 1 1 1 -- noop
+  , proj = unTransform $ orthoOffCenter @Int 0 50 50 50
   }
 
 gameLoop :: PipelineKey _ '[Camera "view_matrix" "proj_matrix"] -- ^ rq key to camera
-         -> MeshKey _ _ _ _ '[Transform] -- ^ rq key to mesh
-         -> Float -- ^ rotation
+         -> MaterialKey _ _ _ -- ^ rq key to material
+         -> MeshKey _ _ _ _ _ -- ^ rq key to mesh
          -> Vec3 -- ^ last position
          -> Alias RenderPass
           ⊸ RenderQueue ()
           ⊸ Core (RenderQueue ())
-gameLoop ckey mkey rot last rp rq = Linear.do
+gameLoop ckey matkey mkey last rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
   let
-      (x',y',z') = lorenzIteration (x,y,z)
+      (x',y',z') = lorenzInc (x,y,z)
       WithVec3 x y z = last
       next_pos = vec3 x' y' z'
 
   (rp, rq) <- render rp rq
-  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> do
 
-    pure $ Ur $ scale 1 <> rotateY rot <> rotateX (-rot)
-              <> translate x' y' z'
-
-    )) ↑)
-
-  gameLoop ckey mkey (rot+0.01) next_pos rp rq
+  gameLoop ckey matkey mkey next_pos rp rq
 
 main :: Prelude.IO ()
 main = do
  withLinearIO $
   runCore (640, 480) Linear.do
+
+    let start_points = [Sin (vec3 0 1 0), Sin (tupleToVec3 $ lorenzNext (0, 1, 0))]
 
     (clearRenderImages 0 0 0 1 ↑)
 
@@ -82,14 +77,16 @@ main = do
     pipeline <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{blendMode=BlendAdd}
                    rp1 shaderPipeline (StaticBinding (Ur myCamera) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    let UnitSphere vs is = newUnitSphere 5 Nothing
-    (mesh :: SphereMesh, pipeline) <-
-      (createMeshWithIxs pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) vs is ↑)
+
+    (mesh :: Points, pipeline) <-
+      (createMesh pipeline GHNil start_points ↑)
+
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
+
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-    rq <- gameLoop pkey mshkey 0 (vec3 5 5 5) rp2 rq
+    rq <- gameLoop pkey mkey mshkey (vec3 0 1 0) rp2 rq
 
     (freeRenderQueue rq ↑)
 
@@ -102,8 +99,13 @@ instance ShaderData Transform where
 
 --------------------------------------------------------------------------------
 
-lorenzIteration :: RealFrac a => (a, a, a) -> (a, a, a)
-lorenzIteration (x, y, z) =
+lorenzNext :: RealFrac a => (a, a, a) -> (a, a, a)
+lorenzNext (x,y,z) =
+  let (x',y',z') = lorenzInc (x,y,z)
+   in (x+x',y+y',z+z')
+
+lorenzInc :: RealFrac a => (a, a, a) -> (a, a, a)
+lorenzInc (x, y, z) =
   -- constants from lorenz's paper (page 136)
   -- https://cdanfort.w3.uvm.edu/research/lorenz-1963.pdf
   let s = 10
@@ -116,5 +118,6 @@ lorenzIteration (x, y, z) =
       x' = s * (y - x)     -- (25)
       y' = x * (r - z) - y -- (26)
       z' = x * y - b * z   -- (27)
-   in (x + x'*dt, y + y'*dt, z + z'*dt)
+   in ( x'*dt, y'*dt, z'*dt)
 
+tupleToVec3 (a,b,c) = vec3 a b c
