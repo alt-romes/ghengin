@@ -27,7 +27,9 @@ import qualified Ghengin.Core.Shader as G
 -- See FIR.Validation.Layout about locations/component layouts...
 type VertexInput
   = '[ Slot 0 0 ':-> V 3 Float
-     , Slot 1 0 ':-> V 3 Float ]
+     , Slot 1 0 ':-> V 3 Float
+     , Slot 2 0 ':-> V 3 Float
+     ]
 
 shaderPipeline :: G.ShaderPipeline _
 shaderPipeline
@@ -36,8 +38,9 @@ shaderPipeline
   G.:>-> fragment
 
 type VertexDefs =
-  '[ "in_position"  ':-> Input      '[ Location 1 ] (V 3 Float) -- position comes after color (location=1)
-   , "in_color"     ':-> Input      '[ Location 0 ] (V 3 Float) -- color comes first (location=0)
+  '[ "in_position"  ':-> Input      '[ Location 0 ] (V 3 Float)
+   , "in_normal"    ':-> Input      '[ Location 1 ] (V 3 Float)
+   , "in_color"     ':-> Input      '[ Location 2 ] (V 3 Float)
    , "frag_color"   ':-> Output     '[ Location 0 ] (V 3 Float)
    , "model"        ':-> Uniform    '[ DescriptorSet 2, Binding 0 ] (Struct '[ "m" ':-> M 4 4 Float ])
    , "camera"       ':-> Uniform    '[ DescriptorSet 0, Binding 0 ]

@@ -31,10 +31,10 @@ import qualified Math.Linear as FIR
 import qualified FIR
 import qualified Data.Linear.Alias as Alias
 
-import Ghengin.Geometry.Cube (coloredCube)
+import Ghengin.Geometry.Sphere
 import Shaders
 
-type CubeMesh = Mesh '[Vec3, Vec3] '[Transform]
+type SphereMesh = Mesh '[Vec3, Vec3, Vec3] '[Transform]
 
 data Camera
   = Camera { view :: Mat4
@@ -50,38 +50,50 @@ defaultCamera = Camera
   }
 
 gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
-         -> MeshKey _ _ _ _ '[Transform] -- ^ rq key to cube mesh
+         -> MeshKey _ _ _ _ '[Transform] -- ^ rq key to mesh
          -> Float -- ^ rotation
+         -> Vec3 -- ^ last position
          -> Alias RenderPass
           ⊸ RenderQueue ()
           ⊸ Core (RenderQueue ())
-gameLoop ckey mkey rot rp rq = Linear.do
+gameLoop ckey mkey rot last rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
-  (rp, rq) <- render rp rq
-  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
-    scale 5 <> rotateY rot <> rotateX (-rot) <> translate 0 0 10)) ↑)
+  let
+      (x',y',z') = lorenzIteration (x,y,z)
+      WithVec3 x y z = last
+      next_pos = vec3 x' y' z'
 
-  gameLoop ckey mkey (rot+0.01) rp rq
+  (rp, rq) <- render rp rq
+  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> do
+
+    pure $ Ur $ translate x' y' z' <>
+      scale 1 <> rotateY rot <> rotateX (-rot) <> translate 0 0 100)) ↑)
+
+  gameLoop ckey mkey (rot+0.01) next_pos rp rq
 
 main :: Prelude.IO ()
 main = do
  withLinearIO $
   runCore (640, 480) Linear.do
 
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
-    pipeline <- (makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
+    (clearRenderImages 0 0 0 1 ↑)
+
+    (rp1, rp2) <- (Alias.share =<< createRenderPassFromSettings RenderPassSettings{keepColor=True} ↑)
+
+    pipeline <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{blendMode=BlendAlpha}
+                   rp1 shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    (mesh :: CubeMesh, pipeline) <-
-      -- Also displays how TH can be used to create procedural meshes at compile time when the parameters are statically known
-      (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) ($$(TH.liftTyped coloredCube)) ↑)
+    let UnitSphere vs is = newUnitSphere 5 Nothing
+    (mesh :: SphereMesh, pipeline) <-
+      (createMeshWithIxs pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) vs is ↑)
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-    rq <- gameLoop pkey mshkey 0 rp2 rq
+    rq <- gameLoop pkey mshkey 0 (vec3 5 5 5) rp2 rq
 
     (freeRenderQueue rq ↑)
 
@@ -95,3 +107,22 @@ instance ShaderData Transform where
 instance ShaderData Camera where
   type FirType Camera = FIR.Struct '[ "view_matrix" 'FIR.:-> FIR.M 4 4 Float
                                     , "proj_matrix" 'FIR.:-> FIR.M 4 4 Float ]
+
+--------------------------------------------------------------------------------
+
+lorenzIteration :: RealFrac a => (a, a, a) -> (a, a, a)
+lorenzIteration (x, y, z) =
+  -- constants from lorenz's paper (page 136)
+  -- https://cdanfort.w3.uvm.edu/research/lorenz-1963.pdf
+  let s = 10
+      b = 8/3
+      -- r = s*(s + b + 3)*(1 / (s - b - 1)) -- critical Rayleigh's number
+      r = 28 -- "slightly supercritical", see same page
+
+      dt = 0.01 -- x',y',z' are wrt dimensionless time that Lorenz simulates as 0.01
+
+      x' = s * (y - x)     -- (25)
+      y' = x * (r - z) - y -- (26)
+      z' = x * y - b * z   -- (27)
+   in (x + x'*dt, y + y'*dt, z + z'*dt)
+

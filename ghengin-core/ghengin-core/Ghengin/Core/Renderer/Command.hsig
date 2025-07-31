@@ -69,5 +69,3 @@ bindGraphicsDescriptorSet :: Linear.MonadIO m
 setViewport :: Linear.MonadIO m => Vk.Viewport -> RenderPassCmd m
 setScissor :: Linear.MonadIO m => Vk.Rect2D -> RenderPassCmd m
 
-
-clearColorImage :: Float -> Float -> Float -> Float -> RenderPassCmd Renderer

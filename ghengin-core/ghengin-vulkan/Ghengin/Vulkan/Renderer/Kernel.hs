@@ -14,7 +14,7 @@ import qualified Data.V.Linear as V
 import qualified Data.Vector as Vector
 
 import Ghengin.Vulkan.Renderer.Device
-import Ghengin.Vulkan.Renderer.Command (Command, copyFullBuffer)
+import Ghengin.Vulkan.Renderer.Command (Command, copyFullBuffer, clearColorImage)
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.SwapChain
 import Ghengin.Vulkan.Renderer.Frame
@@ -104,12 +104,6 @@ unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linea
   b <- liftSystemIO $ f _vulkanDevice
   pure $ (b, renv)
 
-unsafeUseImage :: Int -> (Vk.Image -> Prelude.IO b) -> Renderer b
-unsafeUseImage i f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
-  b <- liftSystemIO $ f Prelude.=<< (\(_,imgs) -> imgs Vector.! i) Prelude.<$>
-    Vk.getSwapchainImagesKHR _vulkanDevice._device _vulkanSwapChain._swapchain
-  pure (b, renv)
-
 unsafeGetDevice :: Renderer (Ur Vk.Device)
 unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv._vulkanDevice._device, renv)
 
@@ -137,6 +131,15 @@ copyBuffer src dst size = Linear.do
 -- | Get the extent of the images in the swapchain?
 getRenderExtent :: Renderer (Ur Vk.Extent2D)
 getRenderExtent = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv._vulkanSwapChain._surfaceExtent, renv)
+
+-- | Clears all images in the swapchain to the given color
+clearRenderImages :: Float -> Float -> Float -> Float -> Renderer ()
+clearRenderImages r g b a = Linear.do
+  Ur imgs <- renderer $ Unsafe.toLinear $ \(REnv{..}) -> Linear.do
+    Ur (_, imgs) <- liftSystemIOU $ Vk.getSwapchainImagesKHR _vulkanDevice._device _vulkanSwapChain._swapchain
+    pure (Ur imgs, REnv{..})
+
+  immediateSubmit $ consume <$> (Data.Linear.forM (Vector.toList imgs) (Unsafe.toLinear \img -> clearColorImage img r g b a))
 
 -- Move to utils?
 consumeUnits :: V.V n () ⊸ ()

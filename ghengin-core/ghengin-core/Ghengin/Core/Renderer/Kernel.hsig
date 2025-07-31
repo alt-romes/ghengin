@@ -62,3 +62,4 @@ renderer :: (RendererEnv ⊸ System.IO.Linear.IO (a, RendererEnv)) ⊸ Renderer 
 
 getRenderExtent :: Renderer (Ur Vk.Extent2D)
 
+clearRenderImages :: Float -> Float -> Float -> Float -> Renderer ()
