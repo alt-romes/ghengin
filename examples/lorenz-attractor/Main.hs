@@ -32,24 +32,18 @@ import qualified FIR
 import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Geometry.Sphere
+import Ghengin.Camera
 import Shaders
 
 type SphereMesh = Mesh '[Vec3, Vec3, Vec3] '[Transform]
 
-data Camera
-  = Camera { view :: Mat4
-           , proj :: Mat4
-           }
-           deriving Generic
-           deriving anyclass Block
-
-defaultCamera :: Camera
-defaultCamera = Camera
-  { view = unTransform $ lookAt (vec3 0 0 0) (vec3 0 0 1) (vec3 0 1 0)
-  , proj = unTransform $ perspective @Int 45 0.1 1000 640 480
+myCamera :: Camera "view_matrix" "proj_matrix"
+myCamera = Camera
+  { view = orthoFitScreen 640 480 100 100 -- unTransform $ lookAt (vec3 100 0 0) (vec3 0 0 1) (vec3 0 1 0)
+  , proj = unTransform $ orthoOffCenter @Int 0 100 640 480
   }
 
-gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
+gameLoop :: PipelineKey _ '[Camera "view_matrix" "proj_matrix"] -- ^ rq key to camera
          -> MeshKey _ _ _ _ '[Transform] -- ^ rq key to mesh
          -> Float -- ^ rotation
          -> Vec3 -- ^ last position
@@ -69,8 +63,10 @@ gameLoop ckey mkey rot last rp rq = Linear.do
   (rp, rq) <- render rp rq
   rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> do
 
-    pure $ Ur $ translate x' y' z' <>
-      scale 1 <> rotateY rot <> rotateX (-rot) <> translate 0 0 100)) ↑)
+    pure $ Ur $ scale 1 <> rotateY rot <> rotateX (-rot)
+              <> translate x' y' z'
+
+    )) ↑)
 
   gameLoop ckey mkey (rot+0.01) next_pos rp rq
 
@@ -83,8 +79,8 @@ main = do
 
     (rp1, rp2) <- (Alias.share =<< createRenderPassFromSettings RenderPassSettings{keepColor=True} ↑)
 
-    pipeline <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{blendMode=BlendAlpha}
-                   rp1 shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
+    pipeline <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{blendMode=BlendAdd}
+                   rp1 shaderPipeline (StaticBinding (Ur myCamera) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     let UnitSphere vs is = newUnitSphere 5 Nothing
     (mesh :: SphereMesh, pipeline) <-
@@ -103,10 +99,6 @@ main = do
 -- non-compositional instance for "Transform", just for demo
 instance ShaderData Transform where
   type FirType Transform = FIR.Struct '[ "m" 'FIR.:-> FIR.M 4 4 Float ]
-
-instance ShaderData Camera where
-  type FirType Camera = FIR.Struct '[ "view_matrix" 'FIR.:-> FIR.M 4 4 Float
-                                    , "proj_matrix" 'FIR.:-> FIR.M 4 4 Float ]
 
 --------------------------------------------------------------------------------
 
