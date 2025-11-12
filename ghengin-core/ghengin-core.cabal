@@ -128,7 +128,7 @@ library
                       -- TODO: NOT DEPEND ON VULKAN IN CORE
                       vulkan >= 3.26.2,
                       linear-base >= 0.4.0,
-                      reference-counting,
+                      reference-counting >= 0.2.0.0,
                       os-string,
 
                       template-haskell,
