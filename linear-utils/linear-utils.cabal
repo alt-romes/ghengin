@@ -82,9 +82,9 @@ library
     hs-source-dirs:   linear-utils
 
     build-depends:    base,
-                      linear-base,
+                      linear-base >= 0.4,
                       vulkan,
-                      reference-counting,
+                      reference-counting >= 0.2,
                       containers,
                       vector,
                       constraints,
