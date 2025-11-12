@@ -243,7 +243,7 @@ renderPassCmd renderAreaExtent
                                               , renderPass  = rpass
                                               , framebuffer = frameBuffers Vector.! currentImage
                                               , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
-                                              , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 1 0]
+                                              , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 0 0]
                                               }
 
     Linear.liftSystemIO $ Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE

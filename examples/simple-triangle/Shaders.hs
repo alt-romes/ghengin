@@ -44,9 +44,8 @@ type VertexDefs =
 
 vertexSimple :: G.VertexShaderModule VertexDefs _
 vertexSimple = shader do
-    ~(Vec3 x y _) <- get @"in_position"
-    put @"gl_Position" (Vec4 x y 0 1)
-
+    ~(Vec3 x y z) <- get @"in_position"
+    put @"gl_Position" (Vec4 x y z 1)
 
 fragmentSimple :: G.FragmentShaderModule '[] _
 fragmentSimple = shader do

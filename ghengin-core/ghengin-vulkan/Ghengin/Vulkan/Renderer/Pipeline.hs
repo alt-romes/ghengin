@@ -246,7 +246,7 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
                         { flags = zero
                         , depthTestEnable = True
                         , depthWriteEnable = True
-                        , depthCompareOp = Vk.COMPARE_OP_LESS
+                        , depthCompareOp = Vk.COMPARE_OP_GREATER
                         
                         -- For the optional depth bound testing. Unused for now
                         , depthBoundsTestEnable = False

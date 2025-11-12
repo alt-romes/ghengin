@@ -34,9 +34,11 @@ import Shaders
 -- are ignored because of alignment.
 triangleVertices :: [Vertex '[Vec3]]
 triangleVertices =
-  [ Sin $ vec3 0 (-0.5) 1
-  , Sin $ vec3 (-0.5) 0.5 1
-  , Sin $ vec3 0.5 0.5 1
+  -- Drawn counter-clockwise
+  -- +X right, +Y down, +Z forward
+  [ Sin $ vec3 0 (-0.5) 0.1
+  , Sin $ vec3 (-0.5) 0.5 0.1
+  , Sin $ vec3 0.5 0.5 0.1
   ]
 
 gameLoop :: Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())

@@ -101,7 +101,7 @@ library camera
     import:           common-flags
     visibility: public
     exposed-modules:  Ghengin.Camera
-    build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core:backend-independent-bits, linear-base, linear-utils, geomancy
+    build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core:backend-independent-bits, linear-base, linear-utils, geomancy >= 0.3
     hs-source-dirs:   ghengin-camera
     default-language: GHC2021
 
@@ -110,7 +110,7 @@ library geometry
     visibility: public
     exposed-modules:  Ghengin.Geometry, Ghengin.Geometry.Sphere, Ghengin.Geometry.Cube,
                       Ghengin.Geometry.Transform
-    build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits, ghengin-core, vector, containers, split, geomancy
+    build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits, ghengin-core, vector, containers, split, geomancy >= 0.3
     hs-source-dirs:   ghengin-geometry
     default-language: GHC2021
 

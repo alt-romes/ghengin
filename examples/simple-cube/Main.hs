@@ -98,7 +98,7 @@ gameLoop mkey rot rp rq = Linear.do
     -- We're not using any projection of sorts, so we need to make the cube fit
     -- in the xyz vulkan space, where x and y go from -1 to 1 but z goes from 0
     -- to 1
-    scale 0.5 <> rotateY rot <> rotateX (-rot) <> translate 0 0 0.5)) ↑)
+    translate 0 0 0.5 <> rotateY rot <> rotateX (-rot) <> scale 0.5 )) ↑)
 
   gameLoop mkey (rot+0.01) rp rq
 

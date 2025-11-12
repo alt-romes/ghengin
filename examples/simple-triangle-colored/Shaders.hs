@@ -48,7 +48,7 @@ vertexColor :: G.VertexShaderModule VertexDefsColors _
 vertexColor = shader do
     ~(Vec3 x y _) <- #in_position
     color         <- #in_color
-    #gl_Position .= (Vec4 x y 0 1)
+    #gl_Position .= (Vec4 x y 0.1 1)
     #frag_color  .= color
 
 fragmentColor :: G.FragmentShaderModule '["in_color" ':-> Input '[Location 0] (V 3 Float)] _

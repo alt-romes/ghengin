@@ -40,7 +40,7 @@ width = 1920
 height = 1080
 
 projection :: Float {-^ zoom -} -> InStruct "proj" Mat4
-projection zoom = InStruct $ unTransform $ orthoOffCenter 0 100 (roundFloatInt $ width/zoom) (roundFloatInt $ height/zoom)
+projection zoom = InStruct $ unTransform $ reverseDepthOrthoRH 0 100 (fromIntegral (roundFloatInt $ width/zoom)) (fromIntegral (roundFloatInt $ height/zoom))
 
 sampleVertices :: Float {-^ Start -} -> Float {-^ Increment -} -> [Vertex '[Vec3]] -- ToDo: could be a single Int (must check it works)
 sampleVertices start increment = go start where
