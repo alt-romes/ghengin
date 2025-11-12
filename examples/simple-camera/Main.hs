@@ -44,10 +44,16 @@ data Camera
            deriving anyclass Block
 
 defaultCamera :: Camera
-defaultCamera = Camera
-  { view = unTransform $ lookAt (vec3 0 0 0) (vec3 0 0 1) (vec3 0 1 0)
-  , proj = unTransform $ perspective @Int 45 0.1 1000 640 480
-  }
+defaultCamera = 
+  let
+    up = vec3 0 (-1) 0
+    forward = vec3 0 0 1
+    eye = vec3 0 0 0
+  in
+    Camera
+    { view = unTransform $ lookAtRH eye forward up 
+    , proj = unTransform $ reverseDepthRH 45 0.1 640 480
+    }
 
 gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
          -> MeshKey _ _ _ _ '[Transform] -- ^ rq key to cube mesh
@@ -62,7 +68,7 @@ gameLoop ckey mkey rot rp rq = Linear.do
 
   (rp, rq) <- render rp rq
   rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
-    scale 5 <> rotateY rot <> rotateX (-rot) <> translate 0 0 10)) ↑)
+    translate 0 0 10 <> rotateY rot <> rotateX (-rot) <> scale 5)) ↑)
 
   gameLoop ckey mkey (rot+0.01) rp rq
 
