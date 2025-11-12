@@ -33,9 +33,9 @@ class Block ty => ShaderData ty where
 
   -- | The primitive FIR shader type whose memory representation matches the result
   -- of serializing this datatype using 'Poke'. This is the promise that if
-  -- your shader expects @FirType ty@ in a uniform location, writing @ty@ into the
-  -- buffer will be sound, and the shader will find @ty@'s laid out in memory
-  -- according to @FirType ty@'s expected memory layout.
+  -- your shader expects @FirType ty@ in a uniform/storage location, writing @ty@
+  -- into the buffer will be sound, and the shader will find @ty@'s laid out 
+  -- in memory according to @FirType ty@'s expected memory layout.
   --
   -- === _Example_
   --

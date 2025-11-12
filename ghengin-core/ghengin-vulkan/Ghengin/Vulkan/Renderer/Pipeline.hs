@@ -131,7 +131,7 @@ createGraphicsPipeline  ::
                          ⊸ RenderPass
                          ⊸ Renderer (RenderPass, (RendererPipeline Graphics, DescriptorPool))
 createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dpool renderP -> enterD "createGraphicsPipeline" $ Linear.do
-  Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ Prelude.fmap (Prelude.fst) (IM.elems dpool.set_bindings)
+  Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ IM.elems dpool.set_bindings
 
   Ur dev <- unsafeGetDevice
 

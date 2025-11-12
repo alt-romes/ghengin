@@ -81,17 +81,20 @@ type ResourceMap = IntMap DescriptorResource
 
 data DescriptorResource where
   UniformResource   :: Alias MappedBuffer ⊸ DescriptorResource
+  StorageResource   :: Alias MappedBuffer ⊸ DescriptorResource
   Texture2DResource :: Alias Texture2D ⊸ DescriptorResource
   deriving Generic
 
 instance Forgettable Renderer DescriptorResource where
   forget = \case
     UniformResource u -> Alias.forget u
+    StorageResource u -> Alias.forget u
     Texture2DResource t -> Alias.forget t
 
 instance Shareable m DescriptorResource where
   share = \case
     UniformResource u -> bimap UniformResource UniformResource <$> Alias.share u
+    StorageResource u -> bimap StorageResource StorageResource <$> Alias.share u
     Texture2DResource t -> bimap Texture2DResource Texture2DResource <$> Alias.share t
 
 -- | Mapping from each binding to corresponding binding type, shader stage
@@ -118,8 +121,8 @@ instance Show SomeDefs where
 -- | Creates a mapping from descriptor set indexes to a list of their bindings
 -- (corresponding binding type, size, shader stage flags) solely from the shader
 -- pipeline definition.
-createDescriptorSetBindingsMap :: ShaderPipeline info -> DescriptorSetMap
-createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempty ppstages)
+createDescriptorSetBindingsMap :: ShaderPipeline info -> Ur DescriptorSetMap
+createDescriptorSetBindingsMap ppstages = Ur $ makeDescriptorSetMap (go Prelude.mempty ppstages)
                                             -- If any of the descriptor sets is
                                             -- unused, we default to an empty bindings map
                                             <> IM.fromList [(0, mempty), (1, mempty), (2, mempty)]
@@ -170,6 +173,7 @@ createDescriptorSetBindingsMap ppstages = makeDescriptorSetMap (go Prelude.mempt
 descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType
 descriptorType = \case
   SPIRV.PointerTy SPIRV.Storage.Uniform _ -> Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
+  SPIRV.PointerTy SPIRV.Storage.StorageBuffer _ -> Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER
   -- SPIRV.PointerTy SPIRV.Storage.UniformConstant SPIRV.Sampler -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
   SPIRV.PointerTy SPIRV.Storage.UniformConstant (SPIRV.SampledImage _) -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
   x -> error $ "Unexpected/unsupported descriptor set #1 descriptor type: " <> show x
@@ -203,39 +207,36 @@ shader) from the pool, rather than specifying each descriptor.
 -- | See Note [Pools]
 data DescriptorPool =
   DescriptorPool { dpool :: Vk.DescriptorPool
-                 , set_bindings :: IntMap (Vk.DescriptorSetLayout, BindingsMap)
+                 , set_bindings :: IntMap Vk.DescriptorSetLayout
                  }
 
 -- Creates a pool as described in Note [Pools].
 --
 -- TODO: Right amount of descriptors. For now we simply multiply 1000 by the
 -- number of all total descriptors across sets
-createDescriptorPool :: ShaderPipeline info -> Renderer DescriptorPool
-createDescriptorPool sp = enterD "createDescriptorPool" $
-  case createDescriptorSetBindingsMap sp of
-    dsetmap -> Linear.do
+createDescriptorPool :: DescriptorSetMap -> Renderer DescriptorPool
+createDescriptorPool dsetmap = enterD "createDescriptorPool" $ Linear.do
+  layouts <- Data.Linear.traverse (\bm -> case move bm of Ur bm1 -> createDescriptorSetLayout bm1) dsetmap
 
-      layouts <- Data.Linear.traverse (\bm -> case move bm of Ur bm1 -> (,bm1) <$> createDescriptorSetLayout bm1) dsetmap
+  let 
+    descriptorsAmounts :: [(Vk.DescriptorType, Int)] -- ^ For each type, its amount
+    descriptorsAmounts = Prelude.map (\(t :| ls) -> (t, 1000 * (Prelude.length ls + 1))) Prelude.. NonEmpty.group Prelude.. L.sort $ Prelude.foldMap (Prelude.foldr (\(ty,_) -> (ty:)) Prelude.mempty) dsetmap
+    poolsSizes = Prelude.map (\(t,fromIntegral -> a) -> Vk.DescriptorPoolSize {descriptorCount = a, type' = t}) descriptorsAmounts
 
-      let 
-        descriptorsAmounts :: [(Vk.DescriptorType, Int)] -- ^ For each type, its amount
-        descriptorsAmounts = Prelude.map (\(t :| ls) -> (t, 1000 * (Prelude.length ls + 1))) Prelude.. NonEmpty.group Prelude.. L.sort $ Prelude.foldMap (Prelude.foldr (\(ty,_) -> (ty:)) Prelude.mempty) dsetmap
-        poolsSizes = Prelude.map (\(t,fromIntegral -> a) -> Vk.DescriptorPoolSize {descriptorCount = a, type' = t}) descriptorsAmounts
+    setsAmount = fromIntegral $ Prelude.length dsetmap
+    poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = V.fromList poolsSizes
+                                            , maxSets = 1000 Prelude.* setsAmount
+                                            , flags = Vk.zero
+                                            , next = ()
+                                            }
 
-        setsAmount = fromIntegral $ Prelude.length dsetmap
-        poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = V.fromList poolsSizes
-                                               , maxSets = 1000 Prelude.* setsAmount
-                                               , flags = Vk.zero
-                                               , next = ()
-                                               }
-
-      descriptorPool <- withDevice (Vk.createDescriptorPool poolInfo Nothing)
-      pure (DescriptorPool descriptorPool layouts)
+  descriptorPool <- withDevice (Vk.createDescriptorPool poolInfo Nothing)
+  pure (DescriptorPool descriptorPool layouts)
 
 destroyDescriptorPool :: DescriptorPool ⊸ Renderer ()
 destroyDescriptorPool DescriptorPool{..} = enterD "destroyDescriptorPool" $ Linear.do
   withDevice (Vk.destroyDescriptorPool Nothing dpool)
-  consume <$> Data.Linear.traverse (withDevice . Vk.destroyDescriptorSetLayout Nothing . fst) set_bindings
+  consume <$> Data.Linear.traverse (withDevice . Vk.destroyDescriptorSetLayout Nothing) set_bindings
 
 -- | Create a DescriptorSetLayout for a group of bindings (that represent a set) and their properties.
 --
@@ -318,21 +319,18 @@ allocateEmptyDescriptorSets ixs DescriptorPool{..} = enterD "allocateEmptyDescri
   assertM "allocateEmptyDescriptorSets" (to_alloc_size == VL.theLength @n)
   
   -- Extract the infos from the sets by ix to allocate
-  (keys, to_alloc_tups) <- pure $ unzip $ IML.toList $ to_alloc
-  (layouts, bindingsxs) <- pure $ unzip $ to_alloc_tups
+  (keys, layouts) <- pure $ unzip $ IML.toList $ to_alloc
 
   -- Allocate the descriptor sets
   (dsets, V layouts, dpool) <- enterD "Allocate the descriptor sets" $
     withDevice (Vk.allocateDescriptorSets dpool (V @n (l2vec layouts))) -- @n since the partition takes @n@ integers (well, only if the integer list is disjoint...)
 
   -- Reconstruct things
-  case zip' (vec2l layouts) bindingsxs of
-   (to_alloc_tups, Nothing) ->
-     case zip' keys to_alloc_tups of
-       (to_alloc, Nothing) -> Linear.do
-         set_bindings  <- pure $ IML.unionWith (Unsafe.toLinear2 \_ _ -> error "impossible") (IML.fromList to_alloc) the_rest
+  case zip' keys (vec2l layouts) of
+    (to_alloc, Nothing) -> Linear.do
+      set_bindings  <- pure $ IML.unionWith (Unsafe.toLinear2 \_ _ -> error "impossible") (IML.fromList to_alloc) the_rest
 
-         pure (vzipWith DescriptorSet ixs dsets, DescriptorPool dpool set_bindings)
+      pure (vzipWith DescriptorSet ixs dsets, DescriptorPool dpool set_bindings)
   
 -- | Update the configuration of a descriptor set with multiple resources (e.g. buffers + images)
 updateDescriptorSet :: DescriptorSet -- ^ The descriptor set we're updating with these resources
@@ -380,6 +378,25 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> en
                , texelBufferView = []
                }
 
+        StorageResource bufA ->
+          let bufferInfo = Vk.DescriptorBufferInfo
+                                               { buffer = (Unsafe.Alias.get bufA).buffer
+                                               , offset = 0
+                                               , range  = Vk.WHOLE_SIZE -- the whole buffer
+                                               }
+
+           in pure $ Vk.SomeStruct Vk.WriteDescriptorSet
+               { next = ()
+               , dstSet = dset -- the descriptor set to update with this write
+               , dstBinding = fromIntegral i
+               , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+               , descriptorType = Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER -- The type of buffer
+               , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+               , bufferInfo = [bufferInfo] -- The one buffer info
+               , imageInfo = []
+               , texelBufferView = []
+               }
+
         Texture2DResource talias ->
           case Unsafe.Alias.get talias of
             (Texture2D vkimage sampler) ->
@@ -414,7 +431,7 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> en
 -- I think this comment is outdated:
 -- We must be careful here not to free resources shared across materials
 --
--- (1) Uniform buffers are allocated per-material, so we always free them
+-- (1) Mapped buffers are allocated per-material, so we always free them
 --
 -- (2) Texture resources are allocated outside of the material and might be
 -- shared, so we never free them for now. Eventually they might be
