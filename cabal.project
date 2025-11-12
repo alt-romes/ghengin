@@ -1,9 +1,10 @@
 packages:
-          ./packaging-macos/
-          ./ghengin/
           ./examples/
           ./ghengin-core/
           ./linear-utils/
+-- TODO:!!
+--          ./packaging-macos/
+--          ./ghengin/
 -------------------------------
 -- DEBUG PATCHES
 -------------------------------

@@ -39,10 +39,10 @@ mkShell ({
     xorg.libXinerama
 
     # debugging
-    gdb
-    libelf
-    libdwarf
-    elfutils
+    # gdb
+    # libelf
+    # libdwarf
+    # elfutils
   ])
   ;
 
