@@ -52,7 +52,9 @@ defaultCamera =
   in
     Camera
     { view = unTransform $ lookAtRH eye forward up 
-    , proj = unTransform $ reverseDepthRH 45 0.1 640 480
+    -- pi / 2 = 90 degrees
+    -- pi / 4 = 45 degrees
+    , proj = unTransform $ reverseDepthRH (pi / 2) 0.1 640 480
     }
 
 gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
