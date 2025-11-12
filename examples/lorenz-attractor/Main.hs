@@ -39,8 +39,8 @@ type Points = Mesh '[Vec3] '[]
 
 myCamera :: Camera "view_matrix" "proj_matrix"
 myCamera = Camera
-  { view = orthoFitScreen 1920 1080 600 600
-  , proj = unTransform $ orthoOffCenter @Int 0 100 100 100
+  { view = mempty
+  , proj = unTransform $ reverseDepthOrthoRH 0 100 50 50
   }
 
 gameLoop :: PipelineKey _ '[Camera "view_matrix" "proj_matrix"] -- ^ rq key to camera
