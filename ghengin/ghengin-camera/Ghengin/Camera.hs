@@ -33,9 +33,11 @@ data Camera (view_field :: Symbol) (proj_field :: Symbol)
            deriving anyclass Block
 
 -- | A default camera looking at (0, 0, 0) using a perspective projection.
+--
+-- +X right, +Y down, +Z forward
 defaultCamera :: Camera view_field proj_field
 defaultCamera = Camera
-  { view = unTransform $ lookAtRH (vec3 0 0 0) (vec3 0 0 1) (vec3 0 1 0)
+  { view = unTransform $ lookAtRH (vec3 0 0 0) (vec3 0 0 1) (vec3 0 (-1) 0)
   , proj = unTransform $ reverseDepthRH 45 0.1 640 480
   }
 
