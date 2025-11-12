@@ -22,11 +22,10 @@ import Ghengin.Geometry.Transform
 -- | A unit cube centered at (0,0,0).
 cube :: [Vertex '[Vec3]]
 cube = concatMap (`transform` square)
-                                                             -- TODO: These labels might be wrong:
   [ translateV (vec3     0      0 (-0.5))                    -- front face
-  , translateV (vec3     0      0   0.5 ) <> rotateY (-pi)   -- back face
-  , translateV (vec3   0.5      0     0 ) <> rotateY (-pi/2) -- right face
-  , translateV (vec3 (-0.5)     0     0 ) <> rotateY (pi/2)  -- left face
+  , translateV (vec3     0      0   0.5 ) <> rotateY pi      -- back face
+  , translateV (vec3   0.5      0     0 ) <> rotateY (pi/2)  -- right face
+  , translateV (vec3 (-0.5)     0     0 ) <> rotateY (-pi/2) -- left face
   , translateV (vec3     0    0.5     0 ) <> rotateX (pi/2)  -- top face
   , translateV (vec3     0  (-0.5)    0 ) <> rotateX (-pi/2) -- bottom face
   ]
