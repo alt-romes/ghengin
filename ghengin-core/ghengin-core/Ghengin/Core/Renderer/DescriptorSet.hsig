@@ -8,6 +8,8 @@ import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.Texture
 
+import qualified Vulkan as Vk (DescriptorType, ShaderStageFlags)
+
 -------- Resources ----------------
 -- Resources are a part of the descriptor set module since these resources are
 -- used to manipulate the descriptors of the descriptor set.
@@ -17,12 +19,19 @@ import Ghengin.Core.Renderer.Texture
 
 type ResourceMap = IntMap DescriptorResource
 
-
 data DescriptorResource where
   UniformResource   :: Alias MappedBuffer ⊸ DescriptorResource
+  StorageResource   :: Alias MappedBuffer ⊸ DescriptorResource
   Texture2DResource :: Alias Texture2D ⊸ DescriptorResource
 instance Forgettable Renderer DescriptorResource
 instance Shareable m DescriptorResource
+
+-- | TODO: Drop dependency on Vulkan
+type BindingsMap = IntMap (Vk.DescriptorType, Vk.ShaderStageFlags)
+
+type DescriptorSetMap = IntMap BindingsMap
+
+createDescriptorSetBindingsMap :: ShaderPipeline info -> Ur DescriptorSetMap
 
 -- ROMES:TODO: These definitions need to be inlined... in the instancing modules?
 -- Shouldn't be too inefficient since the use case, ResourceMap, is usually small
@@ -38,7 +47,7 @@ instance Shareable m DescriptorResource
 
 data DescriptorPool
 
-createDescriptorPool :: ShaderPipeline info
+createDescriptorPool :: DescriptorSetMap
                      -> Renderer DescriptorPool
 
 

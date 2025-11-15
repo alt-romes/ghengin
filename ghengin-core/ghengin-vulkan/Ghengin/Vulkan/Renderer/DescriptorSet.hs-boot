@@ -8,7 +8,7 @@ type BindingsMap = IntMap (Vk.DescriptorType, Vk.ShaderStageFlags)
 
 data DescriptorPool =
   DescriptorPool { dpool :: Vk.DescriptorPool
-                 , set_bindings :: IntMap (Vk.DescriptorSetLayout, BindingsMap)
+                 , set_bindings :: IntMap Vk.DescriptorSetLayout
                  }
 
 data DescriptorSet

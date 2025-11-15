@@ -13,7 +13,7 @@ import Graphics.Gl.Block
 {-
 Note [Mapped vs Device-local Buffers]
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-Mapped buffers are buffers of usage 'UNIFORM' (as in uniform buffer) which are
+Mapped buffers are buffers of e.g. usage 'UNIFORM' (as in uniform buffer) which are
 mapped to a device-local buffer. Writing to a mapped buffer writes host-local
 memory which is synchronized automatically to the device-local memory.
 
@@ -31,7 +31,7 @@ Note [Block vs Storable]
 ~~~~~~~~~~~~~~~~~~~~~~~~
 We use `Block` constraint when we can make the call about which layout to use down the line.
 For MappedBuffer, the (for now) only constructor is Uniform buffer. When
-writing into uniform buffers we know what layout to use (std140).
+writing into mapped buffers we know what layout to use (std140).
 
 However, for `DeviceLocalBuffer`s, at the moment, we don't know its use, so we
 delegate the decision of what standard to use to the definition site of the
@@ -75,11 +75,14 @@ destroyDeviceLocalBuffer :: DeviceLocalBuffer ⊸ Renderer ()
 
 -------- Mapped Buffer -----------------
 
--- | A mapped (uniform) buffer. See Note [Mapped vs Device-local Buffers]
+-- | A mapped (uniform/storage) buffer. See Note [Mapped vs Device-local Buffers]
 data MappedBuffer
 
+-- | Type of buffer (e.g. uniform, storage)
+data BufferType = Uniform | Storage
+
 -- | TODO: Drop dependency on Vulkan and make DescriptorType a data type renderer agnostic
-createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (Alias MappedBuffer)
+createMappedBuffer :: Word -> BufferType -> Renderer (Alias MappedBuffer)
 writeMappedBuffer :: ∀ α. Block α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
 
 

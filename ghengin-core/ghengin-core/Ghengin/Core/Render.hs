@@ -28,9 +28,10 @@ import qualified Data.Linear.Alias as Alias
 
 -- I don't know where exactly to put this, so put it here for now
 getDescriptorResource :: ResourceMap ⊸ Int -> Renderer (DescriptorResource, ResourceMap)
-getDescriptorResource resourcemap i = enterD "getUniformBuffer" $
+getDescriptorResource resourcemap i = enterD "getDescriptorResource" $
   IM.lookupM i resourcemap >>= \case
     (Just x, rmap1) -> pure (x, rmap1)
     (Nothing, rmap1) -> Linear.do
       Alias.forget rmap1
-      error $ "Expecting a uniform descriptor resource at binding " <> show i <> " but found nothing!"
+      error $ "Expecting a descriptor resource at binding " <> show i <> " but found nothing!"
+

@@ -36,6 +36,8 @@ import Ghengin.Core.Renderer.DescriptorSet
 import Ghengin.Core.Log
 import Ghengin.Core.Type.Utils (Some(..))
 
+import qualified Data.IntMap.Strict as IM
+
 import qualified Data.Linear.Alias as Alias
 
 {-
@@ -128,14 +130,14 @@ createMesh :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex
             -- ^ Vertices
            -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMesh (RenderProperty pr rps) props0 vs = createMesh rps props0 vs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMesh (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders uq) props0 (SV.fromList -> vs) = enterD "createMesh" Linear.do
+createMesh (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 (SV.fromList -> vs) = enterD "createMesh" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vs
 
-  (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes dpool0 props0
+  (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes bmap dpool0 props0
 
   pure ( mkMesh (SimpleMesh vertexBuffer (dset0, rmap0) uniq) props1
-       , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders uq
+       , RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool1) shaders uq
        )
 
 -- | Like 'createMesh', but create the mesh using a vertex buffer created from
@@ -149,23 +151,23 @@ createMeshWithIxs :: HasCallStack => (CompatibleMesh props π, CompatibleVertex 
                   -- ^ Indices
                   -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMeshWithIxs (RenderProperty pr rps) props0 vs ixs = createMeshWithIxs rps props0 vs ixs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, dpool0) shaders uq) props0 (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "createMeshWithIxs" Linear.do
+createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "createMeshWithIxs" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vertices
   indexBuffer  <- createIndex32Buffer ixs
 
-  (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes dpool0 props0
+  (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes bmap dpool0 props0
 
   pure ( mkMesh (IndexedMesh vertexBuffer indexBuffer (dset0, rmap0) uniq) props1
-       , RenderPipeline gpip rpass (rdset, rres, dpool1) shaders uq
+       , RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool1) shaders uq
        )
 
 mkMesh :: ∀ t b. Mesh t '[] ⊸ PropertyBindings b ⊸ Mesh t b
 mkMesh x GHNil = x
 mkMesh x (p :## pl) = MeshProperty p (mkMesh x pl)
 
-allocateDescriptorsForMeshes :: Alias DescriptorPool ⊸ PropertyBindings props ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool, PropertyBindings props)
-allocateDescriptorsForMeshes dpool0 props0 = Linear.do
+allocateDescriptorsForMeshes :: DescriptorSetMap -> Alias DescriptorPool ⊸ PropertyBindings props ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool, PropertyBindings props)
+allocateDescriptorsForMeshes bmap dpool0 props0 = Linear.do
   -- Mostly just the same as in 'material' in Ghengin.Core.Material
 
   logT "Allocating descriptor set"
@@ -175,7 +177,7 @@ allocateDescriptorsForMeshes dpool0 props0 = Linear.do
 
   logT "Allocating resource map"
   -- Make the resource map for this material
-  (resources0, props1) <- makeResources props0
+  (resources0, props1) <- makeResources (fromMaybe (error "DescriptorSetMap doesn't contain mesh descriptors.") (IM.lookup 2 bmap)) props0
 
   logT "Updating descriptor with resources"
   -- Create the descriptor set with the written descriptors based on the created resource map

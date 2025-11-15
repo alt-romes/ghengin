@@ -84,7 +84,7 @@ library
     build-depends:    base,
                       linear-base >= 0.4,
                       vulkan,
-                      reference-counting >= 0.2,
+                      reference-counting,
                       containers,
                       vector,
                       constraints,

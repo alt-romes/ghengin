@@ -26,6 +26,6 @@ data DeviceLocalBuffer where
 
 -------- Mapped Buffer -----------------
 
--- | A mapped (uniform) buffer. See Note [Mapped vs Device-local Buffers]
+-- | A mapped (e.g. uniform) buffer. See Note [Mapped vs Device-local Buffers]
 data MappedBuffer
 

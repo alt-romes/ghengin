@@ -172,7 +172,7 @@ type family DSetBinding (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: 
 type family DSetBinding' (set :: Nat) (binding :: Nat) (info :: PipelineInfo) :: Type where
   DSetBinding' set binding info =
     FromMaybe (DSetBinding set binding info)
-              (TypeError (Text "Uniform [Descriptor Set #" :<>: ShowType set :<>: Text ", Binding #" :<>: ShowType binding :<>: Text "] not found in " :<>: ShowType info))
+              (TypeError (Text "Descriptor [Descriptor Set #" :<>: ShowType set :<>: Text ", Binding #" :<>: ShowType binding :<>: Text "] not found in " :<>: ShowType info))
 
 type family FindDSetInput (set :: Nat) (binding :: Nat) (inputs :: [TLInterfaceVariable]) :: Maybe Type where
   FindDSetInput set binding '[] = 'Nothing
