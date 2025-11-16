@@ -92,46 +92,47 @@ destroyDeviceLocalBuffer (DeviceLocalBuffer b dm) = enterD "destroyDeviceLocalBu
 
 -------- Mapped Buffer -----------------
 
--- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
+-- | A mapped buffer with size equal to the sizeOf of the Storable @a@
 --
--- This buffer has USAGE_UNIFORM_BUFFER_BIT and MEMORY_PROPRTY_HOST_VISIBLE and
+-- This buffer has e.g. USAGE_UNIFORM_BUFFER_BIT and MEMORY_PROPRTY_HOST_VISIBLE and
 -- MEMORY_PROPERTY_HOST_COHERENT_BIT -- we allocate device-local and host-local
 -- memory and writing to the mapped buffer entails writing to the host memory
 -- which is mapped to device memory and hence synchronized automatically
 --
 -- This is unlike DeviceLocalBuffers, which are allocated on the device and
 -- require a staging buffer and a copy command to be written
-data MappedBuffer = UniformBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
+data MappedBuffer = MappedBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
                                   , devMem  :: {-# UNPACK #-} !Vk.DeviceMemory
                                   , hostMem :: {-# UNPACK #-} !(Ptr ())
                                     -- ^ When `DeviceMemory` is mapped, we get a `hostMem` pointer to it.
                                   , bufSize :: {-# UNPACK #-} !(Ur Word)
                                   }
 
+data BufferType = Uniform | Storage
+  deriving Show
+
 -- | Create a uniform buffer with a given size, but don't copy memory to it
 -- yet. See 'writeUniformBuffer' for that.
-createMappedBuffer :: Word -> Vk.DescriptorType -> Renderer (Alias MappedBuffer)
+createMappedBuffer :: Word -> BufferType -> Renderer (Alias MappedBuffer)
 createMappedBuffer size descriptorType = enterD "createMappedBuffer" Linear.do
+  let bsize = fromIntegral size
 
-  case descriptorType of
-    Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER -> Linear.do
+  (buf, devMem0) <- createBuffer bsize (bufferUsageBit descriptorType) (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
 
-      let bsize = fromIntegral size
+  (devMem1, data') <- mapMemory devMem0 0 bsize zero
+  data' <- unsafeUse data' $ \d -> logT $ "Created " <> toLogStr (show descriptorType) <> " mapped region: " <> toLogStr (show d)
 
-      (buf, devMem0) <- createBuffer bsize Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
+  Alias.newAlias destroyMappedBuffer (MappedBuffer buf devMem1 (Unsafe.toLinear castPtr data') (Ur size))
 
-      (devMem1, data') <- mapMemory devMem0 0 bsize zero
-      data' <- unsafeUse data' $ \d -> logT $ "Created mapped region: " <> toLogStr (show d)
-
-      Alias.newAlias destroyMappedBuffer (UniformBuffer buf devMem1 (Unsafe.toLinear castPtr data') (Ur size))
-
-    t -> error $ "Unexpected/unsupported storage class for descriptor: " <> show t
+  where
+    bufferUsageBit Uniform = Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT
+    bufferUsageBit Storage = Vk.BUFFER_USAGE_STORAGE_BUFFER_BIT
 
 -- | Note how the storable must be the same as the storable of the uniform
 -- buffer so that the sizes match
 writeMappedBuffer :: ∀ α. Block α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
 writeMappedBuffer refcbuf x = enterD "writeMappedBuffer" Linear.do
-  (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(UniformBuffer _ _ ptr (Ur s)) -> Linear.do
+  (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(MappedBuffer _ _ ptr (Ur s)) -> Linear.do
     logT $ fromString $
       "Ptr: " ++ show ptr ++
       "; size:" ++ show (sizeOf140 (Proxy @α)) ++
@@ -224,7 +225,7 @@ withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
 
 
 destroyMappedBuffer :: MappedBuffer ⊸ Renderer ()
-destroyMappedBuffer (UniformBuffer b dm hostMemory (Ur _size)) = enterD "destroyMappedBuffer" $ Linear.do
+destroyMappedBuffer (MappedBuffer b dm hostMemory (Ur _size)) = enterD "destroyMappedBuffer" $ Linear.do
   dm' <- unmapMemory dm hostMemory -- unnecessary, freeMemory also unmaps it IUC
   freeMemory dm'
   destroyBuffer b

@@ -180,7 +180,7 @@ library backend-independent-bits
                       -- TODO: NOT DEPEND ON VULKAN IN CORE INDEP
                       vulkan,
                       linear-base,
-                      reference-counting,
+                      reference-counting >= 0.2.0.0,
 
                       template-haskell,
                       containers,
@@ -237,7 +237,7 @@ library vulkan
                       vulkan,
                       GLFW-b,
                       linear-base,
-                      reference-counting,
+                      reference-counting >= 0.2.0.0,
                       -- ghengin-core MISTAKE!(#23322, could we depend on ghengin-core for non-indefinite modules only?)
                       ghengin-core:backend-independent-bits,
                       gl-block,

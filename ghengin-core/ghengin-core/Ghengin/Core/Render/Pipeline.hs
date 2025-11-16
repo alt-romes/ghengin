@@ -40,6 +40,8 @@ import qualified FIR.Pipeline
 
 import qualified Data.Linear.Alias as Alias
 
+import qualified Data.IntMap.Strict as IM
+
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Shader.Pipeline ( ShaderPipeline )
 import Data.Unique
@@ -58,7 +60,7 @@ data RenderPipeline info tys where
 
   RenderPipeline :: RendererPipeline Graphics -- ^ The graphics pipeline underlying this render pipeline. Can a graphics pipeline be shared amongst Render Pipelines such that this field needs to be ref counted?
                  ⊸  Alias RenderPass -- ^ A reference counted reference to a render pass, since we might share render passes amongst pipelines
-                 ⊸  (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool) -- A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
+                 ⊸  (Alias DescriptorSet, Alias ResourceMap, Ur DescriptorSetMap, Alias DescriptorPool) -- A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
                  ⊸  ShaderPipeline info
                  -> Unique
                  -> RenderPipeline info '[] 
@@ -77,9 +79,9 @@ data SomePipeline = ∀ α β. SomePipeline (RenderPipeline α β)
 -- Shader pipeline and buffers are only be created once and reused across
 -- render packets that use the same one (Note that render packets store
 -- references to these things).
--- TODO: Currently we assume all our descriptor sets are Uniform buffers and
--- our buffers too but eventually Uniform will be just a constructor of a more
--- general Buffer and we should select the correct type of buffer individually.
+-- TODO: Currently we assume all our descriptor sets are Uniform or Storage buffers
+-- and our buffers too but eventually Uniform & Storage will be just a constructor of
+-- a more general Buffer and we should select the correct type of buffer individually.
 makeRenderPipeline :: forall τ info tops descs strides
                     . ( PipelineConstraints info tops descs strides
                       , CompatiblePipeline τ info
@@ -105,7 +107,7 @@ makeRenderPipelineWith gps renderPass shaderPipeline props0 = Linear.do
   -- Create the descriptor sets and graphics pipeline based on the shader
   -- pipeline
   --
-  -- (1) Create the uniform buffers and the mapped memory
+  -- (1) Create the uniform/storage buffers and the mapped memory
   -- (2) Create the descriptor sets from the descriptor set layout
   -- (3) Update the descriptor sets with the buffers information
   --
@@ -122,8 +124,10 @@ makeRenderPipelineWith gps renderPass shaderPipeline props0 = Linear.do
   -- properties.
   -- Each Material and Mesh then allocates additional descriptor sets from this pool on creation.
 
+  (Ur descSetMap) <- pure $ createDescriptorSetBindingsMap shaderPipeline
+
   logT "Creating descriptor pool"
-  dpool0 <- createDescriptorPool shaderPipeline
+  dpool0 <- createDescriptorPool descSetMap
 
   -- Allocate descriptor set #0 to be used by this render pipeline's
   -- render properties
@@ -135,7 +139,7 @@ makeRenderPipelineWith gps renderPass shaderPipeline props0 = Linear.do
 
   -- Make the resource map for this render pipeline using the dummyRP
   logT "Making resources"
-  (resources0, props1) <- makeResources props0
+  (resources0, props1) <- makeResources ((fromMaybe (error "DescriptorSetMap doesn't contain shader pipeline descriptors.") (IM.lookup 0 descSetMap))) props0
 
   -- Bind resources to descriptor set
   logT "Updating descriptor set"
@@ -161,7 +165,7 @@ makeRenderPipelineWith gps renderPass shaderPipeline props0 = Linear.do
   -- Make the unique identifier for this pipeline reference
   Ur uniq <- liftSystemIOU newUnique
 
-  pure $ mkRP (RenderPipeline pipeline renderPass (dset2, resources2, dpool5) shaderPipeline uniq) props1
+  pure $ mkRP (RenderPipeline pipeline renderPass (dset2, resources2, (Ur descSetMap), dpool5) shaderPipeline uniq) props1
     where
       mkRP :: ∀ info (b :: [Type]). RenderPipeline info '[] ⊸ PropertyBindings b ⊸ RenderPipeline info b
       mkRP x GHNil = x
@@ -182,9 +186,9 @@ instance HasProperties (RenderPipeline π) where
 
   descriptors :: RenderPipeline π α ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, RenderPipeline π α)
   descriptors = \case
-    RenderPipeline gpip rpass (dset0, rmap0, dpool) spip uq -> Linear.do
+    RenderPipeline gpip rpass (dset0, rmap0, dmap, dpool) spip uq -> Linear.do
       ((dset1, rmap1), (dset2, rmap2)) <- Alias.share (dset0, rmap0)
-      pure (dset1, rmap1, RenderPipeline gpip rpass (dset2, rmap2, dpool) spip uq)
+      pure (dset1, rmap1, RenderPipeline gpip rpass (dset2, rmap2, dmap, dpool) spip uq)
     RenderProperty p xs -> Linear.do
       (dset, rmap, mat') <- descriptors xs
       pure (dset, rmap, RenderProperty p mat')
@@ -197,7 +201,7 @@ destroyRenderPipeline :: RenderPipeline α τ ⊸ Renderer ()
 destroyRenderPipeline (RenderProperty b rp) = enterD "Destroying render pipeline" Linear.do
   Alias.forget b
   destroyRenderPipeline rp
-destroyRenderPipeline (RenderPipeline gp rp (a,b,c) _ _) = enterD "Destroying render pipeline" Linear.do
+destroyRenderPipeline (RenderPipeline gp rp (a,b,(Ur _),c) _ _) = enterD "Destroying render pipeline" Linear.do
   Alias.forget a >> Alias.forget b >> Alias.forget c
   Alias.forget rp
   destroyPipeline gp
