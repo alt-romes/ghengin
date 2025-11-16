@@ -1,8 +1,8 @@
 { pkgs ?
   import <nixpkgs> {
-    overlays = [
-      (import ./nix/vulkan-validation-layers-overlay.nix)
-    ];
+    # overlays = [
+    #   (import ./nix/vulkan-validation-layers-overlay.nix)
+    # ];
     }}:
 with pkgs;
 mkShell ({
