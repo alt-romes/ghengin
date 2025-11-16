@@ -17,7 +17,7 @@ which in turn are made up of multiple things, as represented in the following pi
 │Mesh││Material                 ││Pipeline            │          
 └┬───┘└┬────────────────────────┘└┬───────────────────┘          
 ┌▽─────▽──────────────────────────▽┐                             
-│Planet (RenderPacket)             │                             
+│Planet                            │                             
 └──────────────────────────────────┘                             
 
 The function `newPlanet` handles the creation of planet render packets...
@@ -51,28 +51,12 @@ import qualified FIR
 import qualified Math.Linear as FIR
 import qualified Prelude
 
+-- planets!
 import Shaders -- planet shaders
 import Planet
 
-newtype ProjectionM = ProjectionM Transform
-  deriving Storable -- use GlBlock instead...
-  deriving FIR.Syntactic via (StructMat4 "m")
-
-newtype ViewM       = ViewM Transform
-  deriving Storable
-  deriving FIR.Syntactic via (StructMat4 "m")
-
-newtype CameraPos   = CameraPos Vec3
-  deriving Storable
-  deriving FIR.Syntactic via (StructVec3 "v")
-
-type CameraProperties = [ProjectionM, ViewM, CameraPos]
-
 pattern MAX_FRAME_TIME :: Float
 pattern MAX_FRAME_TIME = 0.5
-
--- We should use Alexander's gl-block library instead of Storable, and
--- Geomancy.Transform.Tree for the node tree...
 
 makeMainPipeline :: Renderer (RenderPipeline _ CameraProperties)
 makeMainPipeline = Linear.do
@@ -115,8 +99,8 @@ main = do
  currTime <- getCurrentTime
  withLinearIO $
   runCore (1280, 720) Linear.do
-    sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
-    tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
+    -- sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
+    -- tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
 
     pipeline            <- (makeMainPipeline ↑)
     ((p1mesh, pipeline), Ur minmax) <- newPlanetMesh pipeline defaultPlanetSettings

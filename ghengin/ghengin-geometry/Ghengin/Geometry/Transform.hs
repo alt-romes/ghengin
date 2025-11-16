@@ -13,7 +13,7 @@ import Geomancy.Transform
 -- Use with functions re-exported from Geomancy.Transform
 --
 -- Recall, from Geomancy's documentation:
---   CPU-side matrices compose in MVP order, optimized for mconcat (local1 : local2 : ... : root) operation.
+--   CPU-side matrices compose in MVP order
 --   GPU-side, in GLSL, it is PVM * v.
 transform :: Transform -> [Vertex '[Vec3]] -> [Vertex '[Vec3]]
 transform tr vs = [ Sin (v `apply` tr) | Sin v <- vs ]

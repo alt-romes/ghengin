@@ -26,8 +26,8 @@ import qualified Math.Linear as FIR
 -- The two type arguments are the field names for the view and projection
 -- matrix in the shader, for instance @"view_matrix"@ and @"proj_matrix"@.
 data Camera (view_field :: Symbol) (proj_field :: Symbol)
-  = Camera { view :: Mat4
-           , proj :: Mat4
+  = Camera { view :: !Mat4
+           , proj :: !Mat4
            }
            deriving Generic
            deriving anyclass Block

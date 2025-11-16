@@ -8,7 +8,7 @@ cabal-version:      3.4
 --------------------------------------------------------------------------------
 
 name:               ghengin-games
-tested-with:        GHC ==9.10.1
+tested-with:        GHC ==9.12.1
 version:            0.1.0.0
 license:            BSD-3-Clause
 license-file:       ../LICENSE
@@ -131,18 +131,22 @@ common common-flags
                            , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
                            )
 
+--------------------------------------------------------------------------------
+-- Cooler examples
+--------------------------------------------------------------------------------
+
+-- Sebastian Lague's Procedural Planets
+executable planets-core
+    import:         common-flags
+    main-is:        Main.hs
+    other-modules:  Camera, Planet, Shaders
+    hs-source-dirs: planets-core
+
 -- library
 --   import: common-flags
 --   exposed-modules: Common, Common.Shader
 --   hs-source-dirs: common
 
--- executable planets-core
---     import:        common-flags
---     main-is:       Main.hs
---     other-modules: Camera, Planet, Shaders
---     build-depends: ghengin-games
---     hs-source-dirs:   planets-core
--- 
 -- executable fir-juliaset
 --     import:        common-flags
 --     main-is:       Main.hs
@@ -170,13 +174,6 @@ common common-flags
 --     other-modules: Shaders
 --     build-depends: ghengin-games
 --     hs-source-dirs: ocean-waves/
--- 
--- executable cube
---     import:        common-flags
---     main-is:       Main.hs
---     other-modules: Shaders
---     build-depends: ghengin-games
---     hs-source-dirs: cube/
 
 --------------------------------------------------------------------------------
 -- Some demos in increasing level of complexity
@@ -222,6 +219,7 @@ executable function-drawing
 
 --------------------------------------------------------------------------------
 -- Experiments
+--------------------------------------------------------------------------------
 
 -- This example is pretty hacked through.
 executable function-plotting

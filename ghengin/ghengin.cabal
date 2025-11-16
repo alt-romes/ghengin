@@ -100,7 +100,7 @@ common common-flags
 library camera
     import:           common-flags
     visibility: public
-    exposed-modules:  Ghengin.Camera
+    exposed-modules:  Ghengin.Camera, Ghengin.Camera.Shader.Lighting
     build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core:backend-independent-bits, linear-base, linear-utils, geomancy >= 0.3
     hs-source-dirs:   ghengin-camera
     default-language: GHC2021
@@ -115,32 +115,16 @@ library geometry
     default-language: GHC2021
 
 --------------------------------------------------------------------------------
--- Testsuites and old examples
+-- Testsuite
 --------------------------------------------------------------------------------
 
 test-suite ghengin-test
-    -- Import common warning flags.
     import:           common-flags
-
-    -- Base language which the package is written in.
     default-language: GHC2021
-
-    -- Modules included in this executable, other than Main.
-    -- other-modules:    Main.Apecs
-
-    -- LANGUAGE extensions used by modules in this package.
     default-extensions: UnicodeSyntax
-
-    -- The interface type and version of the test suite.
     type:             exitcode-stdio-1.0
-
-    -- Directories containing source files.
     hs-source-dirs:   test
-
-    -- The entrypoint to the test suite.
     main-is:          Main.hs
-
-    -- Test dependencies.
     build-depends:
         base >=4.17.0.0,
         ghengin

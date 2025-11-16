@@ -19,19 +19,14 @@ import Ghengin.Shader.Lighting
 import Ghengin.Shader.Utils
 
 import Ghengin (Mat4, Vec3)
-import Ghengin.Utils (GStorable)
 
 data CameraProperty = CameraProperty !Mat4 !Mat4 !Vec3
   deriving (Generic)
 
-instance Syntactic CameraProperty where
-  type Internal CameraProperty = Val ( Struct '[ "view" ':-> M 4 4 Float
-                                               , "proj" ':-> M 4 4 Float
-                                               , "camera_pos" ':-> V 3 Float ] )
-  toAST = undefined
-  fromAST = undefined
-
-instance GStorable CameraProperty
+instance ShaderData CameraProperty where
+  type FirType CameraProperty = Val ( Struct '[ "view" ':-> M 4 4 Float
+                                              , "proj" ':-> M 4 4 Float
+                                              , "camera_pos" ':-> V 3 Float ] )
 
 -- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
 -- Descriptor Set #1 for things bound once per material

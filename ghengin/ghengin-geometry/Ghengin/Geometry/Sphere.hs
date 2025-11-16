@@ -80,15 +80,11 @@ newSphereMesh pi res color =
   let UnitSphere vs is = newUnitSphere res color
    in createMeshWithIxs pi GHNil vs is
 
--- TODO: These were inlined from Core.Mesh. Make them a better home and remove occurrences there.
-
 -- | Calculate smooth normals of vertices given vertex positions and the
 -- indices that describe the faces The returned list has a normal for each
 -- position in the input positions, in the same order
 --
 -- TODO: Take into consideration the angles or provide alternative that does
---
--- MOVE TO GHENGIN Component/Mesh or something. For now, inlined in Component.Mesh.Sphere.
 calculateSmoothNormals :: [Int] -> [Vec3] -> [Vec3]
 calculateSmoothNormals ixs pos =
 

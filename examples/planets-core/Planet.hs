@@ -50,8 +50,6 @@ data PlanetSettings = PlanetSettings { resolution :: !Int
 
 data DisplayFace = All | FaceUp | FaceRight deriving Show
 
-
-
 data MinMax = MinMax !Float !Float
   deriving (P.Eq, Generic, SOP.Generic, Show, GStorable)
   deriving FIR.Syntactic via (FromGenericProduct MinMax ["min", "max"])
