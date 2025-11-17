@@ -49,7 +49,7 @@ import qualified Data.Monoid.Linear as LMon
 import qualified FIR
 import qualified Math.Linear as FIR
 import qualified Prelude
-import Data.Linear.Alias as Alias
+import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Camera
 
@@ -103,8 +103,9 @@ main = do
     -- tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
-    pipeline <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
-    (p1mesh, pipeline)  <- newPlanetMesh pipeline defaultPlanetSettings
+    pipeline <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
+    -- (p1mesh, pipeline) <- newPlanetMesh pipeline defaultPlanetSettings
+    (p1mesh, pipeline) <- newPlanetMesh pipeline defaultPlanetSettings
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     -- (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
@@ -112,7 +113,7 @@ main = do
     (rq, Ur mkey)       <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)     <- pure (insertMesh mkey p1mesh rq)
 
-    rq <- gameLoop currTime rq
+    rq <- gameLoop currTime rp2 rq
 
     (freeRenderQueue rq ↑)
     -- This is all done in the freeRenderQueue!
@@ -123,3 +124,5 @@ main = do
 
     return (Ur ())
 
+camera :: Camera "view_matrix" "proj_matrix"
+camera = cameraLookAt (vec3 0 0 2) (vec3 0 0 0) (1280, 720)

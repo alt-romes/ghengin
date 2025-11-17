@@ -20,9 +20,11 @@ type VertexDefs
   = '[ "out_position"  ':-> Output '[ Location 0 ] (V 4 Float)
      , "out_normal"    ':-> Output '[ Location 1 ] (V 4 Float)
 
-     , "proj_matrix"   ':-> Uniform '[ DescriptorSet 0, Binding 0 ] (Struct '[ "m" ':-> M 4 4 Float ])
-     , "view_matrix"   ':-> Uniform '[ DescriptorSet 0, Binding 1 ] (Struct '[ "m" ':-> M 4 4 Float ])
 
+     , "camera"       ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
+                            (Struct [ "view_matrix" ':-> M 4 4 Float
+                                    , "proj_matrix" ':-> M 4 4 Float
+                                    ])
      , "in_position"   ':-> Input '[ Location 0 ] (V 3 Float)
      , "in_normal"     ':-> Input '[ Location 1 ] (V 3 Float)
      , "in_color"      ':-> Input '[ Location 2 ] (V 3 Float)
@@ -101,16 +103,15 @@ shaders
 
 ----- Utils --------------------------------------------------------------------
 
-applyMVP :: ∀ π. ( CanGet "proj_matrix" π
-                 , CanGet "view_matrix"  π
+applyMVP :: ∀ π. ( CanGet "camera" π
                  , _ -- extra constraints
                  )
               => (Code (V 4 Float)) -> Program π π (Code (V 4 Float))
 applyMVP vec = do
 
   -- modelM <- use @(Name "push" :.: Name "model"  :: Optic '[] π (M 4 4 Float))
-  projM <- use @(Name "proj_matrix" :.: Name "m"  :: Optic '[] π (M 4 4 Float))
-  viewM <- use @(Name "view_matrix" :.: Name "m"  :: Optic '[] π (M 4 4 Float))
+  projM <- use @(Name "camera" :.: Name "proj_matrix"  :: Optic '[] π (M 4 4 Float))
+  viewM <- use @(Name "camera" :.: Name "view_matrix"  :: Optic '[] π (M 4 4 Float))
 
   pure $ (projM !*! viewM) !*^ vec
 

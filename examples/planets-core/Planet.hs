@@ -22,15 +22,11 @@ import qualified Data.List.NonEmpty as NE
 
 import Ghengin.Core
 import Ghengin.Core.Mesh
-import Ghengin.Core.Shader () -- instance Syntactic Float
 import Geomancy.Vec3
 
 import Ghengin.Geometry.Sphere
 
 import qualified FIR
-import FIR.Generics (FromGenericProduct(..))
-import qualified Math.Linear as FIR
-import qualified Generics.SOP as SOP
 
 import Ghengin.Core.Shader.Data
 
@@ -138,7 +134,7 @@ evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p =
 
 defaultPlanetSettings :: PlanetSettings
 defaultPlanetSettings
-  = PlanetSettings 5 1 (vec3 1 0 0) False
+  = PlanetSettings 50 1 (vec3 1 0 0) False
                    [ NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
                    , NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
                    ]
