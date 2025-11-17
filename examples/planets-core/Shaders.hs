@@ -8,6 +8,8 @@ import Geomancy.Mat4
 import FIR hiding ((:>->), ShaderPipeline) -- TODO: Give different names
 import Math.Linear
 
+import Ghengin.Camera.Shader.Lighting
+
 -- Descriptor Set #0 for things bound once per pipeline (global pipeline data)
 -- Descriptor Set #1 for things bound once per material
 -- Descriptor Set #2 for things bound once per object
@@ -18,8 +20,8 @@ type VertexDefs
   = '[ "out_position"  ':-> Output '[ Location 0 ] (V 4 Float)
      , "out_normal"    ':-> Output '[ Location 1 ] (V 4 Float)
 
-     , "proj"         ':-> Uniform '[ DescriptorSet 0, Binding 0 ] (Struct '[ "m" ':-> M 4 4 Float ])
-     , "view"         ':-> Uniform '[ DescriptorSet 0, Binding 1 ] (Struct '[ "m" ':-> M 4 4 Float ])
+     , "proj_matrix"   ':-> Uniform '[ DescriptorSet 0, Binding 0 ] (Struct '[ "m" ':-> M 4 4 Float ])
+     , "view_matrix"   ':-> Uniform '[ DescriptorSet 0, Binding 1 ] (Struct '[ "m" ':-> M 4 4 Float ])
 
      , "in_position"   ':-> Input '[ Location 0 ] (V 3 Float)
      , "in_normal"     ':-> Input '[ Location 1 ] (V 3 Float)
@@ -53,12 +55,12 @@ type FragmentDefs
   =  '[ "in_position" ':-> Input '[ Location 0 ] (V 4 Float)
       , "in_normal"   ':-> Input '[ Location 1 ] (V 4 Float)
 
-      , "camera_pos" ':-> Uniform '[ DescriptorSet 0, Binding 2 ] (Struct '[ "v" ':-> V 3 Float ]) -- try changing to CameraPos, maybe Canonicalization will catch it.
+      -- , "camera_pos" ':-> Uniform '[ DescriptorSet 0, Binding 2 ] (Struct '[ "v" ':-> V 3 Float ])
 
-      , "minmax"      ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
-                                    ( Struct '[ "min" ':-> Float
-                                              , "max" ':-> Float ] ) -- Careful with alignment...
-      , "gradient"    ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
+      -- , "minmax"      ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
+      --                               ( Struct '[ "min" ':-> Float
+      --                                         , "max" ':-> Float ] ) -- Careful with alignment...
+      -- , "gradient"    ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
 
       ]
 
@@ -69,16 +71,18 @@ fragment = shader do
     ~(Vec4 px py pz _)  <- get @"in_position"
 
     -- Color
-    min' <- use @(Name "minmax" :.: Name "min")
-    max' <- use @(Name "minmax" :.: Name "max")
+    -- min' <- use @(Name "minmax" :.: Name "min")
+    -- max' <- use @(Name "minmax" :.: Name "max")
+    --
+    -- let col_frac   = invLerp (norm (Vec3 px py pz)) min' max'
+    --
+    -- ~(Vec4 cx' cy' cz' _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
+    --
+    -- ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 cx' cy' cz'
+    --
+    -- put @"out_colour" (Vec4 colx coly colz 1)
 
-    let col_frac   = invLerp (norm (Vec3 px py pz)) min' max'
-
-    ~(Vec4 cx' cy' cz' _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
-
-    ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 cx' cy' cz'
-
-    put @"out_colour" (Vec4 colx coly colz 1)
+    put @"out_colour" (Vec4 px py pz 1)
 
 --- Pipeline ----
 
@@ -97,16 +101,16 @@ shaders
 
 ----- Utils --------------------------------------------------------------------
 
-applyMVP :: ∀ π. ( CanGet "proj" π
-                 , CanGet "view"  π
+applyMVP :: ∀ π. ( CanGet "proj_matrix" π
+                 , CanGet "view_matrix"  π
                  , _ -- extra constraints
                  )
               => (Code (V 4 Float)) -> Program π π (Code (V 4 Float))
 applyMVP vec = do
 
   -- modelM <- use @(Name "push" :.: Name "model"  :: Optic '[] π (M 4 4 Float))
-  projM <- use @(Name "proj" :.: Name "m"  :: Optic '[] π (M 4 4 Float))
-  viewM <- use @(Name "view" :.: Name "m"  :: Optic '[] π (M 4 4 Float))
+  projM <- use @(Name "proj_matrix" :.: Name "m"  :: Optic '[] π (M 4 4 Float))
+  viewM <- use @(Name "view_matrix" :.: Name "m"  :: Optic '[] π (M 4 4 Float))
 
   pure $ (projM !*! viewM) !*^ vec
 

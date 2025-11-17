@@ -36,10 +36,18 @@ data Camera (view_field :: Symbol) (proj_field :: Symbol)
 --
 -- +X right, +Y down, +Z forward
 defaultCamera :: Camera view_field proj_field
-defaultCamera = Camera
-  { view = unTransform $ lookAtRH (vec3 0 0 0) (vec3 0 0 1) (vec3 0 (-1) 0)
-  , proj = unTransform $ reverseDepthRH 45 0.1 640 480
-  }
+defaultCamera = 
+  let
+    up = vec3 0 (-1) 0
+    forward = vec3 0 0 1
+    eye = vec3 0 0 0
+  in
+    Camera
+    { view = unTransform $ lookAtRH eye forward up 
+    -- pi / 2 = 90 degrees
+    -- pi / 4 = 45 degrees
+    , proj = unTransform $ reverseDepthRH (pi / 2) 0.1 640 480
+    }
 
 --------------------------------------------------------------------------------
 

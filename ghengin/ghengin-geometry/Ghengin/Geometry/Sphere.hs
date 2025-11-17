@@ -66,7 +66,7 @@ newUnitSphere res color =
       l  = length v1 -- all faces share same length
       is = i1 <> map (+l) i2 <> map (+l*2) i3 <> map (+l*3) i4 <> map (+l*4) i5 <> map (+l*5) i6
       ps = v1 <> v2 <> v3 <> v4 <> v5 <> v6
-      ns = calculateSmoothNormals is ps
+      ns = calculateSmoothNormals (map fromIntegral is) ps
       cls = maybe (map ((^/2) . (+ vec3 1 1 1)) ns) (\x -> map (const x) ns) color
    in
       UnitSphere (zipWith3 (\a b c -> a :& b :&: c) ps ns cls) (map fromIntegral is)
@@ -85,7 +85,7 @@ newSphereMesh pi res color =
 -- position in the input positions, in the same order
 --
 -- TODO: Take into consideration the angles or provide alternative that does
-calculateSmoothNormals :: [Int] -> [Vec3] -> [Vec3]
+calculateSmoothNormals :: [Int32] -> [Vec3] -> [Vec3]
 calculateSmoothNormals ixs pos =
 
   let fns = calculateFlatNormals ixs pos
@@ -96,14 +96,14 @@ calculateSmoothNormals ixs pos =
 
 -- | Calculate normals of vertices given vertex positions and the indices that describe the faces
 -- The returned list has a normal for each position in the input positions, in the same order
-calculateFlatNormals :: [Int] -> [Vec3] -> [Vec3]
+calculateFlatNormals :: [Int32] -> [Vec3] -> [Vec3]
 calculateFlatNormals ixs (SV.fromList -> pos) =
 
   let m = foldl' (\acc [a,b,c] ->
             let vab = (pos SV.! b) - (pos SV.! a)
                 vbc = (pos SV.! c) - (pos SV.! b)
                 n = normalize $ cross vbc vab -- vbc X vab gives the normal facing up for clockwise faces
-             in IM.insertWith const a n $ IM.insertWith const b n $ IM.insertWith const c n acc) mempty (chunksOf 3 ixs)
+             in IM.insertWith const a n $ IM.insertWith const b n $ IM.insertWith const c n acc) mempty (chunksOf 3 (map fromIntegral {- kind of dangerous? -} ixs))
 
    in map snd $ sort (IM.toList m)
 

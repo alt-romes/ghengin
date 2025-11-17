@@ -14,10 +14,11 @@ import Math.Linear
 blinnPhong :: ∀ π
             . ( V 4 Float ~ Has "in_position" π
               , V 4 Float ~ Has "in_normal" π
+              , V 3 Float ~ Has "camera_pos" π
 
               , CanGet "in_position" π
               , CanGet "in_normal" π
-              , CanGet "ubo" π
+              , CanGet "camera_pos" π
 
               , _ -- extra constraints (wildcard at the end)
               )
@@ -26,7 +27,7 @@ blinnPhong specularity col = do
 
     ~(Vec4 px py pz _) <- get @"in_position" @(V 4 Float) @π
     ~(Vec4 nx ny nz _) <- get @"in_normal"   @(V 4 Float) @π
-    ~(Vec3 cx cy cz)   <- use @(Name "ubo" :.: Name "camera_pos")
+    ~(Vec3 cx cy cz)   <- get @"camera_pos"  @(V 3 Float) @π
 
     let
 

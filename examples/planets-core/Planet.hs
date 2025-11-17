@@ -1,3 +1,5 @@
+{-# LANGUAGE PartialTypeSignatures #-}
+{-# LANGUAGE DataKinds #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -23,17 +25,14 @@ import Ghengin.Core.Mesh
 import Ghengin.Core.Shader () -- instance Syntactic Float
 import Geomancy.Vec3
 
-import Game.Geometry.Sphere
-import Foreign.Storable.Generic
+import Ghengin.Geometry.Sphere
 
 import qualified FIR
 import FIR.Generics (FromGenericProduct(..))
 import qualified Math.Linear as FIR
 import qualified Generics.SOP as SOP
 
--- ROMES:TODO: We don't want Syntactic. We want our own family that
--- canonicalizes types to their GPU representation, just so that the Compatible
--- matching works.
+import Ghengin.Core.Shader.Data
 
 --------------------------------------------------------------------------------
 -- * Planet
@@ -44,47 +43,39 @@ data PlanetSettings = PlanetSettings { resolution :: !Int
                                      , color      :: !Vec3
                                      , useFirstLayerAsMask :: !Bool
                                      , noiseSettings :: !(NE.NonEmpty NoiseSettings)
-                                     , displayFace   :: !DisplayFace
                                      -- , gradient :: ImGradient
                                      }
 
-data DisplayFace = All | FaceUp | FaceRight deriving Show
-
 data MinMax = MinMax !Float !Float
-  deriving (P.Eq, Generic, SOP.Generic, Show, GStorable)
-  deriving FIR.Syntactic via (FromGenericProduct MinMax ["min", "max"])
+  deriving (P.Eq, Show, Generic)
+  deriving Block
 
-newPlanetMesh :: CompatibleVertex '[Vec3, Vec3, Vec3] π
+instance ShaderData MinMax where
+  type FirType MinMax = FIR.Struct '["min" 'FIR.:-> Float, "max" 'FIR.:-> Float]
+
+newPlanetMesh :: _ -- more constraints
+              => CompatibleVertex '[Vec3, Vec3, Vec3] π
               => RenderPipeline π bs
-               ⊸ PlanetSettings -> Core ((Mesh '[Vec3, Vec3, Vec3] '[], RenderPipeline π bs), Ur MinMax)
-newPlanetMesh rp (PlanetSettings re ra co enableMask nss df) = enterD "newPlanetMesh" $ Linear.do
+               ⊸ PlanetSettings -> Core (Mesh '[Vec3, Vec3, Vec3] '[], RenderPipeline π bs)
+newPlanetMesh rp (PlanetSettings re ra co enableMask nss) = enterD "newPlanetMesh" $ Linear.do
 
-  let (vs, is) = case df of
-                   All ->
-                     let UnitSphere v i = newUnitSphere re (Just co) in (v, i)
-                   FaceUp ->
-                     let UF v i = newUnitFace re (vec3 0 (-1) 0)
-                      in (P.zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (P.repeat co), i)
-                   FaceRight ->
-                     let UF v i = newUnitFace re (vec3 1 0 0)
-                      in (P.zipWith3 (\a b c -> a :& b :&: c) v (calculateSmoothNormals i v) (P.repeat co), i)
+  let UnitSphere vs is = newUnitSphere re (Just co)
 
-  let (ps', elevations) = P.unzip $ (`map` vs) \(p :& _) ->
-        case nss of
-          ns NE.:| nss' ->
-            let initialElevation = evalNoise ns p
-                mask = if enableMask then initialElevation else 1
-                noiseElevation = foldl' (\acc ns' -> acc + (evalNoise ns' p)*mask) initialElevation nss'
-                elevation = ra * (1 + noiseElevation)
-             in (p ^* elevation, elevation)
-
-  let
-      ns' = calculateSmoothNormals is ps'
-      cs  = P.map (\(_ :& _ :&: c) -> c) vs
-      vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' cs
-
-      minmax = MinMax (P.minimum elevations) (P.maximum elevations)
-   in (,Ur minmax) <$> (createMeshWithIxs rp GHNil vs'' is ↑)
+      -- (ps', elevations) = P.unzip $ (`map` vs) \(p :& _) ->
+      --   case nss of
+      --     ns NE.:| nss' ->
+      --       let initialElevation = evalNoise ns p
+      --           mask = if enableMask then initialElevation else 1
+      --           noiseElevation = foldl' (\acc ns' -> acc + (evalNoise ns' p)*mask) initialElevation nss'
+      --           elevation = ra * (1 + noiseElevation)
+      --        in (p ^* elevation, elevation)
+      --
+      -- ns' = calculateSmoothNormals is ps'
+      -- cs  = P.map (\(_ :& _ :&: c) -> c) vs
+      -- vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' cs
+      --
+      -- minmax = MinMax (P.minimum elevations) (P.maximum elevations)
+   in (createMeshWithIxs rp GHNil vs is ↑)
 
 newPlanetMaterial :: forall π p
                    . CompatibleMaterial '[MinMax,Texture2D] π
@@ -151,4 +142,3 @@ defaultPlanetSettings
                    [ NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
                    , NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
                    ]
-                   All
