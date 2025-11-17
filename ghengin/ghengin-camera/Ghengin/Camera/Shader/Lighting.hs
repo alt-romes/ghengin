@@ -6,7 +6,7 @@
 {-# LANGUAGE RebindableSyntax #-} -- 'do' notation to create ASTs with indexed monads
 {-# LANGUAGE TypeApplications #-} -- to specify type-level arguments
 {-# LANGUAGE TypeOperators    #-} -- for type operators such as ':->, which stands for key/value assignment
-module Ghengin.Shader.Lighting where
+module Ghengin.Camera.Shader.Lighting where
 
 import FIR
 import Math.Linear
