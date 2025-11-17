@@ -4,7 +4,6 @@ module Ghengin.Camera where
 
 import GHC.TypeLits
 import GHC.Generics
-import Data.Word (Word32)
 
 import Ghengin.Core.Prelude as L
 
@@ -32,21 +31,15 @@ data Camera (view_field :: Symbol) (proj_field :: Symbol)
            deriving Generic
            deriving anyclass Block
 
--- | A default camera looking at (0, 0, 0) using a perspective projection.
+-- | A perspective camera at the given position looking at the given target, for the given resolution
 --
 -- +X right, +Y down, +Z forward
-defaultCamera :: Camera view_field proj_field
-defaultCamera = 
-  let
-    up = vec3 0 (-1) 0
-    forward = vec3 0 0 1
-    eye = vec3 0 0 0
-  in
-    Camera
-    { view = unTransform $ lookAtRH eye forward up 
-    -- pi / 2 = 90 degrees
-    -- pi / 4 = 45 degrees
-    , proj = unTransform $ reverseDepthRH (pi / 2) 0.1 640 480
+cameraLookAt :: Vec3 {-^ camera position -} -> Vec3 {-^ camera target -} -> (Float, Float) {-^ width x height -}
+             -> Camera view_field proj_field
+cameraLookAt eye target (width, height) =
+  Camera
+    { view = unTransform $ lookAtRH_ eye target
+    , proj = unTransform $ reverseDepthRH (pi / 2) 0.1 width height
     }
 
 --------------------------------------------------------------------------------
