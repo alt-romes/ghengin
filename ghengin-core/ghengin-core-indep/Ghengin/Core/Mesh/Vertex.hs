@@ -94,8 +94,8 @@ instance (Block (Vertex (y:ys)), Block x) => Block (Vertex (x:y:ys)) where
     write140 p (Diff o) (Sin a)
     write140 p (Diff $ o + roundUp (sizeOf140 (Proxy @(Vertex '[x]))) (alignment140 (Proxy @(Vertex (y:ys))))) b
   write430 p (Diff o) (a :& b) = do
-    write140 p (Diff o) (Sin a)
-    write140 p (Diff $ o + roundUp (sizeOf430 (Proxy @(Vertex '[x]))) (alignment430 (Proxy @(Vertex (y:ys))))) b
+    write430 p (Diff o) (Sin a)
+    write430 p (Diff $ o + roundUp (sizeOf430 (Proxy @(Vertex '[x]))) (alignment430 (Proxy @(Vertex (y:ys))))) b
   writePacked p (Diff o) (a :& b) = do
     writePacked p (Diff o) (Sin a)
     writePacked p (Diff $ o + sizeOfPacked (Proxy @(Vertex '[x]))) b
