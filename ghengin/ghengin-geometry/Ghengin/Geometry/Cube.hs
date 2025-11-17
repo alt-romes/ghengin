@@ -21,27 +21,49 @@ import Ghengin.Geometry.Transform
 
 -- | A unit cube centered at (0,0,0).
 cube :: [Vertex '[Vec3]]
-cube = concatMap (`transform` square)
-  [ translateV (vec3     0      0 (-0.5))                    -- front face
-  , translateV (vec3     0      0   0.5 ) <> rotateY pi      -- back face
-  , translateV (vec3   0.5      0     0 ) <> rotateY (pi/2)  -- right face
-  , translateV (vec3 (-0.5)     0     0 ) <> rotateY (-pi/2) -- left face
-  , translateV (vec3     0    0.5     0 ) <> rotateX (pi/2)  -- top face
-  , translateV (vec3     0  (-0.5)    0 ) <> rotateX (-pi/2) -- bottom face
-  ]
-  -- recall, matrix mult MVP order on CPU
-
-
--- | A unit square centered at (0,0,0) along the YZ plane with its front side
--- normal along the X coordinate axis (ie "facing forward").
-square :: [Vertex '[Vec3]]
-square = Prelude.map Sin
-  [ vec3   0.5    0.5  0 -- 1,6
-  , vec3   0.5  (-0.5) 0 -- 2
-  , vec3 (-0.5) (-0.5) 0 -- 3,4
-  , vec3 (-0.5) (-0.5) 0 -- 3,4
-  , vec3 (-0.5)   0.5  0 -- 5
-  , vec3   0.5    0.5  0 -- 1,6
+cube = Prelude.map Sin
+  [ -- Front face (z = -0.5, facing -Z, viewed from outside/front)
+    vec3 (-0.5) (-0.5) (-0.5)  -- bottom-left
+  , vec3 (-0.5)   0.5  (-0.5)  -- top-left
+  , vec3   0.5    0.5  (-0.5)  -- top-right
+  , vec3   0.5    0.5  (-0.5)  -- top-right
+  , vec3   0.5  (-0.5) (-0.5)  -- bottom-right
+  , vec3 (-0.5) (-0.5) (-0.5)  -- bottom-left
+  -- Back face (z = 0.5, facing +Z, viewed from outside/back)
+  , vec3   0.5  (-0.5)   0.5   -- bottom-right
+  , vec3   0.5    0.5    0.5   -- top-right
+  , vec3 (-0.5)   0.5    0.5   -- top-left
+  , vec3 (-0.5)   0.5    0.5   -- top-left
+  , vec3 (-0.5) (-0.5)   0.5   -- bottom-left
+  , vec3   0.5  (-0.5)   0.5   -- bottom-right
+  -- Right face (x = 0.5, facing +X, viewed from outside/right)
+  , vec3   0.5  (-0.5) (-0.5)  -- bottom-front
+  , vec3   0.5    0.5  (-0.5)  -- top-front
+  , vec3   0.5    0.5    0.5   -- top-back
+  , vec3   0.5    0.5    0.5   -- top-back
+  , vec3   0.5  (-0.5)   0.5   -- bottom-back
+  , vec3   0.5  (-0.5) (-0.5)  -- bottom-front
+  -- Left face (x = -0.5, facing -X, viewed from outside/left)
+  , vec3 (-0.5) (-0.5)   0.5   -- bottom-back
+  , vec3 (-0.5)   0.5    0.5   -- top-back
+  , vec3 (-0.5)   0.5  (-0.5)  -- top-front
+  , vec3 (-0.5)   0.5  (-0.5)  -- top-front
+  , vec3 (-0.5) (-0.5) (-0.5)  -- bottom-front
+  , vec3 (-0.5) (-0.5)   0.5   -- bottom-back
+  -- Top face (y = 0.5, facing +Y, viewed from outside/top)
+  , vec3 (-0.5)   0.5  (-0.5)  -- front-left
+  , vec3 (-0.5)   0.5    0.5   -- back-left
+  , vec3   0.5    0.5    0.5   -- back-right
+  , vec3   0.5    0.5    0.5   -- back-right
+  , vec3   0.5    0.5  (-0.5)  -- front-right
+  , vec3 (-0.5)   0.5  (-0.5)  -- front-left
+  -- Bottom face (y = -0.5, facing -Y, viewed from outside/bottom)
+  , vec3 (-0.5) (-0.5)   0.5   -- back-left
+  , vec3 (-0.5) (-0.5) (-0.5)  -- front-left
+  , vec3   0.5  (-0.5) (-0.5)  -- front-right
+  , vec3   0.5  (-0.5) (-0.5)  -- front-right
+  , vec3   0.5  (-0.5)   0.5   -- back-right
+  , vec3 (-0.5) (-0.5)   0.5   -- back-left
   ]
 
 --------------------------------------------------------------------------------
