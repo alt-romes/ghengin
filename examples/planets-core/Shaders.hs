@@ -21,10 +21,13 @@ type VertexDefs
      , "out_normal"    ':-> Output '[ Location 1 ] (V 4 Float)
 
 
-     , "camera"       ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
-                            (Struct [ "view_matrix" ':-> M 4 4 Float
-                                    , "proj_matrix" ':-> M 4 4 Float
-                                    ])
+     , "camera"        ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
+                             (Struct [ "view_matrix" ':-> M 4 4 Float
+                                     , "proj_matrix" ':-> M 4 4 Float
+                                     ])
+     , "model"         ':-> Uniform '[ DescriptorSet 2, Binding 0 ]
+                             (Struct '[ "m" ':-> M 4 4 Float ])
+
      , "in_position"   ':-> Input '[ Location 0 ] (V 3 Float)
      , "in_normal"     ':-> Input '[ Location 1 ] (V 3 Float)
      , "in_color"      ':-> Input '[ Location 2 ] (V 3 Float)
@@ -37,18 +40,14 @@ vertex = shader do
     ~(Vec3 x y z)    <- get @"in_position"
     ~(Vec3 nx ny nz) <- get @"in_normal"
 
-    -- modelM <- use @(Name "push" :.: Name "model")
+    modelM <- use @(Name "model" :.: Name "m")
 
     -- Output position and normal in world coordinates
-    -- put @"out_position" (modelM !*^ (Vec4 x y z 1))
-    -- put @"out_normal"   (modelM !*^ (Vec4 nx ny nz 0))
+    put @"out_position" (modelM !*^ Vec4 x y z 1)
     -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
+    put @"out_normal"   (modelM !*^ Vec4 nx ny nz 0)
 
-    -- Temporarily...
-    put @"out_position" (Vec4 x y z 1)
-    put @"out_normal"   (Vec4 nx ny nz 0)
-
-    put @"gl_Position" =<< applyMVP (Vec4 x y z 1)
+    put @"gl_Position" =<< applyVP (modelM !*^ Vec4 x y z 1)
 
 ---- Fragment -----
 
@@ -82,9 +81,9 @@ fragment = shader do
     --
     -- ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 cx' cy' cz'
     --
-    -- put @"out_colour" (Vec4 colx coly colz 1)
-
-    put @"out_colour" (Vec4 px py pz 1)
+    def @"camera_pos" @R (Vec3 0 0 0)
+    ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 1 1 1
+    put @"out_colour" (Vec4 colx coly colz 1)
 
 --- Pipeline ----
 
@@ -103,11 +102,11 @@ shaders
 
 ----- Utils --------------------------------------------------------------------
 
-applyMVP :: ∀ π. ( CanGet "camera" π
+applyVP :: ∀ π. ( CanGet "camera" π
                  , _ -- extra constraints
                  )
               => (Code (V 4 Float)) -> Program π π (Code (V 4 Float))
-applyMVP vec = do
+applyVP vec = do
 
   -- modelM <- use @(Name "push" :.: Name "model"  :: Optic '[] π (M 4 4 Float))
   projM <- use @(Name "camera" :.: Name "proj_matrix"  :: Optic '[] π (M 4 4 Float))

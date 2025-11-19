@@ -20,6 +20,8 @@ import GHC.Float
 import Numeric.Noise hiding (Noise)
 import qualified Data.List.NonEmpty as NE
 
+import Geomancy.Transform
+
 import Ghengin.Core
 import Ghengin.Core.Mesh
 import Geomancy.Vec3
@@ -27,12 +29,15 @@ import Geomancy.Vec3
 import Ghengin.Geometry.Sphere
 
 import qualified FIR
+import qualified Math.Linear as FIR
 
 import Ghengin.Core.Shader.Data
 
 --------------------------------------------------------------------------------
 -- * Planet
 --------------------------------------------------------------------------------
+
+type PlanetMesh = Mesh '[Vec3, Vec3, Vec3] '[Transform]
 
 data PlanetSettings = PlanetSettings { resolution :: !Int
                                      , radius     :: !Float
@@ -51,8 +56,9 @@ instance ShaderData MinMax where
 
 newPlanetMesh :: _ -- more constraints
               => CompatibleVertex '[Vec3, Vec3, Vec3] π
+              => CompatibleMesh '[Transform] π
               => RenderPipeline π bs
-               ⊸ PlanetSettings -> Core (Mesh '[Vec3, Vec3, Vec3] '[], RenderPipeline π bs)
+               ⊸ PlanetSettings -> Core (PlanetMesh, RenderPipeline π bs)
 newPlanetMesh rp (PlanetSettings re ra co enableMask nss) = enterD "newPlanetMesh" $ Linear.do
 
   let UnitSphere vs is = newUnitSphere re (Just co)
@@ -71,7 +77,8 @@ newPlanetMesh rp (PlanetSettings re ra co enableMask nss) = enterD "newPlanetMes
       -- vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' cs
       --
       -- minmax = MinMax (P.minimum elevations) (P.maximum elevations)
-   in (createMeshWithIxs rp GHNil vs is ↑)
+
+   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) vs is ↑)
 
 newPlanetMaterial :: forall π p
                    . CompatibleMaterial '[MinMax,Texture2D] π
@@ -138,3 +145,7 @@ defaultPlanetSettings
                    [ NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
                    , NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
                    ]
+
+-- non-compositional instance for "Transform", just for demo
+instance ShaderData Transform where
+  type FirType Transform = FIR.Struct '[ "m" 'FIR.:-> FIR.M 4 4 Float ]

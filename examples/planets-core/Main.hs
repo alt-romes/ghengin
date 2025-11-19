@@ -57,9 +57,6 @@ import Ghengin.Camera
 import Shaders -- planet shaders
 import Planet
 
-pattern MAX_FRAME_TIME :: Float
-pattern MAX_FRAME_TIME = 0.5
-
 -- makeMainPipeline :: Renderer (RenderPipeline _ CameraProperties)
 -- makeMainPipeline = Linear.do
 --   Ur extent <- getRenderExtent
@@ -75,8 +72,9 @@ pattern MAX_FRAME_TIME = 0.5
 --     :## DynamicBinding (Ur (coerce $ vec3 0 0 0))
 --     :## GHNil                       )
 
-gameLoop :: UTCTime -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop currentTime rp rq = Linear.do
+gameLoop :: _
+         => UTCTime -> _ -> _ -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop currentTime mkey rot rp rq = Linear.do
  logT "New frame" 
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
@@ -91,8 +89,11 @@ gameLoop currentTime rp rq = Linear.do
   -- Render the rendering queue!
   (rp, rq) <- render rp rq
 
+  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
+    rotateY rot <> rotateX (-rot))) ↑)
+
   -- Loop!
-  gameLoop newTime rp rq
+  gameLoop newTime mkey (rot+0.01) rp rq
 
 main :: Prelude.IO ()
 main = do
@@ -104,16 +105,16 @@ main = do
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
     pipeline <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
-    -- (p1mesh, pipeline) <- newPlanetMesh pipeline defaultPlanetSettings
     (p1mesh, pipeline) <- newPlanetMesh pipeline defaultPlanetSettings
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     -- (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
+
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)       <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)     <- pure (insertMesh mkey p1mesh rq)
 
-    rq <- gameLoop currTime rp2 rq
+    rq <- gameLoop currTime mshkey 0 rp2 rq
 
     (freeRenderQueue rq ↑)
     -- This is all done in the freeRenderQueue!
@@ -126,3 +127,4 @@ main = do
 
 camera :: Camera "view_matrix" "proj_matrix"
 camera = cameraLookAt (vec3 0 0 2) (vec3 0 0 0) (1280, 720)
+
