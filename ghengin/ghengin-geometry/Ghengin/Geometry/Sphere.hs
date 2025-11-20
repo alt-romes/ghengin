@@ -30,7 +30,7 @@ data UnitFace = UF { positions :: [Vec3]
                    , indices   :: [Int]
                    }
 
-data UnitSphere = UnitSphere { positions :: [ Vertex '[Vec3, Vec3, Vec3] ]
+data UnitSphere = UnitSphere { positions :: [ Vertex '[Vec3, Vec3] ]
                              , indices   :: [Int32]
                              }
 
@@ -61,9 +61,8 @@ newUnitFace res up =
 
 -- | Crashes on resolution = 1
 newUnitSphere :: Int -- ^ Resolution
-          -> Maybe Vec3 -- ^ Color, use the normals if Nothing
-          -> UnitSphere
-newUnitSphere res color =
+              -> UnitSphere
+newUnitSphere res =
   let UF v1 i1 = newUnitFace res Vectors.up
       UF v2 i2 = newUnitFace res Vectors.down
       UF v3 i3 = newUnitFace res Vectors.left
@@ -74,16 +73,14 @@ newUnitSphere res color =
       is = i1 <> map (+l) i2 <> map (+(l*2)) i3 <> map (+(l*3)) i4 <> map (+(l*4)) i5 <> map (+(l*5)) i6
       ps = v1 <> v2 <> v3 <> v4 <> v5 <> v6
       ns = V.toList $ computeNormals (V.fromList (map fromIntegral is)) (V.fromList ps)
-      cls = maybe ns (\x -> map (const x) ns) color
    in
-      UnitSphere (zipWith3 (\a b c -> a :& b :&: c) ps ns cls) (map fromIntegral is)
+      UnitSphere (zipWith (\a b -> a :&: b) ps ns) (map fromIntegral is)
 
-newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3, Vec3] π)
+newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3] π)
               => RenderPipeline π bs
               -> Int -- ^ Resolution
-              -> Maybe Vec3 -- ^ Color, use the normals if Nothing
-              -> Renderer (Mesh [Vec3, Vec3, Vec3] '[], RenderPipeline π bs)
-newSphereMesh pi res color =
-  let UnitSphere vs is = newUnitSphere res color
+              -> Renderer (Mesh [Vec3, Vec3] '[], RenderPipeline π bs)
+newSphereMesh pi res =
+  let UnitSphere vs is = newUnitSphere res
    in createMeshWithIxs pi GHNil vs is
 
