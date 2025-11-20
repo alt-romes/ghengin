@@ -49,7 +49,7 @@ newUnitFace res up =
         y <- [0..fres-1]
         let pct_x = x/(fres-1)
             pct_y = y/(fres-1)
-        pure $
+        pure $ normalize $
           up + axisA^*(2*(pct_x - 0.5)) + axisB^*(2*(pct_y - 0.5))
       ixs  = do x <- [0..(res-1)]
                 y <- [0..(res-1)]
