@@ -70,12 +70,11 @@ newPlanetMesh rp (PlanetSettings re ra co enableMask nss) = enterD "newPlanetMes
       --           mask = if enableMask then initialElevation else 1
       --           noiseElevation = foldl' (\acc ns' -> acc + (evalNoise ns' p)*mask) initialElevation nss'
       --           elevation = ra * (1 + noiseElevation)
-      --        in (p ^* elevation, elevation)
+      --        in (p ^* (-elevation), elevation)
       --
-      -- ns' = calculateSmoothNormals is ps'
-      -- cs  = P.map (\(_ :& _ :&: c) -> c) vs
-      -- vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' cs
-      --
+      -- ns'  = calculateSmoothNormals is ps'
+      -- vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' (map (\(_ :& _ :&: c) -> c) vs)
+
       -- minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
    in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) vs is ↑)
@@ -141,7 +140,7 @@ evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p =
 
 defaultPlanetSettings :: PlanetSettings
 defaultPlanetSettings
-  = PlanetSettings 50 1 (vec3 1 0 0) False
+  = PlanetSettings 20 1 (vec3 1 0 0) False
                    [ NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
                    , NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
                    ]

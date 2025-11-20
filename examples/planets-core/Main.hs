@@ -126,5 +126,5 @@ main = do
     return (Ur ())
 
 camera :: Camera "view_matrix" "proj_matrix"
-camera = cameraLookAt (vec3 0 0 2) (vec3 0 0 0) (1280, 720)
+camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) (1280, 720)
 
