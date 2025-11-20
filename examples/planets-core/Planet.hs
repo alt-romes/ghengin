@@ -65,21 +65,21 @@ newPlanetMesh rp (PlanetSettings re ra co enableMask nss) = enterD "newPlanetMes
 
   let UnitSphere vs is = newUnitSphere re (Just co)
 
-      (ps', elevations) = P.unzip $ (`map` vs) \(p :& _) ->
-        case nss of
-          ns NE.:| nss' ->
-            let initialElevation = evalNoise ns p
-                mask = if enableMask then initialElevation else 1
-                noiseElevation = foldl' (\acc ns' -> acc + (evalNoise ns' p)*mask) initialElevation nss'
-                elevation = ra * (1 + noiseElevation)
-             in (p ^* (elevation), elevation)
-
-      ns'  = V.toList $ computeNormals (V.fromList (P.map fromIntegral is)) (V.fromList ps')
-      vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' (map (\(_ :& _ :&: c) -> c) vs)
+      -- (ps', elevations) = P.unzip $ (`map` vs) \(p :& _) ->
+      --   case nss of
+      --     ns NE.:| nss' ->
+      --       let initialElevation = evalNoise ns p
+      --           mask = if enableMask then initialElevation else 1
+      --           noiseElevation = foldl' (\acc ns' -> acc + (evalNoise ns' p)*mask) initialElevation nss'
+      --           elevation = ra * (1 + noiseElevation)
+      --        in (p ^* (elevation), elevation)
+      --
+      -- ns'  = V.toList $ computeNormals (V.fromList (P.map fromIntegral is)) (V.fromList ps')
+      -- vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' (map (\(_ :& _ :&: c) -> c) vs)
 
       -- minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) vs'' is ↑)
+   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) vs is ↑)
 
 newPlanetMaterial :: forall π p
                    . CompatibleMaterial '[MinMax,Texture2D] π
@@ -142,9 +142,9 @@ evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p =
 
 defaultPlanetSettings :: PlanetSettings
 defaultPlanetSettings
-  = PlanetSettings 20 1 (vec3 1 0 0) False
+  = PlanetSettings 100 1 (vec3 1 0 0) False
                    [ NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
-                   , NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
+                   -- , NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
                    ]
 
 -- non-compositional instance for "Transform", just for demo
