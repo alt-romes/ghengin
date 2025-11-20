@@ -37,18 +37,26 @@ void Mesh_normalize( Mesh *myself )
 
     for( i=0; i<myself->mNumVerts; i++ ) verts[i].normal = normalize( verts[i].normal );
 }
+
+> This is quite fast, fast enough to do lot of mesh normalizations per frame. On
+top of it, if you are using vertex shaders you can be interested on skipping
+the last vertex normalization and do it on the shader (last line on the code
+above). Also in some cases, like 64 or even 4 kilobyte demos, it's usual to
+have all allocated buffers automatically initialized to zero. In that case, if
+this is the first and only normalization for a given mesh, you may skip the
+first loop on the function too of course.
 -}
 computeNormals :: Vector Int  -- ^ Every three indices into the vertices array forms a face
                -> Vector Vec3 -- ^ The position of every vertex
                -> Vector Vec3 -- ^ The normal vector for each vertex
 computeNormals ixs vs =
-  unur $ Array.alloc (V.length vs) 0 $ \arr0 ->
+  unur $ Array.alloc (V.length vs) (vec3 0 0 0) $ \arr0 ->
     Array.freeze $
     Array.map Vec3.normalize $
       foldl' (\arr (Ur i) -> let
-           ia = ixs ! i
-           ib = ixs ! i+1
-           ic = ixs ! i+2
+           ia = ixs ! (i)
+           ib = ixs ! (i+1)
+           ic = ixs ! (i+2)
            e1 = vs ! ia ^-^ vs ! ib
            e2 = vs ! ic ^-^ vs ! ib
            no = Vec3.cross e1 e2 
