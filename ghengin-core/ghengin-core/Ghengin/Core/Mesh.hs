@@ -126,7 +126,7 @@ createMesh :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex
             -- ^ The render pipeline
             ⊸ PropertyBindings props
             -- ^ The 'PropertyBindings' for the properties of this mesh (the second type argument to 'Mesh')
-            ⊸ [Vertex ts]
+            ⊸ [Vertex ts] -- TODO: Use Vector
             -- ^ Vertices
            -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMesh (RenderProperty pr rps) props0 vs = createMesh rps props0 vs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
@@ -145,9 +145,9 @@ createMesh (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders u
 createMeshWithIxs :: HasCallStack => (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
                   => RenderPipeline π bs
                    ⊸ PropertyBindings props
-                   ⊸ [Vertex ts]
+                   ⊸ [Vertex ts] -- TODO: Use Vector
                   -- ^ Vertices
-                  -> [Int32]
+                  -> [Int32] -- TODO: Use Vector
                   -- ^ Indices
                   -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMeshWithIxs (RenderProperty pr rps) props0 vs ixs = createMeshWithIxs rps props0 vs ixs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)

@@ -16,17 +16,21 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Mesh
 
 import qualified Data.Vector.Storable as SV
+import qualified Data.Vector as V
 import qualified Data.IntMap as IM
 import qualified Data.Map as M
 
 import Data.List (sort)
 import Data.List.Split (chunksOf)
 
+import Ghengin.Geometry.Normals
+import qualified Ghengin.Geometry.Vectors as Vectors
+
 data UnitFace = UF { positions :: [Vec3]
                    , indices   :: [Int]
                    }
 
-data UnitSphere = UnitSphere { positions :: [ Vertex '[Vec3, Vec3, Vec3] ]
+data UnitSphere = UnitSphere { positions :: [ Vertex '[Vec3, Vec3] ]
                              , indices   :: [Int32]
                              }
 
@@ -40,70 +44,43 @@ newUnitFace res up =
       axisB = cross up axisA
       
       fres = fromIntegral res
-      positions' = map (normalize . \(px,py) -> up + axisA^*(2*(px - 0.5)) + axisB^*(2*(py - 0.5)))
-                     do x <- [0..fres-1]
-                        y <- [0..fres-1]
-                        pure (x/(fres-1), y/(fres-1))
+      positions' = do
+        x <- [0..fres-1]
+        y <- [0..fres-1]
+        let pct_x = x/(fres-1)
+            pct_y = y/(fres-1)
+        pure $ normalize $
+          up + axisA^*(2*(pct_x - 0.5)) + axisB^*(2*(pct_y - 0.5))
       ixs  = do x <- [0..(res-1)]
                 y <- [0..(res-1)]
                 guard $ (x /= res - 1) && (y /= res - 1)
                 let i = x + y*res
-                [i, i+res+1, i+res, i, i+1, i+res+1]
+                [i, i+res, i+res+1, i, i+res+1, i+1]
 
    in UF positions' ixs
 
 -- | Crashes on resolution = 1
 newUnitSphere :: Int -- ^ Resolution
-          -> Maybe Vec3 -- ^ Color, use the normals if Nothing
-          -> UnitSphere
-newUnitSphere res color =
-  let UF v1 i1 = newUnitFace res (vec3 0 1 0)
-      UF v2 i2 = newUnitFace res (vec3 0 (-1) 0)
-      UF v3 i3 = newUnitFace res (vec3 1 0 0)
-      UF v4 i4 = newUnitFace res (vec3 (-1) 0 0)
-      UF v5 i5 = newUnitFace res (vec3 0 0 1)
-      UF v6 i6 = newUnitFace res (vec3 0 0 (-1))
+              -> UnitSphere
+newUnitSphere res =
+  let UF v1 i1 = newUnitFace res Vectors.up
+      UF v2 i2 = newUnitFace res Vectors.down
+      UF v3 i3 = newUnitFace res Vectors.left
+      UF v4 i4 = newUnitFace res Vectors.right
+      UF v5 i5 = newUnitFace res Vectors.forward
+      UF v6 i6 = newUnitFace res Vectors.back
       l  = length v1 -- all faces share same length
-      is = i1 <> map (+l) i2 <> map (+l*2) i3 <> map (+l*3) i4 <> map (+l*4) i5 <> map (+l*5) i6
+      is = i1 <> map (+l) i2 <> map (+(l*2)) i3 <> map (+(l*3)) i4 <> map (+(l*4)) i5 <> map (+(l*5)) i6
       ps = v1 <> v2 <> v3 <> v4 <> v5 <> v6
-      ns = calculateSmoothNormals is ps
-      cls = maybe (map ((^/2) . (+ vec3 1 1 1)) ns) (\x -> map (const x) ns) color
+      ns = V.toList $ computeNormals (V.fromList (map fromIntegral is)) (V.fromList ps)
    in
-      UnitSphere (zipWith3 (\a b c -> a :& b :&: c) ps ns cls) (map fromIntegral is)
+      UnitSphere (zipWith (\a b -> a :&: b) ps ns) (map fromIntegral is)
 
-newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3, Vec3] π)
+newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3] π)
               => RenderPipeline π bs
               -> Int -- ^ Resolution
-              -> Maybe Vec3 -- ^ Color, use the normals if Nothing
-              -> Renderer (Mesh [Vec3, Vec3, Vec3] '[], RenderPipeline π bs)
-newSphereMesh pi res color =
-  let UnitSphere vs is = newUnitSphere res color
+              -> Renderer (Mesh [Vec3, Vec3] '[], RenderPipeline π bs)
+newSphereMesh pi res =
+  let UnitSphere vs is = newUnitSphere res
    in createMeshWithIxs pi GHNil vs is
-
--- | Calculate smooth normals of vertices given vertex positions and the
--- indices that describe the faces The returned list has a normal for each
--- position in the input positions, in the same order
---
--- TODO: Take into consideration the angles or provide alternative that does
-calculateSmoothNormals :: [Int] -> [Vec3] -> [Vec3]
-calculateSmoothNormals ixs pos =
-
-  let fns = calculateFlatNormals ixs pos
-
-      smoothNormalsMap = foldl' (\acc (p,n) -> M.insertWith (\(na, i) (nb, j) -> (na + nb, i + j)) p (n,1) acc) mempty (zip pos fns)
-
-   in map (\p -> case smoothNormalsMap M.! p of (n,b) -> n^/b) pos
-
--- | Calculate normals of vertices given vertex positions and the indices that describe the faces
--- The returned list has a normal for each position in the input positions, in the same order
-calculateFlatNormals :: [Int] -> [Vec3] -> [Vec3]
-calculateFlatNormals ixs (SV.fromList -> pos) =
-
-  let m = foldl' (\acc [a,b,c] ->
-            let vab = (pos SV.! b) - (pos SV.! a)
-                vbc = (pos SV.! c) - (pos SV.! b)
-                n = normalize $ cross vbc vab -- vbc X vab gives the normal facing up for clockwise faces
-             in IM.insertWith const a n $ IM.insertWith const b n $ IM.insertWith const c n acc) mempty (chunksOf 3 ixs)
-
-   in map snd $ sort (IM.toList m)
 

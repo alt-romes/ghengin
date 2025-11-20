@@ -32,7 +32,6 @@ import Geomancy.Mat4
 import Geomancy.Transform
 import Geomancy.Vec3
 import Geomancy.Vec4
-import Geomancy.Vulkan.Projection (perspective)
 import Ghengin.Core
 import Ghengin.Core.Log
 import Ghengin.Core.Mesh
@@ -50,49 +49,36 @@ import qualified Data.Monoid.Linear as LMon
 import qualified FIR
 import qualified Math.Linear as FIR
 import qualified Prelude
+import qualified Data.Linear.Alias as Alias
+
+import Ghengin.Camera
 
 -- planets!
 import Shaders -- planet shaders
 import Planet
 
-pattern MAX_FRAME_TIME :: Float
-pattern MAX_FRAME_TIME = 0.5
-
-makeMainPipeline :: Renderer (RenderPipeline _ CameraProperties)
-makeMainPipeline = Linear.do
-  Ur extent <- getRenderExtent
-
-  let radians d = d * (pi/180)
-      -- By making the extent into a static binding, when we update the extent
-      -- we must also explicitely update the static binding
-      projM = perspective @Word32 (radians 65) 0.1 100 extent.width extent.height
-
-  makeRenderPipeline shaders
-    (   StaticBinding  (Ur (coerce projM))
-    :## DynamicBinding (Ur (coerce $ Transform identity))
-    :## DynamicBinding (Ur (coerce $ vec3 0 0 0))
-    :## GHNil                       )
-
-
-gameLoop :: UTCTime -> RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop currentTime rq = Linear.do
+gameLoop :: _
+         => UTCTime -> _ -> _ -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop currentTime mkey rot rp rq = Linear.do
  logT "New frame" 
  should_close <- (shouldCloseWindow ↑)
- if should_close then return rq else Linear.do
+ if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
   Ur newTime <- liftSystemIOU getCurrentTime
 
   -- Fix Your Timestep: A Very Hard Thing To Get Right. For now, the simplest approach:
-  let frameTime = diffUTCTime newTime currentTime
-      deltaTime = Prelude.min MAX_FRAME_TIME $ realToFrac frameTime
+  -- let frameTime = diffUTCTime newTime currentTime
+  --     deltaTime = Prelude.min MAX_FRAME_TIME $ realToFrac frameTime
 
   -- Render the rendering queue!
-  rq' <- render rq
+  (rp, rq) <- render rp rq
+
+  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
+    rotateY rot <> rotateX (-rot))) ↑)
 
   -- Loop!
-  gameLoop newTime rq'
-
+  gameLoop newTime mkey (rot+0.01) rp rq
 
 main :: Prelude.IO ()
 main = do
@@ -102,22 +88,32 @@ main = do
     -- sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
     -- tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
 
-    pipeline            <- (makeMainPipeline ↑)
-    ((p1mesh, pipeline), Ur minmax) <- newPlanetMesh pipeline defaultPlanetSettings
-    (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
+    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+    pipeline <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
+    (p1mesh, pipeline) <- newPlanetMesh pipeline defaultPlanet
+    (emptyMat, pipeline) <- (material GHNil pipeline ↑)
+    -- (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
+
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)
-    (rq, Ur mkey)       <- pure (insertMaterial pkey pmat rq)
+    (rq, Ur mkey)       <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)     <- pure (insertMesh mkey p1mesh rq)
 
-    rq <- gameLoop currTime rq
+    rq <- gameLoop currTime mshkey 0 rp2 rq
 
     (freeRenderQueue rq ↑)
-    -- This is all done in the freeRenderQueue!
-    -- In fact, freeing these again is a type error. Woho!
-    -- (freeMesh p1mesh ↑)
-    -- (freeMaterial pmat ↑)
-    -- (destroyRenderPipeline pipeline ↑)
 
     return (Ur ())
+
+camera :: Camera "view_matrix" "proj_matrix"
+camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) (1280, 720)
+
+defaultPlanet :: Planet
+defaultPlanet = Planet
+  { resolution = 100
+  , planetShape = PlanetShape
+      { planetRadius = 1
+      , planetNoise  = CoherentNoise (vec3 0 0 0) 1 1
+      }
+  }
 

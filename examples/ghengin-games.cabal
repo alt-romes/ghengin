@@ -139,7 +139,7 @@ common common-flags
 executable planets-core
     import:         common-flags
     main-is:        Main.hs
-    other-modules:  Camera, Planet, Shaders
+    other-modules:  Planet, Shaders
     hs-source-dirs: planets-core
 
 -- library
