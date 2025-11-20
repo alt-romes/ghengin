@@ -1,4 +1,16 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+-- | Module with utilities for computing normals of a Mesh.
+--
+-- There are two "simple" shading models available:
+--
+-- Smooth shading - where the normals of each vertex that is shared by more
+-- than one face share gets a single, averaged normal
+--
+-- Flat shading - where each vertex is duplicated for every triangle it's a
+-- part of and gets assigned the normal of that triangle
+--
+-- For smooth shading we use Inigo Quilez's
+-- https://iquilezles.org/articles/normals/
 module Ghengin.Geometry.Normals where
 
 import Geomancy
@@ -9,7 +21,7 @@ import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.Array.Mutable.Linear as Array
 
-{- | Compute the normal vectors of a mesh surface.
+{- | Compute the smooth normal vectors of a mesh surface.
 
 Uses Inigo Quilez's fast and correct algorithm: https://iquilezles.org/articles/normals/
 
@@ -71,5 +83,3 @@ computeNormals ixs vs =
     (+=) i new arr0 = case Array.get i arr0 of
       (Ur exists, arr1) -> Array.set i (new ^+^ exists) arr1
 
-
--- TODO: computeSmoothNormals: they use the result of computeNormals and does things.
