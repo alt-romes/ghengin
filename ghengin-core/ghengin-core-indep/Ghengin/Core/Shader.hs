@@ -18,8 +18,12 @@ import Geomancy.Vec2
 import Geomancy.Vec3
 import Geomancy.Vec4
 import Geomancy.Mat4
+import Foreign.Ptr.Diff (pokeDiffOff, peekDiffOff)
+import Foreign.Storable as Store
 
-import Ghengin.Core.Prelude (Float, Generic)
+import Ghengin.Core.Prelude (Float, Generic, ($), undefined)
+
+import Control.Monad.IO.Class (liftIO)
 
 import Math.Linear
 import qualified FIR
@@ -111,3 +115,71 @@ instance KnownSymbol name => ShaderData (StructMat4 name) where
 
 instance KnownSymbol name => ShaderData (StructFloat name) where
   type FirType (StructFloat name) = FIR.Struct '[ name 'FIR.:-> Float ]
+  
+-- ** FIR Vector
+instance (KnownNat n, Storable x, Block x) => Block (V n x) where
+  type PackedSize (V n x) = n * (PackedSize x)
+
+  alignment140 _ = Store.alignment (undefined :: V n x)
+  alignment430 = alignment140
+
+  sizeOf140 _ = Store.sizeOf (undefined :: V n x)
+  sizeOf430 = sizeOf140
+  sizeOfPacked = sizeOf140
+
+  read140 p o = liftIO $ peekDiffOff p o
+  read430 = read140
+  readPacked = read140
+
+  write140 p o a = liftIO $ pokeDiffOff p o a
+  write430 = write140
+  writePacked = write140
+
+instance (KnownNat n, Block x, Storable x) => ShaderData (V n x) where
+  type FirType (V n x) = V n x
+
+type StructV :: Nat -> Type -> Symbol -> Type
+newtype StructV n x name = StructV (V n x)
+  deriving Generic
+
+instance (KnownNat n, Block x, Storable x, KnownSymbol name) => Block (StructV n x name) where
+  -- TODO: These functions can't be derived currently. Perhaps those default functions should be improved upstream.
+  type PackedSize (StructV n x name) = PackedSize (V n x)
+  sizeOfPacked = sizeOf140
+
+instance (KnownNat n, Block x, Storable x, KnownSymbol name) => ShaderData (StructV n x name) where
+  type FirType (StructV n x name) = FIR.Struct '[ name 'FIR.:-> V n x ]
+
+-- ** FIR Matrix
+instance (KnownNat m, KnownNat n, Storable x, Block x) => Block (M m n x) where
+  type PackedSize (M m n x) = m * n * (PackedSize x)
+
+  alignment140 _ = Store.alignment (undefined :: M m n x)
+  alignment430 = alignment140
+
+  sizeOf140 _ = Store.sizeOf (undefined :: M m n x)
+  sizeOf430 = sizeOf140
+  sizeOfPacked = sizeOf140
+
+  read140 p o = liftIO $ peekDiffOff p o
+  read430 = read140
+  readPacked = read140
+
+  write140 p o a = liftIO $ pokeDiffOff p o a
+  write430 = write140
+  writePacked = write140
+
+instance (KnownNat m, KnownNat n, Block x, Storable x) => ShaderData (M m n x) where
+  type FirType (M m n x) = M m n x
+
+type StructM :: Nat -> Nat -> Type -> Symbol -> Type
+newtype StructM m n x name = StructM (M m n x)
+  deriving Generic
+
+instance (KnownNat m, KnownNat n, Block x, Storable x, KnownSymbol name) => Block (StructM m n x name) where
+  -- TODO: These functions can't be derived currently. Perhaps those default functions should be improved upstream.
+  type PackedSize (StructM m n x name) = PackedSize (M m n x)
+  sizeOfPacked = sizeOf140
+
+instance (KnownNat m, KnownNat n, Block x, Storable x, KnownSymbol name) => ShaderData (StructM m n x name) where
+  type FirType (StructM m n x name) = FIR.Struct '[ name 'FIR.:-> M m n x ]
