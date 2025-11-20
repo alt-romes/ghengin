@@ -33,7 +33,7 @@ blinnPhong specularity col = do
 
         -- Light
         viewDir    = normalise (Vec3 cx cy cz ^-^ Vec3 px py pz)
-        dirToLight = normalise (Vec3 1 (-3) (-1))
+        dirToLight = normalise (Vec3 1 3 1)
         ambient    = 0.05 *^ col
         normal     = normalise (Vec3 nx ny nz)
         -- light intensity given by cosine of direction to light and the normal in world space

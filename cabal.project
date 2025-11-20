@@ -18,9 +18,6 @@ packages:
 -- package *
 --     profiling-detail: late
 
-package ghengin-core
-  flags: +enable-culling
-
 package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3
 

@@ -40,7 +40,7 @@ cubeVertices = [
   vec3 (-0.5) (0.5)  (-0.5)  :&: white,
   vec3 (-0.5) (-0.5)  (-0.5) :&: white,
 
-  -- right face (yellow)
+  -- front face (yellow)
   vec3 (-0.5) (-0.5) (-0.5) :&: yellow,
   vec3 0.5 (0.5)  (-0.5)  :&: yellow,
   vec3 0.5 (-0.5) (-0.5)  :&: yellow,
@@ -48,7 +48,7 @@ cubeVertices = [
   vec3 (-0.5) (0.5)  (-0.5) :&: yellow,
   vec3 0.5 (0.5)  (-0.5)  :&: yellow,
 
-  -- top face (orange, remember y axis points down)
+  -- top face (orange)
   vec3 (-0.5) (-0.5) (-0.5) :&: orange,
   vec3 (0.5) (-0.5) (-0.5)  :&: orange,
   vec3 (0.5)  (-0.5) (0.5)  :&: orange,
@@ -64,7 +64,7 @@ cubeVertices = [
   vec3 (0.5)  (0.5) (0.5)  :&: red,
   vec3 (0.5)  (0.5) (-0.5) :&: red,
 
-  -- nose face (blue)
+  -- right face (blue)
   vec3 (0.5) (0.5) (-0.5) :&: blue,
   vec3 (0.5)  (0.5)  (0.5) :&: blue,
   vec3 (0.5) (-0.5)  (0.5) :&: blue,
@@ -72,7 +72,7 @@ cubeVertices = [
   vec3 (0.5)  (-0.5) (-0.5) :&: blue,
   vec3 (0.5)  (0.5)  (-0.5) :&: blue,
 
-  -- tail face (green)
+  -- back face (green)
   vec3 (-0.5) (0.5) (0.5) :&: green,
   vec3 (-0.5) (-0.5)  (0.5) :&: green,
   vec3 (0.5)  (0.5)  (0.5) :&: green,
@@ -117,7 +117,7 @@ main = do
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
 
     (mesh :: CubeMesh, pipeline) <-
-      (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) cubeVertices ↑)
+      (createMesh pipeline (DynamicBinding (Ur (rotateX (pi/4))) :## GHNil) cubeVertices ↑)
 
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)

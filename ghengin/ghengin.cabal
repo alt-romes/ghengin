@@ -109,8 +109,10 @@ library geometry
     import:           common-flags
     visibility: public
     exposed-modules:  Ghengin.Geometry, Ghengin.Geometry.Sphere, Ghengin.Geometry.Cube,
-                      Ghengin.Geometry.Transform
-    build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits, ghengin-core, vector, containers, split, geomancy >= 0.3
+                      Ghengin.Geometry.Transform, Ghengin.Geometry.Normals,
+                      Ghengin.Geometry.Vectors
+    build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits,
+                      ghengin-core, vector, containers, split, geomancy >= 0.3, linear-base
     hs-source-dirs:   ghengin-geometry
     default-language: GHC2021
 
