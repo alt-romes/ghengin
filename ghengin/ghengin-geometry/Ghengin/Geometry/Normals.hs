@@ -77,9 +77,9 @@ computeNormals ixs vs =
                & ic += no
         ) arr0 [Ur i | i <- [0,3..V.length ixs - 1]]
   where
-    (!) = (V.!)
+    (!) = V.unsafeIndex
 
     (+=) :: Int -> Vec3 -> Array.Array Vec3 %1 -> Array.Array Vec3
-    (+=) i new arr0 = case Array.get i arr0 of
-      (Ur exists, arr1) -> Array.set i (new ^+^ exists) arr1
+    (+=) i new arr0 = case Array.unsafeGet i arr0 of
+      (Ur exists, arr1) -> Array.unsafeSet i (new ^+^ exists) arr1
 
