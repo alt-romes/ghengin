@@ -71,4 +71,5 @@ computeNormals ixs vs =
     (+=) i new arr0 = case Array.get i arr0 of
       (Ur exists, arr1) -> Array.set i (new ^+^ exists) arr1
 
- -- todo: use unsafeIndex, unsafeSet, unsafeGet
+
+-- TODO: computeSmoothNormals: they use the result of computeNormals and does things.

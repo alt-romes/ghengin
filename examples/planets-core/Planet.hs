@@ -19,6 +19,7 @@ import Ghengin.Core.Log
 import GHC.Float
 import Numeric.Noise hiding (Noise)
 import qualified Data.List.NonEmpty as NE
+import qualified Data.Vector as V
 
 import Geomancy.Transform
 
@@ -27,6 +28,7 @@ import Ghengin.Core.Mesh
 import Geomancy.Vec3
 
 import Ghengin.Geometry.Sphere
+import Ghengin.Geometry.Normals
 
 import qualified FIR
 import qualified Math.Linear as FIR
@@ -63,21 +65,21 @@ newPlanetMesh rp (PlanetSettings re ra co enableMask nss) = enterD "newPlanetMes
 
   let UnitSphere vs is = newUnitSphere re (Just co)
 
-      -- (ps', elevations) = P.unzip $ (`map` vs) \(p :& _) ->
-      --   case nss of
-      --     ns NE.:| nss' ->
-      --       let initialElevation = evalNoise ns p
-      --           mask = if enableMask then initialElevation else 1
-      --           noiseElevation = foldl' (\acc ns' -> acc + (evalNoise ns' p)*mask) initialElevation nss'
-      --           elevation = ra * (1 + noiseElevation)
-      --        in (p ^* (-elevation), elevation)
-      --
-      -- ns'  = calculateSmoothNormals is ps'
-      -- vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' (map (\(_ :& _ :&: c) -> c) vs)
+      (ps', elevations) = P.unzip $ (`map` vs) \(p :& _) ->
+        case nss of
+          ns NE.:| nss' ->
+            let initialElevation = evalNoise ns p
+                mask = if enableMask then initialElevation else 1
+                noiseElevation = foldl' (\acc ns' -> acc + (evalNoise ns' p)*mask) initialElevation nss'
+                elevation = ra * (1 + noiseElevation)
+             in (p ^* (elevation), elevation)
+
+      ns'  = V.toList $ computeNormals (V.fromList (P.map fromIntegral is)) (V.fromList ps')
+      vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' (map (\(_ :& _ :&: c) -> c) vs)
 
       -- minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) vs is ↑)
+   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) vs'' is ↑)
 
 newPlanetMaterial :: forall π p
                    . CompatibleMaterial '[MinMax,Texture2D] π
