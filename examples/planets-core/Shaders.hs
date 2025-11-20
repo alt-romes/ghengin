@@ -19,7 +19,6 @@ import Ghengin.Camera.Shader.Lighting
 type VertexDefs
   = '[ "out_position"  ':-> Output '[ Location 0 ] (V 4 Float)
      , "out_normal"    ':-> Output '[ Location 1 ] (V 4 Float)
-     , "out_color"     ':-> Output '[ Location 2 ] (V 3 Float)
 
 
      , "camera"        ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
@@ -31,7 +30,6 @@ type VertexDefs
 
      , "in_position"   ':-> Input '[ Location 0 ] (V 3 Float)
      , "in_normal"     ':-> Input '[ Location 1 ] (V 3 Float)
-     , "in_color"      ':-> Input '[ Location 2 ] (V 3 Float)
      ]
 
 
@@ -47,7 +45,6 @@ vertex = shader do
     put @"out_position" (modelM !*^ Vec4 x y z 1)
     -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
     put @"out_normal"   (modelM !*^ Vec4 nx ny nz 0)
-    put @"out_color"    =<< get @"in_color"
 
     put @"gl_Position" =<< applyVP (modelM !*^ Vec4 x y z 1)
 
@@ -57,7 +54,7 @@ vertex = shader do
 type FragmentDefs
   =  '[ "in_position" ':-> Input '[ Location 0 ] (V 4 Float)
       , "in_normal"   ':-> Input '[ Location 1 ] (V 4 Float)
-      , "in_color"    ':-> Input '[ Location 2 ] (V 3 Float)
+      -- , "in_color"    ':-> Uniform '[ Location 2 ] (V 3 Float)
 
       -- , "camera_pos" ':-> Uniform '[ DescriptorSet 0, Binding 2 ] (Struct '[ "v" ':-> V 3 Float ])
 
@@ -73,7 +70,7 @@ fragment :: FragmentShaderModule FragmentDefs _
 fragment = shader do
 
     ~(Vec4 px py pz _)  <- get @"in_position"
-    ~(Vec3 cx cy cz)    <- get @"in_color"
+    -- ~(Vec3 cx cy cz)    <- get @"in_color"
 
     -- Color
     -- min' <- use @(Name "minmax" :.: Name "min")
@@ -86,7 +83,7 @@ fragment = shader do
     -- ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 cx' cy' cz'
     --
     def @"camera_pos" @R (Vec3 0 0 0)
-    ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 cx cy cz
+    ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 0 1 1
     put @"out_colour" (Vec4 colx coly colz 1)
 
 --- Pipeline ----
@@ -95,7 +92,6 @@ fragment = shader do
 type VertexData =
   '[ Slot 0 0 ':-> V 3 Float -- in pos
    , Slot 1 0 ':-> V 3 Float -- in normal
-   , Slot 2 0 ':-> V 3 Float -- in color
    ]
 
 shaders :: ShaderPipeline _

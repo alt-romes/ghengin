@@ -57,21 +57,6 @@ import Ghengin.Camera
 import Shaders -- planet shaders
 import Planet
 
--- makeMainPipeline :: Renderer (RenderPipeline _ CameraProperties)
--- makeMainPipeline = Linear.do
---   Ur extent <- getRenderExtent
---
---   let radians d = d * (pi/180)
---       -- By making the extent into a static binding, when we update the extent
---       -- we must also explicitely update the static binding
---       projM = perspective @Word32 (radians 65) 0.1 100 extent.width extent.height
---
---   makeRenderPipeline shaders
---     (   StaticBinding  (Ur (coerce projM))
---     :## DynamicBinding (Ur (coerce $ Transform identity))
---     :## DynamicBinding (Ur (coerce $ vec3 0 0 0))
---     :## GHNil                       )
-
 gameLoop :: _
          => UTCTime -> _ -> _ -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop currentTime mkey rot rp rq = Linear.do
@@ -105,7 +90,7 @@ main = do
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
     pipeline <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
-    (p1mesh, pipeline) <- newPlanetMesh pipeline defaultPlanetSettings
+    (p1mesh, pipeline) <- newPlanetMesh pipeline defaultPlanet
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     -- (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
 
@@ -117,14 +102,18 @@ main = do
     rq <- gameLoop currTime mshkey 0 rp2 rq
 
     (freeRenderQueue rq ↑)
-    -- This is all done in the freeRenderQueue!
-    -- In fact, freeing these again is a type error. Woho!
-    -- (freeMesh p1mesh ↑)
-    -- (freeMaterial pmat ↑)
-    -- (destroyRenderPipeline pipeline ↑)
 
     return (Ur ())
 
 camera :: Camera "view_matrix" "proj_matrix"
 camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) (1280, 720)
+
+defaultPlanet :: Planet
+defaultPlanet = Planet
+  { resolution = 100
+  , planetShape = PlanetShape
+      { planetRadius = 1
+      , planetNoise  = CoherentNoise (vec3 0 0 0) 1 1
+      }
+  }
 

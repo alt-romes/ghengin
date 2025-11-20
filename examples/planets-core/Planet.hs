@@ -25,6 +25,7 @@ import Geomancy.Transform
 
 import Ghengin.Core
 import Ghengin.Core.Mesh
+import Geomancy (VectorSpace(..))
 import Geomancy.Vec3
 
 import Ghengin.Geometry.Sphere
@@ -39,15 +40,9 @@ import Ghengin.Core.Shader.Data
 -- * Planet
 --------------------------------------------------------------------------------
 
-type PlanetMesh = Mesh '[Vec3, Vec3, Vec3] '[Transform]
-
-data PlanetSettings = PlanetSettings { resolution :: !Int
-                                     , radius     :: !Float
-                                     , color      :: !Vec3
-                                     , useFirstLayerAsMask :: !Bool
-                                     , noiseSettings :: !(NE.NonEmpty NoiseSettings)
-                                     -- , gradient :: ImGradient
-                                     }
+data Planet = Planet { resolution  :: !Int
+                     , planetShape :: !PlanetShape
+                     }
 
 data MinMax = MinMax !Float !Float
   deriving (P.Eq, Show, Generic)
@@ -56,14 +51,34 @@ data MinMax = MinMax !Float !Float
 instance ShaderData MinMax where
   type FirType MinMax = FIR.Struct '["min" 'FIR.:-> Float, "max" 'FIR.:-> Float]
 
+--------------------------------------------------------------------------------
+-- * Mesh
+--------------------------------------------------------------------------------
+
+type PlanetMesh = Mesh '[Vec3, Vec3] '[Transform]
+
+data PlanetShape = PlanetShape
+  { planetRadius :: !Float
+  , planetNoise  :: !Noise
+  }
+
+-- | Make the point on a planet for the given point on a unit sphere
+pointOnPlanet :: PlanetShape -> Vec3 -> Vec3
+pointOnPlanet PlanetShape{..} pointOnUnitSphere =
+  let elevation = evalNoise planetNoise pointOnUnitSphere
+   in pointOnUnitSphere ^* planetRadius ^* (1+elevation)
+
 newPlanetMesh :: _ -- more constraints
-              => CompatibleVertex '[Vec3, Vec3, Vec3] π
+              => CompatibleVertex '[Vec3, Vec3] π
               => CompatibleMesh '[Transform] π
               => RenderPipeline π bs
-               ⊸ PlanetSettings -> Core (PlanetMesh, RenderPipeline π bs)
-newPlanetMesh rp (PlanetSettings re ra co enableMask nss) = enterD "newPlanetMesh" $ Linear.do
+               ⊸ Planet
+              -> Core (PlanetMesh, RenderPipeline π bs)
+newPlanetMesh rp Planet{..} = enterD "newPlanetMesh" $ Linear.do
 
-  let UnitSphere vs is = newUnitSphere re (Just co)
+  let UnitSphere us is = newUnitSphere resolution
+
+      planetVxs = P.map (\(p :&: n) -> pointOnPlanet planetShape p :&: n) us
 
       -- (ps', elevations) = P.unzip $ (`map` vs) \(p :& _) ->
       --   case nss of
@@ -79,7 +94,11 @@ newPlanetMesh rp (PlanetSettings re ra co enableMask nss) = enterD "newPlanetMes
 
       -- minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) vs is ↑)
+   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) planetVxs is ↑)
+
+--------------------------------------------------------------------------------
+-- * Material
+--------------------------------------------------------------------------------
 
 newPlanetMaterial :: forall π p
                    . CompatibleMaterial '[MinMax,Texture2D] π
@@ -93,59 +112,21 @@ newPlanetMaterial mm t pl = ( material @_ @π (StaticBinding (Ur mm) :## Texture
 -- * Noise
 --------------------------------------------------------------------------------
 
+data Noise = CoherentNoise
+      { centre    :: !Vec3
+      , roughness :: !Float
+      , strength  :: !Float
+      }
 
-data NoiseType = SimpleNoise | RigidNoise deriving Show
+evalNoise :: Noise -> Vec3 -> Float
+evalNoise CoherentNoise{..} point = double2Float
+  let seed = 123456
+      WithVec3 px py pz = point ^* roughness ^+^ centre
+      noiseValue  = coherentNoise seed (float2Double px, float2Double py, float2Double pz)
+      noiseScaled = (noiseValue + 1) * 0.5 {-from [-1 to 1] to [0 to 1] -}
+   in noiseScaled * float2Double strength
 
-data NoiseSettings = NoiseSettings { numLayers :: !Int
-                                   , strength  :: !Float
-                                   , roughness :: !Float
-                                   , baseRoughness :: !Float
-                                   , persistence   :: !Float
-                                   , center    :: !Vec3
-                                   , minValue  :: !Float
-                                   , enabled   :: !Bool
-                                   , type'     :: !NoiseType
-                                   }
-
-evalNoise :: NoiseSettings -> Vec3 -> Float
-evalNoise (NoiseSettings nl st ro br ps ce mv en nt) p =
-  case nt of
-    SimpleNoise -> evalSimpleNoise nl st ro br ps ce mv en p
-    RigidNoise  -> evalRigidNoise nl st ro br ps ce mv en p
-  where
-
-    evalSimpleNoise nlayers stren rough baseRoughness (float2Double -> persi) cent minVal enabled point =
-      -- Accumulator is noiseValue, frequency, and amplitude, and get updated for each layer
-      let (finalVal,_,_) = foldl' (\(noiseVal, freq, amplitude) _ ->
-                                    let v          = noiseValue' (point ^* freq + cent)
-                                        noiseVal'  = (v + 1)*0.5*amplitude + noiseVal
-                                        freq'      = freq*rough -- >1 roughness will increase roughness as the layer increases
-                                        amplitude' = amplitude*persi -- <1 persistence implies amplitude decreases with each layer
-                                     in (noiseVal', freq', amplitude')
-                                    ) (0,baseRoughness,1) ([1..nlayers] :: [Int])
-       in if enabled then P.max (double2Float finalVal - minVal) 0 * stren else 0
-
-    evalRigidNoise nlayers stren rough baseRoughness (float2Double -> persi) cent minVal enabled point =
-      -- Accumulator is noiseValue, frequency, amplitude, and weight, and get updated for each layer
-      let (finalVal,_,_,_) = foldl' (\(noiseVal, freq, amplitude, weight) _ ->
-                                    let v          = 1 - abs(noiseValue' (point ^* freq + cent))
-                                        v'         = v*v*weight
-                                        noiseVal'  = v'*amplitude + noiseVal
-                                        freq'      = freq*rough -- >1 roughness will increase roughness as the layer increases
-                                        amplitude' = amplitude*persi -- <1 persistence implies amplitude decreases with each layer
-                                        weight'    = v' -- weight starts at 1 is set to the value for each iteration
-                                     in (noiseVal', freq', amplitude', weight')
-                                    ) (0,baseRoughness,1,1) ([1..nlayers] :: [Int])
-       in if enabled then P.max (double2Float finalVal - minVal) 0 * stren else 0
-
-    noiseValue' (WithVec3 x y z) = coherentNoise 2 (float2Double x, float2Double y, float2Double z)
-
-defaultPlanetSettings :: PlanetSettings
-defaultPlanetSettings
-  = PlanetSettings 100 1 (vec3 1 0 0) False
-                   [ NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
-                   -- , NoiseSettings 1 1 1 2 0.5 (vec3 0 0 0) 0 True SimpleNoise
-                   ]
+--------------------------------------------------------------------------------
 
 -- non-compositional instance for "Transform", just for demo
 instance ShaderData Transform where
