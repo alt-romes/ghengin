@@ -16,8 +16,6 @@ import Ghengin.Core.Type.Compatible
 import Data.List (foldl')
 import Ghengin.Core.Log
 
-import GHC.Float
-import Numeric.Noise hiding (Noise)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 
@@ -35,6 +33,8 @@ import qualified FIR
 import qualified Math.Linear as FIR
 
 import Ghengin.Core.Shader.Data
+
+import Planet.Noise
 
 --------------------------------------------------------------------------------
 -- * Planet
@@ -107,24 +107,6 @@ newPlanetMaterial :: forall π p
                    ⊸ RenderPipeline π p
                    ⊸ Core (Material '[MinMax,Texture2D], RenderPipeline π p)
 newPlanetMaterial mm t pl = ( material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil) pl ↑)
-
---------------------------------------------------------------------------------
--- * Noise
---------------------------------------------------------------------------------
-
-data Noise = CoherentNoise
-      { centre    :: !Vec3
-      , roughness :: !Float
-      , strength  :: !Float
-      }
-
-evalNoise :: Noise -> Vec3 -> Float
-evalNoise CoherentNoise{..} point = double2Float
-  let seed = 123456
-      WithVec3 px py pz = point ^* roughness ^+^ centre
-      noiseValue  = coherentNoise seed (float2Double px, float2Double py, float2Double pz)
-      noiseScaled = (noiseValue + 1) * 0.5 {-from [-1 to 1] to [0 to 1] -}
-   in noiseScaled * float2Double strength
 
 --------------------------------------------------------------------------------
 

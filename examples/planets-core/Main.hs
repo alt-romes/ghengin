@@ -56,6 +56,7 @@ import Ghengin.Camera
 -- planets!
 import Shaders -- planet shaders
 import Planet
+import Planet.Noise
 
 gameLoop :: _
          => UTCTime -> _ -> _ -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
@@ -113,7 +114,14 @@ defaultPlanet = Planet
   { resolution = 100
   , planetShape = PlanetShape
       { planetRadius = 1
-      , planetNoise  = CoherentNoise (vec3 0 0 0) 1 1
+      , planetNoise  = LayersCoherentNoise
+          { centre        = vec3 0 0 0
+          , baseRoughness = 1
+          , strength      = 1
+          , numLayers     = 2
+          , persistence   = 0.5
+          , roughness     = 2
+          }
       }
   }
 
