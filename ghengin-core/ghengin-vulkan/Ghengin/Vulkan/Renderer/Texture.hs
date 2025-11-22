@@ -100,26 +100,23 @@ textureFromImage dimage = \sampler' ->
     -- (2) we transfer from the staging buffer to the image
     -- (3) we change the layout to shader read-only optimal
 
-    -- TODO: Make this the default setting in those functions, and move it there.
+    -- TODO: the use of unsafe to linear caused a segfault here. the staging
+    -- buffer was captured in one of the commands which were only used later in
+    -- "immediate submit".
 
-    -- (1) 
-    logT "Transition image layout"
-    (cmd1, image) <- pure $ transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+    (stagingBuffer, image) <- immediateSubmit $ Linear.do
 
-    -- (2)
-    logT "Transfer from the staging buffer to the image"
-    (cmd2, stagingBuffer, image) <- pure $ copyFullBufferToImage stagingBuffer image (dynamicExtent dimage)
+      -- (1) 
+      image <- transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 
-    -- (3)
-    logT "Change layout to shader read-only optimal"
-    (cmd3, image) <- pure $ transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+      -- (2)
+      (stagingBuffer, image) <- copyFullBufferToImage stagingBuffer image (dynamicExtent dimage)
 
-    -- TODO: Re-imagine Commands, and probably make it so that we can use the monad completely, not just over ()
-    -- then again it's also good to think about the submission as something executing on GPU not interleaved with CPU code?
-    -- Ach, think about this all, but not now.
-    -- Write thoughts on Command module.
-    logT "Submit the three commands"
-    immediateSubmit $ cmd1 >> cmd2 >> cmd3
+      -- (3)
+      (image) <- transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+
+      pure (stagingBuffer, image)
+
     destroyBuffer stagingBuffer
 
     Alias.newAlias freeTexture (Texture2D (VulkanImage image devMem imgView) sampler')

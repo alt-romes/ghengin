@@ -14,7 +14,7 @@ import qualified Data.V.Linear as V
 import qualified Data.Vector as Vector
 
 import Ghengin.Vulkan.Renderer.Device
-import Ghengin.Vulkan.Renderer.Command (Command, copyFullBuffer, clearColorImage)
+import Ghengin.Vulkan.Renderer.Command (CommandM, copyFullBuffer, clearColorImage)
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.SwapChain
 import Ghengin.Vulkan.Renderer.Frame
@@ -114,19 +114,17 @@ unsafeUseDeviceAnd f = Unsafe.toLinear $ \x -> (,x) <$> unsafeUseDevice (f x)
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
-immediateSubmit :: Command System.IO.Linear.IO ⊸ Renderer () -- ROMES: Command IO, is that OK? Can easily move to Command Renderer by unsafeUseDevice
+immediateSubmit :: CommandM System.IO.Linear.IO a ⊸ Renderer a
 immediateSubmit cmd = renderer $ \(REnv{..}) -> Linear.do
-  (dev', imsctx') <- immediateSubmit' _vulkanDevice _immediateSubmit cmd
-  pure ((), REnv{_vulkanDevice=dev',_immediateSubmit=imsctx',..})
+  ((dev', imsctx'), x) <- immediateSubmit' _vulkanDevice _immediateSubmit cmd
+  pure (x, REnv{_vulkanDevice=dev',_immediateSubmit=imsctx',..})
 
 -- | Run a one-shot command that copies the whole data between two buffers.
 -- Returns the two buffers, in the order they were passed to the function
 copyBuffer :: Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> Renderer (Vk.Buffer, Vk.Buffer)
 copyBuffer src dst size = Linear.do
-  case copyFullBuffer src dst size of
-    (cmd, src', dst') -> Linear.do
-      immediateSubmit cmd
-      pure (src', dst')
+  immediateSubmit $
+    copyFullBuffer src dst size
 
 -- | Get the extent of the images in the swapchain?
 getRenderExtent :: Renderer (Ur Vk.Extent2D)
