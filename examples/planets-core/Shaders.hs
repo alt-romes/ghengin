@@ -39,14 +39,17 @@ vertex = shader do
     ~(Vec3 x y z)    <- get @"in_position"
     ~(Vec3 nx ny nz) <- get @"in_normal"
 
+    projM  <- use @(Name "camera" :.: Name "proj_matrix")
+    viewM  <- use @(Name "camera" :.: Name "view_matrix")
     modelM <- use @(Name "model" :.: Name "m")
 
     -- Output position and normal in world coordinates
-    put @"out_position" (modelM !*^ Vec4 x y z 1)
+    put @"out_position" ((viewM !*! modelM) !*^ Vec4 x y z 1)
     -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
-    put @"out_normal"   (modelM !*^ Vec4 nx ny nz 0)
+    -- (For non-uniform transformations we could also pre-compute a "Normal Matrix" rather than using the model one.)
+    put @"out_normal"   ((viewM !*! modelM) !*^ Vec4 nx ny nz 0)
 
-    put @"gl_Position" =<< applyVP (modelM !*^ Vec4 x y z 1)
+    put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ Vec4 x y z 1)
 
 ---- Fragment -----
 
@@ -82,8 +85,21 @@ fragment = shader do
     --
     -- ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 cx' cy' cz'
     --
-    def @"camera_pos" @R (Vec3 0 0 0)
-    ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 0 1 1
+    -- def @"camera_pos" @R (Vec3 0 0 0)
+    -- ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 0 1 1
+
+    let lightPos  = Vec3 8 12 6
+    let lightCol  = Vec3 1 1 1
+    let objectCol = Vec3 1 0 0
+    let shininess = 32
+    let specularStrength = 0.5
+
+    let ambientColor = ambientLight 0.1 lightCol
+    diffuseColor    <- diffuseLight lightPos lightCol
+    specularColor   <- specularLight specularStrength shininess lightPos lightCol
+    let Vec3 colx coly colz
+          = (ambientColor ^+^ diffuseColor ^+^ specularColor) `pointwiseMult` objectCol
+
     put @"out_colour" (Vec4 colx coly colz 1)
 
 --- Pipeline ----
