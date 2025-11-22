@@ -115,7 +115,7 @@ library geometry
                       Ghengin.Geometry.Obj
     build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits,
                       ghengin-core, vector, containers, split, geomancy >= 0.3,
-                      linear-base, wavefront
+                      linear-base, reference-counting, wavefront
     hs-source-dirs:   ghengin-geometry
     default-language: GHC2021
 
