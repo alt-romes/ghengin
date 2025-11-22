@@ -185,6 +185,7 @@ withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
   
   -- Map the buffer memory into CPU accessible memory
   (stagingMem1, data'ptr) <- mapMemory stagingMem0 0 bufferSize zero
+
   -- Copy buffer data to data'ptr mapped device memory
   data'ptr <- unsafeUse data'ptr $ \unsafeDataPtr ->
     liftSystemIO $ SV.unsafeWith bufferData $ \ptr ->
@@ -195,7 +196,7 @@ withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
 
   -- Use staging buffer
   -- ------------------
-  p <- f stagingBuffer0 bufferSize -- TODO: On exception must free stagingBuffer0 still...
+  !p <- f stagingBuffer0 bufferSize -- TODO: On exception must free stagingBuffer0 still...
 
   -- Release things
   -- -----------------------------------
@@ -203,26 +204,6 @@ withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
   freeMemory stagingMem2
 
   pure p
-
-
--- data Buffer where
---   -- | A Uniform buffer with size equal to the sizeOf of the Storable @a@
---   UniformBuffer { buffer :: Vk.Buffer
---                 , devMem :: Vk.DeviceMemory
---                 , hostMem :: Storable a => Ptr a
---                 } :: Buffer
-
--- UniformBuffer:
---
--- You can then copy data to the mapped memory using 'copyBytes'
---
--- TODO: Enforce pointer is freed with linear types
---
--- The returned Ptr has the sizeOf of the storable type and is mapped to
--- the device buffer. When bytes are copied to this address they are mapped
--- onto the device buffer.  That is, to write to the buffer you should rather
--- write to the pointer
-
 
 destroyMappedBuffer :: MappedBuffer ⊸ Renderer ()
 destroyMappedBuffer (MappedBuffer b dm hostMemory (Ur _size)) = enterD "destroyMappedBuffer" $ Linear.do

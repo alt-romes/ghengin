@@ -11,8 +11,14 @@ module Ghengin.Vulkan.Renderer.Texture
   -- * Generating textures
   , generateImage
   , DynamicImage(..)
+
+  -- * Re-exports from FIR
+  , ImageFormat(..), Component(..)
+  , SNorm, UNorm, F, I, UI
+  , pattern SNorm, pattern UNorm, pattern F, pattern I, pattern UI
   ) where
 
+import GHC.TypeNats
 import Ghengin.Core.Log
 import Ghengin.Core.Prelude as Linear
 import qualified Prelude
@@ -20,12 +26,12 @@ import qualified Unsafe.Linear as Unsafe
 import qualified Vulkan as Vk
 
 import qualified FIR
-import qualified FIR.Prim.Image as FIR
-import qualified SPIRV.Image as SPIRV
-import qualified SPIRV.ScalarTy
+import qualified FIR.Prim.Image
+import SPIRV.Image
 
 -- import System.Mem.Weak
 import Codec.Picture
+
 import Data.Bits
 import Foreign.Storable
 import Ghengin.Vulkan.Renderer.Buffer
@@ -35,17 +41,23 @@ import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.Sampler
 import qualified Data.Linear.Alias as Alias
 
-data Texture2D = Texture2D { image          :: VulkanImage
-                           , sampler        :: Alias Sampler
-                           } deriving Generic
+import qualified Ghengin.Core.Shader.Data as Shader
 
-texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
+-- TODO: More generally, we could have 1D and 3D textures too. There's also Images...
+-- See FIR.Syntax.Synonyms
+type Texture2D :: ImageFormat Nat -> Type
+data Texture2D (fmt :: ImageFormat Nat)
+  = Texture2D { image   :: VulkanImage
+              , sampler :: Alias Sampler
+              }
+
+texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D fmt))
 texture fp sampler = enterD "Creating a texture" Linear.do
   liftSystemIOU (readImage fp) >>= \case
     Ur (Left e      ) -> Alias.forget sampler >> liftSystemIO (Prelude.fail e)
     Ur (Right dimage) -> textureFromImage dimage sampler
 
-freeTexture :: Texture2D ⊸ Renderer ()
+freeTexture :: Texture2D fmt ⊸ Renderer ()
 freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture" Linear.do
   -- ROMES:tODO: fix Image.hs so that this definition doesn't need to be unsafe.
   withDevice (\dev -> ((),) <$> (destroyImage dev img))
@@ -53,9 +65,8 @@ freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture"
 
 textureFromImage :: DynamicImage
                  -> Alias Sampler
-                  ⊸ Renderer (Alias Texture2D)
--- (For now) we convert the image to RGBA8 at all costs, which is a bit of a hack
-textureFromImage (ImageRGBA8 Prelude.. convertRGBA8 -> dimage) = \sampler' ->
+                  ⊸ Renderer (Alias (Texture2D fmt))
+textureFromImage dimage = \sampler' ->
   let wsb = case dimage of
               ImageY8     img -> withStagingBuffer (img.imageData)
               ImageY16    img -> withStagingBuffer (img.imageData)
@@ -72,7 +83,7 @@ textureFromImage (ImageRGBA8 Prelude.. convertRGBA8 -> dimage) = \sampler' ->
               ImageCMYK8  img -> withStagingBuffer (img.imageData)
               ImageCMYK16 img -> withStagingBuffer (img.imageData)
 
-   in wsb $ \stagingBuffer _bufferSize -> Linear.do
+   in wsb $ \stagingBuffer _bufferSize -> enterD "textureFromImage" Linear.do
 
     (VulkanImage image devMem imgView)
         <- useVulkanDevice (\device ->
@@ -89,24 +100,24 @@ textureFromImage (ImageRGBA8 Prelude.. convertRGBA8 -> dimage) = \sampler' ->
     -- (2) we transfer from the staging buffer to the image
     -- (3) we change the layout to shader read-only optimal
 
-    -- TODO: Make this the default setting in those functions, and move it there.
+    -- TODO: the use of unsafe to linear caused a segfault here. the staging
+    -- buffer was captured in one of the commands which were only used later in
+    -- "immediate submit".
 
-    -- (1) 
-    (cmd1, image) <- pure $ transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+    (stagingBuffer, image) <- immediateSubmit $ Linear.do
 
-    -- (2)
-    (cmd2, stagingBuffer, image) <- pure $ copyFullBufferToImage stagingBuffer image (dynamicExtent dimage)
+      -- (1) 
+      image <- transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+
+      -- (2)
+      (stagingBuffer, image) <- copyFullBufferToImage stagingBuffer image (dynamicExtent dimage)
+
+      -- (3)
+      (image) <- transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+
+      pure (stagingBuffer, image)
 
     destroyBuffer stagingBuffer
-    
-    -- (3)
-    (cmd3, image) <- pure $ transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-
-    -- TODO: Re-imagine Commands, and probably make it so that we can use the monad completely, not just over ()
-    -- then again it's also good to think about the submission as something executing on GPU not interleaved with CPU code?
-    -- Ach, think about this all, but not now.
-    -- Write thoughts on Command module.
-    immediateSubmit $ cmd1 >> cmd2 >> cmd3
 
     Alias.newAlias freeTexture (Texture2D (VulkanImage image devMem imgView) sampler')
 
@@ -145,11 +156,11 @@ dynamicFormat = \case
   ImageYF     _ -> undefined
   ImageYA8    _ -> undefined
   ImageYA16   _ -> undefined
-  ImageRGB8   _ -> Vk.FORMAT_R8G8B8_SRGB
+  ImageRGB8   _ -> Vk.FORMAT_R8G8B8_UNORM
   ImageRGB16  _ -> undefined
   ImageRGBF   _ -> undefined
-  ImageRGBA8  _ -> Vk.FORMAT_R8G8B8A8_SRGB
-  ImageRGBA16 _ -> Vk.FORMAT_R8G8B8A8_SRGB
+  ImageRGBA8  _ -> Vk.FORMAT_R8G8B8A8_UNORM
+  ImageRGBA16 _ -> Vk.FORMAT_R8G8B8A8_UNORM
   ImageYCbCr8 _ -> undefined
   ImageCMYK8  _ -> undefined
   ImageCMYK16 _ -> undefined
@@ -160,9 +171,11 @@ dynamicExtent dimg = Vk.Extent3D { width = dynamicMap (Prelude.fromIntegral Prel
                                  , depth = 1
                                  }
 
--- TODO
-instance FIR.Syntactic Texture2D where
-  type Internal Texture2D = FIR.Val ((FIR.Image ('FIR.Properties 'FIR.FloatingPointCoordinates Float 'SPIRV.TwoD ('Just 'SPIRV.NotDepthImage) 'SPIRV.NonArrayed 'SPIRV.SingleSampled 'SPIRV.Sampled ('Just ('SPIRV.ImageFormat ('SPIRV.Integer 'SPIRV.Normalised 'SPIRV.ScalarTy.Unsigned) '[8,8,8,8])))))
-  toAST = FIR.undefined
-  fromAST = FIR.undefined
+--------------------------------------------------------------------------------
+-- * Shader Data
+--------------------------------------------------------------------------------
+
+instance Shader.ShaderData (Texture2D fmt) where
+  type FirType (Texture2D fmt) =
+        FIR.Image (FIR.Properties FIR.Prim.Image.FloatingPointCoordinates Float FIR.TwoD (Just FIR.NotDepthImage) FIR.NonArrayed FIR.SingleSampled FIR.Sampled (Just fmt))
 

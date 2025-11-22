@@ -58,14 +58,14 @@ destroyImmediateSubmitCtx device0 (ImmediateSubmitCtx fence pool0 buffer) = Line
 immediateSubmit' :: MonadIO m
                 => VulkanDevice
                  ⊸ ImmediateSubmitCtx
-                 ⊸ Command m
-                 ⊸ m (VulkanDevice, ImmediateSubmitCtx)
+                 ⊸ CommandM m a
+                 ⊸ m ((VulkanDevice, ImmediateSubmitCtx), a)
 -- Submit a command on a newly created buffer to the Graphics Queue
 immediateSubmit' device (ImmediateSubmitCtx fence pool buffer) cmd = Linear.do
 
-  buffer' <- Cmd.recordCommandOneShot buffer cmd
+  (buffer', x) <- Cmd.recordCommandOneShot buffer cmd
 
-  Unsafe.toLinear liftSystemIO $ (Unsafe.toLinearN @4 \dev fence' pool' buffer'' -> do
+  r <- Unsafe.toLinear liftSystemIO $ (Unsafe.toLinearN @4 \dev fence' pool' buffer'' -> do
 
     Vk.queueSubmit dev._graphicsQueue [Vk.SomeStruct $ Vk.SubmitInfo () [] [] [buffer''.commandBufferHandle] []] fence'
     _ <- Vk.waitForFences dev._device [fence'] True maxBound
@@ -75,4 +75,6 @@ immediateSubmit' device (ImmediateSubmitCtx fence pool buffer) cmd = Linear.do
     Vk.resetCommandPool dev._device pool' Vk.zero
 
     Prelude.pure (dev, ImmediateSubmitCtx fence' pool' buffer'')) device fence pool buffer'
+
+  pure (r, x)
 

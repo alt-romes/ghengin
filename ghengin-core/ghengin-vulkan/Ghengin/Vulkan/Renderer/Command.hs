@@ -217,13 +217,13 @@ recordCommand ix = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
   Linear.pure (a, buf)
 {-# INLINE recordCommand #-}
 
-recordCommandOneShot :: Linear.MonadIO m => Vk.CommandBuffer ⊸ Command m ⊸ m Vk.CommandBuffer
+recordCommandOneShot :: Linear.MonadIO m => Vk.CommandBuffer ⊸ CommandM m a ⊸ m (Vk.CommandBuffer, a)
 recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, inheritanceInfo = Nothing }
   Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
-  runReaderT cmds (CmdInfo buf (error "one shot command tried to begin render pass but no frame is selected?"))
+  x <- runReaderT cmds (CmdInfo buf (error "one shot command tried to begin render pass but no frame is selected?"))
   Linear.liftSystemIO $ Vk.endCommandBuffer buf
-  Linear.pure buf
+  Linear.pure (buf, x)
 {-# INLINE recordCommandOneShot #-}
 
 -- | Make a render pass part a command blueprint
@@ -294,9 +294,10 @@ drawIndexed :: Linear.MonadIO m => Word32 -> RenderPassCmd m
 drawIndexed ixCount = unsafeRenderPassCmd_ $ \buf -> Vk.cmdDrawIndexed buf ixCount 1 0 0 0
 {-# INLINE drawIndexed #-}
 
-copyFullBuffer :: Linear.MonadIO m => Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> (Command m, Vk.Buffer, Vk.Buffer)
-copyFullBuffer src dst size = case unsafeCmd (src,dst) $ \buf (src',dst') -> Vk.cmdCopyBuffer buf src' dst' [Vk.BufferCopy 0 0 size] of
-                                (Ur cmd, (src', dst')) -> (cmd, src', dst')
+copyFullBuffer :: Linear.MonadIO m => Vk.Buffer ⊸ Vk.Buffer ⊸ Vk.DeviceSize -> CommandM m (Vk.Buffer, Vk.Buffer)
+copyFullBuffer src dst size =
+  unsafeCmd (src,dst) $ \buf (src',dst') ->
+    Vk.cmdCopyBuffer buf src' dst' [Vk.BufferCopy 0 0 size]
 {-# INLINE copyFullBuffer #-}
 
 pushConstants :: ∀ a m. (Linear.MonadIO m, Storable a) => Vk.PipelineLayout ⊸ Vk.ShaderStageFlags -> a -> RenderPassCmdM m Vk.PipelineLayout
@@ -349,7 +350,7 @@ copyFullBufferToImage :: Linear.MonadIO μ
                       => Vk.Buffer -- ^ From
                        ⊸ Vk.Image  -- ^ To
                        ⊸ Vk.Extent3D
-                      -> (Command μ, Vk.Buffer, Vk.Image)
+                      -> CommandM μ (Vk.Buffer, Vk.Image)
 copyFullBufferToImage buf img extent =
   let
       subresourceRange = Vk.ImageSubresourceLayers { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
@@ -365,8 +366,8 @@ copyFullBufferToImage buf img extent =
                                   , imageOffset = Vk.Offset3D 0 0 0
                                   , imageExtent = extent
                                   }
-   in case unsafeCmd (buf,img) $ \cmdbuf (buf', img') -> Vk.cmdCopyBufferToImage cmdbuf buf' img' Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region] of
-        (Ur cmd, (buf',img')) -> (cmd, buf', img')
+   in unsafeCmd (buf,img) $ \cmdbuf (buf', img') ->
+        Vk.cmdCopyBufferToImage cmdbuf buf' img' Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
 
 transitionImageLayout :: forall μ
                        . Linear.MonadIO μ
@@ -374,10 +375,10 @@ transitionImageLayout :: forall μ
                        ⊸ Vk.Format -- ^ ROMES:TODO: Being ignored?
                       -> Vk.ImageLayout -- ^ Src layout
                       -> Vk.ImageLayout -- ^ Dst layout
-                      -> (Command μ, Vk.Image)
-transitionImageLayout = Unsafe.toLinear $ \img format srcLayout dstLayout ->
-
-  let
+                      -> CommandM μ Vk.Image
+transitionImageLayout img format srcLayout dstLayout =
+  unsafeCmd img (\buf img' ->
+    let
 
       -- Barrier stages and access flags
       (srcAccess, dstAccess, stageFrom, stageTo) =
@@ -402,20 +403,18 @@ transitionImageLayout = Unsafe.toLinear $ \img format srcLayout dstLayout ->
                                                         , newLayout = dstLayout
                                                         , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
                                                         , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-                                                        , image = img
+                                                        , image = img'
                                                         , subresourceRange = subresourceRange
                                                         }
-
-   in ( unsafeCmd_ @μ (\buf ->
       -- Possible synchronization in pipeline barriers table: ?
       -- https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap7.html#synchronization-access-types-supported
-      Vk.cmdPipelineBarrier buf
+     in Vk.cmdPipelineBarrier buf
                             stageFrom stageTo
                             Vk.zero -- Dependency flags
                             [] -- Memory barriers
                             [] -- Buffer barriers
-                            [Vk.SomeStruct layoutChangeUndefTransfer]) -- Image memory barriers
-      , img )
+                            [Vk.SomeStruct layoutChangeUndefTransfer]
+                            ) -- Image memory barriers
 
 
 ----- More for the .hsig interface -------
@@ -476,8 +475,8 @@ clearColorImage img r g b a = unsafeCmd_ $ \buf ->
 -- Note how `a` is used unrestrictedly in the function `f`. This is because
 -- often this function will be a Vulkan function which isn't linear.
 
-unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> (Ur (Command m), a)
-unsafeCmd = Unsafe.toLinear \a f -> (Ur $ Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf a), a)
+unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> CommandM m a
+unsafeCmd = Unsafe.toLinear \a f -> (Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf a))
 
 unsafeCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> Command m
 unsafeCmd_ = Unsafe.toLinear \f -> (Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf))
@@ -489,5 +488,3 @@ unsafeRenderPassCmd = Unsafe.toLinear \a f -> (RenderPassCmd $ Command $ ReaderT
 unsafeRenderPassCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> RenderPassCmd m
 unsafeRenderPassCmd_ = Unsafe.toLinear \f -> (RenderPassCmd $ Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf))
 
--- ghengin-vulkan can't yet depend on ghengin-core because of backpack bugs
--- (TODO: Report that ghc bug)

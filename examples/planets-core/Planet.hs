@@ -16,8 +16,6 @@ import Ghengin.Core.Type.Compatible
 import Data.List (foldl')
 import Ghengin.Core.Log
 
-import GHC.Float
-import Numeric.Noise hiding (Noise)
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
 
@@ -35,6 +33,8 @@ import qualified FIR
 import qualified Math.Linear as FIR
 
 import Ghengin.Core.Shader.Data
+
+import Planet.Noise
 
 --------------------------------------------------------------------------------
 -- * Planet
@@ -63,68 +63,47 @@ data PlanetShape = PlanetShape
   }
 
 -- | Make the point on a planet for the given point on a unit sphere
-pointOnPlanet :: PlanetShape -> Vec3 -> Vec3
+--
+-- Returns the updated point and the elevation of that point
+pointOnPlanet :: PlanetShape -> Vec3 -> (Vec3, Float)
 pointOnPlanet PlanetShape{..} pointOnUnitSphere =
   let elevation = evalNoise planetNoise pointOnUnitSphere
-   in pointOnUnitSphere ^* planetRadius ^* (1+elevation)
+      finalElevation = planetRadius * (1+elevation)
+   in (pointOnUnitSphere ^* finalElevation, finalElevation)
 
+-- | Construct the planet mesh and return the minimum and maximum elevation points on the planet
 newPlanetMesh :: _ -- more constraints
               => CompatibleVertex '[Vec3, Vec3] π
               => CompatibleMesh '[Transform] π
               => RenderPipeline π bs
                ⊸ Planet
-              -> Core (PlanetMesh, RenderPipeline π bs)
+              -> Core ((PlanetMesh, RenderPipeline π bs), Ur MinMax)
 newPlanetMesh rp Planet{..} = enterD "newPlanetMesh" $ Linear.do
 
   let UnitSphere us is = newUnitSphere resolution
 
-      planetVxs = P.map (\(p :&: n) -> pointOnPlanet planetShape p :&: n) us
+      (planetPs, elevations)
+               = P.unzip $ P.map (\(p :&: _) -> pointOnPlanet planetShape p) us
+      planetNs = V.toList $ computeNormals (V.fromList (P.map fromIntegral is)) (V.fromList planetPs)
+      planetVs = P.zipWith (:&:) planetPs planetNs
 
-      -- (ps', elevations) = P.unzip $ (`map` vs) \(p :& _) ->
-      --   case nss of
-      --     ns NE.:| nss' ->
-      --       let initialElevation = evalNoise ns p
-      --           mask = if enableMask then initialElevation else 1
-      --           noiseElevation = foldl' (\acc ns' -> acc + (evalNoise ns' p)*mask) initialElevation nss'
-      --           elevation = ra * (1 + noiseElevation)
-      --        in (p ^* (elevation), elevation)
-      --
-      -- ns'  = V.toList $ computeNormals (V.fromList (P.map fromIntegral is)) (V.fromList ps')
-      -- vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' (map (\(_ :& _ :&: c) -> c) vs)
+      minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-      -- minmax = MinMax (P.minimum elevations) (P.maximum elevations)
-
-   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) planetVxs is ↑)
+   in (, Ur minmax) <$> (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) planetVs is ↑)
 
 --------------------------------------------------------------------------------
 -- * Material
 --------------------------------------------------------------------------------
 
+type PlanetMaterial = Material '[MinMax, Texture2D (RGBA8 UNorm)]
+
 newPlanetMaterial :: forall π p
-                   . CompatibleMaterial '[MinMax,Texture2D] π
+                   . CompatibleMaterial '[MinMax, Texture2D (RGBA8 UNorm)] π
                   => MinMax
-                  -> Alias Texture2D
+                  -> Alias (Texture2D (RGBA8 UNorm))
                    ⊸ RenderPipeline π p
-                   ⊸ Core (Material '[MinMax,Texture2D], RenderPipeline π p)
+                   ⊸ Core (PlanetMaterial, RenderPipeline π p)
 newPlanetMaterial mm t pl = ( material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil) pl ↑)
-
---------------------------------------------------------------------------------
--- * Noise
---------------------------------------------------------------------------------
-
-data Noise = CoherentNoise
-      { centre    :: !Vec3
-      , roughness :: !Float
-      , strength  :: !Float
-      }
-
-evalNoise :: Noise -> Vec3 -> Float
-evalNoise CoherentNoise{..} point = double2Float
-  let seed = 123456
-      WithVec3 px py pz = point ^* roughness ^+^ centre
-      noiseValue  = coherentNoise seed (float2Double px, float2Double py, float2Double pz)
-      noiseScaled = (noiseValue + 1) * 0.5 {-from [-1 to 1] to [0 to 1] -}
-   in noiseScaled * float2Double strength
 
 --------------------------------------------------------------------------------
 

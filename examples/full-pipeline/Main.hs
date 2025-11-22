@@ -90,7 +90,7 @@ main =
   runCore (640, 480) Linear.do
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
-    pipeline :: RenderPipeline π ps <- (makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur (defaultCamera @"view" @"proj")) :## GHNil) ↑)
+    pipeline :: RenderPipeline π ps <- (makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur (cameraLookAt @"view" @"proj" (vec3 0 0 0) (vec3 0 0 1) (640, 480))) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     (mesh :: IcosahedronMesh, pipeline) <- (createMeshWithIxs pipeline GHNil icosahedronVerts icosahedronIndices ↑)
 

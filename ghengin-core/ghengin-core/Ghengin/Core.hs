@@ -5,7 +5,12 @@
 The entry module for ghengin-core, which defines the surface level of Core with
 which one expresses more high-level game-engine and rendering abstractions, like Cameras.
  -}
-module Ghengin.Core where
+module Ghengin.Core
+  ( module Ghengin.Core
+
+  -- * Re-exports from SPIRV.Image
+  , module SPIRV.Image
+  ) where
 
 import Ghengin.Core.Prelude
 import Ghengin.Core.Log
@@ -29,6 +34,7 @@ import Ghengin.Core.Type.Utils
 
 import qualified Data.Linear.Alias as Alias
 
+import SPIRV.Image
 
 import qualified Vulkan as Vk
 

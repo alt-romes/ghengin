@@ -56,6 +56,7 @@ import Ghengin.Camera
 -- planets!
 import Shaders -- planet shaders
 import Planet
+import Planet.Noise
 
 gameLoop :: _
          => UTCTime -> _ -> _ -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
@@ -85,19 +86,19 @@ main = do
  currTime <- getCurrentTime
  withLinearIO $
   runCore (1280, 720) Linear.do
-    -- sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
-    -- tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
+    sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
+    tex     <- ( texture "examples/planets-core/assets/planet_gradient.png" sampler ↑)
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
-    pipeline <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
-    (p1mesh, pipeline) <- newPlanetMesh pipeline defaultPlanet
-    (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    -- (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
+    pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
+    ( (pmesh, pipeline),
+      Ur minmax )    <- newPlanetMesh pipeline defaultPlanet
+    (pmat, pipeline) <- newPlanetMaterial minmax tex pipeline
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)
-    (rq, Ur mkey)       <- pure (insertMaterial pkey emptyMat rq)
-    (rq, Ur mshkey)     <- pure (insertMesh mkey p1mesh rq)
+    (rq, Ur mkey)       <- pure (insertMaterial pkey pmat rq)
+    (rq, Ur mshkey)     <- pure (insertMesh mkey pmesh rq)
 
     rq <- gameLoop currTime mshkey 0 rp2 rq
 
@@ -112,8 +113,29 @@ defaultPlanet :: Planet
 defaultPlanet = Planet
   { resolution = 100
   , planetShape = PlanetShape
-      { planetRadius = 1
-      , planetNoise  = CoherentNoise (vec3 0 0 0) 1 1
+      { planetRadius = 2.50
+      , planetNoise  = AddNoiseMasked
+          [ StrengthenNoise 0.12 $ MinValueNoise
+            { minNoiseVal = 1.1
+            , baseNoise   = LayersCoherentNoise
+              { centre        = vec3 0 0 0
+              , baseRoughness = 0.71
+              , roughness     = 1.83
+              , numLayers     = 5
+              , persistence   = 0.54
+              }
+            }
+          , StrengthenNoise 2.5 $ MinValueNoise
+            { minNoiseVal = 0
+            , baseNoise   = RidgedNoise
+              { seed          = 123
+              , octaves       = 5
+              , scale         = 1
+              , frequency     = 2
+              , lacunarity    = 3
+              }
+            }
+          ]
       }
   }
 
