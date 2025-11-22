@@ -101,11 +101,12 @@ instance (Block (Vertex (y:ys)), Block x) => Block (Vertex (x:y:ys)) where
     writePacked p (Diff o) (Sin a)
     writePacked p (Diff $ o + sizeOfPacked (Proxy @(Vertex '[x]))) b
 
--- NB: We use Packed for Storable Vertex
+-- NB: We use Std140 for Storable Vertex, which isn't quite right since
+-- vertices need to abide by the location/component layout, but is fine for now.
+--
 -- A good explanation is in https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/TechniquesforWorkingwithVertexData/TechniquesforWorkingwithVertexData.html
--- See also https://github.com/alt-romes/ghengin/pull/16#issuecomment-3563044060
-deriving via (Graphics.Gl.Block.Packed (Vertex '[x])) instance Block x => Storable (Vertex '[x])
-deriving via (Graphics.Gl.Block.Packed (Vertex (x:y:ys))) instance (Block x, Block (Vertex (y:ys))) => Storable (Vertex (x:y:ys))
+deriving via (Std140 (Vertex '[x])) instance Block x => Storable (Vertex '[x])
+deriving via (Std140 (Vertex (x:y:ys))) instance (Block x, Block (Vertex (y:ys))) => Storable (Vertex (x:y:ys))
 
 instance Show x => Show (Vertex '[x]) where
   show (Sin x) = show x

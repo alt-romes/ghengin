@@ -49,11 +49,12 @@ data VertexBuffer where
   VertexBuffer :: !DeviceLocalBuffer
                 ⊸ Word32               -- ^ N vertices
                -> VertexBuffer
+-- NB: We use Std140 throughout this module for Vertex, which isn't quite
+-- right since vertices need to abide by the location/component layout
+-- specification... but since Std140 gives some padding this should work fine
+-- if you are using Vertices with Vector attributes only.
+-- Ghengin.Core.Mesh.Vertex also defines a Storable instance for vertices based on Std140
 
--- | Create vertex buffer. Vertices are laid out in packed memory in the given vector.
---
--- If your type instances @'Block'@, you can get a correct Storable instance by
--- @deriving via Packed MyTy instance Storable MyTy@
 createVertexBuffer :: ∀ αs. Storable (Vertex αs) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
 createVertexBuffer vv =
   flip VertexBuffer (fromIntegral $ SV.length vv) <$>
