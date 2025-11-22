@@ -113,12 +113,12 @@ defaultPlanet :: Planet
 defaultPlanet = Planet
   { resolution = 100
   , planetShape = PlanetShape
-      { planetRadius = 2.72
+      { planetRadius = 2.50
       , planetNoise  = AddNoiseLayers
           [ StrengthenNoise 0.12 $ MinValueNoise
-            { minNoiseVal = 0.1
+            { minNoiseVal = 0.5
             , baseNoise   = LayersCoherentNoise
-              { centre        = vec3 0 0 0
+              { centre        = vec3 0 2 0
               , baseRoughness = 0.7
               , numLayers     = 4
               , persistence   = 0.54

@@ -3,8 +3,6 @@
 module Shaders where
 
 import Ghengin.Core.Shader
-import Geomancy.Vec3 hiding (dot)
-import Geomancy.Mat4
 import FIR hiding ((:>->), ShaderPipeline) -- TODO: Give different names
 import Math.Linear
 
@@ -47,7 +45,7 @@ vertex = shader do
     put @"out_position" ((viewM !*! modelM) !*^ Vec4 x y z 1)
     -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
     -- (For non-uniform transformations we could also pre-compute a "Normal Matrix" rather than using the model one.)
-    put @"out_normal"   ((viewM !*! modelM) !*^ Vec4 nx ny nz 0)
+    put @"out_normal"   ({-(transpose . inverse)-} (viewM !*! modelM) !*^ Vec4 nx ny nz 0)
 
     put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ Vec4 x y z 1)
 
@@ -72,7 +70,8 @@ type FragmentDefs
 fragment :: FragmentShaderModule FragmentDefs _
 fragment = shader do
 
-    ~(Vec4 px py pz _)  <- get @"in_position"
+    -- ~(Vec4 px py pz _)  <- get @"in_position"
+    -- ~(Vec4 nx ny nz _)  <- get @"in_normal"
     -- ~(Vec3 cx cy cz)    <- get @"in_color"
 
     -- Color

@@ -78,23 +78,13 @@ newPlanetMesh rp Planet{..} = enterD "newPlanetMesh" $ Linear.do
 
   let UnitSphere us is = newUnitSphere resolution
 
-      planetVxs = P.map (\(p :&: n) -> pointOnPlanet planetShape p :&: n) us
-
-      -- (ps', elevations) = P.unzip $ (`map` vs) \(p :& _) ->
-      --   case nss of
-      --     ns NE.:| nss' ->
-      --       let initialElevation = evalNoise ns p
-      --           mask = if enableMask then initialElevation else 1
-      --           noiseElevation = foldl' (\acc ns' -> acc + (evalNoise ns' p)*mask) initialElevation nss'
-      --           elevation = ra * (1 + noiseElevation)
-      --        in (p ^* (elevation), elevation)
-      --
-      -- ns'  = V.toList $ computeNormals (V.fromList (P.map fromIntegral is)) (V.fromList ps')
-      -- vs'' = P.zipWith3 (\a b c -> a :& b :&: c) ps' ns' (map (\(_ :& _ :&: c) -> c) vs)
+      planetPs = P.map (\(p :&: _) -> pointOnPlanet planetShape p) us
+      planetNs = V.toList $ computeNormals (V.fromList (P.map fromIntegral is)) (V.fromList planetPs)
+      planetVs = P.zipWith (:&:) planetPs planetNs
 
       -- minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) planetVxs is ↑)
+   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) planetVs is ↑)
 
 --------------------------------------------------------------------------------
 -- * Material
