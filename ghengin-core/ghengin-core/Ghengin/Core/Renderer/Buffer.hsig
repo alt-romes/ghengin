@@ -4,7 +4,7 @@ import Data.Word (Word, Word32)
 import Data.Int (Int32)
 import qualified Data.Vector.Storable as SV
 -- TODO:Exchange Vk specific types to renderer agnostic enumerations
-import qualified Vulkan as Vk (DescriptorType, BufferUsageFlags)
+import qualified Vulkan as Vk (BufferUsageFlags)
 
 import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Renderer.Kernel
@@ -35,8 +35,7 @@ writing into mapped buffers we know what layout to use (std140).
 
 However, for `DeviceLocalBuffer`s, at the moment, we don't know its use, so we
 delegate the decision of what standard to use to the definition site of the
-`Storable` instance which should in theory be derived via `Std140` or `Std430`
-or `Packed` from `gl-block`.
+`Storable` instance which should in theory be derived via `Packed` from `gl-block`.
 
 Furthermore, for Vertex buffers, given that (1) we use device local buffers and
 (2) when copying data from CPU to the device buffers it's useful to have
