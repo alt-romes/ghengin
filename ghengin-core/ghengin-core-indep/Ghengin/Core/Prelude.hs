@@ -27,6 +27,8 @@ module Ghengin.Core.Prelude
 
   -- vector
   , V.Vector
+  , toSV
+  , SVector
 
   -- reference-counting
   , Forgettable, Shareable
@@ -80,6 +82,7 @@ import qualified Data.Set as S
 import qualified Data.Map as M
 import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as SV
 import qualified Data.V.Linear.Internal as VL
 import qualified Data.V.Linear.Internal.Instances ()
 
@@ -95,6 +98,18 @@ import Data.Linear.Alias as Alias
 
 import qualified Unsafe.Linear as Unsafe
 
+--------------------------------------------------------------------------------
+-- * Storable vector utils
+--------------------------------------------------------------------------------
+
+type SVector = SV.Vector
+
+-- | Convert a list in a storable vector. Useful when creating meshes from lists
+toSV :: SV.Storable a => [a] -> SV.Vector a
+toSV = SV.fromList
+
+--------------------------------------------------------------------------------
+
 -- Worry about performance of doing things safely later.
 -- For now, simply strive for correctness.
 
@@ -104,20 +119,16 @@ import qualified Unsafe.Linear as Unsafe
 {-# INLINE (<$$>) #-}
 (<$$>) = (Prelude.<$>)
 
+--------------------------------------------------------------------------------
+-- * Generic HList (aka "Product"), but this one is linear!
+--------------------------------------------------------------------------------
+
 -- | Generic HList
 -- Perhaps move to its own module?
 data GHList c xs where
     GHNil :: GHList c '[]
     (:##) :: c a ⊸ GHList c as ⊸ GHList c (a ': as)
 infixr 6 :##
-
-{-
-Note [Coerce HList to List]
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
-They have the same representation ^_^, so unsafeCoerce is safe ^_^
--}
-
--- GHList instances
 
 instance Consumable (GHList c '[]) where
   consume GHNil = ()
@@ -144,12 +155,7 @@ instance (∀ a. Shareable m (c a)) => Shareable m (GHList c as) where
     (as1, as2) <- Alias.share as
     pure (a1:##as1, a2:##as2)
 
--- TODO: Some special linear lenses to use propertyAt ... import Control.Lens ((^.), Lens', lens)
--- ROMES:TODO: For the lens to be used as a getter, I think we will need this definition of functor rather than the control one.
--- Otherwise, I think we can assume the lens is always over something which is
--- Consumable, (we only ever deal with properties which are consumable, btut I
--- suppose we could have properties which aren't, and are always updated).
--- Perhaps just the setter lens could be over the thing if it is Consumable
+--------------------------------------------------------------------------------
 
 (=<<) :: Monad m => (a ⊸ m b) ⊸ m a ⊸ m b
 f =<< x = x >>= f
@@ -179,19 +185,6 @@ vzipWith f (VL.V va) (VL.V vb) = VL.V (Unsafe.toLinear3 V.zipWith (Unsafe.toLine
 
 v2vec :: VL.V n a ⊸ V.Vector a
 v2vec (VL.V v) = v
-
-
--- | Shame, traversable should really be polimorphic over %p.
--- I'm afraid it could break some instances, so I'll just specialize this to V
--- threadThrough :: Data.Linear.Traversable t => (a %p -> c ⊸ (b,c)) -> c ⊸ t a %p -> (t b, c)
---
--- Wait, isn't this (linear) mapAccumL? It already exists! Only it's linear on
--- the first argument too. We can work around it with dup2 @Int in our case
---
--- We comment it out. Delete in the next commit.
--- threadThrough :: KnownNat n => (a %p -> c ⊸ (b,c)) -> VL.V n a %p -> c ⊸ (VL.V n b, c)
--- threadThrough f va c = runState (vtraverse (\a -> StateT (pure . f a)) va) c
-
 
 l2vec :: [a] ⊸ V.Vector a
 l2vec = Unsafe.toLinear V.fromList

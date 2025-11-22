@@ -5,7 +5,6 @@ import Ghengin.Core.Log
 import qualified Data.Functor.Linear as Data
 import qualified Data.Linear.Alias as Alias
 
-import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer.Pipeline
 import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.DescriptorSet

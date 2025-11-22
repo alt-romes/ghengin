@@ -17,8 +17,8 @@ import Geomancy
 import qualified Geomancy.Vec3 as Vec3
 
 import Prelude.Linear
-import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as SV
 import qualified Data.Array.Mutable.Linear as Array
 
 {- | Compute the smooth normal vectors of a mesh surface.
@@ -58,28 +58,32 @@ have all allocated buffers automatically initialized to zero. In that case, if
 this is the first and only normalization for a given mesh, you may skip the
 first loop on the function too of course.
 -}
-computeNormals :: Vector Int  -- ^ Every three indices into the vertices array forms a face
-               -> Vector Vec3 -- ^ The position of every vertex
-               -> Vector Vec3 -- ^ The normal vector for each vertex
+computeNormals :: SV.Vector Int  -- ^ Every three indices into the vertices array forms a face
+               -> SV.Vector Vec3 -- ^ The position of every vertex
+               -> SV.Vector Vec3 -- ^ The normal vector for each vertex
 computeNormals ixs vs =
-  unur $ Array.alloc (V.length vs) (vec3 0 0 0) $ \arr0 ->
+  V.convert $ unur $ -- todo: freeze variant which constructs SV.Vector?
+  Array.alloc (SV.length vs) (vec3 0 0 0) $ \arr0 ->
     Array.freeze $
     Array.map Vec3.normalize $
       foldl' (\arr (Ur i) -> let
            ia = ixs ! (i)
            ib = ixs ! (i+1)
            ic = ixs ! (i+2)
-           e1 = vs ! ia ^-^ vs ! ib
-           e2 = vs ! ic ^-^ vs ! ib
+           e1 = ((vs ! ia) :: Vec3) ^-^ (vs ! ib)
+           e2 = (vs ! ic) ^-^ (vs ! ib)
            no = Vec3.cross e1 e2 
         in arr & ia += no
                & ib += no
                & ic += no
-        ) arr0 [Ur i | i <- [0,3..V.length ixs - 1]]
+        ) arr0 [Ur i | i <- [0,3..SV.length ixs - 1]]
   where
-    (!) = V.unsafeIndex
+    (!) :: SV.Storable x => SV.Vector x -> Int -> x
+    (!) = SV.unsafeIndex
 
     (+=) :: Int -> Vec3 -> Array.Array Vec3 %1 -> Array.Array Vec3
     (+=) i new arr0 = case Array.unsafeGet i arr0 of
       (Ur exists, arr1) -> Array.unsafeSet i (new ^+^ exists) arr1
+
+-- TODO: Try backpermute
 

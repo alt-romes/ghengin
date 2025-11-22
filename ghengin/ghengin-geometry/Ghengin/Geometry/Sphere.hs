@@ -16,12 +16,6 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Mesh
 
 import qualified Data.Vector.Storable as SV
-import qualified Data.Vector as V
-import qualified Data.IntMap as IM
-import qualified Data.Map as M
-
-import Data.List (sort)
-import Data.List.Split (chunksOf)
 
 import Ghengin.Geometry.Normals
 import qualified Ghengin.Geometry.Vectors as Vectors
@@ -30,8 +24,8 @@ data UnitFace = UF { positions :: [Vec3]
                    , indices   :: [Int]
                    }
 
-data UnitSphere = UnitSphere { positions :: [ Vertex '[Vec3, Vec3] ]
-                             , indices   :: [Int32]
+data UnitSphere = UnitSphere { positions :: SV.Vector (Vertex '[Vec3, Vec3])
+                             , indices   :: SV.Vector Int32
                              }
 
 newUnitFace :: Int  -- ^ Resolution
@@ -70,11 +64,12 @@ newUnitSphere res =
       UF v5 i5 = newUnitFace res Vectors.forward
       UF v6 i6 = newUnitFace res Vectors.back
       l  = length v1 -- all faces share same length
-      is = i1 <> map (+l) i2 <> map (+(l*2)) i3 <> map (+(l*3)) i4 <> map (+(l*4)) i5 <> map (+(l*5)) i6
-      ps = v1 <> v2 <> v3 <> v4 <> v5 <> v6
-      ns = V.toList $ computeNormals (V.fromList (map fromIntegral is)) (V.fromList ps)
+      is = SV.fromList $
+           i1 <> map (+l) i2 <> map (+(l*2)) i3 <> map (+(l*3)) i4 <> map (+(l*4)) i5 <> map (+(l*5)) i6
+      ps = SV.fromList $ v1 <> v2 <> v3 <> v4 <> v5 <> v6
+      ns = computeNormals is ps
    in
-      UnitSphere (zipWith (\a b -> a :&: b) ps ns) (map fromIntegral is)
+      UnitSphere (SV.zipWith (\a b -> a :&: b) ps ns) (SV.map fromIntegral is)
 
 newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3] π)
               => RenderPipeline π bs
@@ -82,5 +77,5 @@ newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3] π)
               -> Renderer (Mesh [Vec3, Vec3] '[], RenderPipeline π bs)
 newSphereMesh pi res =
   let UnitSphere vs is = newUnitSphere res
-   in createMeshWithIxs pi GHNil vs is
+   in createMeshWithIxsSV pi GHNil vs is
 

@@ -24,7 +24,6 @@ import Ghengin.Core.Render
 import Ghengin.Core.Type.Utils
 import qualified Data.Linear.Alias as Alias
 import qualified Data.IntMap.Linear as IM
-import Ghengin.Core.Renderer.DescriptorSet (BindingsMap)
 import Vulkan.Linear ()
 
 import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core

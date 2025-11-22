@@ -13,17 +13,15 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Material
 import Ghengin.Core.Type.Compatible
-import Data.List (foldl')
 import Ghengin.Core.Log
 
-import qualified Data.List.NonEmpty as NE
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as SV
 
 import Geomancy.Transform
 
 import Ghengin.Core
 import Ghengin.Core.Mesh
-import Geomancy (VectorSpace(..))
 import Geomancy.Vec3
 
 import Ghengin.Geometry.Sphere
@@ -83,13 +81,13 @@ newPlanetMesh rp Planet{..} = enterD "newPlanetMesh" $ Linear.do
   let UnitSphere us is = newUnitSphere resolution
 
       (planetPs, elevations)
-               = P.unzip $ P.map (\(p :&: _) -> pointOnPlanet planetShape p) us
-      planetNs = V.toList $ computeNormals (V.fromList (P.map fromIntegral is)) (V.fromList planetPs)
-      planetVs = P.zipWith (:&:) planetPs planetNs
+               = V.unzip $ V.map (\(p :&: _) -> pointOnPlanet planetShape p) (V.convert us)
+      planetNs = computeNormals (SV.map fromIntegral is) (V.convert planetPs)
+      planetVs = SV.zipWith (:&:) (V.convert planetPs) planetNs
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-   in (, Ur minmax) <$> (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) planetVs is ↑)
+   in (, Ur minmax) <$> (createMeshWithIxsSV rp (DynamicBinding (Ur mempty) :## GHNil) planetVs is ↑)
 
 --------------------------------------------------------------------------------
 -- * Material
