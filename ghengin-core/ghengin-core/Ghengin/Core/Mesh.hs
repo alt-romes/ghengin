@@ -40,17 +40,6 @@ import qualified Data.IntMap.Strict as IM
 
 import qualified Data.Linear.Alias as Alias
 
-{-
-Note [Meshes]
-~~~~~~~~~~~~~
-
-OUTDATED!
-
-All meshes are freed when the window is closed. However, if you change/discard a
-mesh during the game you must free it explicitly. TODO: Enforce it somehow: linear types+reference counting
-
- -}
-
 type Mesh :: [Type] -- ^ Vertex attributes
           -> [Type] -- ^ Mesh properties
           -> Type
@@ -126,11 +115,11 @@ createMesh :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex
             -- ^ The render pipeline
             ⊸ PropertyBindings props
             -- ^ The 'PropertyBindings' for the properties of this mesh (the second type argument to 'Mesh')
-            ⊸ [Vertex ts] -- TODO: Use Vector
+            ⊸ SV.Vector (Vertex ts)
             -- ^ Vertices
            -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMesh (RenderProperty pr rps) props0 vs = createMesh rps props0 vs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMesh (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 (SV.fromList -> vs) = enterD "createMesh" Linear.do
+createMesh (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 vs = enterD "createMesh" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vs
 
@@ -145,13 +134,13 @@ createMesh (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders u
 createMeshWithIxs :: HasCallStack => (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
                   => RenderPipeline π bs
                    ⊸ PropertyBindings props
-                   ⊸ [Vertex ts] -- TODO: Use Vector
+                   ⊸ SV.Vector (Vertex ts)
                   -- ^ Vertices
-                  -> [Int32] -- TODO: Use Vector
+                  -> SV.Vector Int32
                   -- ^ Indices
                   -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMeshWithIxs (RenderProperty pr rps) props0 vs ixs = createMeshWithIxs rps props0 vs ixs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 (SV.fromList -> vertices) (SV.fromList -> ixs) = enterD "createMeshWithIxs" Linear.do
+createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 vertices ixs = enterD "createMeshWithIxs" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vertices
   indexBuffer  <- createIndex32Buffer ixs
@@ -199,5 +188,3 @@ freeMesh mesh = Linear.do
       Alias.forget ds >> destroyDeviceLocalBuffer vb >> destroyDeviceLocalBuffer ib
     MeshProperty prop xs ->
       Alias.forget prop >> freeMesh xs
-
--- TODO: Nub vertices (make indexes pointing at different vertices which are equal to point at the same vertice and remove the other)?

@@ -117,7 +117,7 @@ main = do
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
 
     (mesh :: CubeMesh, pipeline) <-
-      (createMesh pipeline (DynamicBinding (Ur (rotateX (pi/4))) :## GHNil) cubeVertices ↑)
+      (createMesh pipeline (DynamicBinding (Ur (rotateX (pi/4))) :## GHNil) (toSV cubeVertices) ↑)
 
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)

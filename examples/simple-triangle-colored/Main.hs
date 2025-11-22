@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedLists #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -44,7 +45,7 @@ main = do
 
     pipeline <- (makeRenderPipeline rp1 shaderPipelineColors GHNil ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    (mesh, pipeline) <- (createMeshWithIxs pipeline GHNil triangleVerticesWithColors [0, 1, 2] ↑)
+    (mesh, pipeline) <- (createMeshWithIxs pipeline GHNil (toSV triangleVerticesWithColors) [0, 1, 2] ↑)
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)

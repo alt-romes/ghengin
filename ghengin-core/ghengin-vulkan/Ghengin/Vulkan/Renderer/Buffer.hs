@@ -11,7 +11,6 @@ import qualified Prelude
 
 import Foreign.Storable
 
-import Data.Int
 import qualified Data.Linear.Alias as Alias
 
 import qualified Data.Vector.Storable as SV

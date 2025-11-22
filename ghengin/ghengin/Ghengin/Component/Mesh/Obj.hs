@@ -21,7 +21,7 @@ import Ghengin.Core.Mesh.Vertex
 import qualified Control.Functor.Linear as Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
 
-loadObjMesh :: FilePath -> Renderer (Mesh '[Vec3, Vec3, Vec3]) -- TODO: Type class from ambiguous types defines what properties should be extracted from the object file
+loadObjMesh :: FilePath -> Renderer (Vertex '[Vec3, Vec3]) -- TODO: Type class from ambiguous types defines what properties should be extracted from the object file
 loadObjMesh filepath = do
   Linear.liftSystemIOU (fromFile filepath) Linear.>>= \case
     Linear.Ur (Left err) -> Linear.liftSystemIO $ fail err
@@ -39,9 +39,9 @@ loadObjMesh filepath = do
 
           -- Map each face to 3 vertex
           meshFaces = join $ fmap (\(Face a b c _) ->
-                                      [ getLoc a :& getNormal a :&: getNormal a -- (vec3 0.5 0.5 0.5)
-                                      , getLoc b :& getNormal b :&: getNormal b -- (vec3 0.5 0.5 0.5)
-                                      , getLoc c :& getNormal c :&: getNormal c -- (vec3 0.5 0.5 0.5)
+                                      [ getLoc a :&: getNormal a
+                                      , getLoc b :&: getNormal b
+                                      , getLoc c :&: getNormal c
                                       ]) faces
 
           -- meshVertices = fmap (\(Location x y z w) -> Vertex (vec3 x y z) ()) (V.zip locs normals)

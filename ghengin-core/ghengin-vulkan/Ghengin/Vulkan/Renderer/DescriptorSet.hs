@@ -60,8 +60,6 @@ import Ghengin.Core.Shader.Pipeline
 
 import qualified Data.Linear.Alias as Alias
 
-import qualified FIR.Layout
-
 -- The descriptor set number 0 will be used for engine-global resources, and bound
 -- once per frame. The descriptor set number 1 will be used for per-pass
 -- resources, and bound once per pass. The descriptor set number 2 will be used

@@ -81,7 +81,7 @@ main = do
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
 
     (mesh :: Points, pipeline) <-
-      (createMesh pipeline GHNil start_points ↑)
+      (createMesh pipeline GHNil (toSV start_points) ↑)
 
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)

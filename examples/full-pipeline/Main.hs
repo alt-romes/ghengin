@@ -92,7 +92,7 @@ main =
 
     pipeline :: RenderPipeline π ps <- (makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur (cameraLookAt @"view" @"proj" (vec3 0 0 0) (vec3 0 0 1) (640, 480))) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    (mesh :: IcosahedronMesh, pipeline) <- (createMeshWithIxs pipeline GHNil icosahedronVerts icosahedronIndices ↑)
+    (mesh :: IcosahedronMesh, pipeline) <- (createMeshWithIxs pipeline GHNil (toSV icosahedronVerts) (toSV icosahedronIndices) ↑)
 
     (rq, Ur pkey)    <- pure (insertPipeline @π @ps pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial @π @ps pkey emptyMat rq)

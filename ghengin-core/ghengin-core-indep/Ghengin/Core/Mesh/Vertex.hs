@@ -50,6 +50,7 @@ infixr 6 :&
 pattern (:&:) :: v -> v' -> Vertex '[v, v']
 pattern (:&:) a b = a :& Sin b
 infixr 6 :&:
+{-# COMPLETE (:&:) #-}
 
 -- It is kind of precarious to copy over the generic implementation here.
 -- Would be better to implement Generic for Vertex, and derive generically Block.
