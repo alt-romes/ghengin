@@ -125,14 +125,14 @@ defaultPlanet = Planet
               , persistence   = 0.54
               }
             }
-          , StrengthenNoise 5.6 $ MinValueNoise
-            { minNoiseVal = 1.25
-            , baseNoise   = LayersCoherentNoise
-              { centre        = vec3 0 0 0
-              , baseRoughness = 1.08
-              , numLayers     = 5
-              , roughness     = 2.34
-              , persistence   = 0.5
+          , StrengthenNoise 2.5 $ MinValueNoise
+            { minNoiseVal = 0
+            , baseNoise   = RidgedNoise
+              { seed          = 123
+              , octaves       = 5
+              , scale         = 1
+              , frequency     = 2
+              , lacunarity    = 3
               }
             }
           ]

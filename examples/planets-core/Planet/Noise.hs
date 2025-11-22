@@ -7,6 +7,7 @@ import Geomancy.Vec3
 
 import GHC.Float
 import Numeric.Noise hiding (Noise)
+import Numeric.Noise.Ridged as Ridged
 import qualified Data.List.NonEmpty as NonEmpty
 
 --------------------------------------------------------------------------------
@@ -32,7 +33,11 @@ data Noise
       }
   -- | Ridged multi-fractal noise
   | RidgedNoise
-      {
+      { seed          :: !Int
+      , octaves       :: !Int
+      , scale         :: !Double
+      , frequency     :: !Double
+      , lacunarity    :: !Double
       }
   -- | A noise value which evaluates the base noise value and makes sure it is
   -- at least the given min value
@@ -72,7 +77,8 @@ evalNoise LayersCoherentNoise{..} p
       zipWith layerNoise frequencies amplitudes
 evalNoise StrengthenNoise{..} p = evalNoise baseNoise p * strength
 evalNoise MinValueNoise{..}   p = max 0 (evalNoise baseNoise p - minNoiseVal)
-evalNoise RidgedNoise{..}     p = undefined
+evalNoise RidgedNoise{..}     p = double2Float $
+  Ridged.noiseValue (ridged seed octaves scale frequency lacunarity) (vec3Point p)
 evalNoise AddNoiseMasked{..}  p =
   case NonEmpty.nonEmpty noiseLayers of
     Nothing -> 0
