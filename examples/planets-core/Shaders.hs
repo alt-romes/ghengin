@@ -88,15 +88,15 @@ fragment = shader do
     -- ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 0 1 1
 
     let lightDir  = Vec3 (-0.5) 1 0.5
-    let lightCol  = Vec3 0.3 0.3 0.3
-    let objectCol = Vec3 1 0 0
+    let lightCol  = Vec3 0.5 0.5 0.5
+    let objectCol = Vec3 0.9 0.1 0.2
     let shininess = 32
     -- allow settings this? let specularStrength = 0.3
 
-    lightValue <- blinnPhong 0.01 shininess lightDir lightCol
+    lightValue <- blinnPhong 0.02 shininess lightDir lightCol
 
     let Vec3 colx coly colz
-          = lightValue `pointwiseMult` objectCol
+          = gammaCorrection defaultGamma (lightValue `pointwiseMult` objectCol)
 
     put @"out_colour" (Vec4 colx coly colz 1)
 

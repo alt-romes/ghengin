@@ -11,6 +11,18 @@ module Ghengin.Camera.Shader.Lighting where
 import FIR
 import Math.Linear
 
+-- | Apply gamma correction to given frag color
+gammaCorrection :: Code Float -- ^ Gamma value
+                -> Code (V 3 Float) -- ^ Frag color
+                -> Code (V 3 Float) -- ^ Gamma corrected frag color
+gammaCorrection gamma (Vec3 r g b) =
+  let p = 1/gamma
+   in Vec3 (r ** p) (g ** p) (b ** p)
+
+-- | A good default gamma value for 'gammaCorrection'
+defaultGamma :: Code Float
+defaultGamma = 2.2
+
 -- | Receives @in_position@ and @in_normal@ in view space coordinates (so that the viewer is at (0,0,0))
 blinnPhong :: ∀ π
             . ( V 4 Float ~ Has "in_position" π
