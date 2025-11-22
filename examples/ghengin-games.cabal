@@ -142,6 +142,15 @@ executable planets-core
     other-modules:  Planet, Planet.Noise, Shaders
     hs-source-dirs: planets-core
 
+-- Load and render teapot.obj with blinn-phong
+executable teapot-obj
+    import:         common-flags
+    main-is:        Main.hs
+    other-modules:  Shaders
+    hs-source-dirs: teapot-obj
+
+--------------------------------------------------------------------------------
+
 -- library
 --   import: common-flags
 --   exposed-modules: Common, Common.Shader
