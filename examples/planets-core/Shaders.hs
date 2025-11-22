@@ -89,7 +89,7 @@ fragment = shader do
 
     let lightDir  = Vec3 (-0.5) 1 0.5
     let lightCol  = Vec3 0.5 0.5 0.5
-    let objectCol = Vec3 0.9 0.1 0.2
+    let objectCol = Vec3 1 0 0
     let shininess = 32
     -- allow settings this? let specularStrength = 0.3
 

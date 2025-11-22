@@ -114,25 +114,25 @@ defaultPlanet = Planet
   { resolution = 100
   , planetShape = PlanetShape
       { planetRadius = 2.50
-      , planetNoise  = AddNoiseLayers
+      , planetNoise  = AddNoiseMasked
           [ StrengthenNoise 0.12 $ MinValueNoise
-            { minNoiseVal = 0.5
+            { minNoiseVal = 1.1
             , baseNoise   = LayersCoherentNoise
-              { centre        = vec3 0 2 0
-              , baseRoughness = 0.7
-              , numLayers     = 4
+              { centre        = vec3 0 0 0
+              , baseRoughness = 0.71
+              , roughness     = 1.83
+              , numLayers     = 5
               , persistence   = 0.54
-              , roughness     = 2.34
               }
             }
-          , StrengthenNoise 0.36 $ MinValueNoise
+          , StrengthenNoise 5.6 $ MinValueNoise
             { minNoiseVal = 1.25
             , baseNoise   = LayersCoherentNoise
               { centre        = vec3 0 0 0
               , baseRoughness = 1.08
-              , numLayers     = 4
-              , persistence   = 0.54
+              , numLayers     = 5
               , roughness     = 2.34
+              , persistence   = 0.5
               }
             }
           ]

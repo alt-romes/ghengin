@@ -7,6 +7,7 @@ import Geomancy.Vec3
 
 import GHC.Float
 import Numeric.Noise hiding (Noise)
+import qualified Data.List.NonEmpty as NonEmpty
 
 --------------------------------------------------------------------------------
 -- * Noise
@@ -47,13 +48,9 @@ data Noise
       , baseNoise :: !Noise
         -- ^ To compute the noise val
       }
-        -- ^ Amplitude multiplier for first layer
-  -- | Add @moreNoise@ to @baseNoise@ if @baseNoise > 0@
+  -- | Add noise filters using the first layer to mask all following ones
   | AddNoiseMasked
-      { baseNoise :: !Noise
-      -- ^ Acts as the mask
-      , moreNoise :: !Noise
-      -- ^ Add this noise to @'baseNoise'@ if @'baseNoise'@ is > 0
+      { noiseLayers :: ![Noise]
       }
   -- | Add noise filters unconditionally
   | AddNoiseLayers
@@ -76,7 +73,12 @@ evalNoise LayersCoherentNoise{..} p
 evalNoise StrengthenNoise{..} p = evalNoise baseNoise p * strength
 evalNoise MinValueNoise{..}   p = max 0 (evalNoise baseNoise p - minNoiseVal)
 evalNoise RidgedNoise{..}     p = undefined
-evalNoise AddNoiseMasked{..}  p = undefined
+evalNoise AddNoiseMasked{..}  p =
+  case NonEmpty.nonEmpty noiseLayers of
+    Nothing -> 0
+    Just (firstLayer NonEmpty.:| otherLayers) ->
+      let firstLayerVal = evalNoise firstLayer p
+       in firstLayerVal + sum (map ((*firstLayerVal{-mask-}) . (`evalNoise` p)) otherLayers)
 evalNoise AddNoiseLayers{..}  p = sum (map (`evalNoise` p) noiseLayers)
 
 vec3Point :: Vec3 -> Point
