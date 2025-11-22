@@ -88,17 +88,16 @@ fragment = shader do
     -- def @"camera_pos" @R (Vec3 0 0 0)
     -- ~(Vec3 colx coly colz) <- blinnPhong 16 $ Vec3 0 1 1
 
-    let lightPos  = Vec3 8 12 6
-    let lightCol  = Vec3 1 1 1
+    let lightDir  = Vec3 (-0.5) 1 0.5
+    let lightCol  = Vec3 0.3 0.3 0.3
     let objectCol = Vec3 1 0 0
     let shininess = 32
-    let specularStrength = 0.5
+    -- allow settings this? let specularStrength = 0.3
 
-    let ambientColor = ambientLight 0.1 lightCol
-    diffuseColor    <- diffuseLight lightPos lightCol
-    specularColor   <- specularLight specularStrength shininess lightPos lightCol
+    lightValue <- blinnPhong 0.01 shininess lightDir lightCol
+
     let Vec3 colx coly colz
-          = (ambientColor ^+^ diffuseColor ^+^ specularColor) `pointwiseMult` objectCol
+          = lightValue `pointwiseMult` objectCol
 
     put @"out_colour" (Vec4 colx coly colz 1)
 
@@ -117,18 +116,6 @@ shaders
     :>-> fragment
 
 ----- Utils --------------------------------------------------------------------
-
-applyVP :: ∀ π. ( CanGet "camera" π
-                 , _ -- extra constraints
-                 )
-              => (Code (V 4 Float)) -> Program π π (Code (V 4 Float))
-applyVP vec = do
-
-  -- modelM <- use @(Name "push" :.: Name "model"  :: Optic '[] π (M 4 4 Float))
-  projM <- use @(Name "camera" :.: Name "proj_matrix"  :: Optic '[] π (M 4 4 Float))
-  viewM <- use @(Name "camera" :.: Name "view_matrix"  :: Optic '[] π (M 4 4 Float))
-
-  pure $ (projM !*! viewM) !*^ vec
 
 invLerp :: FIR.DivisionRing a => a -> a -> a -> a
 invLerp value from to = (value FIR.- from) FIR./ (to FIR.- from)
