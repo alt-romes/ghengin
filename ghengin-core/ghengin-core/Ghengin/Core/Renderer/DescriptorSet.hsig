@@ -22,7 +22,7 @@ type ResourceMap = IntMap DescriptorResource
 data DescriptorResource where
   UniformResource   :: Alias MappedBuffer ⊸ DescriptorResource
   StorageResource   :: Alias MappedBuffer ⊸ DescriptorResource
-  Texture2DResource :: Alias Texture2D ⊸ DescriptorResource
+  Texture2DResource :: Alias (Texture2D fmt) ⊸ DescriptorResource
 instance Forgettable Renderer DescriptorResource
 instance Shareable m DescriptorResource
 

@@ -82,8 +82,7 @@ type ResourceMap = IntMap DescriptorResource
 data DescriptorResource where
   UniformResource   :: Alias MappedBuffer ⊸ DescriptorResource
   StorageResource   :: Alias MappedBuffer ⊸ DescriptorResource
-  Texture2DResource :: Alias Texture2D ⊸ DescriptorResource
-  deriving Generic
+  Texture2DResource :: Alias (Texture2D fmt) ⊸ DescriptorResource
 
 instance Forgettable Renderer DescriptorResource where
   forget = \case

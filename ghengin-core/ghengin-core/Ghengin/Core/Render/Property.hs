@@ -56,7 +56,7 @@ data PropertyBinding α where
                 => Ur α
                 -> PropertyBinding α
 
-  Texture2DBinding :: Alias Texture2D ⊸ PropertyBinding Texture2D
+  Texture2DBinding :: Alias (Texture2D fmt) ⊸ PropertyBinding (Texture2D fmt)
 
 
 instance Forgettable Renderer (PropertyBinding α) where
@@ -77,8 +77,8 @@ instance MonadIO m => Shareable m (PropertyBinding α) where
 --
 -- For all intents and purposes, this is the inverse of 'PropertyBinding'.
 type family PBInv α = r | r -> α where
-  PBInv Texture2D = Alias Texture2D
-  PBInv x         = Ur x
+  PBInv (Texture2D fmt) = Alias (Texture2D fmt)
+  PBInv x               = Ur x
 
 type PropertyBindings α = GHList PropertyBinding α
 
@@ -449,7 +449,7 @@ editProperty prop update i dset resmap0 = Linear.do
     -- TODO: Is it OK to overwrite previously written descriptor sets at specific points?
     -- TODO: this one has the potential to be wrong, think about it carefully eventually
     -- ROMES:TODO: Textures!!!!
-    updateTextureBinding :: DescriptorSet ⊸ Alias Texture2D ⊸ Renderer DescriptorSet
+    updateTextureBinding :: forall fmt. DescriptorSet ⊸ Alias (Texture2D fmt) ⊸ Renderer DescriptorSet
     updateTextureBinding dset' t
       = updateDescriptorSet dset' (IM.insert i (Texture2DResource t) IM.empty) >>=
         (\(dset'', rmap) -> Linear.do
