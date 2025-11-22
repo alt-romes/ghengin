@@ -82,7 +82,7 @@ main = do
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     (mesh :: CubeMesh, pipeline) <-
       -- Also displays how TH can be used to create procedural meshes at compile time when the parameters are statically known
-      (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) (toSV $$(TH.liftTyped coloredCube)) ↑)
+      (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) ($$(TH.liftTyped coloredCube)) ↑)
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)

@@ -77,5 +77,5 @@ newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3] π)
               -> Renderer (Mesh [Vec3, Vec3] '[], RenderPipeline π bs)
 newSphereMesh pi res =
   let UnitSphere vs is = newUnitSphere res
-   in createMeshWithIxs pi GHNil vs is
+   in createMeshWithIxsSV pi GHNil vs is
 

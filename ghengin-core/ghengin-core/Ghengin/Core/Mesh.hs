@@ -3,10 +3,13 @@
 module Ghengin.Core.Mesh
   ( Mesh(..) -- Export these from an Internals module, not from here
   , Some(..)
+
   , createMesh
   , createMeshWithIxs
-  -- , calculateFlatNormals
-  -- , calculateSmoothNormals
+
+  , createMeshSV
+  , createMeshWithIxsSV
+
   , freeMesh
 
   , meshId
@@ -15,7 +18,6 @@ module Ghengin.Core.Mesh
   , module Ghengin.Core.Mesh.Vertex
   ) where
 
-import GHC.Stack
 import Ghengin.Core.Prelude as Linear
 import Data.Unique
 
@@ -115,11 +117,18 @@ createMesh :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex
             -- ^ The render pipeline
             ⊸ PropertyBindings props
             -- ^ The 'PropertyBindings' for the properties of this mesh (the second type argument to 'Mesh')
-            ⊸ SV.Vector (Vertex ts)
+            ⊸ [Vertex ts]
             -- ^ Vertices
            -> Renderer (Mesh ts props, RenderPipeline π bs)
-createMesh (RenderProperty pr rps) props0 vs = createMesh rps props0 vs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMesh (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 vs = enterD "createMesh" Linear.do
+createMesh a b c = createMeshSV a b (SV.fromList c)
+
+-- | Like 'createMesh', but takes a storable vector directly rather than a list.
+createMeshSV
+  :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
+  => RenderPipeline π bs ⊸ PropertyBindings props ⊸ SV.Vector (Vertex ts)
+  -> Renderer (Mesh ts props, RenderPipeline π bs)
+createMeshSV (RenderProperty pr rps) props0 vs = createMeshSV rps props0 vs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
+createMeshSV (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 vs = enterD "createMesh" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vs
 
@@ -131,16 +140,23 @@ createMesh (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders u
 
 -- | Like 'createMesh', but create the mesh using a vertex buffer created from
 -- the vertices and an indexbuffer created from the indices
-createMeshWithIxs :: HasCallStack => (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
+createMeshWithIxs :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
                   => RenderPipeline π bs
                    ⊸ PropertyBindings props
-                   ⊸ SV.Vector (Vertex ts)
+                   ⊸ [Vertex ts]
                   -- ^ Vertices
-                  -> SV.Vector Int32
+                  -> [Int32]
                   -- ^ Indices
                   -> Renderer (Mesh ts props, RenderPipeline π bs)
-createMeshWithIxs (RenderProperty pr rps) props0 vs ixs = createMeshWithIxs rps props0 vs ixs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMeshWithIxs (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 vertices ixs = enterD "createMeshWithIxs" Linear.do
+createMeshWithIxs a b c d = createMeshWithIxsSV a b (SV.fromList c) (SV.fromList d)
+
+createMeshWithIxsSV
+  :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
+  => RenderPipeline π bs ⊸ PropertyBindings props
+   ⊸ SV.Vector (Vertex ts) -> SV.Vector Int32
+  -> Renderer (Mesh ts props, RenderPipeline π bs)
+createMeshWithIxsSV (RenderProperty pr rps) props0 vs ixs = createMeshWithIxsSV rps props0 vs ixs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
+createMeshWithIxsSV (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 vertices ixs = enterD "createMeshWithIxs" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vertices
   indexBuffer  <- createIndex32Buffer ixs
