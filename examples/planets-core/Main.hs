@@ -90,15 +90,15 @@ main = do
     -- tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
-    pipeline <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
-    (p1mesh, pipeline) <- newPlanetMesh pipeline defaultPlanet
-    (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    -- (pmat, pipeline)    <- newPlanetMaterial minmax tex pipeline
+    pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
+    ( (pmesh, pipeline),
+      Ur minmax )    <- newPlanetMesh pipeline defaultPlanet
+    (pmat, pipeline) <- newPlanetMaterial minmax {-tex-} pipeline
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)
-    (rq, Ur mkey)       <- pure (insertMaterial pkey emptyMat rq)
-    (rq, Ur mshkey)     <- pure (insertMesh mkey p1mesh rq)
+    (rq, Ur mkey)       <- pure (insertMaterial pkey pmat rq)
+    (rq, Ur mshkey)     <- pure (insertMesh mkey pmesh rq)
 
     rq <- gameLoop currTime mshkey 0 rp2 rq
 

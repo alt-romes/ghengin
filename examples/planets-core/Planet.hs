@@ -63,40 +63,47 @@ data PlanetShape = PlanetShape
   }
 
 -- | Make the point on a planet for the given point on a unit sphere
-pointOnPlanet :: PlanetShape -> Vec3 -> Vec3
+--
+-- Returns the updated point and the elevation of that point
+pointOnPlanet :: PlanetShape -> Vec3 -> (Vec3, Float)
 pointOnPlanet PlanetShape{..} pointOnUnitSphere =
   let elevation = evalNoise planetNoise pointOnUnitSphere
-   in pointOnUnitSphere ^* planetRadius ^* (1+elevation)
+      finalElevation = planetRadius * (1+elevation)
+   in (pointOnUnitSphere ^* finalElevation, finalElevation)
 
+-- | Construct the planet mesh and return the minimum and maximum elevation points on the planet
 newPlanetMesh :: _ -- more constraints
               => CompatibleVertex '[Vec3, Vec3] π
               => CompatibleMesh '[Transform] π
               => RenderPipeline π bs
                ⊸ Planet
-              -> Core (PlanetMesh, RenderPipeline π bs)
+              -> Core ((PlanetMesh, RenderPipeline π bs), Ur MinMax)
 newPlanetMesh rp Planet{..} = enterD "newPlanetMesh" $ Linear.do
 
   let UnitSphere us is = newUnitSphere resolution
 
-      planetPs = P.map (\(p :&: _) -> pointOnPlanet planetShape p) us
+      (planetPs, elevations)
+               = P.unzip $ P.map (\(p :&: _) -> pointOnPlanet planetShape p) us
       planetNs = V.toList $ computeNormals (V.fromList (P.map fromIntegral is)) (V.fromList planetPs)
       planetVs = P.zipWith (:&:) planetPs planetNs
 
-      -- minmax = MinMax (P.minimum elevations) (P.maximum elevations)
+      minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-   in (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) planetVs is ↑)
+   in (, Ur minmax) <$> (createMeshWithIxs rp (DynamicBinding (Ur mempty) :## GHNil) planetVs is ↑)
 
 --------------------------------------------------------------------------------
 -- * Material
 --------------------------------------------------------------------------------
 
+type PlanetMaterial = Material '[MinMax{-, Texture2D-}]
+
 newPlanetMaterial :: forall π p
-                   . CompatibleMaterial '[MinMax,Texture2D] π
+                   . CompatibleMaterial '[MinMax] π
                   => MinMax
-                  -> Alias Texture2D
-                   ⊸ RenderPipeline π p
-                   ⊸ Core (Material '[MinMax,Texture2D], RenderPipeline π p)
-newPlanetMaterial mm t pl = ( material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil) pl ↑)
+                  -- -> Alias Texture2D
+                  -> RenderPipeline π p
+                   ⊸ Core (PlanetMaterial, RenderPipeline π p)
+newPlanetMaterial mm {-t-} pl = ( material @_ @π (StaticBinding (Ur mm) :## {-Texture2DBinding t :##-} GHNil) pl ↑)
 
 --------------------------------------------------------------------------------
 
