@@ -45,7 +45,7 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Mesh
 import Ghengin.Core.Log
-import Ghengin.Core.Type.Utils (Some2(..))
+import Ghengin.Core.Type.Utils (Some(..), Some2(..))
 import Ghengin.Core.Material hiding (material)
 
 newtype RenderQueue a = RenderQueue (PipelineMap (MaterialMap (MeshMap a)))

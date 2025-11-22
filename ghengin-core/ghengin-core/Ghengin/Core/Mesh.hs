@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedLists #-}
 module Ghengin.Core.Mesh
   ( Mesh(..) -- Export these from an Internals module, not from here
-  , Some(..)
 
   , createMesh
   , createMeshWithIxs
@@ -36,7 +35,6 @@ import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.DescriptorSet
 
 import Ghengin.Core.Log
-import Ghengin.Core.Type.Utils (Some(..))
 
 import qualified Data.IntMap.Strict as IM
 
@@ -140,6 +138,15 @@ createMeshSV (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders
 
 -- | Like 'createMesh', but create the mesh using a vertex buffer created from
 -- the vertices and an indexbuffer created from the indices
+--
+-- The 'CompatibleMesh' is a critical restriction: it musn't be possible to
+-- create a mesh with empty properties '[] and later on add them using
+-- `MeshProperty`! The crucial part is that this function allocates resources
+-- to store in the root nodes of the Mesh and uses them for important bits.
+--
+-- It is not sufficient to only have CompatibleMesh when inserting it in the store.
+--
+-- The same is true for Materials and Pipelines Compatible constraints.
 createMeshWithIxs :: (CompatibleMesh props π, CompatibleVertex ts π, Storable (Vertex ts))
                   => RenderPipeline π bs
                    ⊸ PropertyBindings props
@@ -171,7 +178,10 @@ mkMesh :: ∀ t b. Mesh t '[] ⊸ PropertyBindings b ⊸ Mesh t b
 mkMesh x GHNil = x
 mkMesh x (p :## pl) = MeshProperty p (mkMesh x pl)
 
-allocateDescriptorsForMeshes :: DescriptorSetMap -> Alias DescriptorPool ⊸ PropertyBindings props ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool, PropertyBindings props)
+allocateDescriptorsForMeshes :: DescriptorSetMap
+                             -> Alias DescriptorPool
+                              ⊸ PropertyBindings props
+                              ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, Alias DescriptorPool, PropertyBindings props)
 allocateDescriptorsForMeshes bmap dpool0 props0 = Linear.do
   -- Mostly just the same as in 'material' in Ghengin.Core.Material
 

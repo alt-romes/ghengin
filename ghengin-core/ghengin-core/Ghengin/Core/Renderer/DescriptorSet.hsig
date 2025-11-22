@@ -33,18 +33,6 @@ type DescriptorSetMap = IntMap BindingsMap
 
 createDescriptorSetBindingsMap :: ShaderPipeline info -> Ur DescriptorSetMap
 
--- ROMES:TODO: These definitions need to be inlined... in the instancing modules?
--- Shouldn't be too inefficient since the use case, ResourceMap, is usually small
-
--- import Ghengin.Vulkan.DescriptorSet
---     ( allocateDescriptorSet,
---       createDescriptorPool,
---       destroyDescriptorPool,
---       destroyDescriptorSet,
---       DescriptorPool(_set_bindings),
---       DescriptorSet,
---       ResourceMap )
-
 data DescriptorPool
 
 createDescriptorPool :: DescriptorSetMap
@@ -71,10 +59,10 @@ allocateEmptyDescriptorSet :: Int -- ^ The set to allocate by index
 -- are in the descriptor set, while the bindings that do exist in the resource
 -- map will overwrite what was previously written in the descriptor set at
 -- those indices.
-updateDescriptorSet :: DescriptorSet -- Vk.DescriptorSet -- ^ The descriptor set we're writing with these resources
-                    ⊸  ResourceMap               -- ^ The resources we're updating the descriptor set with
-                    ⊸  Renderer (DescriptorSet, ResourceMap) -- ^ Returns the updated descriptor set and threads through the resource map used
-                                                             -- ROMES: where are the overwritten descriptors being freed?
+updateDescriptorSet :: DescriptorSet                            -- ^ The descriptor set we're writing with these resources
+                    ⊸  IntMap DescriptorResource                -- ^ The resources we're updating the descriptor set with
+                    ⊸  Renderer (DescriptorSet, IntMap DescriptorResource) -- ^ Returns the updated descriptor set and threads through the resource map used
+                                                                -- ROMES: where are the overwritten descriptors being freed?
 
 
 freeDescriptorSets :: Alias DescriptorPool ⊸ V n DescriptorSet ⊸ Renderer ()

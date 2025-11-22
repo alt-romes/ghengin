@@ -130,12 +130,13 @@ library
                       linear-base >= 0.4.0,
                       reference-counting >= 0.2.0.0,
                       os-string,
+                      text >= 0.2,
 
                       template-haskell,
                       stm, async,
                       containers,
                       mtl,
-                      vector,
+                      vector >= 0.13,
                       generics-sop,
 
                       gl-block,

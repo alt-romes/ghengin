@@ -13,29 +13,6 @@ import Ghengin.Core.Prelude as Linear
 
 import Ghengin.Core.Type.Compatible ( CompatiblePipeline )
 
--- What I really want to do with the methods below is create hsigs for each of
--- them individually.  We will not need the freeing/destruction functions
--- anymore since most things will be reference counted in the linear IO monad,
--- and the free function will be an internal implementation detail
--- import Ghengin.Vulkan.DescriptorSet
---     ( allocateDescriptorSet,
---       createDescriptorPool,
---       createDescriptorSetBindingsMap,
---       destroyDescriptorPool,
---       destroyDescriptorSet,
---       DescriptorPool(_set_bindings),
---       DescriptorSet,
---       ResourceMap )
--- import Ghengin.Vulkan.Pipeline
---     ( createGraphicsPipeline,
---       destroyPipeline,
---       PipelineConstraints,
---       VulkanPipeline )
--- import Ghengin.Vulkan.RenderPass
---     ( createSimpleRenderPass,
---       destroyRenderPass,
---       VulkanRenderPass(_renderPass) )
-
 import qualified FIR.Pipeline
 
 import qualified Data.Linear.Alias as Alias

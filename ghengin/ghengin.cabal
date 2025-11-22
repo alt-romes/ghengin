@@ -5,7 +5,7 @@ name:               ghengin
 --                  | | | +--- code changes with no API change
 version:            0.1.0.0
 
-tested-with:        GHC ==9.10.1
+tested-with:        GHC ==9.12.2
 -- synopsis:
 -- description:
 license:            BSD-3-Clause
@@ -101,7 +101,8 @@ library camera
     import:           common-flags
     visibility: public
     exposed-modules:  Ghengin.Camera, Ghengin.Camera.Shader.Lighting
-    build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core:backend-independent-bits, linear-base, linear-utils, geomancy >= 0.3
+    build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core:backend-independent-bits,
+                      linear-base, linear-utils, geomancy >= 0.3
     hs-source-dirs:   ghengin-camera
     default-language: GHC2021
 
@@ -110,9 +111,11 @@ library geometry
     visibility: public
     exposed-modules:  Ghengin.Geometry, Ghengin.Geometry.Sphere, Ghengin.Geometry.Cube,
                       Ghengin.Geometry.Transform, Ghengin.Geometry.Normals,
-                      Ghengin.Geometry.Vectors
+                      Ghengin.Geometry.Vectors,
+                      Ghengin.Geometry.Obj
     build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits,
-                      ghengin-core, vector, containers, split, geomancy >= 0.3, linear-base
+                      ghengin-core, vector, containers, split, geomancy >= 0.3,
+                      linear-base, wavefront
     hs-source-dirs:   ghengin-geometry
     default-language: GHC2021
 
