@@ -119,6 +119,7 @@ instance KnownSymbol name => ShaderData (StructFloat name) where
 -- ** FIR Vector
 instance (KnownNat n, Storable x, Block x) => Block (V n x) where
   type PackedSize (V n x) = n * (PackedSize x)
+  isStruct _ = False
 
   alignment140 _ = Store.alignment (undefined :: V n x)
   alignment430 = alignment140
@@ -153,6 +154,7 @@ instance (KnownNat n, Block x, Storable x, KnownSymbol name) => ShaderData (Stru
 -- ** FIR Matrix
 instance (KnownNat m, KnownNat n, Storable x, Block x) => Block (M m n x) where
   type PackedSize (M m n x) = m * n * (PackedSize x)
+  isStruct _ = False
 
   alignment140 _ = Store.alignment (undefined :: M m n x)
   alignment430 = alignment140
