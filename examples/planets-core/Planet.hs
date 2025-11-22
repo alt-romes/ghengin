@@ -95,15 +95,15 @@ newPlanetMesh rp Planet{..} = enterD "newPlanetMesh" $ Linear.do
 -- * Material
 --------------------------------------------------------------------------------
 
-type PlanetMaterial = Material '[MinMax{-, Texture2D-}]
+type PlanetMaterial = Material '[MinMax, Texture2D (RGBA8 UNorm)]
 
 newPlanetMaterial :: forall π p
-                   . CompatibleMaterial '[MinMax] π
+                   . CompatibleMaterial '[MinMax, Texture2D (RGBA8 UNorm)] π
                   => MinMax
-                  -- -> Alias Texture2D
-                  -> RenderPipeline π p
+                  -> Alias (Texture2D (RGBA8 UNorm))
+                   ⊸ RenderPipeline π p
                    ⊸ Core (PlanetMaterial, RenderPipeline π p)
-newPlanetMaterial mm {-t-} pl = ( material @_ @π (StaticBinding (Ur mm) :## {-Texture2DBinding t :##-} GHNil) pl ↑)
+newPlanetMaterial mm t pl = ( material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil) pl ↑)
 
 --------------------------------------------------------------------------------
 

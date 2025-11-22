@@ -86,14 +86,14 @@ main = do
  currTime <- getCurrentTime
  withLinearIO $
   runCore (1280, 720) Linear.do
-    -- sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
-    -- tex     <- ( texture "assets/planet_gradient.png" sampler ↑)
+    sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
+    tex     <- ( texture "examples/planets-core/assets/planet_gradient.png" sampler ↑)
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
     pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
     ( (pmesh, pipeline),
       Ur minmax )    <- newPlanetMesh pipeline defaultPlanet
-    (pmat, pipeline) <- newPlanetMaterial minmax {-tex-} pipeline
+    (pmat, pipeline) <- newPlanetMaterial minmax tex pipeline
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)

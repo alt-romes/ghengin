@@ -67,8 +67,8 @@ type FragmentDefs
       , "minmax"      ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
                                     ( Struct '[ "min" ':-> Float
                                               , "max" ':-> Float ] )
-      -- , "gradient"    ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
 
+      , "gradient"    ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
       ]
 
 
@@ -85,11 +85,11 @@ fragment = shader do
 
     let col_frac = invLerp (norm (Vec3 pox poy poz)) min' max'
 
-    -- ~(Vec4 cx' cy' cz' _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
+    ~(Vec4 cx cy cz _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
 
     let lightDir  = Vec3 (-0.5) 1 0.5
     let lightCol  = Vec3 0.5 0.5 0.5
-    let objectCol = Vec3 col_frac col_frac col_frac
+    let objectCol = Vec3 cx cy cz
     let shininess = 32
 
     lightValue <- blinnPhong 0.02 shininess lightDir lightCol
