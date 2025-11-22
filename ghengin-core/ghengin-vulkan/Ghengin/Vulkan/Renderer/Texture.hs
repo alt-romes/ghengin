@@ -35,9 +35,13 @@ import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.Sampler
 import qualified Data.Linear.Alias as Alias
 
+import qualified Ghengin.Core.Shader.Data as Shader
+
+-- TODO: More general "Texture" binding, which can be either Texture1D, Texture2D, Texture3D.
+-- See FIR.Syntax.Synonyms
 data Texture2D = Texture2D { image          :: VulkanImage
                            , sampler        :: Alias Sampler
-                           } deriving Generic
+                           }
 
 texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias Texture2D)
 texture fp sampler = enterD "Creating a texture" Linear.do

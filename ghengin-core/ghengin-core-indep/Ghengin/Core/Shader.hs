@@ -40,7 +40,7 @@ type FragmentShaderModule defs
                      (("out_colour" 'FIR.:-> FIR.Output '[ FIR.Location 0 ] (V 4 Float)) ': ("main" 'FIR.:-> FIR.EntryPoint '[ FIR.OriginUpperLeft ] FIR.Fragment) ': CanonicalizeDefs defs)
 
 
--- * Instances for Syntactic
+-- * Instances for ShaderData
 --
 -- | The following instances are supposed to be used with deriving via:
 --
@@ -48,7 +48,7 @@ type FragmentShaderModule defs
 --
 -- @
 -- -- Internal type will be Struct [ "v" :-> V 3 Float ]
--- newtype CameraPos = CP Vec3 deriving Syntactic via (Vec3Struct @"v")
+-- newtype CameraPos = CP Vec3 deriving ShaderData via (Vec3Struct @"v")
 -- @
 --
 -- There is also an instance of Syntactic for n-ary products of syntactic things like Mat and Vec,
@@ -116,6 +116,8 @@ instance KnownSymbol name => ShaderData (StructMat4 name) where
 instance KnownSymbol name => ShaderData (StructFloat name) where
   type FirType (StructFloat name) = FIR.Struct '[ name 'FIR.:-> Float ]
   
+--------------------------------------------------------------------------------
+
 -- ** FIR Vector
 instance (KnownNat n, Storable x, Block x) => Block (V n x) where
   type PackedSize (V n x) = n * (PackedSize x)
@@ -185,3 +187,4 @@ instance (KnownNat m, KnownNat n, Block x, Storable x, KnownSymbol name) => Bloc
 
 instance (KnownNat m, KnownNat n, Block x, Storable x, KnownSymbol name) => ShaderData (StructM m n x name) where
   type FirType (StructM m n x name) = FIR.Struct '[ name 'FIR.:-> M m n x ]
+
