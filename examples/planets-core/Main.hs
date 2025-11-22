@@ -113,15 +113,29 @@ defaultPlanet :: Planet
 defaultPlanet = Planet
   { resolution = 100
   , planetShape = PlanetShape
-      { planetRadius = 1
-      , planetNoise  = LayersCoherentNoise
-          { centre        = vec3 0 0 0
-          , baseRoughness = 1
-          , strength      = 1
-          , numLayers     = 2
-          , persistence   = 0.5
-          , roughness     = 2
-          }
+      { planetRadius = 2.72
+      , planetNoise  = AddNoiseLayers
+          [ StrengthenNoise 0.12 $ MinValueNoise
+            { minNoiseVal = 0.1
+            , baseNoise   = LayersCoherentNoise
+              { centre        = vec3 0 0 0
+              , baseRoughness = 0.7
+              , numLayers     = 4
+              , persistence   = 0.54
+              , roughness     = 2.34
+              }
+            }
+          , StrengthenNoise 0.36 $ MinValueNoise
+            { minNoiseVal = 1.25
+            , baseNoise   = LayersCoherentNoise
+              { centre        = vec3 0 0 0
+              , baseRoughness = 1.08
+              , numLayers     = 4
+              , persistence   = 0.54
+              , roughness     = 2.34
+              }
+            }
+          ]
       }
   }
 

@@ -22,8 +22,6 @@ data Noise
         -- Offset noise point
       , baseRoughness :: !Float
         -- ^ Roughness for the first layer
-      , strength      :: !Double
-        -- ^ Amplitude multiplier for first layer
       , numLayers     :: !Int
         -- ^ How many layers of detail
       , persistence   :: !Double
@@ -35,6 +33,21 @@ data Noise
   | RidgedNoise
       {
       }
+  -- | A noise value which evaluates the base noise value and makes sure it is
+  -- at least the given min value
+  | MinValueNoise
+      { minNoiseVal :: !Float
+        -- ^ Value is increased to at least this much
+      , baseNoise   :: !Noise
+        -- ^ The base noise value
+      }
+  | StrengthenNoise
+      { strength  :: !Float
+        -- ^ Multiplies by noise val
+      , baseNoise :: !Noise
+        -- ^ To compute the noise val
+      }
+        -- ^ Amplitude multiplier for first layer
   -- | Add @moreNoise@ to @baseNoise@ if @baseNoise > 0@
   | AddNoiseMasked
       { baseNoise :: !Noise
@@ -42,15 +55,14 @@ data Noise
       , moreNoise :: !Noise
       -- ^ Add this noise to @'baseNoise'@ if @'baseNoise'@ is > 0
       }
-  -- | Add two noise filters unconditionally
-  | AddNoise
-      { baseNoise :: !Noise
-      , moreNoise :: !Noise
+  -- | Add noise filters unconditionally
+  | AddNoiseLayers
+      { noiseLayers :: ![Noise]
       }
 
 evalNoise :: Noise -> Vec3 -> Float
 evalNoise LayersCoherentNoise{..} p
-  = double2Float (noiseValue * strength)
+  = double2Float noiseVal
   where
     seed = 123456
     frequencies = baseRoughness : map (*roughness) frequencies
@@ -58,12 +70,14 @@ evalNoise LayersCoherentNoise{..} p
     layerNoise frequency amplitude =
       let v = coherentNoise seed (vec3Point (p ^* frequency ^+^ centre))
        in (v + 1) * 0.5 * amplitude {-from [-1 to 1] to [0 to 1], then * amplitude-}
-    noiseValue =
+    noiseVal =
       sum $ take numLayers $
       zipWith layerNoise frequencies amplitudes
-evalNoise RidgedNoise{..}    p = undefined
-evalNoise AddNoiseMasked{..} p = undefined
-evalNoise AddNoise{..}       p = evalNoise baseNoise p + evalNoise moreNoise p
+evalNoise StrengthenNoise{..} p = evalNoise baseNoise p * strength
+evalNoise MinValueNoise{..}   p = max 0 (evalNoise baseNoise p - minNoiseVal)
+evalNoise RidgedNoise{..}     p = undefined
+evalNoise AddNoiseMasked{..}  p = undefined
+evalNoise AddNoiseLayers{..}  p = sum (map (`evalNoise` p) noiseLayers)
 
 vec3Point :: Vec3 -> Point
 vec3Point (WithVec3 px py pz) = (float2Double px, float2Double py, float2Double pz)
