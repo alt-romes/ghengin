@@ -4,15 +4,18 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 module Ghengin.Geometry.Obj where
 
-import Prelude
+import Prelude hiding (log)
+import Control.Monad
 import qualified Prelude.Linear as Linear
 
 import qualified Data.Vector as V
+import qualified Data.Vector.Storable as SV
 
 import Geomancy
 
 import Codec.Wavefront
 
+import Ghengin.Core.Log
 import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
@@ -22,6 +25,8 @@ import qualified Data.Linear.Alias as Alias
 
 import qualified Control.Functor.Linear as Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
+
+import Ghengin.Geometry.Normals
 
 -- | Loads a 'WavefrontOBJ' from a file.
 --

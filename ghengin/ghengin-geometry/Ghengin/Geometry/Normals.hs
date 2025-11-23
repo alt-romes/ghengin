@@ -18,7 +18,7 @@ import qualified Geomancy.Vec3 as Vec3
 
 import Prelude.Linear
 import qualified Data.Vector as V
-import qualified Data.Vector.Storable as SV
+import qualified Data.Vector.Generic as GV
 import qualified Data.Array.Mutable.Linear as Array
 
 {- | Compute the smooth normal vectors of a mesh surface.
@@ -58,12 +58,14 @@ have all allocated buffers automatically initialized to zero. In that case, if
 this is the first and only normalization for a given mesh, you may skip the
 first loop on the function too of course.
 -}
-computeNormals :: SV.Vector Int  -- ^ Every three indices into the vertices array forms a face
-               -> SV.Vector Vec3 -- ^ The position of every vertex
-               -> SV.Vector Vec3 -- ^ The normal vector for each vertex
+{-# INLINEABLE computeNormals #-}
+computeNormals :: (GV.Vector v Int, GV.Vector w Vec3)
+               => v Int  -- ^ Every three indices into the vertices array forms a face
+               -> w Vec3 -- ^ The position of every vertex
+               -> V.Vector Vec3 -- ^ The normal vector for each vertex
 computeNormals ixs vs =
-  V.convert $ unur $ -- todo: freeze variant which constructs SV.Vector?
-  Array.alloc (SV.length vs) (vec3 0 0 0) $ \arr0 ->
+  unur $ -- todo: freeze variant which constructs SV.Vector?
+  Array.alloc (GV.length vs) (vec3 0 0 0) $ \arr0 ->
     Array.freeze $
     Array.map Vec3.normalize $
       foldl' (\arr (Ur i) -> let
@@ -76,10 +78,10 @@ computeNormals ixs vs =
         in arr & ia += no
                & ib += no
                & ic += no
-        ) arr0 [Ur i | i <- [0,3..SV.length ixs - 1]]
+        ) arr0 [Ur i | i <- [0,3..GV.length ixs - 4]]
   where
-    (!) :: SV.Storable x => SV.Vector x -> Int -> x
-    (!) = SV.unsafeIndex
+    (!) :: GV.Vector t x => t x -> Int -> x
+    (!) = GV.unsafeIndex
 
     (+=) :: Int -> Vec3 -> Array.Array Vec3 %1 -> Array.Array Vec3
     (+=) i new arr0 = case Array.unsafeGet i arr0 of

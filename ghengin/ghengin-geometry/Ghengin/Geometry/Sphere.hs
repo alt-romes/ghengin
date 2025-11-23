@@ -15,6 +15,7 @@ import Ghengin.Core.Renderer
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Mesh
 
+import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
 
 import Ghengin.Geometry.Normals
@@ -69,7 +70,7 @@ newUnitSphere res =
       ps = SV.fromList $ v1 <> v2 <> v3 <> v4 <> v5 <> v6
       ns = computeNormals is ps
    in
-      UnitSphere (SV.zipWith (\a b -> a :&: b) ps ns) (SV.map fromIntegral is)
+      UnitSphere (SV.zipWith (\a b -> a :&: b) ps (V.convert ns)) (SV.map fromIntegral is)
 
 newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3] π)
               => RenderPipeline π bs
