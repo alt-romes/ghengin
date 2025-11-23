@@ -9,6 +9,10 @@ See the executables from `ghegin-games.cabal` in the `examples/` directory.
 The working examples are the following. In sequence, they build up to a
 "user-space" higher-level engine using the Core of the engine only (`ghengin-core`).
 
+Cooler examples:
+
+* `planets-core` implements Sebastian Lague's procedural planets
+
 Solid examples:
 
 * `simple-triangle` is a simple 2D triangle
