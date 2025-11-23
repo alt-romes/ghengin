@@ -36,6 +36,7 @@ common common-flags
         -DDEBUG
         -- -DDEBUG_TRACE
         -- -DTHINGS_ARE_GOING_THAT_BAD
+        -- -DDEBUG_WRITE_SHADERS
 
   else
     ghc-options: -O2 -threaded
@@ -131,6 +132,7 @@ library
                       reference-counting >= 0.2.0.0,
                       os-string,
                       text >= 0.2,
+                      temporary,
 
                       template-haskell,
                       stm, async,
@@ -242,6 +244,7 @@ library vulkan
                       -- ghengin-core MISTAKE!(#23322, could we depend on ghengin-core for non-indefinite modules only?)
                       ghengin-core:backend-independent-bits,
                       gl-block,
+                      temporary,
 
                       -- For textures (consider adding to Core too)
                       JuicyPixels,

@@ -64,6 +64,11 @@ import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.RenderPass
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet (DescriptorPool(..))
 
+#ifdef DEBUG_WRITE_SHADERS
+import System.IO.Temp (writeSystemTempFile)
+import Data.Text.Lazy.Encoding (decodeUtf8, unpack)
+#endif
+
 data RendererPipeline (t :: PipelineType)
   = VulkanPipeline { _pipeline :: Vk.Pipeline
                    , _pipelineLayout :: Vk.PipelineLayout
@@ -336,7 +341,13 @@ newtype ShaderByteCode = SBC LBS.ByteString
 compileFIRShader :: FIR.CompilableProgram prog => prog -> IO ShaderByteCode
 compileFIRShader m = liftSystemIO do
   FIR.compile [] m Prelude.>>= \case
+#ifdef DEBUG_WRITE_SHADERS
+    Right (Just (FIR.ModuleBinary bs), _) -> Prelude.do
+      writeSystemTempFile "GhenginShader.spv" (((unpack . decodeUtf8)) bs)
+      Prelude.pure (SBC bs)
+#else
     Right (Just (FIR.ModuleBinary bs), _) -> Prelude.pure (SBC bs)
+#endif
     Left e -> error $ "Failed to compiler Shader:\n" ++ show e
     _      -> error "Couldn't generate module binary when compiling"
 
