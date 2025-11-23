@@ -81,11 +81,20 @@ computeNormals ixs vs =
         ) arr0 [Ur i | i <- [0,3..GV.length ixs - 4]]
   where
     (!) :: GV.Vector t x => t x -> Int -> x
+#ifdef DEBUG
+    (!) = (GV.!)
+#else
     (!) = GV.unsafeIndex
+#endif
 
     (+=) :: Int -> Vec3 -> Array.Array Vec3 %1 -> Array.Array Vec3
+#ifdef DEBUG
+    (+=) i new arr0 = case Array.get i arr0 of
+      (Ur exists, arr1) -> Array.set i (new ^+^ exists) arr1
+#else
     (+=) i new arr0 = case Array.unsafeGet i arr0 of
       (Ur exists, arr1) -> Array.unsafeSet i (new ^+^ exists) arr1
+#endif
 
 -- TODO: Try backpermute
 
