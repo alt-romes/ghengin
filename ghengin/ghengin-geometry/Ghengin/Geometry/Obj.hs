@@ -68,13 +68,25 @@ createObjMesh wavefrontObj rp props =
       getLoc :: Location -> Vec3
       getLoc (Location x y z _) = vec3 x (-y) z
 
+      -- get normal, currently ignoring face
       getNormal :: Normal -> Vec3
       getNormal (Normal x y z) = vec3 x y z
 
-      vertices = V.zipWith (:&:) locs normals
-      ixs = V.concatMap (\(Face a b c d) -> V.fromList $
-              [ a.faceLocIndex , b.faceLocIndex , c.faceLocIndex ] ++ map (.faceLocIndex) d
+      vertices
+        | V.length normals == 0
+            || V.length locs /= V.length normals {- bad object file! -}
+        = V.zipWith (:&:) locs (computeNormals ixs locs)
+        | otherwise
+        = V.zipWith (:&:) locs normals
+
+      ixs = V.concatMap (\(Face a b c _) -> V.fromList $ map (\x -> x-1) {-face indices are 1-indexed-}
+              [ a.faceLocIndex , b.faceLocIndex , c.faceLocIndex ]
               ) faces
-   in
-      createMeshWithIxsSV rp props (V.convert vertices) (V.convert $ V.map fromIntegral ixs)
+   in Linear.do
+    if (V.length normals > 0 && V.length locs /= V.length normals)
+      then log $ toLogStr $ "createObjMesh: length of normals ("
+        ++ show (V.length normals) ++ ") is not the same as length of locations ("
+        ++ show (V.length locs)    ++ ")! Ignoring and recomputing normals from scratch..."
+      else Linear.pure ()
+    createMeshWithIxsSV rp props (V.convert vertices) (SV.map fromIntegral $ V.convert ixs)
 
