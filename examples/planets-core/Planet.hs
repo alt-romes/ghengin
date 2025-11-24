@@ -82,12 +82,12 @@ newPlanetMesh rp Planet{..} = enterD "newPlanetMesh" $ Linear.do
 
       (planetPs, elevations)
                = V.unzip $ V.map (\(p :&: _) -> pointOnPlanet planetShape p) (V.convert us)
-      planetNs = computeNormals (SV.map fromIntegral is) (V.convert planetPs)
-      planetVs = SV.zipWith (:&:) (V.convert planetPs) planetNs
+      planetNs = computeNormals (SV.map fromIntegral is) planetPs
+      planetVs = V.zipWith (:&:) (planetPs) planetNs
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-   in (, Ur minmax) <$> (createMeshWithIxsSV rp (DynamicBinding (Ur mempty) :## GHNil) planetVs is ↑)
+   in (, Ur minmax) <$> (createMeshWithIxsSV rp (DynamicBinding (Ur mempty) :## GHNil) (V.convert planetVs) is ↑)
 
 --------------------------------------------------------------------------------
 -- * Material
