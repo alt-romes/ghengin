@@ -12,6 +12,7 @@ The working examples are the following. In sequence, they build up to a
 Cooler examples:
 
 * `planets-core` implements Sebastian Lague's procedural planets
+* `teapot-obj` renders the Utah teapot using Blinn-Phong lighting and a perspective camera
 
 Solid examples:
 
