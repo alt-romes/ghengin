@@ -1,4 +1,4 @@
-{-#LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PartialTypeSignatures #-}
@@ -16,9 +16,9 @@ import qualified Prelude
 import qualified Data.Linear.Alias as Alias
 import Shaders
 
+import qualified Ghengin.DearImGui.Vulkan as ImGui
+
 --------------------------------------------------------------------------------
--- Book of Shader: Shaping Functions
---
 -- Bufferless rendering as seen in:
 --  https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 --------------------------------------------------------------------------------
@@ -29,6 +29,11 @@ gameLoop rp rq = Linear.do
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
+  -- Prepare Imgui data
+  ImGui.withNewFrame $ do
+
+    ImGui.showDemoWindow
+
   (rp, rq) <- renderWith $ Linear.do
 
     (rp1, rp2) <- lift (Alias.share rp)
@@ -38,8 +43,10 @@ gameLoop rp rq = Linear.do
     renderPassCmd extent rp1 $ Linear.do
 
       rq <- renderQueueCmd rq
-
       draw 3
+
+      -- Render Imgui data!
+      ImGui.renderDrawData
 
       return (rp2, rq)
 
@@ -52,13 +59,19 @@ main = do
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
-    pipeline      <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullBack} rp1 shaderPipelineSimple GHNil ↑)
+    -- Init imgui
+    (rp1, imctx) <- (Alias.useM rp1 ImGui.initImGui ↑)
+
+    pipeline      <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullFront} rp1 shaderPipelineSimple GHNil ↑)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
     rq <- gameLoop rp2 rq
 
     (freeRenderQueue rq ↑)
+    -- Then destroy it
+    (ImGui.destroyImCtx imctx ↑)
 
     return (Ur ())
+
 
 

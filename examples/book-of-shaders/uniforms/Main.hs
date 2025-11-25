@@ -6,10 +6,7 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Main where
 
-import Geomancy.Vec3
 import Ghengin.Core
-import Ghengin.Core.Mesh
-import Ghengin.Core.Material
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Render
 import Ghengin.Core.Render.Pipeline
@@ -55,7 +52,7 @@ main = do
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
-    pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullFront} rp1 shaderPipelineSimple GHNil ↑)
+    pipeline      <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullFront} rp1 shaderPipelineSimple GHNil ↑)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
     rq <- gameLoop rp2 rq
