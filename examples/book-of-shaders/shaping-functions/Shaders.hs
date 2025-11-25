@@ -50,7 +50,7 @@ vertexSimple = shader do
   let ux = convert ((vix `shiftL` (1 :: Code Word32)) .&. 2)
       uy = convert (vix .&. 2)
   #out_uv .= Vec2 ux uy
-  #gl_Position .= Vec4 (ux*2 - 1) (- (uy*2 - 1) {- in Vulkan, y points down -}) 0 1
+  #gl_Position .= Vec4 (ux*2 - 1) (- (uy*2 - 1) {- in Vulkan, y points down -}) 0.1 1
 
 plot :: Code Float -> Code Float -> Code Float
 plot y pct = smoothstep (pct-0.005) pct y - smoothstep pct (pct+0.005) y

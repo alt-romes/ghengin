@@ -119,6 +119,29 @@ library geometry
     hs-source-dirs:   ghengin-geometry
     default-language: GHC2021
 
+-- todo: if flag(vulkan) or something to either expose the Vulkan module or
+-- something else.
+library dear-imgui
+    import:           common-flags
+    visibility: public
+    exposed-modules:  Ghengin.DearImGui.Vulkan
+    build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits,
+                      ghengin-core:vulkan, vector, containers, geomancy >= 0.3,
+                      linear-base, reference-counting, vulkan, dear-imgui,
+                      ghengin-core
+    hs-source-dirs:   ghengin-dear-imgui
+    default-language: GHC2021
+    mixins:           ghengin-core
+                        requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                                 , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                                 , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                                 , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                                 , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                                 , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                                 , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                                 , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                                 , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                                 )
 --------------------------------------------------------------------------------
 -- Testsuite
 --------------------------------------------------------------------------------

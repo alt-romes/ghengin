@@ -52,6 +52,12 @@ module Ghengin.Vulkan.Renderer.Command
   , transitionImageLayout
 
   , clearColorImage
+
+  -- * Unsafe bits
+  , unsafeCmd
+  , unsafeCmd_
+  , unsafeRenderPassCmd
+  , unsafeRenderPassCmd_
   ) where
 
 import GHC.TypeLits

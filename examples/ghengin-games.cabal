@@ -226,6 +226,14 @@ executable function-drawing
     other-modules: Shaders
     hs-source-dirs: function-drawing/
 
+-- DearImGui basic demo
+executable dear-imgui
+    import:         common-flags
+    main-is:        Main.hs
+    other-modules:  Shaders
+    hs-source-dirs: dear-imgui
+    build-depends:  ghengin:dear-imgui
+
 --------------------------------------------------------------------------------
 -- Experiments
 --------------------------------------------------------------------------------
