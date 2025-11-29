@@ -139,8 +139,9 @@ common common-flags
 executable planets-core
     import:         common-flags
     main-is:        Main.hs
-    other-modules:  Planet, Planet.Noise, Shaders
+    other-modules:  Planet, Planet.Noise, Planet.UI, Shaders
     hs-source-dirs: planets-core
+    build-depends:  ghengin:dear-imgui
 
 -- Load and render teapot.obj with blinn-phong
 executable teapot-obj

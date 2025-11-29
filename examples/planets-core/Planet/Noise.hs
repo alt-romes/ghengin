@@ -61,6 +61,7 @@ data Noise
   | AddNoiseLayers
       { noiseLayers :: ![Noise]
       }
+  deriving Eq
 
 -- | Evaluate given 'Noise' at a 3D point
 evalNoise :: Noise -> Vec3 -> Float

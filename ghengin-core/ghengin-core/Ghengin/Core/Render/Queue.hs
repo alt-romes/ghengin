@@ -8,24 +8,13 @@ The render queue is responsible for ordering the draw calls in such a way that
 the amount of GPU state changes is minimized in order to optimize the rendering
 engine.
 
-TODO:
-* Can we update the ECS storage order based on the render order?
-
-
 Resources:
 * [Order your graphics draw calls around!](http://realtimecollisiondetection.net/blog/?p=86)
 * [Optimizing State Changes in Rendering Engines](http://real.mtak.hu/28740/1/szecsi_gg14_statechange.pdf)
 
-TODO
-[ ] Use representation more efficient than simple lists?
-
 See Note [Render Packet Key] and [Material Key]
-
--- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 -}
-module Ghengin.Core.Render.Queue
-  -- TODO: Dont' export things like editAtPipelineKey
-  where
+module Ghengin.Core.Render.Queue where
 
 import qualified Prelude
 import Prelude.Linear hiding (insert)
@@ -198,7 +187,7 @@ editAtMeshesKey :: MeshKey π p ma va me
 editAtMeshesKey (UnsafeMeshKey meid mkey) rq edit =
   editAtMaterialKey mkey rq \(mat,meshmap) -> (mat,) <$>
     ML.alterF
-      (\case Nothing -> Unsafe.toLinear (\_ -> error "mesh key not in rq") edit
+      (\case Nothing -> error "mesh key not in rq" edit
              Just meshes ->
                -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
                Just . map (\(x,y) -> (Some2 x, y)) <$> edit (map (\(Some2 m, a) -> (Unsafe.coerce m, a)) meshes)
@@ -210,7 +199,7 @@ editAtMaterialKey :: MaterialKey π p ma
                    ⊸ Renderer (RenderQueue ())
 editAtMaterialKey (UnsafeMaterialKey mkey pkey) rq edit = do
   editAtPipelineKey pkey rq (\(pip,mats) -> (pip,) <$> ML.alterF
-    (\case Nothing -> Unsafe.toLinear (\_ -> error "material key not in rq") edit
+    (\case Nothing -> error "material key not in rq" edit
            Just (Some mat, meshes) ->
              -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
              (\(x, ms) -> Just (Some x, ms)) <$> edit (Unsafe.coerce mat, meshes)
@@ -222,12 +211,18 @@ editAtPipelineKey
    ⊸ ((RenderPipeline π p, MaterialMap (MeshMap ())) ⊸ Renderer (RenderPipeline π p, MaterialMap (MeshMap ())))
    ⊸ Renderer (RenderQueue ())
 editAtPipelineKey (UnsafePipelineKey pkey) (RenderQueue q) edit = RenderQueue <$>
-  ML.alterF (\case Nothing -> Unsafe.toLinear (\_ -> error "pipeline key not in rq") edit
+  ML.alterF (\case Nothing -> error "pipeline key not in rq" edit
                    Just (Some2 rp, materials) ->
                      -- Key guarantees the type of the pipeline at that key is the same,
                      -- so this is safe
                      (\(x, ms) -> Just (Some2 x, ms)) <$> edit (Unsafe.coerce rp, materials)
             ) pkey q
+
+--------------------------------------------------------------------------------
+
+-- TODO: utilities for deleting. can probably be implemented in terms of
+-- editAtPipelineKey for Materials and editAtMaterialKey for Meshes, but needs
+-- to be implemented a direct one for pipelines.
 
 --------------------------------------------------------------------------------
 

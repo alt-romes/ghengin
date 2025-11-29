@@ -41,6 +41,7 @@ import Planet.Noise
 data Planet = Planet { resolution  :: !Int
                      , planetShape :: !PlanetShape
                      }
+                     deriving Eq
 
 data MinMax = MinMax !Float !Float
   deriving (P.Eq, Show, Generic)
@@ -59,6 +60,7 @@ data PlanetShape = PlanetShape
   { planetRadius :: !Float
   , planetNoise  :: !Noise
   }
+  deriving Eq
 
 -- | Make the point on a planet for the given point on a unit sphere
 --
