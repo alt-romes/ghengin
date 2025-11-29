@@ -193,6 +193,7 @@ editAtMeshesKey
   :: MeshKey π p ma va me
   -> RenderQueue ()
    ⊸ (RenderPipeline π p ⊸ Material ma ⊸ [(Mesh va me, ())] ⊸ Renderer (RenderPipeline π p, (Material ma, [(Mesh va me, ())])))
+   -- ^ Changing the render pipeline or material will modify them for all things under it still
    ⊸ Renderer (RenderQueue ())
 editAtMeshesKey (UnsafeMeshKey meid mkey) rq edit =
   editAtMaterialKey mkey rq $ Unsafe.toLinear3 \pip mat meshmap ->
@@ -208,6 +209,7 @@ editAtMaterialKey
   :: MaterialKey π p ma
   -> RenderQueue ()
    ⊸ (RenderPipeline π p ⊸ Material ma ⊸ MeshMap () ⊸ Renderer (RenderPipeline π p, (Material ma, MeshMap ())))
+   -- ^ Changing the render pipeline or material will modify them for all things under it still
    ⊸ Renderer (RenderQueue ())
 editAtMaterialKey (UnsafeMaterialKey mkey pkey) rq edit =
   editAtPipelineKey pkey rq $ Unsafe.toLinear2 \pip mats ->
