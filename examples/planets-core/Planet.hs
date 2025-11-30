@@ -54,6 +54,10 @@ instance ShaderData MinMax where
 -- * Mesh
 --------------------------------------------------------------------------------
 
+type PlanetMeshAttrs = '[Transform]
+type PlanetMeshVerts = '[Vec3, Vec3]
+-- TODO: Report GHC BUG: If I use the type synonyms in 'PlanetMesh' then GHC is
+-- not clever enough to figure it out.
 type PlanetMesh = Mesh '[Vec3, Vec3] '[Transform]
 
 data PlanetShape = PlanetShape
@@ -77,8 +81,8 @@ newPlanetMesh :: _ -- more constraints
               => CompatibleMesh '[Transform] π
               => RenderPipeline π bs
                ⊸ Planet
-              -> Core ((PlanetMesh, RenderPipeline π bs), Ur MinMax)
-newPlanetMesh rp Planet{..} = enterD "newPlanetMesh" $ Linear.do
+              -> Renderer ((PlanetMesh, RenderPipeline π bs), Ur MinMax)
+newPlanetMesh rp Planet{..} = Linear.do
 
   let UnitSphere us is = newUnitSphere resolution
 
@@ -89,13 +93,14 @@ newPlanetMesh rp Planet{..} = enterD "newPlanetMesh" $ Linear.do
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-   in (, Ur minmax) <$> (createMeshWithIxsSV rp (DynamicBinding (Ur mempty) :## GHNil) (V.convert planetVs) is ↑)
+   in (, Ur minmax) <$> createMeshWithIxsSV rp (DynamicBinding (Ur mempty) :## GHNil) (V.convert planetVs) is
 
 --------------------------------------------------------------------------------
 -- * Material
 --------------------------------------------------------------------------------
 
-type PlanetMaterial = Material '[MinMax, Texture2D (RGBA8 UNorm)]
+type PlanetMaterialAttrs = '[MinMax, Texture2D (RGBA8 UNorm)]
+type PlanetMaterial = Material PlanetMaterialAttrs
 
 newPlanetMaterial :: forall π p
                    . CompatibleMaterial '[MinMax, Texture2D (RGBA8 UNorm)] π

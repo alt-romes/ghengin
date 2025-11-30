@@ -52,6 +52,7 @@ import qualified Prelude
 import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Camera
+import Ghengin.Core.Type.Compatible
 import qualified Ghengin.DearImGui.Vulkan as ImGui
 
 -- planets!
@@ -60,8 +61,13 @@ import Planet
 import Planet.Noise
 import Planet.UI
 
-gameLoop :: _
-         => UTCTime -> _ -> _ -> _ -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop :: Compatible '[Vec3, Vec3] '[Transform] '[MinMax, Texture2D (RGBA8 UNorm)] '[Camera "view_matrix" "proj_matrix"] π
+         => UTCTime
+         -> _
+         -- -> MeshKey π _ _ _ _
+         -> MeshKey π '[Camera "view_matrix" "proj_matrix"] '[MinMax, Texture2D (RGBA8 UNorm)] '[Vec3, Vec3] '[Transform]
+         -> _
+         -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop currentTime planet mkey rot rp rq = Linear.do
  logT "New frame" 
  should_close <- (shouldCloseWindow ↑)
@@ -93,11 +99,11 @@ gameLoop currentTime planet mkey rot rp rq = Linear.do
 
   rq <-
     if changed then
-      (editMeshes mkey rq (\[msh] -> Linear.do
+      (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
             ( (pmesh, pipeline),
               Ur minmax ) <- newPlanetMesh pipeline newPlanet 
             freeMesh msh
-
+            return (pipeline, (mat, [(pmesh, x)]))
           ) ↑)
     else
       pure rq
@@ -124,7 +130,7 @@ main = do
     pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
     -- todo: minmax should be per-mesh
     ( (pmesh, pipeline),
-      Ur minmax )    <- newPlanetMesh pipeline defaultPlanet
+      Ur minmax )    <- (newPlanetMesh pipeline defaultPlanet ↑)
     (pmat, pipeline) <- newPlanetMaterial minmax tex pipeline
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:

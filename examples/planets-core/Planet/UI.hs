@@ -5,6 +5,8 @@ module Planet.UI where
 -- not-yet-existent:unrestricted-ghengin-monad which wraps Core.
 
 import qualified Prelude
+import qualified Data.IORef as Base
+import qualified Control.Monad as Base
 import Ghengin.Core
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Render
@@ -24,7 +26,9 @@ preparePlanetUI Planet{..} = Linear.do
   ImGui.withNewFrame $ do
     ImGui.withWindowOpen "Planet" $ do
 
-      ImGui.sliderFloat "Planet Radius" planetRadiusRef 0.1 10
+      b <- ImGui.sliderFloat "Planet Radius" planetRadiusRef 0.1 10
+      Base.when b $ do
+        Base.writeIORef changedRef True
 
       Prelude.pure ()
       
