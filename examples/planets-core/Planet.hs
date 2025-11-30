@@ -107,8 +107,8 @@ newPlanetMaterial :: forall π p
                   => MinMax
                   -> Alias (Texture2D (RGBA8 UNorm))
                    ⊸ RenderPipeline π p
-                   ⊸ Core (PlanetMaterial, RenderPipeline π p)
-newPlanetMaterial mm t pl = ( material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil) pl ↑)
+                   ⊸ Renderer (PlanetMaterial, RenderPipeline π p)
+newPlanetMaterial mm t pl = material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil) pl
 
 --------------------------------------------------------------------------------
 

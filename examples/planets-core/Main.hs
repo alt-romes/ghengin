@@ -102,8 +102,9 @@ gameLoop currentTime planet mkey rot rp rq = Linear.do
       (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
             ( (pmesh, pipeline),
               Ur minmax ) <- newPlanetMesh pipeline newPlanet 
+            mat' <- propertyAt @0 @MinMax (\(Ur _oldMm) -> pure (Ur minmax)) mat
             freeMesh msh
-            return (pipeline, (mat, [(pmesh, x)]))
+            return (pipeline, (mat', [(pmesh, x)]))
           ) ↑)
     else
       pure rq
@@ -131,7 +132,7 @@ main = do
     -- todo: minmax should be per-mesh
     ( (pmesh, pipeline),
       Ur minmax )    <- (newPlanetMesh pipeline defaultPlanet ↑)
-    (pmat, pipeline) <- newPlanetMaterial minmax tex pipeline
+    (pmat, pipeline) <- (newPlanetMaterial minmax tex pipeline ↑)
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
