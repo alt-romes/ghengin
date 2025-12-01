@@ -124,11 +124,11 @@ library geometry
 library dear-imgui
     import:           common-flags
     visibility: public
-    exposed-modules:  Ghengin.DearImGui.Vulkan
+    exposed-modules:  Ghengin.DearImGui.UI, Ghengin.DearImGui.Vulkan
     build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits,
                       ghengin-core:vulkan, vector, containers, geomancy >= 0.3,
                       linear-base, reference-counting, vulkan, dear-imgui,
-                      ghengin-core
+                      ghengin-core, generics-sop, text, data-default
     hs-source-dirs:   ghengin-dear-imgui
     default-language: GHC2021
     mixins:           ghengin-core

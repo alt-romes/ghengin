@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveAnyClass #-}
 module Planet.Noise where
 
 import Prelude
@@ -6,9 +7,13 @@ import Geomancy (VectorSpace(..))
 import Geomancy.Vec3
 
 import GHC.Float
+import qualified GHC.Generics as GHC
+import Generics.SOP
+
 import Numeric.Noise hiding (Noise)
 import Numeric.Noise.Ridged as Ridged
 import qualified Data.List.NonEmpty as NonEmpty
+import Ghengin.DearImGui.UI
 
 --------------------------------------------------------------------------------
 -- * Noise
@@ -20,11 +25,11 @@ data Noise
   --
   -- You can have simple coherent noise by having numLayers = 1
   = LayersCoherentNoise
-      { centre        :: !Vec3
+      { centre        :: !Color
         -- Offset noise point
       , baseRoughness :: !Float
         -- ^ Roughness for the first layer
-      , numLayers     :: !Int
+      , numLayers     :: !(InRange 0 20 Int)
         -- ^ How many layers of detail
       , persistence   :: !Double
         -- ^ Apply multiplier to cummulative strength per layer
@@ -62,6 +67,11 @@ data Noise
       { noiseLayers :: ![Noise]
       }
   deriving Eq
+  deriving GHC.Generic
+  deriving anyclass Generic
+  deriving anyclass HasDatatypeInfo
+  deriving anyclass Widget
+  deriving anyclass Default
 
 -- | Evaluate given 'Noise' at a 3D point
 evalNoise :: Noise -> Vec3 -> Float
@@ -72,10 +82,10 @@ evalNoise LayersCoherentNoise{..} p
     frequencies = baseRoughness : map (*roughness) frequencies
     amplitudes  = 1 : map (*persistence) amplitudes
     layerNoise frequency amplitude =
-      let v = coherentNoise seed (vec3Point (p ^* frequency ^+^ centre))
+      let v = coherentNoise seed (vec3Point (p ^* frequency ^+^ colorVec centre))
        in (v + 1) * 0.5 * amplitude {-from [-1 to 1] to [0 to 1], then * amplitude-}
     noiseVal =
-      sum $ take numLayers $
+      sum $ take (inRangeVal numLayers) $
       zipWith layerNoise frequencies amplitudes
 evalNoise StrengthenNoise{..} p = evalNoise baseNoise p * strength
 evalNoise MinValueNoise{..}   p = max 0 (evalNoise baseNoise p - minNoiseVal)

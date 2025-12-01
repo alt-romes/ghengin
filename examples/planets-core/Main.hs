@@ -54,6 +54,7 @@ import qualified Data.Linear.Alias as Alias
 import Ghengin.Camera
 import Ghengin.Core.Type.Compatible
 import qualified Ghengin.DearImGui.Vulkan as ImGui
+import qualified Ghengin.DearImGui.UI as ImGui
 
 -- planets!
 import Shaders -- planet shaders
@@ -102,18 +103,18 @@ gameLoop currentTime planet mkey rot rp rq = Linear.do
       (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
             ( (pmesh, pipeline),
               Ur minmax ) <- newPlanetMesh pipeline newPlanet 
-            mat' <- propertyAt @0 @MinMax (\(Ur _oldMm) -> pure (Ur minmax)) mat
+            mat' <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
             freeMesh msh
             return (pipeline, (mat', [(pmesh, x)]))
           ) ↑)
     else
       pure rq
 
-  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
-    rotateY rot <> rotateX (-rot))) ↑)
+  -- rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
+  --   rotateY rot <> rotateX (-rot))) ↑)
 
   -- Loop!
-  gameLoop newTime newPlanet mkey (rot+0.01) rp rq
+  gameLoop newTime newPlanet mkey (rot+(0.01::Float)) rp rq
 
 main :: Prelude.IO ()
 main = do
@@ -151,14 +152,14 @@ camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) (1280,
 
 defaultPlanet :: Planet
 defaultPlanet = Planet
-  { resolution = 100
+  { resolution = 10
   , planetShape = PlanetShape
       { planetRadius = 2.50
       , planetNoise  = AddNoiseMasked
           [ StrengthenNoise 0.12 $ MinValueNoise
             { minNoiseVal = 1.1
             , baseNoise   = LayersCoherentNoise
-              { centre        = vec3 0 0 0
+              { centre        = ImGui.Color $ vec3 0 0 0
               , baseRoughness = 0.71
               , roughness     = 1.83
               , numLayers     = 5

@@ -117,7 +117,6 @@ library
     -- already a transitive dependency, we simply make it easier to access)
     reexported-modules: FIR, Math.Linear, Math.Quaternion,
                         -- generics-sop, for deriving generically
-                        -- todo: i think this is no longer used.
                         Generics.SOP
 
                         -- TODO: Also re-export all modules from ghengin-core-indep?
