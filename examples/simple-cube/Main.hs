@@ -87,7 +87,7 @@ cubeVertices = [
     blue = vec3 0.1 0.1 0.8
     green = vec3 0.1 0.8 0.1
 
-gameLoop :: _ => MeshKey _ _ _ _ '[Transform] -> Float -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop :: MeshKey _ _ _ _ '[Transform] -> Float -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop mkey rot rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
