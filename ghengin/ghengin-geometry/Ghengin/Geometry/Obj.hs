@@ -5,7 +5,6 @@
 module Ghengin.Geometry.Obj where
 
 import Prelude hiding (log)
-import Control.Monad
 import qualified Prelude.Linear as Linear
 
 import qualified Data.Vector as V

@@ -52,19 +52,30 @@ import qualified Prelude
 import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Camera
+import Ghengin.Core.Type.Compatible
+import qualified Ghengin.DearImGui.Vulkan as ImGui
+import qualified Ghengin.DearImGui.UI as ImGui
 
 -- planets!
 import Shaders -- planet shaders
 import Planet
 import Planet.Noise
+import Planet.UI
 
-gameLoop :: _
-         => UTCTime -> _ -> _ -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop currentTime mkey rot rp rq = Linear.do
+gameLoop :: Compatible '[Vec3, Vec3] '[Transform] '[MinMax, Texture2D (RGBA8 UNorm)] '[Camera "view_matrix" "proj_matrix"] π
+         => UTCTime
+         -> _
+         -- -> MeshKey π _ _ _ _
+         -> MeshKey π '[Camera "view_matrix" "proj_matrix"] '[MinMax, Texture2D (RGBA8 UNorm)] '[Vec3, Vec3] '[Transform]
+         -> _
+         -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop currentTime planet mkey rot rp rq = Linear.do
  logT "New frame" 
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
+
+  Ur (newPlanet, changed) <- preparePlanetUI planet
 
   Ur newTime <- liftSystemIOU getCurrentTime
 
@@ -72,14 +83,38 @@ gameLoop currentTime mkey rot rp rq = Linear.do
   -- let frameTime = diffUTCTime newTime currentTime
   --     deltaTime = Prelude.min MAX_FRAME_TIME $ realToFrac frameTime
 
-  -- Render the rendering queue!
-  (rp, rq) <- render rp rq
+  (rp, rq) <- renderWith $ Linear.do
 
-  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
-    rotateY rot <> rotateX (-rot))) ↑)
+    (rp1, rp2) <- lift (Alias.share rp)
+    Ur extent <- lift getRenderExtent
+    
+    renderPassCmd extent rp1 $ Linear.do
+
+      rq <- renderQueueCmd rq
+
+      -- Render Imgui data!
+      ImGui.renderDrawData
+
+      return (rp2, rq)
+
+
+  rq <-
+    if changed then
+      (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
+            ( (pmesh, pipeline),
+              Ur minmax ) <- newPlanetMesh pipeline newPlanet 
+            mat' <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
+            freeMesh msh
+            return (pipeline, (mat', [(pmesh, x)]))
+          ) ↑)
+    else
+      pure rq
+
+  -- rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
+  --   rotateY rot <> rotateX (-rot))) ↑)
 
   -- Loop!
-  gameLoop newTime mkey (rot+0.01) rp rq
+  gameLoop newTime newPlanet mkey (rot+(0.01::Float)) rp rq
 
 main :: Prelude.IO ()
 main = do
@@ -90,19 +125,25 @@ main = do
     tex     <- ( texture "examples/planets-core/assets/planet_gradient.png" sampler ↑)
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+
+    -- Init imgui
+    (rp1, imctx) <- (Alias.useM rp1 ImGui.initImGui ↑)
+
     pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
+    -- todo: minmax should be per-mesh
     ( (pmesh, pipeline),
-      Ur minmax )    <- newPlanetMesh pipeline defaultPlanet
-    (pmat, pipeline) <- newPlanetMaterial minmax tex pipeline
+      Ur minmax )    <- (newPlanetMesh pipeline defaultPlanet ↑)
+    (pmat, pipeline) <- (newPlanetMaterial minmax tex pipeline ↑)
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
-    (rq, Ur pkey)       <- pure (insertPipeline pipeline LMon.mempty)
-    (rq, Ur mkey)       <- pure (insertMaterial pkey pmat rq)
-    (rq, Ur mshkey)     <- pure (insertMesh mkey pmesh rq)
+    (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
+    (rq, Ur mkey)    <- pure (insertMaterial pkey pmat rq)
+    (rq, Ur mshkey)  <- pure (insertMesh mkey pmesh rq)
 
-    rq <- gameLoop currTime mshkey 0 rp2 rq
+    rq <- gameLoop currTime defaultPlanet mshkey 0 rp2 rq
 
     (freeRenderQueue rq ↑)
+    (ImGui.destroyImCtx imctx ↑)
 
     return (Ur ())
 
@@ -111,14 +152,14 @@ camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) (1280,
 
 defaultPlanet :: Planet
 defaultPlanet = Planet
-  { resolution = 100
+  { resolution = 10
   , planetShape = PlanetShape
       { planetRadius = 2.50
       , planetNoise  = AddNoiseMasked
           [ StrengthenNoise 0.12 $ MinValueNoise
             { minNoiseVal = 1.1
             , baseNoise   = LayersCoherentNoise
-              { centre        = vec3 0 0 0
+              { centre        = ImGui.Color $ vec3 0 0 0
               , baseRoughness = 0.71
               , roughness     = 1.83
               , numLayers     = 5

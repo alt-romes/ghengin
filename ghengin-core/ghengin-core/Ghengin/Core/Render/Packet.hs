@@ -90,6 +90,7 @@ described in bytes.
 {-
 Note [Render Packet Key]
 ~~~~~~~~~~~~~~~~~~~~~~~~
+OUTDATED!!
 
 The idea is to assign a key to each renderable entity and then do a simple sort
 by key. This key must take into account GPU state changes amonsgt possibly other things.
@@ -107,6 +108,7 @@ Current view of the key:
 
 Note [Material Key]
 ~~~~~~~~~~~~~~~~~~
+OUTDATED!!
 
 Every material is uniquely identifiable by a 32bit key which serves to sort
 material in order of binding frequency -- giving us an optimal order to render

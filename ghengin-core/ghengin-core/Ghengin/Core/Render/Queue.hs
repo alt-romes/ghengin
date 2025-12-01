@@ -8,24 +8,13 @@ The render queue is responsible for ordering the draw calls in such a way that
 the amount of GPU state changes is minimized in order to optimize the rendering
 engine.
 
-TODO:
-* Can we update the ECS storage order based on the render order?
-
-
 Resources:
 * [Order your graphics draw calls around!](http://realtimecollisiondetection.net/blog/?p=86)
 * [Optimizing State Changes in Rendering Engines](http://real.mtak.hu/28740/1/szecsi_gg14_statechange.pdf)
 
-TODO
-[ ] Use representation more efficient than simple lists?
-
 See Note [Render Packet Key] and [Material Key]
-
--- TODO: Each render packet is then assigned with an ID and sorted in an optimal draw order.
 -}
-module Ghengin.Core.Render.Queue
-  -- TODO: Dont' export things like editAtPipelineKey
-  where
+module Ghengin.Core.Render.Queue where
 
 import qualified Prelude
 import Prelude.Linear hiding (insert)
@@ -167,7 +156,10 @@ editPipeline :: PipelineKey π p
              -> RenderQueue ()
               ⊸ (RenderPipeline π p ⊸ Renderer (RenderPipeline π p))
               ⊸ Renderer (RenderQueue ())
-editPipeline pkey rq edit = editAtPipelineKey pkey rq (\(a,b) -> (,b) <$> edit a)
+editPipeline pkey rq edit =
+  editAtPipelineKey pkey rq $ \pip mat_map -> Linear.do
+    pip' <- edit pip
+    return (pip', mat_map)
 
 -- | Edit a material in a render queue typically using the @propertyAt@ lens
 editMaterial :: MaterialKey π p ma
@@ -175,7 +167,9 @@ editMaterial :: MaterialKey π p ma
               ⊸ (Material ma ⊸ Renderer (Material ma))
               ⊸ Renderer (RenderQueue ())
 editMaterial mkey rq edit =
-  editAtMaterialKey mkey rq (\(a,b) -> (,b) <$> edit a)
+  editAtMaterialKey mkey rq $ \pip mat mesh_map -> Linear.do
+    mat' <- edit mat
+    return (pip, (mat', mesh_map))
 
 -- | Edit all the meshes matching this mesh key in a render queue typically
 -- using the @propertyAt@ lens.
@@ -185,49 +179,66 @@ editMeshes :: MeshKey π p ma va me
             ⊸ ([Mesh va me] ⊸ Renderer [Mesh va me])
             ⊸ Renderer (RenderQueue ())
 editMeshes key rq edit =
-  editAtMeshesKey key rq (\ls -> map (,()) <$> edit (map (\(x,()) -> x) ls))
+  editAtMeshesKey key rq $ \pip mat ls -> Linear.do
+    ls' <- map (,()) <$> edit (map (\(x,()) -> x) ls)
+    return (pip, (mat, ls'))
 
 --------------------------------------------------------------------------------
 
 -- | Edit all the meshes matching this mesh key in a render queue typically using the @propertyAt@ lens
 -- ToDo: Perhaps we should have a key per mesh rather than a key for a list of meshes
-editAtMeshesKey :: MeshKey π p ma va me
-                -> RenderQueue ()
-                 ⊸ ([(Mesh va me, ())] ⊸ Renderer [(Mesh va me, ())])
-                 ⊸ Renderer (RenderQueue ())
+--
+-- Unlike 'editMeshes', the edit function for this one takes the corresponding RenderPipeline
+editAtMeshesKey
+  :: MeshKey π p ma va me
+  -> RenderQueue ()
+   ⊸ (RenderPipeline π p ⊸ Material ma ⊸ [(Mesh va me, ())] ⊸ Renderer (RenderPipeline π p, (Material ma, [(Mesh va me, ())])))
+   -- ^ Changing the render pipeline or material will modify them for all things under it still
+   ⊸ Renderer (RenderQueue ())
 editAtMeshesKey (UnsafeMeshKey meid mkey) rq edit =
-  editAtMaterialKey mkey rq \(mat,meshmap) -> (mat,) <$>
-    ML.alterF
-      (\case Nothing -> Unsafe.toLinear (\_ -> error "mesh key not in rq") edit
-             Just meshes ->
-               -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
-               Just . map (\(x,y) -> (Some2 x, y)) <$> edit (map (\(Some2 m, a) -> (Unsafe.coerce m, a)) meshes)
-      ) meid meshmap
+  editAtMaterialKey mkey rq $ Unsafe.toLinear3 \pip mat meshmap ->
+    case M.lookup meid meshmap of
+      Nothing -> error "mesh key not in rq" edit
+      Just meshes -> Linear.do
+         -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
+         (pip', (mat', meshes')) <- edit pip mat (map (\(Some2 m, a) -> (Unsafe.coerce m, a)) meshes)
+         let !meshmap' = Unsafe.toLinear3 M.insert {-override-} meid (map (\(x,y) -> (Some2 x, y)) meshes') meshmap
+         return (pip', (mat', meshmap'))
 
-editAtMaterialKey :: MaterialKey π p ma
-                  -> RenderQueue ()
-                   ⊸ ((Material ma, MeshMap ()) ⊸ Renderer (Material ma, MeshMap ()))
-                   ⊸ Renderer (RenderQueue ())
-editAtMaterialKey (UnsafeMaterialKey mkey pkey) rq edit = do
-  editAtPipelineKey pkey rq (\(pip,mats) -> (pip,) <$> ML.alterF
-    (\case Nothing -> Unsafe.toLinear (\_ -> error "material key not in rq") edit
-           Just (Some mat, meshes) ->
-             -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
-             (\(x, ms) -> Just (Some x, ms)) <$> edit (Unsafe.coerce mat, meshes)
-    ) mkey mats)
+editAtMaterialKey
+  :: MaterialKey π p ma
+  -> RenderQueue ()
+   ⊸ (RenderPipeline π p ⊸ Material ma ⊸ MeshMap () ⊸ Renderer (RenderPipeline π p, (Material ma, MeshMap ())))
+   -- ^ Changing the render pipeline or material will modify them for all things under it still
+   ⊸ Renderer (RenderQueue ())
+editAtMaterialKey (UnsafeMaterialKey mkey pkey) rq edit =
+  editAtPipelineKey pkey rq $ Unsafe.toLinear2 \pip mats ->
+    case M.lookup mkey mats of
+      Nothing -> error "impossible: material key not in rq" edit
+      Just (Some mat, meshes) -> Linear.do
+        -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
+        (pip', (mat', ms)) <- edit pip (Unsafe.coerce mat) meshes
+        let !mats' = Unsafe.toLinear3 M.insert {- we want to override old value -} mkey (Some mat', ms) mats
+        return (pip', mats')
 
 editAtPipelineKey
   :: PipelineKey π p
   -> RenderQueue ()
-   ⊸ ((RenderPipeline π p, MaterialMap (MeshMap ())) ⊸ Renderer (RenderPipeline π p, MaterialMap (MeshMap ())))
+   ⊸ (RenderPipeline π p ⊸ MaterialMap (MeshMap ()) ⊸ Renderer (RenderPipeline π p, MaterialMap (MeshMap ())))
    ⊸ Renderer (RenderQueue ())
 editAtPipelineKey (UnsafePipelineKey pkey) (RenderQueue q) edit = RenderQueue <$>
-  ML.alterF (\case Nothing -> Unsafe.toLinear (\_ -> error "pipeline key not in rq") edit
+  ML.alterF (\case Nothing -> error "pipeline key not in rq" edit
                    Just (Some2 rp, materials) ->
                      -- Key guarantees the type of the pipeline at that key is the same,
                      -- so this is safe
-                     (\(x, ms) -> Just (Some2 x, ms)) <$> edit (Unsafe.coerce rp, materials)
+                     (\(x, ms) -> Just (Some2 x, ms)) <$> edit (Unsafe.coerce rp) materials
             ) pkey q
+
+--------------------------------------------------------------------------------
+
+-- TODO: utilities for deleting. can probably be implemented in terms of
+-- editAtPipelineKey for Materials and editAtMaterialKey for Meshes, but needs
+-- to be implemented a direct one for pipelines.
 
 --------------------------------------------------------------------------------
 

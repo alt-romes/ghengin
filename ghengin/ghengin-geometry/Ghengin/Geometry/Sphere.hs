@@ -72,6 +72,18 @@ newUnitSphere res =
    in
       UnitSphere (SV.zipWith (\a b -> a :&: b) ps (V.convert ns)) (SV.map fromIntegral is)
 
+-- | Draw a single face
+newUnitSphereFace :: Bool -- ^ Top face = TRUE; Front face = FALSE;
+                  -> Int -- ^ 
+                  -> UnitSphere
+newUnitSphereFace topf res =
+  let UF v1 i1 = newUnitFace res (if topf then Vectors.up else Vectors.back)
+      is = SV.fromList i1 
+      ps = SV.fromList v1
+      ns = computeNormals is ps
+   in
+      UnitSphere (SV.zipWith (\a b -> a :&: b) ps (V.convert ns)) (SV.map fromIntegral is)
+
 newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3] π)
               => RenderPipeline π bs
               -> Int -- ^ Resolution
