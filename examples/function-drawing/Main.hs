@@ -31,7 +31,7 @@ import qualified FIR
 --  https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 --------------------------------------------------------------------------------
 
-gameLoop :: CharStream -> PipelineKey a '[ Sides, InStruct "t" Float ]
+gameLoop :: _ => CharStream -> PipelineKey a '[ Sides, InStruct "t" Float ]
          -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop cs pkey rp rq = Linear.do
  should_close <- (shouldCloseWindow ↑)

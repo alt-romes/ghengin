@@ -46,7 +46,8 @@ sampleVertices :: Float {-^ Start -} -> Float {-^ Increment -} -> [Vertex '[Vec3
 sampleVertices start increment = go start where
   go !i = Sin (vec3 i 0 0) : go (i+increment)
 
-gameLoop :: Float -- ^ Zoom
+gameLoop :: _
+         => Float -- ^ Zoom
          -> TChan (Either Double GLFW.Key) -- ^ YScroll or Key
          -> [PipelineKey a '[InStruct "proj" Mat4, InStruct "x" Float]]
          -> Alias RenderPass
