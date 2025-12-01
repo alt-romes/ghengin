@@ -152,8 +152,7 @@ insertMesh (UnsafeMaterialKey mkey (UnsafePipelineKey pkey))
 --------------------------------------------------------------------------------
 
 -- | Edit a pipeline in a render queue typically using the @propertyAt@ lens
-editPipeline :: CompatiblePipeline p π
-             => PipelineKey π p
+editPipeline :: PipelineKey π p
              -> RenderQueue ()
               ⊸ (RenderPipeline π p ⊸ Renderer (RenderPipeline π p))
               ⊸ Renderer (RenderQueue ())
@@ -163,8 +162,7 @@ editPipeline pkey rq edit =
     return (pip', mat_map)
 
 -- | Edit a material in a render queue typically using the @propertyAt@ lens
-editMaterial :: CompatibleMaterial ma π
-             => MaterialKey π p ma
+editMaterial :: MaterialKey π p ma
              -> RenderQueue ()
               ⊸ (Material ma ⊸ Renderer (Material ma))
               ⊸ Renderer (RenderQueue ())
@@ -176,8 +174,7 @@ editMaterial mkey rq edit =
 -- | Edit all the meshes matching this mesh key in a render queue typically
 -- using the @propertyAt@ lens.
 -- Using this is simpler than "editAtMeshesKey" since we don't have to worry about additional data (which is currently kind of fixed to unit)
-editMeshes :: Compatible va me ma p π
-           => MeshKey π p ma va me
+editMeshes :: MeshKey π p ma va me
            -> RenderQueue ()
             ⊸ ([Mesh va me] ⊸ Renderer [Mesh va me])
             ⊸ Renderer (RenderQueue ())
@@ -193,8 +190,7 @@ editMeshes key rq edit =
 --
 -- Unlike 'editMeshes', the edit function for this one takes the corresponding RenderPipeline
 editAtMeshesKey
-  :: Compatible va me ma p π
-  => MeshKey π p ma va me
+  :: MeshKey π p ma va me
   -> RenderQueue ()
    ⊸ (RenderPipeline π p ⊸ Material ma ⊸ [(Mesh va me, ())] ⊸ Renderer (RenderPipeline π p, (Material ma, [(Mesh va me, ())])))
    -- ^ Changing the render pipeline or material will modify them for all things under it still
@@ -226,8 +222,7 @@ editAtMaterialKey (UnsafeMaterialKey mkey pkey) rq edit =
         return (pip', mats')
 
 editAtPipelineKey
-  :: -- CompatiblePipeline p π why can I not have this?!
-     PipelineKey π p
+  :: PipelineKey π p
   -> RenderQueue ()
    ⊸ (RenderPipeline π p ⊸ MaterialMap (MeshMap ()) ⊸ Renderer (RenderPipeline π p, MaterialMap (MeshMap ())))
    ⊸ Renderer (RenderQueue ())
