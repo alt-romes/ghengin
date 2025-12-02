@@ -152,28 +152,29 @@ camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) (1280,
 
 defaultPlanet :: Planet
 defaultPlanet = Planet
-  { resolution = 10
+  { resolution = 100
   , planetShape = PlanetShape
-      { planetRadius = 2.50
-      , planetNoise  = AddNoiseMasked
-          [ StrengthenNoise 0.12 $ MinValueNoise
-            { minNoiseVal = 1.1
+      { planetRadius = 3
+      , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
+          [ StrengthenNoise 0.110 $ MinValueNoise
+            { minNoiseVal = 0.930
             , baseNoise   = LayersCoherentNoise
-              { centre        = ImGui.Color $ vec3 0 0 0
-              , baseRoughness = 0.71
-              , roughness     = 1.83
-              , numLayers     = 5
-              , persistence   = 0.54
+              -- { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
+              { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 255 147 0
+              , baseRoughness = 1.5
+              , roughness     = 2.5
+              , numLayers     = 20
+              , persistence   = 0.4
               }
             }
-          , StrengthenNoise 2.5 $ MinValueNoise
-            { minNoiseVal = 0
+          , StrengthenNoise 5 $ MinValueNoise
+            { minNoiseVal = 0.120
             , baseNoise   = RidgedNoise
-              { seed          = 123
-              , octaves       = 5
-              , scale         = 1
+              { seed          = 25
+              , octaves       = 10
+              , scale         = 0.59
               , frequency     = 2
-              , lacunarity    = 3
+              , lacunarity    = 5.2
               }
             }
           ]
