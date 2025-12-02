@@ -43,7 +43,7 @@ import Planet.Noise
 -- * Planet
 --------------------------------------------------------------------------------
 
-data Planet = Planet { resolution  :: !(InRange 1 300 Int)
+data Planet = Planet { resolution  :: !(InRange 2 256 Int)
                      , planetShape :: !PlanetShape
                      }
                      deriving Eq
@@ -71,7 +71,7 @@ type PlanetMesh = Mesh '[Vec3, Vec3] '[Transform]
 
 data PlanetShape = PlanetShape
   { planetRadius :: !(InRange 0 100 Float)
-  , planetNoise  :: !Noise
+  , planetNoise  :: !(Collapsible "Noise section" Noise)
   }
   deriving Eq
   deriving GHC.Generic
@@ -85,7 +85,7 @@ data PlanetShape = PlanetShape
 -- Returns the updated point and the elevation of that point
 pointOnPlanet :: PlanetShape -> Vec3 -> (Vec3, Float)
 pointOnPlanet PlanetShape{..} pointOnUnitSphere =
-  let elevation = evalNoise planetNoise pointOnUnitSphere
+  let elevation = evalNoise (unCollapsible planetNoise) pointOnUnitSphere
       finalElevation = inRangeVal planetRadius * (1+elevation)
    in (pointOnUnitSphere ^* finalElevation, finalElevation)
 
