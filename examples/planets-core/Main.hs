@@ -43,6 +43,7 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Vulkan.Renderer.Sampler
 import Ghengin.Core.Render.Queue
+import Ghengin.Core.Input
 import Ghengin.Core.Shader (StructVec3(..), StructMat4(..))
 import Vulkan.Core10.FundamentalTypes (Extent2D(..))
 import qualified Data.Monoid.Linear as LMon
@@ -63,26 +64,44 @@ import Planet.Noise
 import Planet.UI
 
 gameLoop :: Compatible '[Vec3, Vec3] '[Transform] '[MinMax, Texture2D (RGBA8 UNorm)] '[Camera "view_matrix" "proj_matrix"] π
-         => UTCTime
+         => CharStream
          -> _
-         -- -> MeshKey π _ _ _ _
          -> MeshKey π '[Camera "view_matrix" "proj_matrix"] '[MinMax, Texture2D (RGBA8 UNorm)] '[Vec3, Vec3] '[Transform]
-         -> _
-         -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
-gameLoop currentTime planet mkey rot rp rq = Linear.do
+         -> Alias RenderPass
+          ⊸ RenderQueue ()
+          ⊸ Core (RenderQueue ())
+gameLoop charStream planet mkey rp rq = Linear.do
  logT "New frame" 
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
   (pollWindowEvents ↑)
 
-  Ur (newPlanet, changed) <- preparePlanetUI planet
+  -- Update planet mesh according to UI
+  Ur (newPlanet, changed) <- preparePlanetUI planet -- must happen before the first render
+  rq <-
+    if changed then
+      (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
+            ( (pmesh, pipeline),
+              Ur minmax ) <- newPlanetMesh pipeline newPlanet 
+            mat' <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
+            freeMesh msh
+            return (pipeline, (mat', [(pmesh, x)]))
+          ) ↑)
+    else
+      pure rq
 
-  Ur newTime <- liftSystemIOU getCurrentTime
+  Ur mb_in <- readCharInput charStream
+  rq <- case mb_in of
+    Just ch -> Linear.do
+      let doRotate 'd' = rotateY 0.01
+          doRotate 'a' = rotateY (-0.01)
+          doRotate 'w' = rotateX (0.01)
+          doRotate 's' = rotateX (-0.01)
+          doRotate _   = mempty
+      (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $ doRotate ch <> tr)) ↑)
+    Nothing -> pure rq
 
-  -- Fix Your Timestep: A Very Hard Thing To Get Right. For now, the simplest approach:
-  -- let frameTime = diffUTCTime newTime currentTime
-  --     deltaTime = Prelude.min MAX_FRAME_TIME $ realToFrac frameTime
-
+  -- Render!
   (rp, rq) <- renderWith $ Linear.do
 
     (rp1, rp2) <- lift (Alias.share rp)
@@ -97,30 +116,15 @@ gameLoop currentTime planet mkey rot rp rq = Linear.do
 
       return (rp2, rq)
 
-
-  rq <-
-    if changed then
-      (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
-            ( (pmesh, pipeline),
-              Ur minmax ) <- newPlanetMesh pipeline newPlanet 
-            mat' <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
-            freeMesh msh
-            return (pipeline, (mat', [(pmesh, x)]))
-          ) ↑)
-    else
-      pure rq
-
-  -- rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
-  --   rotateY rot <> rotateX (-rot))) ↑)
-
   -- Loop!
-  gameLoop newTime newPlanet mkey (rot+(0.01::Float)) rp rq
+  gameLoop charStream newPlanet mkey rp rq
 
 main :: Prelude.IO ()
 main = do
- currTime <- getCurrentTime
  withLinearIO $
   runCore (1280, 720) Linear.do
+    Ur charStream <- registerCharStream
+
     sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
     tex     <- ( texture "examples/planets-core/assets/planet_gradient.png" sampler ↑)
 
@@ -140,7 +144,7 @@ main = do
     (rq, Ur mkey)    <- pure (insertMaterial pkey pmat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey pmesh rq)
 
-    rq <- gameLoop currTime defaultPlanet mshkey 0 rp2 rq
+    rq <- gameLoop charStream defaultPlanet mshkey rp2 rq
 
     (freeRenderQueue rq ↑)
     (ImGui.destroyImCtx imctx ↑)

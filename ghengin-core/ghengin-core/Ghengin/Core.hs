@@ -43,6 +43,8 @@ import qualified Unsafe.Linear as Unsafe
 data CoreState
   = CoreState { frameCounter :: {-# UNPACK #-} !Int
               }
+-- Todo: I think we should not have Core. Just Renderer directly. Then Ghengin
+-- would wrap just Renderer and make it easier to write a game.
 newtype Core α = Core (StateT CoreState Renderer α)
   deriving (Functor, Data.Functor, Applicative, Data.Applicative, Monad, MonadIO, HasLogger)
 
