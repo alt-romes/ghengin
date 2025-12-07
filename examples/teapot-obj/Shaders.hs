@@ -72,15 +72,18 @@ fragment :: G.FragmentShaderModule
    , "in_normal"    ':-> Input      '[ Location 1 ] (V 4 Float) -- in view space
    ] _
 fragment = shader do
-  let lightDir  = Vec3 0 (-1) 0
+  let lightDir  = Vec3 0 (-1) (-1)
   let lightCol  = Vec3 0.3 0.3 0.3
   let objectCol = Vec3 1 1 1
-  let shininess = 16
+  let shininess = 64
 
-  lightValue <- blinnPhong 0.05 shininess lightDir lightCol
+  lightValue <- blinnPhong 0.01 shininess 1 lightDir lightCol
 
   let Vec3 colx coly colz
         = gammaCorrection defaultGamma (lightValue `pointwiseMult` objectCol)
 
   #out_colour .= Vec4 colx coly colz 1
+
+  -- ~(Vec4 nx ny nz _) <- #in_normal
+  -- #out_colour .= Vec4 (nx*0.5 + 0.5) (ny*0.5 + 0.5) (nz*0.5 + 0.5) 1
 

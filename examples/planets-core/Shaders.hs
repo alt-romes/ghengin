@@ -46,8 +46,8 @@ vertex = shader do
     -- Output position and normal in view coordinates
     put @"out_position" ((viewM !*! modelM) !*^ Vec4 x y z 1)
     -- Normal is not a position so shouldn't be affected by translation (hence the 0 in the 4th component)
-    -- (For non-uniform transformations we could also pre-compute a "Normal Matrix" rather than using the model one.)
-    put @"out_normal"   ({-(transpose . inverse)-} (viewM !*! modelM) !*^ Vec4 nx ny nz 0)
+    -- (For non-uniform transformations we could also pre-compute a "Normal Matrix" rather than using this.)
+    put @"out_normal"   ((transpose . inverse{-fix for non linear what-}) (viewM !*! modelM) !*^ Vec4 nx ny nz 0)
 
     -- Output position in object space
     put @"out_position_object" (Vec4 x y z 1)
@@ -90,9 +90,10 @@ fragment = shader do
     let lightDir  = Vec3 (-0.5) 1 0.5
     let lightCol  = Vec3 0.5 0.5 0.5
     let objectCol = Vec3 cx cy cz
-    let shininess = 32
+    let specularStrength = 2
+    let shininess = 8
 
-    lightValue <- blinnPhong 0.02 shininess lightDir lightCol
+    lightValue <- blinnPhong 0.02 shininess specularStrength lightDir lightCol
 
     let Vec3 colx coly colz
           = gammaCorrection defaultGamma (lightValue `pointwiseMult` objectCol)

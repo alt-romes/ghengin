@@ -35,11 +35,12 @@ blinnPhong :: ∀ π
               )
            => Code Float       -- ^ Ambient strength
            -> Code Float       -- ^ Shininess
+           -> Code Float       -- ^ Specularity strength
            -> Code (V 3 Float) -- ^ Direction to light. E.g. computed as @lightPos - in_position@
            -> Code (V 3 Float) -- ^ Light color
            -> Program π π (Code (V 3 Float))
            -- ^ Returns the light color value. Don't forget to multiply by object color!
-blinnPhong ambientStrength shininess unNormalLightDir lightColor = do
+blinnPhong ambientStrength shininess specularStrength unNormalLightDir lightColor = do
 
     ~(Vec4 px py pz _) <- get @"in_position" @(V 4 Float) @π
     ~(Vec4 nx ny nz _) <- get @"in_normal"   @(V 4 Float) @π
@@ -49,13 +50,13 @@ blinnPhong ambientStrength shininess unNormalLightDir lightColor = do
 
         normalVec  = normalise (Vec3 nx ny nz)
         lightDir   = normalise unNormalLightDir
-        viewDir    = normalise (Vec3 (-px) (-py) (-pz)) -- (bc. viewPos is (0,0,0))
+        viewDir    = normalise (Vec3 (-px) (-py) (-pz)) -- (bc. viewPos is (0,0,0) because we use view_space coords)
         halfwayDir = normalise (lightDir ^+^ viewDir)
         -- light intensity given by cosine of direction to light and the normal in world space
-        diffuse    = (max (dot normalVec lightDir) 0)
-        specular   = ((max (dot normalVec halfwayDir) 0) ** shininess)
+        diffuse    = max (dot lightDir normalVec) 0
+        specular   = (max (dot halfwayDir normalVec) 0) ** shininess
 
-        Vec3 colx coly colz = (ambient + diffuse + (specular{- * spec strength? -})) *^ lightColor
+        Vec3 colx coly colz = (ambient + diffuse + (specular * specularStrength)) *^ lightColor
 
      in
         pure $ Vec3 colx coly colz

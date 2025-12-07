@@ -34,9 +34,10 @@ main = do
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
-    pipeline <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullNone} rp1 shaderPipeline (StaticBinding (Ur camera) :## GHNil) ↑)
+    pipeline <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullFront, polygonMode=PolygonFill} rp1 shaderPipeline (StaticBinding (Ur camera) :## GHNil) ↑)
     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
     (mesh, pipeline) <- (loadObjMesh "examples/teapot-obj/assets/teapot.obj" pipeline
+    -- (mesh, pipeline) <- (loadObjMesh "examples/teapot-obj/assets/building-tower.obj" pipeline
                           (DynamicBinding (Ur (scale 1.2)) :## GHNil) ↑)
 
     let !(rq, Ur pkey) = insertPipeline pipeline LMon.mempty
