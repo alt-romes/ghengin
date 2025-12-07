@@ -43,7 +43,7 @@ import Planet.Noise
 -- * Planet
 --------------------------------------------------------------------------------
 
-data Planet = Planet { resolution  :: !(InRange 2 256 Int)
+data Planet = Planet { resolution  :: !(InRange 2 1024 Int)
                      , planetShape :: !PlanetShape
                      }
                      deriving Eq

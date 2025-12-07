@@ -70,7 +70,7 @@ main = do
 
     rp1 <- clearImages rp1
 
-    pipeline      <- (makeRenderPipelineWith GPS{cullMode=CullBack, blendMode=BlendAdd} rp1 shaderPipelineSimple (DynamicBinding (Ur (InStruct 0)) :## GHNil) ↑)
+    pipeline      <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullBack, blendMode=BlendAdd} rp1 shaderPipelineSimple (DynamicBinding (Ur (InStruct 0)) :## GHNil) ↑)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
     rq <- gameLoop pkey rp2 rq

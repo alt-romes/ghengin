@@ -119,10 +119,13 @@ gameLoop charStream planet mkey rp rq = Linear.do
   -- Loop!
   gameLoop charStream newPlanet mkey rp rq
 
+dimensions :: Num a => (a, a)
+dimensions = (1920, 1080)
+
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (1280, 720) Linear.do
+  runCore dimensions Linear.do
     Ur charStream <- registerCharStream
 
     sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
@@ -152,7 +155,7 @@ main = do
     return (Ur ())
 
 camera :: Camera "view_matrix" "proj_matrix"
-camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) (1280, 720)
+camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) dimensions
 
 defaultPlanet :: Planet
 defaultPlanet = Planet
