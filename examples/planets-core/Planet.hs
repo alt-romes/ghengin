@@ -98,16 +98,17 @@ newPlanetMesh :: _ -- more constraints
               -> Renderer ((PlanetMesh, RenderPipeline π bs), Ur MinMax)
 newPlanetMesh rp Planet{..} = Linear.do
 
-  let UnitSphere us is = newUnitSphere (inRangeVal resolution)
+  let UnitSphere us is0 = newUnitSphere (inRangeVal resolution)
 
       (planetPs, elevations)
                = V.unzip $ V.map (\(p :&: _) -> pointOnPlanet planetShape p) (V.convert us)
       planetNs = computeNormals (SV.map fromIntegral is) planetPs
       planetVs = V.zipWith (:&:) (planetPs) planetNs
+      is       = weldVertices planetPs (SV.map fromIntegral is0)
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)
 
-   in (, Ur minmax) <$> createMeshWithIxsSV rp (DynamicBinding (Ur mempty) :## GHNil) (V.convert planetVs) is
+   in (, Ur minmax) <$> createMeshWithIxsSV rp (DynamicBinding (Ur mempty) :## GHNil) (V.convert planetVs) (SV.map fromIntegral is)
 
 --------------------------------------------------------------------------------
 -- * Material

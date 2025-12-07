@@ -14,7 +14,6 @@ import Geomancy
 
 import Codec.Wavefront
 
-import Ghengin.Core.Log
 import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
@@ -63,29 +62,28 @@ createObjMesh wavefrontObj rp props =
       locs    = V.map getLoc    $ wavefrontObj.objLocations
       normals = V.map getNormal $ wavefrontObj.objNormals
       faces   = V.map (.elValue) wavefrontObj.objFaces
+      ixs     = V.concatMap (\(Face a b c _) -> V.fromList $
+                  [ a.faceLocIndex - 1
+                  , b.faceLocIndex - 1
+                  , c.faceLocIndex - 1 ]
+                  ) faces
 
       getLoc :: Location -> Vec3
       getLoc (Location x y z _) = vec3 x (-y) z
 
-      -- get normal, currently ignoring face
       getNormal :: Normal -> Vec3
       getNormal (Normal x y z) = vec3 x y z
 
-      vertices
+      mkVert x = locs V.! (x.faceLocIndex-1) :&: maybe (vec3 0 0 0) (\nix -> normals V.! (nix-1)) x.faceNorIndex
+      mkMesh
         | V.length normals == 0
-            || V.length locs /= V.length normals {- bad object file! -}
-        = V.zipWith (:&:) locs (computeNormals ixs locs)
+        = let welded_ixs = weldVertices locs ixs
+              verts = V.zipWith (:&:) locs (computeNormals welded_ixs locs)
+           in createMeshWithIxsSV rp props (V.convert verts) (SV.map fromIntegral $ V.convert welded_ixs)
         | otherwise
-        = V.zipWith (:&:) locs normals
-
-      ixs = V.concatMap (\(Face a b c _) -> V.fromList $ map (\x -> x-1) {-face indices are 1-indexed-}
-              [ a.faceLocIndex , b.faceLocIndex , c.faceLocIndex ]
-              ) faces
-   in Linear.do
-    if (V.length normals > 0 && V.length locs /= V.length normals)
-      then log $ toLogStr $ "createObjMesh: length of normals ("
-        ++ show (V.length normals) ++ ") is not the same as length of locations ("
-        ++ show (V.length locs)    ++ ")! Ignoring and recomputing normals from scratch..."
-      else Linear.pure ()
-    createMeshWithIxsSV rp props (V.convert vertices) (SV.map fromIntegral $ V.convert ixs)
+        = let verts = V.concatMap (\(Face a b c _) -> V.fromList $
+                        [ mkVert a, mkVert b, mkVert c ]
+                        ) faces
+           in createMeshSV rp props (V.convert verts) -- todo: also use ixs for this case
+   in mkMesh
 
