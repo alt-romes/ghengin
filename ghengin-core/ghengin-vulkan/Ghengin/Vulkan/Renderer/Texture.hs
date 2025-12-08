@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedLists #-}
@@ -19,6 +20,7 @@ module Ghengin.Vulkan.Renderer.Texture
   ) where
 
 import GHC.TypeNats
+import Data.Typeable
 import Ghengin.Core.Log
 import Ghengin.Core.Prelude as Linear
 import qualified Prelude
@@ -41,6 +43,7 @@ import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.Sampler
 import qualified Data.Linear.Alias as Alias
 
+import Ghengin.Core.Type.Compatible.Pixel
 import qualified Ghengin.Core.Shader.Data as Shader
 
 -- TODO: More generally, we could have 1D and 3D textures too. There's also Images...
@@ -51,11 +54,12 @@ data Texture2D (fmt :: ImageFormat Nat)
               , sampler :: Alias Sampler
               }
 
-texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D fmt))
+-- | Load a texture from a file directly and convert it to a texture using 'textureFromDynamicImage'.
+texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
 texture fp sampler = enterD "Creating a texture" Linear.do
   liftSystemIOU (readImage fp) >>= \case
     Ur (Left e      ) -> Alias.forget sampler >> liftSystemIO (Prelude.fail e)
-    Ur (Right dimage) -> textureFromImage dimage sampler
+    Ur (Right dimage) -> textureFromDynamicImage dimage sampler
 
 freeTexture :: Texture2D fmt ⊸ Renderer ()
 freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture" Linear.do
@@ -63,33 +67,27 @@ freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture"
   withDevice (\dev -> ((),) <$> (destroyImage dev img))
   Alias.forget sampler
 
-textureFromImage :: DynamicImage
-                 -> Alias Sampler
-                  ⊸ Renderer (Alias (Texture2D fmt))
-textureFromImage dimage = \sampler' ->
-  let wsb = case dimage of
-              ImageY8     img -> withStagingBuffer (img.imageData)
-              ImageY16    img -> withStagingBuffer (img.imageData)
-              ImageY32    img -> withStagingBuffer (img.imageData)
-              ImageYF     img -> withStagingBuffer (img.imageData)
-              ImageYA8    img -> withStagingBuffer (img.imageData)
-              ImageYA16   img -> withStagingBuffer (img.imageData)
-              ImageRGB8   img -> withStagingBuffer (img.imageData)
-              ImageRGB16  img -> withStagingBuffer (img.imageData)
-              ImageRGBF   img -> withStagingBuffer (img.imageData)
-              ImageRGBA8  img -> withStagingBuffer (img.imageData)
-              ImageRGBA16 img -> withStagingBuffer (img.imageData)
-              ImageYCbCr8 img -> withStagingBuffer (img.imageData)
-              ImageCMYK8  img -> withStagingBuffer (img.imageData)
-              ImageCMYK16 img -> withStagingBuffer (img.imageData)
 
-   in wsb $ \stagingBuffer _bufferSize -> enterD "textureFromImage" Linear.do
+-- | Make a texture from a dynamic image by converting the image to RGBA8 first
+textureFromDynamicImage :: DynamicImage
+                        -> Alias Sampler
+                         ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
+textureFromDynamicImage dimage = newTexture (convertRGBA8 dimage)
+
+-- | Make a new texture from an 'Image', provided the Image's pixel's are
+-- compatible with the texture format.
+newTexture :: (Pixel px, Typeable px, CompatiblePixel px fmt)
+           => Codec.Picture.Image px
+           -> Alias Sampler
+            ⊸ Renderer (Alias (Texture2D fmt))
+newTexture img sampler' =
+   withStagingBuffer (img.imageData) $ \stagingBuffer _bufferSize -> enterD "textureFromImage" Linear.do
 
     (VulkanImage image devMem imgView)
         <- useVulkanDevice (\device ->
                   createImage device
-                         (dynamicFormat dimage)
-                         (dynamicExtent dimage)
+                         (imagePixelFormat img)
+                         (imageExtent img)
                          Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- Where to allocate the memory
                          (Vk.IMAGE_USAGE_TRANSFER_DST_BIT .|. Vk.IMAGE_USAGE_SAMPLED_BIT) -- For the texture to be used in the shader, and to transfer data to it
                          Vk.IMAGE_ASPECT_COLOR_BIT)
@@ -107,13 +105,13 @@ textureFromImage dimage = \sampler' ->
     (stagingBuffer, image) <- immediateSubmit $ Linear.do
 
       -- (1) 
-      image <- transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+      image <- transitionImageLayout image (imagePixelFormat img) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 
       -- (2)
-      (stagingBuffer, image) <- copyFullBufferToImage stagingBuffer image (dynamicExtent dimage)
+      (stagingBuffer, image) <- copyFullBufferToImage stagingBuffer image (imageExtent img)
 
       -- (3)
-      (image) <- transitionImageLayout image (dynamicFormat dimage) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+      (image) <- transitionImageLayout image (imagePixelFormat img) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
       pure (stagingBuffer, image)
 
@@ -148,28 +146,29 @@ dynamicSize = \case
 
 
 -- Vs. UNORM vs SRGB, which one do I want why?
-dynamicFormat :: DynamicImage -> Vk.Format
-dynamicFormat = \case
-  ImageY8     _ -> undefined 
-  ImageY16    _ -> undefined
-  ImageY32    _ -> undefined
-  ImageYF     _ -> undefined
-  ImageYA8    _ -> undefined
-  ImageYA16   _ -> undefined
-  ImageRGB8   _ -> Vk.FORMAT_R8G8B8_UNORM
-  ImageRGB16  _ -> undefined
-  ImageRGBF   _ -> undefined
-  ImageRGBA8  _ -> Vk.FORMAT_R8G8B8A8_UNORM
-  ImageRGBA16 _ -> Vk.FORMAT_R8G8B8A8_UNORM
-  ImageYCbCr8 _ -> undefined
-  ImageCMYK8  _ -> undefined
-  ImageCMYK16 _ -> undefined
+imagePixelFormat :: forall px. (Pixel px, Typeable px) => Codec.Picture.Image px -> Vk.Format
+imagePixelFormat _
+  | Just Refl <- eqT @px @Pixel8      = Vk.FORMAT_R8_UNORM
+  | Just Refl <- eqT @px @Pixel16     = Vk.FORMAT_R16_UNORM
+  | Just Refl <- eqT @px @Pixel32     = Vk.FORMAT_R32_UINT
+  | Just Refl <- eqT @px @PixelF      = Vk.FORMAT_R32_SFLOAT
+  | Just Refl <- eqT @px @PixelYA8    = Vk.FORMAT_R8G8_UNORM  -- Y as R, A as G
+  | Just Refl <- eqT @px @PixelYA16   = Vk.FORMAT_R16G16_UNORM
+  | Just Refl <- eqT @px @PixelRGB8   = Vk.FORMAT_R8G8B8_UNORM
+  | Just Refl <- eqT @px @PixelRGB16  = Vk.FORMAT_R16G16B16_UNORM
+  | Just Refl <- eqT @px @PixelRGBF   = Vk.FORMAT_R32G32B32_SFLOAT
+  | Just Refl <- eqT @px @PixelRGBA8  = Vk.FORMAT_R8G8B8A8_UNORM
+  | Just Refl <- eqT @px @PixelRGBA16 = Vk.FORMAT_R16G16B16A16_UNORM
+  | Just Refl <- eqT @px @PixelYCbCr8 = undefined
+  | Just Refl <- eqT @px @PixelCMYK8  = undefined
+  | Just Refl <- eqT @px @PixelCMYK16 = undefined
+  | otherwise = error "impossible"
 
-dynamicExtent :: DynamicImage -> Vk.Extent3D
-dynamicExtent dimg = Vk.Extent3D { width = dynamicMap (Prelude.fromIntegral Prelude.. (.imageWidth)) dimg
-                                 , height = dynamicMap (Prelude.fromIntegral Prelude.. (.imageHeight)) dimg
-                                 , depth = 1
-                                 }
+imageExtent :: Codec.Picture.Image px -> Vk.Extent3D
+imageExtent img = Vk.Extent3D { width = Prelude.fromIntegral img.imageWidth
+                               , height = Prelude.fromIntegral img.imageHeight
+                               , depth = 1
+                               }
 
 --------------------------------------------------------------------------------
 -- * Shader Data

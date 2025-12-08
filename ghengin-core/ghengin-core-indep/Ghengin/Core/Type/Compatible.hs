@@ -16,6 +16,7 @@ module Ghengin.Core.Type.Compatible
   ) where
 
 import Prelude
+import GHC.TypeError
 import Data.Kind ( Type, Constraint )
 import FIR.Pipeline
     ( BindingStrides,
@@ -137,7 +138,7 @@ type family TypeAndInternalType x where
 type Match :: k -> k -> ErrorMessage -> Constraint
 type family Match a b e where
   Match x x _ = ()
-  Match _ _ e = TypeError e
+  Match _ _ e = Unsatisfiable e
 
 type MatchPropertiesSize :: [a] -> [b] -> ErrorMessage -> ErrorMessage -> Constraint
 type family MatchPropertiesSize l l' e e' where
@@ -147,7 +148,7 @@ type MatchPropertiesSize' :: Nat -> Nat -> ErrorMessage -> ErrorMessage -> Const
 type family MatchPropertiesSize' t t' e e' where
   MatchPropertiesSize' x x _ _ = ()
   MatchPropertiesSize' x y s1 s2
-    = TypeError (Text "There are " :<>: ShowType x :<>: s1 :<>: Text " but " :<>: ShowType y :<>: s2)
+    = Unsatisfiable (Text "There are " :<>: ShowType x :<>: s1 :<>: Text " but " :<>: ShowType y :<>: s2)
 
 
 ------- Descriptor Set Bindings --------------------

@@ -1,5 +1,6 @@
 signature Ghengin.Core.Renderer.Texture where
 
+import Data.Typeable
 import Prelude (FilePath)
 
 import Ghengin.Core.Renderer.Sampler
@@ -8,14 +9,18 @@ import Ghengin.Core.Renderer.Kernel
 import Data.Kind
 import GHC.TypeNats
 import SPIRV.Image
+import Codec.Picture
+
+import Ghengin.Core.Type.Compatible.Pixel
 
 type Texture2D :: ImageFormat Nat -> Type
 data Texture2D (fmt :: ImageFormat Nat)
 
-texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D fmt))
 
--- ROMES:TODO: Include dependency on JuicyPixels? I guess that would make sense
--- textureFromImage :: DynamicImage
---                  -> Sampler
---                  -> Renderer Texture2D
+texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
+
+textureFromDynamicImage :: DynamicImage -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
+
+newTexture :: (Pixel px, Typeable px, CompatiblePixel px fmt)
+           => Codec.Picture.Image px -> Alias Sampler %1 -> Renderer (Alias (Texture2D fmt))
 

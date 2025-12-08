@@ -149,6 +149,9 @@ library
                       -- we use this for now directly in some hacky bits...
                       GLFW-b,
 
+                      -- For textures
+                      JuicyPixels,
+
                       -- force this indirect dependency's version
                       ghc-tcplugins-extra >= 0.4.6
 
@@ -163,6 +166,7 @@ library backend-independent-bits
     exposed-modules:  Ghengin.Core.Mesh.Vertex,
 
                       Ghengin.Core.Type.Compatible,
+                      Ghengin.Core.Type.Compatible.Pixel,
                       Ghengin.Core.Type.Sized,
                       Ghengin.Core.Type.Utils,
 
@@ -195,6 +199,9 @@ library backend-independent-bits
                       geomancy,
                       constraints,
                       ptrdiff,
+
+                      -- CompatiblePixel
+                      JuicyPixels,
 
                       linear-utils
 
@@ -245,7 +252,7 @@ library vulkan
                       gl-block,
                       temporary,
 
-                      -- For textures (consider adding to Core too)
+                      -- For textures
                       JuicyPixels,
 
                       containers,
