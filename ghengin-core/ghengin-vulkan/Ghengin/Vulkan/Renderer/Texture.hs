@@ -120,12 +120,6 @@ newTexture img sampler' =
     Alias.newAlias freeTexture (Texture2D (VulkanImage image devMem imgView) sampler')
 
 
--- | Convert a vec3 with values between 0-1 and convert it into a pixelrgb8
--- with values between 0-255 
-normVec3ToRGB8 :: (Float,Float,Float) -> PixelRGB8
---   Geomancy: (WithVec3 x y z)
-normVec3ToRGB8 (x, y, z) = PixelRGB8 (round $ x Prelude.* 255) (round $ y Prelude.* 255) (round $ z Prelude.* 255)
-
 -- Not needed :(
 dynamicSize :: DynamicImage -> Int
 dynamicSize = \case
@@ -146,6 +140,9 @@ dynamicSize = \case
 
 
 -- Vs. UNORM vs SRGB, which one do I want why?
+-- TODO: CompatiblePixel must be consistent with this.
+-- TODO: The easiest would be for the Vk.Format to be a function of `fmt`, not `px`.
+-- Then, it would always match what the shader expected (UNorm vs SNorm) for RGBA8
 imagePixelFormat :: forall px. (Pixel px, Typeable px) => Codec.Picture.Image px -> Vk.Format
 imagePixelFormat _
   | Just Refl <- eqT @px @Pixel8      = Vk.FORMAT_R8_UNORM

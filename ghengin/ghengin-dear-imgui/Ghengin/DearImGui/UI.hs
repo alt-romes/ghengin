@@ -19,6 +19,8 @@ import Generics.SOP
 import qualified DearImGui as ImGui
 
 class Widget a where
+  -- | UI represents this @a@ initially and returns the new value of @a@
+  -- according to what the user changed and @True@ if anything did change.
   widget :: a -> IO (a, Bool)
 
   default widget :: (Generic a, HasDatatypeInfo a, All2 Widget (Code a), All2 Default (Code a))
@@ -182,6 +184,7 @@ instance Widget Vec3 where
     return (vec3 newX newY newZ, c1)
 
 instance (Default a, Widget a) => Widget [a]
+instance (Default a, Default b, Widget a, Widget b) => Widget (a, b)
 
 --------------------------------------------------------------------------------
 -- * Default values for widgets

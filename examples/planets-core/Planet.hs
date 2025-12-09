@@ -34,8 +34,13 @@ import qualified Math.Linear as FIR
 import Ghengin.DearImGui.UI
 
 import Ghengin.Core.Shader.Data
+import Ghengin.Vulkan.Renderer.Sampler
+import Ghengin.Vulkan.Renderer.Texture
 
 import Generics.SOP
+-- JuicyPixels
+import Codec.Picture
+import Codec.Picture.Types (promotePixel)
 
 import Planet.Noise
 
@@ -45,6 +50,7 @@ import Planet.Noise
 
 data Planet = Planet { resolution  :: !(InRange 2 512 Int)
                      , planetShape :: !PlanetShape
+                     , planetColor :: !PlanetColor
                      }
                      deriving Eq
                      deriving GHC.Generic
@@ -117,13 +123,38 @@ newPlanetMesh rp Planet{..} = Linear.do
 type PlanetMaterialAttrs = '[MinMax, Texture2D (RGBA8 UNorm)]
 type PlanetMaterial = Material PlanetMaterialAttrs
 
+data PlanetColor = PlanetColor
+  { planetColors :: [(InRange 0 100 Float, Color)]
+  -- ^ A list of a percentage value and the color to use up to that percentage
+  }
+  deriving Eq
+  deriving GHC.Generic
+  deriving anyclass Generic
+  deriving anyclass HasDatatypeInfo
+  deriving anyclass Widget
+  deriving anyclass Default
+
 newPlanetMaterial :: forall π p
                    . CompatibleMaterial '[MinMax, Texture2D (RGBA8 UNorm)] π
                   => MinMax
-                  -> Alias (Texture2D (RGBA8 UNorm))
-                   ⊸ RenderPipeline π p
-                   ⊸ Renderer (PlanetMaterial, RenderPipeline π p)
-newPlanetMaterial mm t pl = material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding t :## GHNil) pl
+                  -> RenderPipeline π p
+                   ⊸ Planet
+                  -> Renderer (PlanetMaterial, RenderPipeline π p)
+newPlanetMaterial mm pl planet = Linear.do
+  tex <- planetTexture (planetColor planet)
+  material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding tex :## GHNil) pl
+
+-- | Make a Texture from the planet color
+planetTexture :: PlanetColor -> Renderer (Alias (Texture2D (RGBA8 UNorm)))
+planetTexture PlanetColor{planetColors} = Linear.do
+  sampler <- createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  -- Generate a gradient image. Single pixel height, one pixel of a color per percent.
+  let gradientImg = generateImage pixelPaint 100{-width=100%-} 100{-height=1 pixel-}
+      pixelPaint x _ = case find (\(InRange limit, _) -> x < round limit) planetColors of
+        Nothing -> PixelRGBA8 255 255 255 255
+        Just (_, Color (WithVec3 r g b)) -> PixelRGBA8 (round (r*255)) (round (g*255)) (round (b*255)) 255
+  liftSystemIO $ savePngImage "my_generated_gradient_texture.png" (ImageRGBA8 gradientImg)
+  newTexture gradientImg sampler
 
 --------------------------------------------------------------------------------
 

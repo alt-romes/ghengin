@@ -88,7 +88,7 @@ fragment = shader do
     ~(Vec4 cx cy cz _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
 
     let lightDir  = Vec3 (-0.5) 1 0.5
-    let lightCol  = Vec3 0.5 0.5 0.5
+    let lightCol  = Vec3 1 1 1
     let objectCol = Vec3 cx cy cz
     let specularStrength = 2
     let shininess = 8

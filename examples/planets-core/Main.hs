@@ -54,6 +54,7 @@ import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Camera
 import Ghengin.Core.Type.Compatible
+import Ghengin.Core.Type.Compatible.Pixel
 import qualified Ghengin.DearImGui.Vulkan as ImGui
 import qualified Ghengin.DearImGui.UI as ImGui
 
@@ -77,15 +78,21 @@ gameLoop charStream planet mkey rp rq = Linear.do
   (pollWindowEvents ↑)
 
   -- Update planet mesh according to UI
-  Ur (newPlanet, changed) <- preparePlanetUI planet -- must happen before the first render
+  Ur (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
   rq <-
-    if changed then
+    if changedShape then
       (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
             ( (pmesh, pipeline),
               Ur minmax ) <- newPlanetMesh pipeline newPlanet 
-            mat' <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
+            mat <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
             freeMesh msh
-            return (pipeline, (mat', [(pmesh, x)]))
+            return (pipeline, (mat, [(pmesh, x)]))
+          ) ↑)
+    else if changedColor then
+      -- TODO: EditAtMaterialKey (materialKeyOfMeshKey)
+      (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
+            mat <- propertyAt @1 @_ (\tex -> Alias.forget tex >> planetTexture (planetColor newPlanet)) mat
+            return (pipeline, (mat, [(msh, x)]))
           ) ↑)
     else
       pure rq
@@ -128,8 +135,8 @@ main = do
   runCore dimensions Linear.do
     Ur charStream <- registerCharStream
 
-    sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
-    tex     <- ( texture "examples/planets-core/assets/planet_gradient.png" sampler ↑)
+    -- sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
+    -- tex     <- ( texture "examples/planets-core/assets/planet_gradient.png" sampler ↑)
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
@@ -140,7 +147,7 @@ main = do
     -- todo: minmax should be per-mesh
     ( (pmesh, pipeline),
       Ur minmax )    <- (newPlanetMesh pipeline defaultPlanet ↑)
-    (pmat, pipeline) <- (newPlanetMaterial minmax tex pipeline ↑)
+    (pmat, pipeline) <- (newPlanetMaterial minmax pipeline defaultPlanet ↑)
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
@@ -186,5 +193,20 @@ defaultPlanet = Planet
             }
           ]
       }
+  , planetColor = PlanetColor
+    { planetColors =
+      Prelude.map
+        (\(bnd, WithVec3 rn gn bn) -> (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255))))
+        [ (1, vec3 0 83 255)
+        , (2, vec3 255 218 0)
+        , (5, vec3 255 120 0)
+        , (10, vec3 60 255 0)
+        , (20, vec3 27 183 0)
+        , (30, vec3 10 163 0)
+        , (40, vec3 158 37 0)
+        , (85, vec3 108 13 0)
+        , (100, vec3 231 231 231)
+        ]
+    }
   }
 

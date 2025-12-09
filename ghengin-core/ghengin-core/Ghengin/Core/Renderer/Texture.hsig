@@ -24,3 +24,4 @@ textureFromDynamicImage :: DynamicImage -> Alias Sampler ⊸ Renderer (Alias (Te
 newTexture :: (Pixel px, Typeable px, CompatiblePixel px fmt)
            => Codec.Picture.Image px -> Alias Sampler %1 -> Renderer (Alias (Texture2D fmt))
 
+freeTexture :: Texture2D fmt ⊸ Renderer ()
