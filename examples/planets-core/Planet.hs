@@ -124,7 +124,7 @@ type PlanetMaterialAttrs = '[MinMax, Texture2D (RGBA8 UNorm)]
 type PlanetMaterial = Material PlanetMaterialAttrs
 
 data PlanetColor = PlanetColor
-  { planetColors :: [(InRange 0 100 Float, Color)]
+  { planetColors :: [(InRange 0 100 Int, Color)]
   -- ^ A list of a percentage value and the color to use up to that percentage
   }
   deriving Eq
@@ -150,7 +150,7 @@ planetTexture PlanetColor{planetColors} = Linear.do
   sampler <- createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   -- Generate a gradient image. Single pixel height, one pixel of a color per percent.
   let gradientImg = generateImage pixelPaint 100{-width=100%-} 100{-height=1 pixel-}
-      pixelPaint x _ = case find (\(InRange limit, _) -> x < round limit) planetColors of
+      pixelPaint x _ = case find (\(InRange limit, _) -> x < limit) planetColors of
         Nothing -> PixelRGBA8 255 255 255 255
         Just (_, Color (WithVec3 r g b)) -> PixelRGBA8 (round (r*255)) (round (g*255)) (round (b*255)) 255
   liftSystemIO $ savePngImage "my_generated_gradient_texture.png" (ImageRGBA8 gradientImg)
