@@ -64,14 +64,16 @@ import Planet
 import Planet.Noise
 import Planet.UI
 
+data UrGameData π = GameData
+  { charStream      :: CharStream
+  , mouseDragStream :: MouseDragStream
+  , planetMeshKey   :: MeshKey π '[Camera "view_matrix" "proj_matrix"] '[MinMax, Texture2D (RGBA8 UNorm)] '[Vec3, Vec3] '[Transform]
+  , planet          :: Planet
+  }
+
 gameLoop :: Compatible '[Vec3, Vec3] '[Transform] '[MinMax, Texture2D (RGBA8 UNorm)] '[Camera "view_matrix" "proj_matrix"] π
-         => CharStream
-         -> _
-         -> MeshKey π '[Camera "view_matrix" "proj_matrix"] '[MinMax, Texture2D (RGBA8 UNorm)] '[Vec3, Vec3] '[Transform]
-         -> Alias RenderPass
-          ⊸ RenderQueue ()
-          ⊸ Core (RenderQueue ())
-gameLoop charStream planet mkey rp rq = Linear.do
+         => UrGameData π -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop GameData{..} rp rq = Linear.do
  logT "New frame" 
  should_close <- (shouldCloseWindow ↑)
  if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
@@ -81,7 +83,7 @@ gameLoop charStream planet mkey rp rq = Linear.do
   Ur (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
   rq <-
     if changedShape then
-      (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
+      (editAtMeshesKey planetMeshKey rq (\pipeline mat [(msh, x)] -> Linear.do
             ( (pmesh, pipeline),
               Ur minmax ) <- newPlanetMesh pipeline newPlanet 
             mat <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
@@ -89,23 +91,34 @@ gameLoop charStream planet mkey rp rq = Linear.do
             return (pipeline, (mat, [(pmesh, x)]))
           ) ↑)
     else if changedColor then
-      -- TODO: EditAtMaterialKey (materialKeyOfMeshKey)
-      (editAtMeshesKey mkey rq (\pipeline mat [(msh, x)] -> Linear.do
+      -- TODO: EditAtMaterialKey (using a materialKeyOfMeshKey)
+      (editAtMeshesKey planetMeshKey rq (\pipeline mat [(msh, x)] -> Linear.do
             mat <- propertyAt @1 @_ (\tex -> Alias.forget tex >> planetTexture (planetColor newPlanet)) mat
             return (pipeline, (mat, [(msh, x)]))
           ) ↑)
     else
       pure rq
 
-  Ur mb_in <- readCharInput charStream
-  rq <- case mb_in of
-    Just ch -> Linear.do
-      let doRotate 'd' = rotateY 0.01
-          doRotate 'a' = rotateY (-0.01)
-          doRotate 'w' = rotateX (0.01)
-          doRotate 's' = rotateX (-0.01)
-          doRotate _   = mempty
-      (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $ doRotate ch <> tr)) ↑)
+  -- Ur mb_in <- readCharInput charStream
+  -- rq <- case mb_in of
+  --   Just ch -> Linear.do
+  --     let doRotate 'd' = rotateY 0.01
+  --         doRotate 'a' = rotateY (-0.01)
+  --         doRotate 'w' = rotateX (0.01)
+  --         doRotate 's' = rotateX (-0.01)
+  --         doRotate _   = mempty
+  --     (editMeshes planetMeshKey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $ doRotate ch <> tr)) ↑)
+  --   Nothing -> pure rq
+
+  -- Handle mouse drag rotation
+  Ur mbDrag <- readMouseDrag mouseDragStream
+  rq <- case mbDrag of
+    Just (MouseDrag deltaX deltaY) -> Linear.do
+      let sensitivity = 0.002
+          yawDelta = -(realToFrac deltaX * sensitivity)
+          pitchDelta = realToFrac deltaY * sensitivity
+      (editMeshes planetMeshKey rq (traverse' $ propertyAt @0 (\(Ur tr) ->
+            pure $ Ur $ rotateY yawDelta <> rotateX pitchDelta <> tr)) ↑)
     Nothing -> pure rq
 
   -- Render!
@@ -124,7 +137,7 @@ gameLoop charStream planet mkey rp rq = Linear.do
       return (rp2, rq)
 
   -- Loop!
-  gameLoop charStream newPlanet mkey rp rq
+  gameLoop GameData{planet=newPlanet,..} rp rq
 
 dimensions :: Num a => (a, a)
 dimensions = (1920, 1080)
@@ -134,9 +147,9 @@ main = do
  withLinearIO $
   runCore dimensions Linear.do
     Ur charStream <- registerCharStream
-
-    -- sampler <- ( createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE ↑)
-    -- tex     <- ( texture "examples/planets-core/assets/planet_gradient.png" sampler ↑)
+    Ur mouseDragStream <- registerMouseDragStream $ do
+      -- Is drag allowed? not if imgui is using the mouse
+      Prelude.not Prelude.<$> ImGui.wantCaptureMouse
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
 
@@ -154,7 +167,7 @@ main = do
     (rq, Ur mkey)    <- pure (insertMaterial pkey pmat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey pmesh rq)
 
-    rq <- gameLoop charStream defaultPlanet mshkey rp2 rq
+    rq <- gameLoop GameData{planet=defaultPlanet, planetMeshKey=mshkey, ..} rp2 rq
 
     (freeRenderQueue rq ↑)
     (ImGui.destroyImCtx imctx ↑)
@@ -167,7 +180,7 @@ camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) dimens
 defaultPlanet :: Planet
 defaultPlanet = Planet
   { planetShape = PlanetShape
-      { planetResolution = 100
+      { planetResolution = 50
       , planetRadius = 3
       , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
           [ StrengthenNoise 0.110 $ MinValueNoise
