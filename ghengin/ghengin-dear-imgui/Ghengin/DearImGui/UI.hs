@@ -146,8 +146,8 @@ gUINP :: All Widget xs
 gUINP _ Nil = return (Nil, False)
 gUINP idx (I val :* vals) = 
   ImGui.withID idx $ do
-    ImGui.text $ T.pack ("[" ++ show idx ++ "]")
-    ImGui.sameLine
+    -- ImGui.text $ T.pack ("[" ++ show idx ++ "]")
+    -- ImGui.sameLine
     (val', changed1) <- widget val
     
     (vals', changed2) <- gUINP (idx + 1) vals
@@ -183,7 +183,57 @@ instance Widget Vec3 where
     (newX,newY,newZ) <- readIORef ref
     return (vec3 newX newY newZ, c1)
 
-instance (Default a, Widget a) => Widget [a]
+instance (Default a, Widget a) => Widget [a] where
+  widget ls = do
+    -- Track overall change
+    changedRef <- newIORef False
+
+    -- Header with element count and add button
+    ImGui.text $ T.pack $ "List [" ++ show (length ls) ++ " elements]"
+    ImGui.sameLine
+    addClicked <- ImGui.button "+"
+
+    when addClicked $ do
+      writeIORef changedRef True
+
+    -- Process each element with delete button
+    resultRef <- newIORef ls
+
+    ImGui.withIndent 5 $ do
+      forM_ (zip [0..] ls) $ \(idx, val) -> do
+        ImGui.withID idx $ do
+          -- Delete button
+          deleteClicked <- ImGui.button "X"
+          when deleteClicked $ do
+            modifyIORef resultRef (deleteAt idx)
+            writeIORef changedRef True
+
+          ImGui.sameLine
+          ImGui.spacing  -- Add small space
+          ImGui.sameLine
+          ImGui.spacing  -- Add small space
+          ImGui.sameLine
+
+          -- Element widget
+          (val', valChanged) <- ImGui.withIndent 15 $ widget val
+          when valChanged $ do
+            modifyIORef resultRef (updateAt idx val')
+            writeIORef changedRef True
+
+    result <- readIORef resultRef
+    changed <- readIORef changedRef
+
+    -- Add new element if button was clicked
+    let finalResult = if addClicked then result ++ [def] else result
+
+    return (finalResult, changed)
+    where
+      deleteAt :: Int -> [a] -> [a]
+      deleteAt i xs = take i xs ++ drop (i + 1) xs
+
+      updateAt :: Int -> a -> [a] -> [a]
+      updateAt i x xs = take i xs ++ [x] ++ drop (i + 1) xs
+
 instance (Default a, Default b, Widget a, Widget b) => Widget (a, b)
 
 --------------------------------------------------------------------------------
