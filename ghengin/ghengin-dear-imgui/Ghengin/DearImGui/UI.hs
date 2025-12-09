@@ -1,10 +1,10 @@
-{-# LANGUAGE OverloadedStrings, DefaultSignatures #-}
+{-# LANGUAGE OverloadedStrings, DefaultSignatures, DerivingStrategies, DisambiguateRecordFields, DuplicateRecordFields #-}
 module Ghengin.DearImGui.UI
   ( module Ghengin.DearImGui.UI
   , module Data.Default
   ) where
 
-import GHC.TypeNats
+import GHC.TypeLits
 import Data.Kind
 import GHC.Real
 import Data.Default
@@ -19,6 +19,8 @@ import Generics.SOP
 import qualified DearImGui as ImGui
 
 class Widget a where
+  -- | UI represents this @a@ initially and returns the new value of @a@
+  -- according to what the user changed and @True@ if anything did change.
   widget :: a -> IO (a, Bool)
 
   default widget :: (Generic a, HasDatatypeInfo a, All2 Widget (Code a), All2 Default (Code a))
@@ -155,21 +157,21 @@ gUINP idx (I val :* vals) =
 instance Widget Int where
   widget val = do
     ref <- newIORef val
-    changed <- ImGui.sliderInt "##int" ref minBound maxBound
+    changed <- ImGui.dragInt "##int" ref 1 (minBound @Int) (maxBound @Int)
     newVal <- readIORef ref
     return (newVal, changed)
 
 instance Widget Float where
   widget val = do
     ref <- newIORef val
-    changed <- ImGui.sliderFloat "##float" ref (fromIntegral (minBound @Int)) (fromIntegral (maxBound @Int))
+    changed <- ImGui.dragFloat "##float" ref 0.01 (fromIntegral (minBound @Int)) (fromIntegral (maxBound @Int))
     newVal <- readIORef ref
     return (newVal, changed)
 
 instance Widget Double where
   widget val = do
     ref <- newIORef (realToFrac val :: Float)
-    changed <- ImGui.sliderFloat "##double" ref (fromIntegral (minBound @Int)) (fromIntegral (maxBound @Int))
+    changed <- ImGui.dragFloat "##double" ref 0.01 (fromIntegral (minBound @Int)) (fromIntegral (maxBound @Int))
     newVal <- readIORef ref
     return (realToFrac newVal, changed)
 
@@ -177,11 +179,12 @@ instance Widget Double where
 instance Widget Vec3 where
   widget (WithVec3 x y z) = do
     ref <- newIORef (x,y,z)
-    c1 <- ImGui.sliderFloat3 "" ref (fromIntegral (minBound @Int)) (fromIntegral (maxBound @Int))
+    c1 <- ImGui.dragFloat3 "" ref 0.01 (fromIntegral (minBound @Int)) (fromIntegral (maxBound @Int))
     (newX,newY,newZ) <- readIORef ref
     return (vec3 newX newY newZ, c1)
 
 instance (Default a, Widget a) => Widget [a]
+instance (Default a, Default b, Widget a, Widget b) => Widget (a, b)
 
 --------------------------------------------------------------------------------
 -- * Default values for widgets
@@ -216,7 +219,7 @@ newtype InRange (low :: Nat) (high :: Nat) (a :: Type) = InRange { inRangeVal ::
 instance (KnownNat low, KnownNat high) => Widget (InRange low high Int) where
   widget (InRange val) = do
     ref <- newIORef val
-    changed <- ImGui.sliderInt "##int" ref (fromIntegral $ natVal (Proxy @low)) 
+    changed <- ImGui.dragInt "##int" ref 1 (fromIntegral $ natVal (Proxy @low)) 
                                            (fromIntegral $ natVal (Proxy @high))
     newVal <- readIORef ref
     return (InRange newVal, changed)
@@ -224,18 +227,83 @@ instance (KnownNat low, KnownNat high) => Widget (InRange low high Int) where
 instance (KnownNat low, KnownNat high) => Widget (InRange low high Float) where
   widget (InRange val) = do
     ref <- newIORef val
-    changed <- ImGui.sliderFloat "##float" ref (fromIntegral $ natVal (Proxy @low)) 
-                                               (fromIntegral $ natVal (Proxy @high))
+    changed <- ImGui.dragFloat "##float" ref 0.01 (fromIntegral $ natVal (Proxy @low)) 
+                                                  (fromIntegral $ natVal (Proxy @high))
     newVal <- readIORef ref
     return (InRange newVal, changed)
 
 instance (KnownNat low, KnownNat high) => Widget (InRange low high Double) where
   widget (InRange val) = do
     ref <- newIORef (realToFrac val)
-    changed <- ImGui.sliderFloat "##double" ref (fromIntegral $ natVal (Proxy @low)) 
-                                                (fromIntegral $ natVal (Proxy @high))
+    changed <- ImGui.dragFloat "##double" ref 0.01 (fromIntegral $ natVal (Proxy @low)) 
+                                                   (fromIntegral $ natVal (Proxy @high))
     newVal <- readIORef ref
     return (InRange (realToFrac newVal), changed)
 
--- TODO:
---  - sliderAngle
+--------------------------------------------------------------------------------
+
+-- | Collapsible section wrapper
+-- When collapsed, the inner widget is not displayed
+newtype Collapsible (lbl :: Symbol) a = Collapsible { unCollapsible :: a }
+  deriving newtype (Eq, Ord, Show, Default)
+
+instance (KnownSymbol lbl, Widget a) => Widget (Collapsible lbl a) where
+  widget (Collapsible val) = do
+    isCurrentlyOpen <- ImGui.collapsingHeader (T.pack $ symbolVal (Proxy @lbl)) Nothing
+
+    if isCurrentlyOpen
+      then do
+        ImGui.indent 16
+        (newVal, changed) <- widget val
+        ImGui.unindent 16
+        return (Collapsible newVal, changed)
+      else do
+        return (Collapsible val, False)
+
+-- | Checkbox wrapper
+newtype Checkbox = Checkbox { checkboxValue :: Bool }
+  deriving newtype (Eq, Ord, Show, Default)
+
+instance Widget Checkbox where
+  widget (Checkbox val) = do
+    ref <- newIORef val
+    changed <- ImGui.checkbox "##checkbox" ref
+    newVal <- readIORef ref
+    return (Checkbox newVal, changed)
+
+-- | Slider with explicit bounds (alternative to InRange for different UI)
+newtype Slider (low :: Nat) (high :: Nat) (a :: Type) = Slider { sliderVal :: a }
+  deriving (Eq, Ord, Show, Default)
+
+instance (KnownNat low, KnownNat high) => Widget (Slider low high Float) where
+  widget (Slider val) = do
+    ref <- newIORef val
+    changed <- ImGui.sliderFloat "##slider" ref 
+                                 (fromIntegral $ natVal (Proxy @low))
+                                 (fromIntegral $ natVal (Proxy @high))
+    newVal <- readIORef ref
+    return (Slider newVal, changed)
+
+instance (KnownNat low, KnownNat high) => Widget (Slider low high Int) where
+  widget (Slider val) = do
+    ref <- newIORef val
+    changed <- ImGui.sliderInt "##slider" ref
+                               (fromIntegral $ natVal (Proxy @low))
+                               (fromIntegral $ natVal (Proxy @high))
+    newVal <- readIORef ref
+    return (Slider newVal, changed)
+
+-- | Tooltip wrapper - shows tooltip on hover
+newtype WithTooltip (tip :: Symbol) a = WithTooltip { unTooltip :: a }
+  deriving newtype (Eq, Ord, Show, Default)
+
+instance (KnownSymbol tip, Widget a) => Widget (WithTooltip tip a) where
+  widget (WithTooltip content) = do
+    (newContent, changed) <- widget content
+
+    hover <- ImGui.isItemHovered
+    when hover $ do
+      ImGui.withTooltip $
+        ImGui.text (T.pack $ symbolVal (Proxy @tip))
+
+    return (WithTooltip newContent, changed)

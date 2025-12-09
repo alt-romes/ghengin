@@ -22,21 +22,31 @@ import Planet
 -- always create a function: @forall a. a -> Core (Ur (a, Bool))@, where the
 -- result is the new value of type @a@ and the bool indicates whether it has
 -- changed. See `Widget`
-preparePlanetUI :: Planet -> Core (Ur (Planet, Bool))
-preparePlanetUI planet = Linear.do
+preparePlanetUI :: Planet -> Core (Ur (Planet, Bool, Bool))
+preparePlanetUI Planet{..} = Linear.do
 
-  Ur changedRef   <- liftIO (newIORef False)
-  Ur newPlanetRef <- liftIO (newIORef planet)
+  Ur changedShapeRef   <- liftIO (newIORef False)
+  Ur newPlanetShapeRef <- liftIO (newIORef planetShape)
+
+  Ur changedColorRef   <- liftIO (newIORef False)
+  Ur newPlanetColorRef <- liftIO (newIORef planetColor)
 
   ImGui.withNewFrame $ do
     ImGui.withWindowOpen "Planet" $ do
-      (p, b) <- widget planet
+      (p, b) <- widget planetShape
       Base.when b $ do
-        Base.writeIORef changedRef True
-        Base.writeIORef newPlanetRef p
+        Base.writeIORef changedShapeRef True
+        Base.writeIORef newPlanetShapeRef p
 
-  Ur newPlanet <- liftIO (readIORef newPlanetRef)
-  Ur didChange <- liftIO (readIORef changedRef)
+      (p', b') <- widget planetColor
+      Base.when b' $ do
+        Base.writeIORef changedColorRef True
+        Base.writeIORef newPlanetColorRef p'
 
-  return $ Ur (newPlanet, didChange)
+  Ur newPlanetShape <- liftIO (readIORef newPlanetShapeRef)
+  Ur didChangeShape <- liftIO (readIORef changedShapeRef)
+  Ur newPlanetColor <- liftIO (readIORef newPlanetColorRef)
+  Ur didChangeColor <- liftIO (readIORef changedColorRef)
+
+  return $ Ur (Planet{planetColor=newPlanetColor, planetShape=newPlanetShape, resolution}, didChangeShape, didChangeColor)
 

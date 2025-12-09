@@ -141,7 +141,7 @@ executable planets-core
     main-is:        Main.hs
     other-modules:  Planet, Planet.Noise, Planet.UI, Shaders
     hs-source-dirs: planets-core
-    build-depends:  ghengin:dear-imgui
+    build-depends:  ghengin:dear-imgui, JuicyPixels
 
 -- Load and render teapot.obj with blinn-phong
 executable teapot-obj

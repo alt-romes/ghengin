@@ -83,14 +83,22 @@ data PipelineType = Graphics | Compute
 data GraphicsPipelineSettings = GPS
       { cullMode  :: CullMode
       , blendMode :: BlendMode
+      , polygonMode :: PolygonMode
       }
 
 data CullMode = CullBack | CullFront | CullNone
 
 data BlendMode = BlendAdd | BlendAlpha | BlendNone
 
+data PolygonMode = PolygonFill
+                 -- ^ Fill the area of the polygon with fragments (default)
+                 | PolygonLine
+                 -- ^ polygon edges drawn as lines (WIREFRAME)
+                 | PolygonPoint
+                 -- ^ polygon vertices are drawn as points
+
 defaultGraphicsPipelineSettings :: GraphicsPipelineSettings
-defaultGraphicsPipelineSettings = GPS CullBack BlendNone
+defaultGraphicsPipelineSettings = GPS CullBack BlendNone PolygonFill
 
 --------------------------------------------------------------------------------
 
@@ -200,7 +208,11 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
                      , flags = zero
                      , depthClampEnable = False -- Whether fragments that are beyond the near and far planes are clamped to them as opposed to discarding them. Requires a GPU feature.
                      , rasterizerDiscardEnable = False -- If set to True, geometry never passes through the rasterizer stage. Basically disables output to the framebuffer
-                     , polygonMode = Vk.POLYGON_MODE_FILL -- Fill the area of the polygon with fragments; VK_POLYGON_MODE_LINE: polygon edges drawn as lines (WIREFRAME?); VK_POLYGON_MODE_POINT: polygon vertices are drawn as points (other modes require GPU feature)
+                     , polygonMode = case gps.polygonMode of
+                          PolygonFill -> Vk.POLYGON_MODE_FILL
+                          PolygonLine -> Vk.POLYGON_MODE_LINE
+                          PolygonPoint -> Vk.POLYGON_MODE_POINT
+                          -- (other modes require GPU feature) ?
                      , lineWidth = 1 -- Thickness of lines in terms of number of fragments (Any >1 requires wideLines feature)
                        -- Face culling: https://learnopengl.com/Advanced-OpenGL/Face-culling
                      -- Cull back faces (polygons that from the viewer perspective are counterclockwise which means we are facing their back)

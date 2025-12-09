@@ -64,11 +64,19 @@ destroyPipeline :: RendererPipeline a ⊸ Renderer ()
 data GraphicsPipelineSettings = GPS
       { cullMode  :: CullMode
       , blendMode :: BlendMode
+      , polygonMode :: PolygonMode
       }
 
 data CullMode = CullBack | CullFront | CullNone
 
 data BlendMode = BlendAdd | BlendAlpha | BlendNone
+
+data PolygonMode = PolygonFill
+                 -- ^ Fill the area of the polygon with fragments (default)
+                 | PolygonLine
+                 -- ^ polygon edges drawn as lines (WIREFRAME)
+                 | PolygonPoint
+                 -- ^ polygon vertices are drawn as points
 
 defaultGraphicsPipelineSettings :: GraphicsPipelineSettings
 

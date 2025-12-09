@@ -14,10 +14,15 @@
 -- https://iquilezles.org/articles/normals/
 module Ghengin.Geometry.Normals where
 
+import qualified Prelude
+import Prelude ((<))
 import Geomancy
+import qualified Geomancy.Point as P
 import qualified Geomancy.Vec3 as Vec3
 
-import Prelude.Linear
+import Prelude.Linear hiding ((<))
+import qualified Data.List as L
+import qualified Data.IntMap as IM
 import qualified Data.Vector as V
 import qualified Data.Vector.Generic as GV
 import qualified Data.Array.Mutable.Linear as Array
@@ -97,5 +102,55 @@ computeNormals ixs vs =
       (Ur exists, arr1) -> Array.unsafeSet i (new ^+^ exists) arr1
 #endif
 
--- TODO: Try backpermute
+-- TODO: Try backpermute in the above
 
+{- | Deduplicate vertices that are nearby.
+
+For the given list of vertices and the face indices, return the updated face
+indices which only use the set of vertices that were welded
+
+The "fast" version from http://www.codersnotes.com/notes/welding-vertices/
+
+You typically want to call this before 'computeNormals' if a mesh has
+overlapping vertices which don't connect, otherwise the smooth normals won't look fine.
+-}
+weldVertices :: (GV.Vector v Vec3, GV.Vector w Int) => v Vec3 -> w Int -> w Int
+weldVertices vxs ixs =
+
+  -- The "fast" version
+  let threshold = 0.00001
+      vxs_sorted = V.fromList (L.sortOn fst (GV.toList vxs `Prelude.zip` [0..]))
+      vec3X (WithVec3 x _ _) = x
+      go va a_ix a b
+        | b < 0 = IM.empty
+        | vec3X (fst (vxs_sorted V.! b)) < (vec3X va - threshold)
+        = IM.empty -- shortcut
+        | P.distance (P.Point va) (P.Point (fst (vxs_sorted V.! b))) < threshold
+        = IM.singleton (snd (vxs_sorted V.! b)) a_ix `IM.union` go va a_ix a (b-1)
+        | otherwise
+        = go va a_ix a (b-1)
+      mapping =
+        IM.unions
+          [ go va a_ix a (a-1)
+          | ((va, a_ix), a) <- Prelude.zip (GV.toList vxs_sorted) [0..]
+          ]
+   in GV.map (\ix -> case IM.lookup ix mapping of
+                Nothing -> ix
+                Just other -> other
+             ) ixs
+
+  -- The "slow" version
+  {-
+  let threshold = 0.00001
+      mapping =
+        IM.unions
+          [ IM.singleton a b
+          | (va, a) <- Prelude.zip (GV.toList vxs) [0..]
+          , (vb, b) <- Prelude.zip (GV.toList vxs) [0..]
+          , P.distance (P.Point va) (P.Point vb) < threshold
+          ]
+   in GV.map (\ix -> case IM.lookup ix mapping of
+                Nothing -> ix
+                Just other -> other
+             ) ixs
+  -}
