@@ -166,9 +166,9 @@ camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) dimens
 
 defaultPlanet :: Planet
 defaultPlanet = Planet
-  { resolution = 100
-  , planetShape = PlanetShape
-      { planetRadius = 3
+  { planetShape = PlanetShape
+      { planetResolution = 100
+      , planetRadius = 3
       , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
           [ StrengthenNoise 0.110 $ MinValueNoise
             { minNoiseVal = 0.930

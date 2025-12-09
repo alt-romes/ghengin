@@ -48,5 +48,5 @@ preparePlanetUI Planet{..} = Linear.do
   Ur newPlanetColor <- liftIO (readIORef newPlanetColorRef)
   Ur didChangeColor <- liftIO (readIORef changedColorRef)
 
-  return $ Ur (Planet{planetColor=newPlanetColor, planetShape=newPlanetShape, resolution}, didChangeShape, didChangeColor)
+  return $ Ur (Planet{planetColor=newPlanetColor, planetShape=newPlanetShape}, didChangeShape, didChangeColor)
 
