@@ -370,6 +370,7 @@ destroyShaderModule = Unsafe.toLinear2 \d sm -> d <$ liftSystemIO (Vk.destroySha
 -- Pipeline configuration
 --------------------------------------------------------------------------------
 
+colorBlendAttachment :: BlendMode -> Vk.PipelineColorBlendAttachmentState
 colorBlendAttachment BlendNone = (colorBlendAttachment BlendAdd){Vk.blendEnable = False}
 colorBlendAttachment BlendAdd =
   Vk.PipelineColorBlendAttachmentState

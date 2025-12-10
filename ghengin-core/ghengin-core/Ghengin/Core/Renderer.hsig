@@ -27,10 +27,8 @@ runRenderer :: (Int, Int)
             -- ^ Dimensions of the window to render on (width, height)
             -> Renderer a ⊸ Linear.IO a
 
--- extremely contrived? not anymore (at least no longer using the transformer thing, since we no longer mix render packets with things like the ECS system s.t. this function had to be run in ECS context)!
-withCurrentFramePresent :: Int -- ^ Current frame index
-                        -> ( CommandBuffer
-                              ⊸ Int -- ^ Current image index
+withCurrentFramePresent :: ( CommandBuffer
+                              ⊸ Int -- ^ Current frame index
                              -> Renderer (a, CommandBuffer)
                            )
                          ⊸ Renderer a

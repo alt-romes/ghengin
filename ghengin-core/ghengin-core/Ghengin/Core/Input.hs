@@ -25,7 +25,6 @@ import Control.Monad.STM
 import Control.Concurrent.STM.TChan
 
 import Ghengin.Core.Render
-import Ghengin.Core
 
 import qualified Unsafe.Linear as Unsafe
 import qualified Graphics.UI.GLFW as GLFW
@@ -37,7 +36,7 @@ newtype CharStream = CS (TChan Char)
 
 -- | Register the 'CharCallback' as an action which produces to a 'CharStream'
 -- that can be easily consumed with 'readCharInput'.
-registerCharStream :: Core (Ur CharStream)
+registerCharStream :: Renderer (Ur CharStream)
 registerCharStream = Linear.do
   Ur chan <- liftSystemIOU newTChanIO
   setCharCallback (Just (\c -> atomically $ writeTChan chan c))
@@ -45,14 +44,14 @@ registerCharStream = Linear.do
 
 -- | Read a 'Char' user input -- returns Nothing if nothing was input rather
 -- than blocking.
-readCharInput :: CharStream -> Core (Ur (Maybe Char))
+readCharInput :: CharStream -> Renderer (Ur (Maybe Char))
 readCharInput (CS chan) = liftSystemIOU $ atomically $ tryReadTChan chan
 
 newtype ScrollStream = SS (TChan (Double, Double))
 
 -- | Register the 'ScrollCallback' as an action which produces to a 'ScrollStream'
 -- that can be easily consumed with 'readScrollInput'.
-registerScrollStream :: Core (Ur ScrollStream)
+registerScrollStream :: Renderer (Ur ScrollStream)
 registerScrollStream = Linear.do
   Ur chan <- liftSystemIOU newTChanIO
   setScrollCallback (Just (\x y -> atomically $ writeTChan chan (x,y)))
@@ -60,7 +59,7 @@ registerScrollStream = Linear.do
 
 -- | Returns True if the user scrolled, and nothing otherwise (rather than blocking).
 -- See See <http://www.glfw.org/docs/3.3/input.html#scrolling Scroll Input>
-readScrollInput :: ScrollStream -> Core (Ur (Maybe (Double, Double)))
+readScrollInput :: ScrollStream -> Renderer (Ur (Maybe (Double, Double)))
 readScrollInput (SS chan) = liftSystemIOU $ atomically $ tryReadTChan chan
 
 -- ** Mouse
@@ -79,7 +78,7 @@ newtype MouseDragStream = MDS (TChan MouseDrag)
 -- This is typically useful if you are using dear-imgui and want to prevent
 -- dragging actions at the same time as interacting with the UI.
 -- See planets-core for an example.
-registerMouseDragStream :: Prelude.IO Bool -> Core (Ur MouseDragStream)
+registerMouseDragStream :: Prelude.IO Bool -> Renderer (Ur MouseDragStream)
 registerMouseDragStream dragIsAllowedIO = Linear.do
   Ur chan <- liftSystemIOU newTChanIO
   Ur stateRef <- liftSystemIOU $ Base.newIORef (False, 0, 0) -- (isDragging, lastX, lastY)
@@ -96,7 +95,7 @@ registerMouseDragStream dragIsAllowedIO = Linear.do
     )
   
   -- Set mouse button callback
-  setMouseButtonCallback (Just $ \btn state mods -> do
+  setMouseButtonCallback (Just $ \btn state _mods -> do
 
     dragIsAllowed <- dragIsAllowedIO
 
@@ -115,7 +114,7 @@ registerMouseDragStream dragIsAllowedIO = Linear.do
   return (Ur (MDS chan))
 
 -- | Read mouse drag deltas -- returns Nothing if no drag occurred rather than blocking.
-readMouseDrag :: MouseDragStream -> Core (Ur (Maybe MouseDrag))
+readMouseDrag :: MouseDragStream -> Renderer (Ur (Maybe MouseDrag))
 readMouseDrag (MDS chan) = liftSystemIOU $ atomically $ tryReadTChan chan
 
 --------------------------------------------------------------------------------
@@ -123,24 +122,24 @@ readMouseDrag (MDS chan) = liftSystemIOU $ atomically $ tryReadTChan chan
 
 type CharCallback = Char -> Prelude.IO ()
 
-setCharCallback :: Maybe CharCallback -> Core ()
-setCharCallback cb = liftCore $ withWindow $
+setCharCallback :: Maybe CharCallback -> Renderer ()
+setCharCallback cb = withWindow $
   Unsafe.toLinear \w -> Linear.do
     liftSystemIO $ GLFW.setCharCallback w (const Prelude.<$> cb)
     return w
 
 type ScrollCallback = Double -> Double -> Prelude.IO ()
 
-setScrollCallback :: Maybe ScrollCallback -> Core ()
-setScrollCallback cb = liftCore $ withWindow $
+setScrollCallback :: Maybe ScrollCallback -> Renderer ()
+setScrollCallback cb = withWindow $
   Unsafe.toLinear \w -> Linear.do
     liftSystemIO $ GLFW.setScrollCallback w (const Prelude.<$> cb)
     return w
 
 type KeyCallback = GLFW.Key -> Int -> GLFW.KeyState -> GLFW.ModifierKeys -> Prelude.IO ()
 
-setKeyCallback :: Maybe KeyCallback -> Core ()
-setKeyCallback cb = liftCore $ withWindow $
+setKeyCallback :: Maybe KeyCallback -> Renderer ()
+setKeyCallback cb = withWindow $
   Unsafe.toLinear \w -> Linear.do
     liftSystemIO $ GLFW.setKeyCallback w (const Prelude.<$> cb)
     return w
@@ -149,16 +148,16 @@ setKeyCallback cb = liftCore $ withWindow $
 
 type CursorPosCallback = Double -> Double -> Prelude.IO ()
 
-setCursorPosCallback :: Maybe CursorPosCallback -> Core ()
-setCursorPosCallback cb = liftCore $ withWindow $
+setCursorPosCallback :: Maybe CursorPosCallback -> Renderer ()
+setCursorPosCallback cb = withWindow $
   Unsafe.toLinear \w -> Linear.do
     liftSystemIO $ GLFW.setCursorPosCallback w (const Prelude.<$> cb)
     return w
 
 type MouseButtonCallback = GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> Prelude.IO ()
 
-setMouseButtonCallback :: Maybe MouseButtonCallback -> Core ()
-setMouseButtonCallback cb = liftCore $ withWindow $
+setMouseButtonCallback :: Maybe MouseButtonCallback -> Renderer ()
+setMouseButtonCallback cb = withWindow $
   Unsafe.toLinear \w -> Linear.do
     liftSystemIO $ GLFW.setMouseButtonCallback w (const Prelude.<$> cb)
     return w

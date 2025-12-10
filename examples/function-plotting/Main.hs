@@ -5,7 +5,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PostfixOperators #-}
-{-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# OPTIONS_GHC -Wno-name-shadowing -Wno-unused-local-binds #-}
 module Main where
 
 -- Inspired by "Algorithmic Drawing" in The Book Of Shaders: https://thebookofshaders.com/05/
@@ -51,18 +51,18 @@ gameLoop :: Float -- ^ Zoom
          -> [PipelineKey a '[InStruct "proj" Mat4, InStruct "x" Float]]
          -> Alias RenderPass
           ⊸ RenderQueue ()
-          ⊸ Core (RenderQueue ())
+          ⊸ Renderer (RenderQueue ())
 gameLoop zoom keys pipkeys rp rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
- if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
-  (pollWindowEvents ↑)
+ should_close <- shouldCloseWindow
+ if should_close then Alias.forget rp >> return rq else Linear.do
+  pollWindowEvents
 
   Ur mkey <- liftSystemIOU $ atomically $ tryReadTChan keys
   (rq, Ur zoom) <- case mkey of
     Just (Left yscroll)
       | let zoom' = zoom + double2Float yscroll
       , zoom' P.>= 1
-      , zoom' P.<= 100 -> liftCore $ Linear.do
+      , zoom' P.<= 100 -> Linear.do
         rq <- foldl' (\mrq (Ur pipkey) -> Linear.do
           rq <- mrq
           editPipeline pipkey rq (propertyAt @0 @(InStruct "proj" Mat4) (\(Ur (InStruct _proj)) ->
@@ -76,7 +76,7 @@ gameLoop zoom keys pipkeys rp rq = Linear.do
           GLFW.Key'Left  -> Just (P.-n)
           GLFW.Key'A     -> Just (P.-n)
           _              -> Nothing
-      -> liftCore $ Linear.do
+      -> Linear.do
         rq <- foldl' (\mrq (Ur pipkey) -> Linear.do
           rq <- mrq
           editPipeline pipkey rq (propertyAt @1 @(InStruct "x" Float) (\(Ur (InStruct off)) -> pure $ Ur $
@@ -132,21 +132,21 @@ main = do
                        GHNil
 
   withLinearIO $
-   runCore (width, height) Linear.do
+   runRenderer (width, height) Linear.do
 
-     (withWindow (Unsafe.toLinear $ \w -> Linear.do
+     withWindow (Unsafe.toLinear $ \w -> Linear.do
       liftSystemIO $ do
         GLFW.setScrollCallback w (Just (scrollBack chan))
         GLFW.setKeyCallback w (Just (keyPress chan)) 
-      return w) ↑)
+      return w)
 
-     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
-     pipeline <- (makeRenderPipeline rp1 (shader f) pipeline_props ↑)
-     (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-     (gridMeshX, pipeline) <- (createMesh pipeline grid_props (gridVertsX width height) ↑)
-     (gridMeshY, pipeline) <- (createMesh pipeline grid_props (gridVertsY width height) ↑)
-     (axisMesh, pipeline) <- (createMesh pipeline axis_props (axisVerts width height) ↑)
-     (functionMesh, pipeline) <- (createMesh pipeline line_props verts ↑)
+     (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
+     pipeline <- makeRenderPipeline rp1 (shader f) pipeline_props
+     (emptyMat, pipeline) <- material GHNil pipeline
+     (gridMeshX, pipeline) <- createMesh pipeline grid_props (gridVertsX width height)
+     (gridMeshY, pipeline) <- createMesh pipeline grid_props (gridVertsY width height)
+     (axisMesh, pipeline) <- createMesh pipeline axis_props (axisVerts width height)
+     (functionMesh, pipeline) <- createMesh pipeline line_props verts
      (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
      (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
      (rq, Ur _gmk)    <- pure (insertMesh mkey gridMeshX rq)
@@ -154,17 +154,17 @@ main = do
      (rq, Ur _gmk)    <- pure (insertMesh mkey axisMesh rq)
      (rq, Ur _mshk)    <- pure (insertMesh mkey functionMesh rq)
 
-     (rp3, rp4) <- (Alias.share rp2 ↑)
-     pipeline2 <- (makeRenderPipeline rp3 (shader weierstrass) pipeline_props ↑)
-     (emptyMat, pipeline2) <- (material GHNil pipeline2 ↑)
-     (functionMesh, pipeline2) <- (createMesh pipeline2 line_props verts ↑)
+     (rp3, rp4) <- Alias.share rp2
+     pipeline2 <- makeRenderPipeline rp3 (shader weierstrass) pipeline_props
+     (emptyMat, pipeline2) <- material GHNil pipeline2
+     (functionMesh, pipeline2) <- createMesh pipeline2 line_props verts
      (rq, Ur pkey2)    <- pure (insertPipeline pipeline2 rq)
      (rq, Ur mkey2)    <- pure (insertMaterial pkey2 emptyMat rq)
      (rq, Ur _)        <- pure (insertMesh mkey2 functionMesh rq)
 
      rq <- gameLoop 1 chan [pkey, pkey2] rp4 rq
 
-     (freeRenderQueue rq ↑)
+     freeRenderQueue rq
 
      return (Ur ())
 

@@ -30,15 +30,15 @@ import Shaders
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (640, 480) Linear.do
+  runRenderer (640, 480) Linear.do
 
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
 
-    pipeline <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullFront, polygonMode=PolygonFill} rp1 shaderPipeline (StaticBinding (Ur camera) :## GHNil) ↑)
-    (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    (mesh, pipeline) <- (loadObjMesh "examples/teapot-obj/assets/teapot.obj" pipeline
+    pipeline <- makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullFront, polygonMode=PolygonFill} rp1 shaderPipeline (StaticBinding (Ur camera) :## GHNil)
+    (emptyMat, pipeline) <- material GHNil pipeline
+    (mesh, pipeline) <- loadObjMesh "examples/teapot-obj/assets/teapot.obj" pipeline
     -- (mesh, pipeline) <- (loadObjMesh "examples/teapot-obj/assets/building-tower.obj" pipeline
-                          (DynamicBinding (Ur (scale 1.2)) :## GHNil) ↑)
+                          (DynamicBinding (Ur (scale 1.2)) :## GHNil)
 
     let !(rq, Ur pkey) = insertPipeline pipeline LMon.mempty
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
@@ -46,22 +46,21 @@ main = do
 
     rq <- gameLoop mshkey rp2 rq
 
-    (freeRenderQueue rq ↑)
+    (freeRenderQueue rq)
 
     return (Ur ())
 
 gameLoop :: MeshKey _ _ _ _ '[Transform] -- ^ rq key to cube mesh
          -> Alias RenderPass
           ⊸ RenderQueue ()
-          ⊸ Core (RenderQueue ())
+          ⊸ Renderer (RenderQueue ())
 gameLoop mkey rp rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
- if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
-  (pollWindowEvents ↑)
+ should_close <- shouldCloseWindow
+ if should_close then Alias.forget rp >> return rq else Linear.do
+  pollWindowEvents
 
   (rp, rq) <- render rp rq
-  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
-    rotateY 0.01 <> tr)) ↑)
+  rq <- editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $ rotateY 0.01 <> tr))
 
   gameLoop mkey rp rq
 

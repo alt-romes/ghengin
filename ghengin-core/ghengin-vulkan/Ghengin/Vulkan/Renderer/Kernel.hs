@@ -5,6 +5,7 @@ module Ghengin.Vulkan.Renderer.Kernel where
 import GHC.TypeNats
 import qualified Prelude as Unrestricted
 import Prelude.Linear
+import Data.IORef
 import qualified Prelude
 import qualified System.IO.Linear
 import qualified Data.Functor.Linear as Data.Linear
@@ -37,13 +38,14 @@ data RendererEnv =
        , _vulkanSwapChain :: !VulkanSwapChain
        , _commandPool     :: !Vk.CommandPool
        , _frames          :: !(V.V 2 VulkanFrameData)
-       -- , _frameInFlight   :: !(IORef Int)
        , _immediateSubmit :: !ImmediateSubmitCtx
        }
-newtype RendererReaderEnv
-  = RREnv { _logger :: Logger 
+data RendererReaderEnv
+  = RREnv { _logger :: !Logger
           -- ^ Logger and its cleanup action worry about performance later,
           -- correctness first
+          , frameCounter :: !(IORef Int)
+          -- ^ Frame counter
           }
 -- ROMES: Worried linear StateT might reduce performance, hope not
 newtype Renderer a
@@ -56,11 +58,11 @@ deriving instance Linear.Applicative Renderer
 deriving instance Linear.Monad Renderer
 
 instance Linear.MonadIO Renderer where
-  liftIO io = Renderer $ ReaderT \(Ur w) -> StateT \s -> (,s) <$> io
+  liftIO io = Renderer $ ReaderT \(Ur _) -> StateT \s -> (,s) <$> io
   {-# INLINE liftIO #-}
 
 instance Linear.MonadFail Renderer where
-  fail str = Renderer $ ReaderT \(Ur w) -> StateT \s -> (,s) <$> liftSystemIO (Prelude.fail str)
+  fail str = Renderer $ ReaderT \(Ur _) -> StateT \s -> (,s) <$> liftSystemIO (Prelude.fail str)
 
 instance HasLogger Renderer where
   getLogger = Renderer $ ReaderT \(Ur w) -> StateT \renv -> pure (Ur w._logger,renv)
@@ -77,10 +79,12 @@ type MAX_FRAMES_IN_FLIGHT_T = 2 -- We want to work on multiple frames but we don
 -- | Make a renderer computation from a linear IO action that linearly uses a
 -- 'RendererEnv'
 renderer :: (RendererEnv %1 -> System.IO.Linear.IO (a, RendererEnv)) %1 -> Renderer a
-renderer f = Renderer $ ReaderT \(Ur w) -> StateT f
+renderer f = Renderer $ ReaderT \(Ur _) -> StateT f
 
 runRenderer' :: Logger -> RendererEnv ⊸ Renderer a ⊸ System.IO.Linear.IO (a, RendererEnv)
-runRenderer' l renv (Renderer rend) = runStateT (runReaderT rend (Ur (RREnv l))) renv
+runRenderer' l renv (Renderer rend) = Linear.do
+  Ur r <- liftSystemIOU (newIORef 0)
+  runStateT (runReaderT rend (Ur (RREnv l r))) renv
 
 useVulkanDevice :: (VulkanDevice %1 -> System.IO.Linear.IO (a, VulkanDevice)) %1 -> Renderer a
 useVulkanDevice f = renderer $ \(REnv{..}) -> f _vulkanDevice >>= \case (a, d') -> pure (a, REnv{_vulkanDevice=d',..})

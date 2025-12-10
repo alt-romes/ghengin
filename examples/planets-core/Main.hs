@@ -72,12 +72,12 @@ data UrGameData π = GameData
   }
 
 gameLoop :: Compatible '[Vec3, Vec3] '[Transform] '[MinMax, Texture2D (RGBA8 UNorm)] '[Camera "view_matrix" "proj_matrix"] π
-         => UrGameData π -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+         => UrGameData π -> Alias RenderPass ⊸ RenderQueue () ⊸ Renderer (RenderQueue ())
 gameLoop GameData{..} rp rq = Linear.do
  logT "New frame" 
- should_close <- (shouldCloseWindow ↑)
- if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
-  (pollWindowEvents ↑)
+ should_close <- (shouldCloseWindow)
+ if should_close then (Alias.forget rp) >> return rq else Linear.do
+  (pollWindowEvents)
 
   -- Update planet mesh according to UI
   Ur (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
@@ -89,26 +89,15 @@ gameLoop GameData{..} rp rq = Linear.do
             mat <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
             freeMesh msh
             return (pipeline, (mat, [(pmesh, x)]))
-          ) ↑)
+          ))
     else if changedColor then
       -- TODO: EditAtMaterialKey (using a materialKeyOfMeshKey)
       (editAtMeshesKey planetMeshKey rq (\pipeline mat [(msh, x)] -> Linear.do
             mat <- propertyAt @1 @_ (\tex -> Alias.forget tex >> planetTexture (planetColor newPlanet)) mat
             return (pipeline, (mat, [(msh, x)]))
-          ) ↑)
+          ))
     else
       pure rq
-
-  -- Ur mb_in <- readCharInput charStream
-  -- rq <- case mb_in of
-  --   Just ch -> Linear.do
-  --     let doRotate 'd' = rotateY 0.01
-  --         doRotate 'a' = rotateY (-0.01)
-  --         doRotate 'w' = rotateX (0.01)
-  --         doRotate 's' = rotateX (-0.01)
-  --         doRotate _   = mempty
-  --     (editMeshes planetMeshKey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $ doRotate ch <> tr)) ↑)
-  --   Nothing -> pure rq
 
   -- Handle mouse drag rotation
   Ur mbDrag <- readMouseDrag mouseDragStream
@@ -118,7 +107,7 @@ gameLoop GameData{..} rp rq = Linear.do
           yawDelta = -(realToFrac deltaX * sensitivity)
           pitchDelta = realToFrac deltaY * sensitivity
       (editMeshes planetMeshKey rq (traverse' $ propertyAt @0 (\(Ur tr) ->
-            pure $ Ur $ rotateY yawDelta <> rotateX pitchDelta <> tr)) ↑)
+            pure $ Ur $ rotateY yawDelta <> rotateX pitchDelta <> tr)))
     Nothing -> pure rq
 
   -- Render!
@@ -145,22 +134,22 @@ dimensions = (1920, 1080)
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore dimensions Linear.do
+  runRenderer dimensions Linear.do
     Ur charStream <- registerCharStream
     Ur mouseDragStream <- registerMouseDragStream $ do
       -- Is drag allowed? not if imgui is using the mouse
       Prelude.not Prelude.<$> ImGui.wantCaptureMouse
 
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass)
 
     -- Init imgui
-    (rp1, imctx) <- (Alias.useM rp1 ImGui.initImGui ↑)
+    (rp1, imctx) <- (Alias.useM rp1 ImGui.initImGui)
 
-    pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil) ↑)
+    pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil))
     -- todo: minmax should be per-mesh
     ( (pmesh, pipeline),
-      Ur minmax )    <- (newPlanetMesh pipeline defaultPlanet ↑)
-    (pmat, pipeline) <- (newPlanetMaterial minmax pipeline defaultPlanet ↑)
+      Ur minmax )    <- (newPlanetMesh pipeline defaultPlanet)
+    (pmat, pipeline) <- (newPlanetMaterial minmax pipeline defaultPlanet)
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
@@ -169,8 +158,8 @@ main = do
 
     rq <- gameLoop GameData{planet=defaultPlanet, planetMeshKey=mshkey, ..} rp2 rq
 
-    (freeRenderQueue rq ↑)
-    (ImGui.destroyImCtx imctx ↑)
+    (freeRenderQueue rq)
+    (ImGui.destroyImCtx imctx)
 
     return (Ur ())
 

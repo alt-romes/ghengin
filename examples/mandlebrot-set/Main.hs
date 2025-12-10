@@ -87,7 +87,7 @@ gameLoop (WithVec2 previousPosX previousPosY) pkey rq = Linear.do
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore WINDOW_SIZE Linear.do
+  runRenderer WINDOW_SIZE Linear.do
     pipeline             <- (makeMainPipeline ↑)
     -- perhaps we should allow a way to bind meshes without materials? no! they
     -- have to be compatible, and it turns out in this shader pipeline every

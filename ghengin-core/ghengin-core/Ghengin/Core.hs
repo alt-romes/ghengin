@@ -40,40 +40,15 @@ import qualified Vulkan as Vk
 
 import qualified Unsafe.Linear as Unsafe
 
-data CoreState
-  = CoreState { frameCounter :: {-# UNPACK #-} !Int
-              }
--- Todo: I think we should not have Core. Just Renderer directly. Then Ghengin
--- would wrap just Renderer and make it easier to write a game.
-newtype Core α = Core (StateT CoreState Renderer α)
-  deriving (Functor, Data.Functor, Applicative, Data.Applicative, Monad, MonadIO, HasLogger)
-
--- ROMES:TODO: Eventually, the base configuration of the Core engine renderer should be passed in a record "RenderConfig"
-
-runCore :: (Int, Int)
-        -- ^ Dimensions of the window the Core engine renderer will render on
-        -> Core a ⊸ IO a
-runCore dimensions (Core st)
-  = runRenderer dimensions $ Linear.do
-      (a, CoreState i) <- runStateT st (CoreState 0)
-      () <- pure (consume i)
-      return a
-
--- | A postfix operator to lift Renderer computations to Core (postfix version of liftCore)
---
--- Example usage: @ Ur ext <- ( getRenderExtent ↑ )@
---
--- Digraph (-!) in vim, i.e. typing <C-k>-! in insert mode, inserts ↑.
-(↑), liftCore :: Renderer a ⊸ Core a
-(↑)      = Core . lift
-liftCore = Core . lift
+-- ROMES:TODO: Eventually, the base configuration of the Renderer should be passed in a record "RenderConfig"
+-- For which there should be command line arguments automatically created.
 
 -- | Renders a render queue under the given render pass.
 --
 -- For more fine-grained control of the render command to run see 'renderWith'
 render :: Alias RenderPass -- ^ The render pass under which all pipelines in the queue will be rendered (must be compatible with the pipelines declared renderpass!)
         ⊸ RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
-        ⊸ Core (Alias RenderPass, RenderQueue ())
+        ⊸ Renderer (Alias RenderPass, RenderQueue ())
 render rp rq = do
 
   renderWith $ Linear.do
@@ -116,25 +91,12 @@ render rp rq = do
 -- render queue has no meshes, but we still want to draw the pipelines that
 -- command will bind. It uses gl_VertexIndex in the vertex shader.
 -- See https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/ for instance.
-renderWith :: CommandM Renderer a ⊸ Core a
-renderWith command = Core $ StateT $ \CoreState{frameCounter=fcounter'} -> enterD "render" $ Linear.do
-  Ur fcounter    <- pure (move fcounter')
+renderWith :: CommandM Renderer a ⊸ Renderer a
+renderWith command = enterD "render" $ Linear.do
 
-  -- This could in principle overflow... For now, good enough. It's
-  -- unlikely the frame count overflows with only 60 frames per second.
-  -- The game would have to run for years to overflow a 64 bit integer
-  let frameIndex = fcounter `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
+  withCurrentFramePresent $ \cmdBuffer currentImage -> enterD "withCurrentFramePresent" $ Linear.do
 
-  withCurrentFramePresent frameIndex $ \cmdBuffer currentImage -> enterD "withCurrentFramePresent" $ Linear.do
-
-    -- TODO: Allow custom Command or RenderPassCmd rather than hardcoding it in render.
-    (x, cmdBuffer') <- recordCommand currentImage cmdBuffer command
-
-    -- We can return the unsafe queue after having rendered from it because
-    -- rendering does not do anything to the resources in the render queue (it
-    -- only draws the scene specified by it) It is rather edited by the game,
-    -- in the loops before rendering
-    pure ((x, CoreState{frameCounter=fcounter+1}), cmdBuffer')
+    recordCommand currentImage cmdBuffer command
 
 
 {- |
@@ -183,7 +145,7 @@ renderQueueCmd (RenderQueue renderQueue) = RenderQueue Linear.<$> Linear.do
   -- they come, we should bind the pipeline once and each material once.
 
   -- I can prob make this linear simply by using mapAccumL
-  Data.traverse (Unsafe.toLinear \(Some2 @RenderPipeline @π @bs pipeline, materials) -> enterD "Traverse: pipeline" Linear.do
+  Data.traverse (Unsafe.toLinear \(Some2 @RenderPipeline @_π @_bs pipeline, materials) -> enterD "Traverse: pipeline" Linear.do
 
       logT "Binding pipeline"
       (graphicsPipeline, rebuildPipeline) <- pure $ getGraphicsPipeline pipeline
@@ -228,7 +190,7 @@ renderQueueCmd (RenderQueue renderQueue) = RenderQueue Linear.<$> Linear.do
 
 handleMaterial :: (Some Material, MeshMap ())
                 ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) (Some Material, MeshMap ())
-handleMaterial (Some @Material @ms material, meshes) = StateT $ \graphicsPipeline -> enterD "Material changed" Linear.do
+handleMaterial (Some @Material @_ms material, meshes) = StateT $ \graphicsPipeline -> enterD "Material changed" Linear.do
 
   lift (descriptors material) >>= \case
 
@@ -254,7 +216,7 @@ handleMaterial (Some @Material @ms material, meshes) = StateT $ \graphicsPipelin
     return ((Some material'', meshes'), graphicsPipeline)
 
 handleMeshes :: [(Some2 Mesh, ())] ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) [(Some2 Mesh, ())]
-handleMeshes meshes = flip Data.traverse meshes $ \(Some2 @Mesh @ts mesh0, ()) -> StateT $ \graphicsPipeline -> enterD "Mesh changed" Linear.do
+handleMeshes meshes = flip Data.traverse meshes $ \(Some2 @Mesh @_ts mesh0, ()) -> StateT $ \graphicsPipeline -> enterD "Mesh changed" Linear.do
 
   logT "Drawing mesh"
 
@@ -286,6 +248,7 @@ handleMeshes meshes = flip Data.traverse meshes $ \(Some2 @Mesh @ts mesh0, ()) -
 -- The region of the framebuffer that the output will be rendered to. We
 -- render from (0,0) to (width, height) i.e. the whole framebuffer
 -- Defines a transformation from image to framebuffer
+viewport' :: Vk.Extent2D -> Vk.Viewport
 viewport' extent = Vk.Viewport { x = 0.0
                        , y = 0.0
                        , width  = fromIntegral $ extent.width
@@ -296,6 +259,7 @@ viewport' extent = Vk.Viewport { x = 0.0
 
 -- Defines the region in which pixels will actually be stored. Any pixels
 -- outside of the scissor will be discarded. We keep it as the whole viewport
+scissor' :: Vk.Extent2D -> Vk.Rect2D
 scissor' extent = Vk.Rect2D (Vk.Offset2D 0 0) extent
 
 -- | Write a property value to its corresponding resource.
@@ -310,7 +274,7 @@ scissor' extent = Vk.Rect2D (Vk.Offset2D 0 0) extent
 -- The important logic is done by 'writeProperty', this function simply iterates over the properties to write them
 --
 -- The render property bindings function should be created from a compatible pipeline
-writePropertiesToResources :: ∀ φ α ω. HasProperties φ => ResourceMap ⊸ φ α ⊸ Renderer (ResourceMap, φ α)
+writePropertiesToResources :: ∀ φ α. HasProperties φ => ResourceMap ⊸ φ α ⊸ Renderer (ResourceMap, φ α)
 writePropertiesToResources rmap' fi
   = enterD "writePropertiesToResources"
     Linear.do (pbs, fi')     <- properties fi

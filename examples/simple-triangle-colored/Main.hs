@@ -26,11 +26,11 @@ triangleVerticesWithColors =
   , vec3 0.5 0.5    1 :&: vec3 0 1 0
   ]
 
-gameLoop :: Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop :: Alias RenderPass ⊸ RenderQueue () ⊸ Renderer (RenderQueue ())
 gameLoop rp rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
- if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
-  (pollWindowEvents ↑)
+ should_close <- shouldCloseWindow
+ if should_close then Alias.forget rp >> return rq else Linear.do
+  pollWindowEvents
 
   (rp, rq) <- render rp rq
 
@@ -39,21 +39,22 @@ gameLoop rp rq = Linear.do
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (640, 480) Linear.do
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+  runRenderer (640, 480) Linear.do
+    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
 
-    pipeline <- (makeRenderPipeline rp1 shaderPipelineColors GHNil ↑)
-    (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    (mesh, pipeline) <- (createMeshWithIxs pipeline GHNil triangleVerticesWithColors [0, 1, 2] ↑)
+    pipeline <- makeRenderPipeline rp1 shaderPipelineColors GHNil
+    (emptyMat, pipeline) <- material GHNil pipeline
+    (mesh, pipeline) <- createMeshWithIxs pipeline GHNil triangleVerticesWithColors [0, 1, 2]
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
     rq <- gameLoop rp2 rq
 
-    (freeRenderQueue rq ↑)
+    freeRenderQueue rq
+
     -- In fact, freeing these again is a type error. Woho!
-    -- (destroyRenderPipeline pipeline ↑)
+    -- destroyRenderPipeline pipeline
 
     return (Ur ())
 

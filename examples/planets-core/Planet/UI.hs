@@ -4,14 +4,10 @@ module Planet.UI where
 -- ToDo: introduce UI management abstraction in the
 -- not-yet-existent:unrestricted-ghengin-monad which wraps Core.
 
-import qualified Prelude as Base
 import qualified Data.IORef as Base
 import qualified Control.Monad as Base
-import Ghengin.Core
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Render
-import Ghengin.Core.Render.Pipeline
-import Ghengin.Core.Render.Queue
 
 import qualified Ghengin.DearImGui.Vulkan as ImGui
 import Ghengin.DearImGui.UI
@@ -22,7 +18,7 @@ import Planet
 -- always create a function: @forall a. a -> Core (Ur (a, Bool))@, where the
 -- result is the new value of type @a@ and the bool indicates whether it has
 -- changed. See `Widget`
-preparePlanetUI :: Planet -> Core (Ur (Planet, Bool, Bool))
+preparePlanetUI :: Planet -> Renderer (Ur (Planet, Bool, Bool))
 preparePlanetUI Planet{..} = Linear.do
 
   Ur changedShapeRef   <- liftIO (newIORef False)

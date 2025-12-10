@@ -13,7 +13,7 @@ module Ghengin.Core.Log
 import Data.Bifunctor
 import Ghengin.Core.Prelude as G
 import System.Log.FastLogger
-import qualified Prelude (take, return)
+import qualified Prelude (take, cycle)
 
 
 #ifdef THINGS_ARE_GOING_THAT_BAD
@@ -49,7 +49,7 @@ log :: (ToLogStr msg, HasLogger m) => msg -> m ()
 {-# INLINE log #-}
 log msg = getLogger >>= \(Ur logger) -> G.do
   let -- Log with preceeding unicode symbols
-      leading_syms = Prelude.take (logger._depth*2) (cycle ['│',' '])
+      leading_syms = Prelude.take (logger._depth*2) (Prelude.cycle ['│',' '])
       full_msg = toLogStr leading_syms <> toLogStr msg <> toLogStr "\n"
   liftSystemIO $
 #ifndef THINGS_ARE_GOING_THAT_BAD

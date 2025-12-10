@@ -69,7 +69,7 @@ gameLoop pkey lastTime rq = Linear.do
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore WINDOW_SIZE Linear.do
+  runRenderer WINDOW_SIZE Linear.do
     (rq, Ur pkey) <- (renderQueueWithViewport shaderPipeline ↑)
     Ur now <- liftSystemIOU getCurrentTime
 
