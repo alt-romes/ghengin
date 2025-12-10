@@ -7,12 +7,18 @@ module Ghengin.Core.Input
   , registerCharStream, registerScrollStream
   , readCharInput, readScrollInput
 
+  -- ** Mouse
+  , MouseDrag(..), MouseDragStream
+  , registerMouseDragStream, readMouseDrag
+
   -- * Lower level
   , CharCallback, ScrollCallback, KeyCallback
   , setCharCallback, setScrollCallback, setKeyCallback
   ) where
 
 import qualified Prelude
+import qualified Control.Monad as Base
+import qualified Data.IORef as Base
 import Ghengin.Core.Prelude as Linear
 
 import Control.Monad.STM
@@ -57,6 +63,61 @@ registerScrollStream = Linear.do
 readScrollInput :: ScrollStream -> Core (Ur (Maybe (Double, Double)))
 readScrollInput (SS chan) = liftSystemIOU $ atomically $ tryReadTChan chan
 
+-- ** Mouse
+
+data MouseDrag = MouseDrag
+  { dragDeltaX :: Double
+  , dragDeltaY :: Double
+  }
+
+newtype MouseDragStream = MDS (TChan MouseDrag)
+
+-- | Register mouse button and cursor position callbacks to produce a 'MouseDragStream'
+-- that can be easily consumed with 'readMouseDrag'.
+--
+-- Takes an action which can additionally disallow a dragging to start by returning @False@.
+-- This is typically useful if you are using dear-imgui and want to prevent
+-- dragging actions at the same time as interacting with the UI.
+-- See planets-core for an example.
+registerMouseDragStream :: Prelude.IO Bool -> Core (Ur MouseDragStream)
+registerMouseDragStream dragIsAllowedIO = Linear.do
+  Ur chan <- liftSystemIOU newTChanIO
+  Ur stateRef <- liftSystemIOU $ Base.newIORef (False, 0, 0) -- (isDragging, lastX, lastY)
+  
+  -- Set cursor position callback
+  setCursorPosCallback (Just $ \x y -> do
+    (isDragging, lastX, lastY) <- Base.readIORef stateRef
+
+    Base.when isDragging $ do
+      let deltaX = x - lastX
+          deltaY = y - lastY
+      atomically $ writeTChan chan (MouseDrag deltaX deltaY)
+    Base.writeIORef stateRef (isDragging, x, y)
+    )
+  
+  -- Set mouse button callback
+  setMouseButtonCallback (Just $ \btn state mods -> do
+
+    dragIsAllowed <- dragIsAllowedIO
+
+    Base.when (case btn of GLFW.MouseButton'1 -> True; _ -> False) $ do
+      (_, lastX, lastY) <- Base.readIORef stateRef
+      case (dragIsAllowed, state) of
+        (True, GLFW.MouseButtonState'Pressed) ->
+          Base.writeIORef stateRef (True, lastX, lastY)
+        (False, GLFW.MouseButtonState'Pressed) ->
+          Prelude.pure () -- do Nothing
+        (_, GLFW.MouseButtonState'Released) ->
+          -- always allow releasing
+          Base.writeIORef stateRef (False, lastX, lastY)
+    )
+  
+  return (Ur (MDS chan))
+
+-- | Read mouse drag deltas -- returns Nothing if no drag occurred rather than blocking.
+readMouseDrag :: MouseDragStream -> Core (Ur (Maybe MouseDrag))
+readMouseDrag (MDS chan) = liftSystemIOU $ atomically $ tryReadTChan chan
+
 --------------------------------------------------------------------------------
 -- Lower level
 
@@ -84,3 +145,20 @@ setKeyCallback cb = liftCore $ withWindow $
     liftSystemIO $ GLFW.setKeyCallback w (const Prelude.<$> cb)
     return w
 
+-- ** Mouse
+
+type CursorPosCallback = Double -> Double -> Prelude.IO ()
+
+setCursorPosCallback :: Maybe CursorPosCallback -> Core ()
+setCursorPosCallback cb = liftCore $ withWindow $
+  Unsafe.toLinear \w -> Linear.do
+    liftSystemIO $ GLFW.setCursorPosCallback w (const Prelude.<$> cb)
+    return w
+
+type MouseButtonCallback = GLFW.MouseButton -> GLFW.MouseButtonState -> GLFW.ModifierKeys -> Prelude.IO ()
+
+setMouseButtonCallback :: Maybe MouseButtonCallback -> Core ()
+setMouseButtonCallback cb = liftCore $ withWindow $
+  Unsafe.toLinear \w -> Linear.do
+    liftSystemIO $ GLFW.setMouseButtonCallback w (const Prelude.<$> cb)
+    return w

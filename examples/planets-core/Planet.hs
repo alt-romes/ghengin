@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE UndecidableInstances #-}
 module Planet where
 
@@ -48,8 +49,7 @@ import Planet.Noise
 -- * Planet
 --------------------------------------------------------------------------------
 
-data Planet = Planet { resolution  :: !(InRange 2 512 Int)
-                     , planetShape :: !PlanetShape
+data Planet = Planet { planetShape :: !PlanetShape
                      , planetColor :: !PlanetColor
                      }
                      deriving Eq
@@ -76,8 +76,9 @@ type PlanetMeshVerts = '[Vec3, Vec3]
 type PlanetMesh = Mesh '[Vec3, Vec3] '[Transform]
 
 data PlanetShape = PlanetShape
-  { planetRadius :: !(InRange 0 100 Float)
-  , planetNoise  :: !(Collapsible "Noise section" Noise)
+  { planetResolution :: !(InRange 2 512 Int)
+  , planetRadius     :: !(InRange 0 100 Float)
+  , planetNoise      :: !(Collapsible "Noise section" Noise)
   }
   deriving Eq
   deriving GHC.Generic
@@ -104,7 +105,7 @@ newPlanetMesh :: _ -- more constraints
               -> Renderer ((PlanetMesh, RenderPipeline π bs), Ur MinMax)
 newPlanetMesh rp Planet{..} = Linear.do
 
-  let UnitSphere us is0 = newUnitSphere (inRangeVal resolution)
+  let UnitSphere us is0 = newUnitSphere (inRangeVal planetShape.planetResolution)
 
       (planetPs, elevations)
                = V.unzip $ V.map (\(p :&: _) -> pointOnPlanet planetShape p) (V.convert us)
@@ -124,7 +125,7 @@ type PlanetMaterialAttrs = '[MinMax, Texture2D (RGBA8 UNorm)]
 type PlanetMaterial = Material PlanetMaterialAttrs
 
 data PlanetColor = PlanetColor
-  { planetColors :: [(InRange 0 100 Float, Color)]
+  { planetColors :: [(InRange 0 100 Int, Color)]
   -- ^ A list of a percentage value and the color to use up to that percentage
   }
   deriving Eq
@@ -150,7 +151,7 @@ planetTexture PlanetColor{planetColors} = Linear.do
   sampler <- createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
   -- Generate a gradient image. Single pixel height, one pixel of a color per percent.
   let gradientImg = generateImage pixelPaint 100{-width=100%-} 100{-height=1 pixel-}
-      pixelPaint x _ = case find (\(InRange limit, _) -> x < round limit) planetColors of
+      pixelPaint x _ = case find (\(InRange limit, _) -> x < limit) planetColors of
         Nothing -> PixelRGBA8 255 255 255 255
         Just (_, Color (WithVec3 r g b)) -> PixelRGBA8 (round (r*255)) (round (g*255)) (round (b*255)) 255
   liftSystemIO $ savePngImage "my_generated_gradient_texture.png" (ImageRGBA8 gradientImg)
