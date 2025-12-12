@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wno-missing-local-signatures #-}
+{-# OPTIONS_GHC -Wno-missing-local-signatures -Wno-missing-signatures #-}
 
 {-# LANGUAGE CPP                   #-}
 {-# LANGUAGE BlockArguments        #-}
@@ -81,6 +81,6 @@ fragmentSimple = shader do
   #out_colour .= Vec4 r g b 1
 
   where
-    f1 x = x ** 5
+    f1 p = p ** 5
     f2 = smoothstep 0.1 0.9
-    f3 x = sin (2*pi*x) / 2 + 0.5
+    f3 p = sin (2*pi*p) / 2 + 0.5

@@ -60,36 +60,36 @@ gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
          -> Float -- ^ rotation
          -> Alias RenderPass
           ⊸ RenderQueue ()
-          ⊸ Core (RenderQueue ())
+          ⊸ Renderer (RenderQueue ())
 gameLoop ckey mkey rot rp rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
- if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
-  (pollWindowEvents ↑)
+ should_close <- shouldCloseWindow
+ if should_close then Alias.forget rp >> return rq else Linear.do
+  pollWindowEvents
 
   (rp, rq) <- render rp rq
-  rq <- (editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
-    translate 0 0 10 <> rotateY rot <> rotateX (-rot) <> scale 5)) ↑)
+  rq <- editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
+    translate 0 0 10 <> rotateY rot <> rotateX (-rot) <> scale 5))
 
   gameLoop ckey mkey (rot+0.01) rp rq
 
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (640, 480) Linear.do
+  runRenderer (640, 480) Linear.do
 
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
-    pipeline <- (makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil) ↑)
-    (emptyMat, pipeline) <- (material GHNil pipeline ↑)
+    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
+    pipeline <- makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur defaultCamera) :## GHNil)
+    (emptyMat, pipeline) <- material GHNil pipeline
     (mesh :: CubeMesh, pipeline) <-
       -- Also displays how TH can be used to create procedural meshes at compile time when the parameters are statically known
-      (createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) ($$(TH.liftTyped coloredCube)) ↑)
+      createMesh pipeline (DynamicBinding (Ur (rotateY (pi/4))) :## GHNil) ($$(TH.liftTyped coloredCube))
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
     rq <- gameLoop pkey mshkey 0 rp2 rq
 
-    (freeRenderQueue rq ↑)
+    freeRenderQueue rq
 
     return (Ur ())
 

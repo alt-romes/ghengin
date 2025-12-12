@@ -42,18 +42,18 @@ import Data.Time.Clock.POSIX
 import Shaders
 import Common
 
-gameLoop :: forall (_s :: FIR.PipelineInfo). Vec2 -> PipelineKey _s PipelineProps -> RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop :: forall (_s :: FIR.PipelineInfo). Vec2 -> PipelineKey _s PipelineProps -> RenderQueue () ⊸ Renderer (RenderQueue ())
 gameLoop (WithVec2 previousPosX previousPosY) pkey rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
+ should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
-  (pollWindowEvents ↑)
+  pollWindowEvents
 
-  Ur (double2Float -> newPosX, double2Float -> newPosY) <- (getMousePos ↑)
+  Ur (double2Float -> newPosX, double2Float -> newPosY) <- (getMousePos)
   liftSystemIO $ print (newPosX, newPosY)
 
   let Ur pos = Ur $ vec2 (0.5 * (previousPosX + newPosX)) (0.5 * (previousPosY + newPosY))
 
-  rq' <- (editPipeline pkey rq (propertyAt @1 (\(Ur (Time time)) -> pure $ Ur $ Time ((time+0.001))) <=< propertyAt @0 (\(Ur _) -> pure $ Ur $ MousePos pos)) ↑)
+  rq' <- editPipeline pkey rq (propertyAt @1 (\(Ur (Time time)) -> pure $ Ur $ Time ((time+0.001))) <=< propertyAt @0 (\(Ur _) -> pure $ Ur $ MousePos pos))
 
   Ur prev <- liftSystemIOU getCurrentTime
   rq'' <- render rq'
@@ -66,16 +66,13 @@ gameLoop (WithVec2 previousPosX previousPosY) pkey rq = Linear.do
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore WINDOW_SIZE Linear.do
-    (rq, Ur pkey) <- (renderQueueWithViewport shaderPipeline ↑)
+  runRenderer WINDOW_SIZE Linear.do
+    (rq, Ur pkey) <- renderQueueWithViewport shaderPipeline
 
-    Ur (x,y)   <- (getMousePos ↑)
+    Ur (x,y) <- getMousePos
     rq <- gameLoop (vec2 (double2Float x) (double2Float y)) pkey rq
 
-    (freeRenderQueue rq ↑)
-
-    -- In fact, freeing these again is a type error. Woho!
-    -- (destroyRenderPipeline pipeline ↑)
+    freeRenderQueue rq
 
     return (Ur ())
 

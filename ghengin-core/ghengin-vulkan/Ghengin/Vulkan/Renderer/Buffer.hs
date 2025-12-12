@@ -226,7 +226,7 @@ unmapMemory :: Vk.DeviceMemory
              ⊸ Ptr ()
              -- ^ The pointer to the mapped region on the CPU
              ⊸ Renderer Vk.DeviceMemory
-unmapMemory = Unsafe.toLinear2 $ \stgMem hostMem -> enterD "unmapMemory" $ Linear.do
+unmapMemory = Unsafe.toLinear2 $ \stgMem _hostMem -> enterD "unmapMemory" $ Linear.do
   unsafeUseDevice $ \device -> Vk.unmapMemory device stgMem
   -- Host mem is not returned because it becomes unavailable after unmapping.
   pure stgMem

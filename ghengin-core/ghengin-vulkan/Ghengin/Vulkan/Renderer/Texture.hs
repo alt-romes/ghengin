@@ -105,13 +105,13 @@ newTexture img sampler' =
     (stagingBuffer, image) <- immediateSubmit $ Linear.do
 
       -- (1) 
-      image <- transitionImageLayout image (imagePixelFormat img) Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+      image <- transitionImageLayout image Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
 
       -- (2)
       (stagingBuffer, image) <- copyFullBufferToImage stagingBuffer image (imageExtent img)
 
       -- (3)
-      (image) <- transitionImageLayout image (imagePixelFormat img) Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+      (image) <- transitionImageLayout image Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
       pure (stagingBuffer, image)
 

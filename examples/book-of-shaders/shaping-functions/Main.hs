@@ -23,11 +23,11 @@ import Shaders
 --  https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 --------------------------------------------------------------------------------
 
-gameLoop :: Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
+gameLoop :: Alias RenderPass ⊸ RenderQueue () ⊸ Renderer (RenderQueue ())
 gameLoop rp rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
- if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
-  (pollWindowEvents ↑)
+ should_close <- shouldCloseWindow
+ if should_close then Alias.forget rp >> return rq else Linear.do
+  pollWindowEvents
 
   (rp, rq) <- renderWith $ Linear.do
 
@@ -48,16 +48,16 @@ gameLoop rp rq = Linear.do
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (width, height) Linear.do
+  runRenderer (width, height) Linear.do
 
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
 
-    pipeline      <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullBack} rp1 shaderPipelineSimple GHNil ↑)
+    pipeline      <- makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullBack} rp1 shaderPipelineSimple GHNil
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
     rq <- gameLoop rp2 rq
 
-    (freeRenderQueue rq ↑)
+    freeRenderQueue rq
 
     return (Ur ())
 

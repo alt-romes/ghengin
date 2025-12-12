@@ -49,11 +49,11 @@ gameLoop :: PipelineKey _ '[Camera "view_matrix" "proj_matrix"] -- ^ rq key to c
          -> Vec3 -- ^ last position
          -> Alias RenderPass
           ⊸ RenderQueue ()
-          ⊸ Core (RenderQueue ())
+          ⊸ Renderer (RenderQueue ())
 gameLoop ckey matkey mkey last rp rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
- if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
-  (pollWindowEvents ↑)
+ should_close <- shouldCloseWindow
+ if should_close then Alias.forget rp >> return rq else Linear.do
+  pollWindowEvents
 
   let
       (x',y',z') = lorenzInc (x,y,z)
@@ -67,30 +67,29 @@ gameLoop ckey matkey mkey last rp rq = Linear.do
 main :: Prelude.IO ()
 main = do
  withLinearIO $
-  runCore (1920, 1080) Linear.do
+  runRenderer (1920, 1080) Linear.do
 
     let start_points = List.map (Sin Prelude.. tupleToVec3) $
           List.take 50000 $ List.iterate' lorenzNext (0, 1, 0) -- [Sin (vec3 0 1 0), Sin (tupleToVec3 $ lorenzNext (0, 1, 0))]
 
-    (clearRenderImages 0 0 0 1 ↑)
+    clearRenderImages 0 0 0 1
 
-    (rp1, rp2) <- (Alias.share =<< createRenderPassFromSettings RenderPassSettings{keepColor=True} ↑)
+    (rp1, rp2) <- Alias.share =<< createRenderPassFromSettings RenderPassSettings{keepColor=True}
 
-    pipeline <- (makeRenderPipelineWith defaultGraphicsPipelineSettings{blendMode=BlendAdd}
-                   rp1 shaderPipeline (StaticBinding (Ur myCamera) :## GHNil) ↑)
-    (emptyMat, pipeline) <- (material GHNil pipeline ↑)
+    pipeline <- makeRenderPipelineWith defaultGraphicsPipelineSettings{blendMode=BlendAdd}
+                   rp1 shaderPipeline (StaticBinding (Ur myCamera) :## GHNil)
+    (emptyMat, pipeline) <- material GHNil pipeline
 
     (mesh :: Points, pipeline) <-
-      (createMesh pipeline GHNil start_points ↑)
+      createMesh pipeline GHNil start_points
 
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
-
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
     rq <- gameLoop pkey mkey mshkey (vec3 0 1 0) rp2 rq
 
-    (freeRenderQueue rq ↑)
+    freeRenderQueue rq
 
     return (Ur ())
 

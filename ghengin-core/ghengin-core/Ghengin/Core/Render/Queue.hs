@@ -246,15 +246,15 @@ freeRenderQueue :: RenderQueue ()
                  ⊸ Renderer ()
 freeRenderQueue (RenderQueue rq) = Linear.do
   -- For every pipeline
-  pipesunit <- DL.traverse (\(Some2 @RenderPipeline @π @bs pipeline, materials) -> enterD "Freeing pipeline" Linear.do
+  pipesunit <- DL.traverse (\(Some2 @RenderPipeline @_π @_bs pipeline, materials) -> enterD "Freeing pipeline" Linear.do
 
     -- For every material...
-    matsunits <- DL.traverse (\(Some @Material @ms material, meshes) -> enterD "Freeing material" Linear.do
+    matsunits <- DL.traverse (\(Some @Material @_ms material, meshes) -> enterD "Freeing material" Linear.do
 
       -- For all meshes...
       meshunits <- DL.traverse (\meshes' -> Linear.do
         -- For every mesh with the same id...
-        meshunits' <- DL.traverse (\(Some2 @Mesh @ts mesh, ()) -> enterD "Freeing mesh" Linear.do
+        meshunits' <- DL.traverse (\(Some2 @Mesh @_ts mesh, ()) -> enterD "Freeing mesh" Linear.do
           freeMesh mesh
           ) meshes' -- a list of meshes with the same id
         pure (consume meshunits')

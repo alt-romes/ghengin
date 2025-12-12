@@ -74,11 +74,11 @@ gameLoop :: PipelineKey _ '[Camera "view" "proj"] -- ^ rq key to camera
          -> MeshKey _ _ _ _ '[] -- ^ rq key to cube mesh
          -> Alias RenderPass
           ⊸ RenderQueue ()
-          ⊸ Core (RenderQueue ())
+          ⊸ Renderer (RenderQueue ())
 gameLoop ckey mkey rp rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
- if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
-  (pollWindowEvents ↑)
+ should_close <- shouldCloseWindow
+ if should_close then Alias.forget rp >> return rq else Linear.do
+  pollWindowEvents
 
   (rp, rq) <- render rp rq
 
@@ -87,12 +87,12 @@ gameLoop ckey mkey rp rq = Linear.do
 main :: Prelude.IO ()
 main = 
  withLinearIO $
-  runCore (640, 480) Linear.do
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass ↑)
+  runRenderer (640, 480) Linear.do
+    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
 
-    pipeline :: RenderPipeline π ps <- (makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur (cameraLookAt @"view" @"proj" (vec3 0 0 0) (vec3 0 0 1) (640, 480))) :## GHNil) ↑)
-    (emptyMat, pipeline) <- (material GHNil pipeline ↑)
-    (mesh :: IcosahedronMesh, pipeline) <- (createMeshWithIxs pipeline GHNil icosahedronVerts icosahedronIndices ↑)
+    pipeline :: RenderPipeline π ps <- makeRenderPipeline rp1 shaderPipeline (StaticBinding (Ur (cameraLookAt @"view" @"proj" (vec3 0 0 0) (vec3 0 0 1) (640, 480))) :## GHNil)
+    (emptyMat, pipeline) <- material GHNil pipeline
+    (mesh :: IcosahedronMesh, pipeline) <- createMeshWithIxs pipeline GHNil icosahedronVerts icosahedronIndices
 
     (rq, Ur pkey)    <- pure (insertPipeline @π @ps pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial @π @ps pkey emptyMat rq)
@@ -100,6 +100,6 @@ main =
 
     rq <- gameLoop pkey mshkey rp2 rq
 
-    (freeRenderQueue rq ↑)
+    freeRenderQueue rq
 
     return (Ur ())

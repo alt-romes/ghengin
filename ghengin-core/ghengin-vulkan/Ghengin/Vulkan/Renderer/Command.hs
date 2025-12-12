@@ -63,7 +63,7 @@ module Ghengin.Vulkan.Renderer.Command
 import GHC.TypeLits
 
 import Prelude hiding (($), pure, return)
-import Prelude.Linear (($), Ur(..))
+import Prelude.Linear (($))
 import qualified Prelude.Linear as Linear ((.))
 
 import qualified Data.V.Linear as V
@@ -166,7 +166,8 @@ data CmdInfo = CmdInfo
       -- to index the corresponding auxiliary structures on the right frame
       -- index. For instance, we need this Ix to pick the right framebuffer to
       -- use in the renderpass command.
-      , currentImageIx :: Int }
+      , _currentImageIx :: Int
+      }
 
 -- This interface is safe because the only ways to record the command
 -- (recordCommand, recordCommandOneShot) guarantee the command buffer is
@@ -175,13 +176,13 @@ data CmdInfo = CmdInfo
 --
 -- Therefore, we can instance linear Applicative and Monad for them
 instance Linear.Applicative m => Linear.Applicative (CommandM m) where
-  pure x = Command $ ReaderT $ Unsafe.toLinear \r -> Linear.pure x
+  pure x = Command $ ReaderT $ Unsafe.toLinear \_ -> Linear.pure x
   Command (ReaderT fff) <*> Command (ReaderT ffa) = Command $ ReaderT $ Unsafe.toLinear \r -> fff r Linear.<*> ffa r
   {-# INLINE pure #-}
   {-# INLINE (<*>) #-}
 
 instance Data.Linear.Applicative m => Data.Linear.Applicative (CommandM m) where
-  pure x = Command $ ReaderT $ Unsafe.toLinear \r -> Data.Linear.pure x
+  pure x = Command $ ReaderT $ Unsafe.toLinear \_ -> Data.Linear.pure x
   Command (ReaderT fff) <*> Command (ReaderT ffa) = Command $ ReaderT $ Unsafe.toLinear \r -> fff r Data.Linear.<*> ffa r
   {-# INLINE pure #-}
   {-# INLINE (<*>) #-}
@@ -191,15 +192,15 @@ instance Linear.Monad m => Linear.Monad (CommandM m) where
   {-# INLINE (>>=) #-}
 
 instance Linear.MonadTrans CommandM where
-  lift x = Command $ ReaderT $ Unsafe.toLinear $ \r -> x
+  lift x = Command $ ReaderT $ Unsafe.toLinear $ \_ -> x
   {-# INLINE lift #-}
 
 instance Linear.MonadIO m => Linear.MonadIO (CommandM m) where
-  liftIO x = Command $ ReaderT $ Unsafe.toLinear $ \r -> Linear.liftIO x
+  liftIO x = Command $ ReaderT $ Unsafe.toLinear $ \_ -> Linear.liftIO x
   {-# INLINE liftIO #-}
 
 instance HasLogger m => HasLogger (CommandM m) where
-  getLogger = Command $ ReaderT $ Unsafe.toLinear $ \r -> getLogger
+  getLogger = Command $ ReaderT $ Unsafe.toLinear $ \_ -> getLogger
   withLevelUp (Command (ReaderT fma)) = Command $ ReaderT \r -> withLevelUp (fma r)
   {-# INLINE getLogger #-}
   {-# INLINE withLevelUp #-}
@@ -378,11 +379,10 @@ copyFullBufferToImage buf img extent =
 transitionImageLayout :: forall μ
                        . Linear.MonadIO μ
                       => Vk.Image
-                       ⊸ Vk.Format -- ^ ROMES:TODO: Being ignored?
-                      -> Vk.ImageLayout -- ^ Src layout
+                       ⊸ Vk.ImageLayout -- ^ Src layout
                       -> Vk.ImageLayout -- ^ Dst layout
                       -> CommandM μ Vk.Image
-transitionImageLayout img format srcLayout dstLayout =
+transitionImageLayout img srcLayout dstLayout =
   unsafeCmd img (\buf img' ->
     let
 

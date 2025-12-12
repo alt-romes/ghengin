@@ -99,7 +99,7 @@ instance Shareable m DescriptorResource where
 type BindingsMap = IntMap (Vk.DescriptorType, Vk.ShaderStageFlags)
 
 instance Consumable BindingsMap where
-  consume = Unsafe.toLinear \_bm -> ()
+  consume = Unsafe.toLinear \_bm -> () -- rnf bm
 instance Dupable BindingsMap where
   dup2 = Unsafe.toLinear \bm -> (bm,bm)
 instance Movable BindingsMap where
@@ -108,12 +108,7 @@ instance Movable BindingsMap where
 -- | Mapping from each descriptor set ix to its bindings map
 type DescriptorSetMap = IntMap BindingsMap
 
-data SomeDefs = ∀ defs. FIR.KnownDefinitions defs => SomeDefs
-instance Show SomeDefs where
-  show _ = "SomeDefs"
-
 -- :| From Shaders |:
-
 
 -- | Creates a mapping from descriptor set indexes to a list of their bindings
 -- (corresponding binding type, size, shader stage flags) solely from the shader
@@ -124,29 +119,24 @@ createDescriptorSetBindingsMap ppstages = Ur $ makeDescriptorSetMap (go Prelude.
                                             -- unused, we default to an empty bindings map
                                             <> IM.fromList [(0, mempty), (1, mempty), (2, mempty)]
   where
-    go :: Map FIR.Shader [(SPIRV.PointerTy,SomeDefs,SPIRV.Decorations)]
+    go :: Map FIR.Shader [(SPIRV.PointerTy,SPIRV.Decorations)]
        -> ShaderPipeline info
-       -> Map FIR.Shader [(SPIRV.PointerTy,SomeDefs,SPIRV.Decorations)] -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
+       -> Map FIR.Shader [(SPIRV.PointerTy,SPIRV.Decorations)]
+       -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
     go acc (ShaderPipeline FIR.VertexInput) = acc
     go acc (pipe :>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState)) =
-      go (M.insertWith (Prelude.<>) (FIR.knownValue @stage) (map (\(pt,dc) -> (pt,SomeDefs @defs,dc)) $ M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) acc) pipe
+      go (M.insertWith (Prelude.<>) (FIR.knownValue @stage) (M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) acc) pipe
 
-
-    makeDescriptorSetMap :: Map FIR.Shader [(SPIRV.PointerTy, SomeDefs, SPIRV.Decorations)]
+    makeDescriptorSetMap :: Map FIR.Shader [(SPIRV.PointerTy, SPIRV.Decorations)]
                          -> DescriptorSetMap -- ^ Mapping from descriptor set indexes to a list of their bindings (corresponding binding type, shader stage)
     makeDescriptorSetMap =
       M.foldrWithKey (\shader ls acc' -> 
-        Prelude.foldr (\(pt@(SPIRV.PointerTy _ primTy),somedefs,S.toList -> decs) acc ->
+        Prelude.foldr (\(pt,S.toList -> decs) acc ->
           case decs of
             [SPIRV.Binding (fromIntegral -> bindingIx), SPIRV.DescriptorSet (fromIntegral -> descriptorSetIx)] ->
-              case somedefs of
-                SomeDefs @defs ->
-                  -- For each descriptor we compute the buffer size from  the known definitionn
-                  -- let tsize = getDescriptorBindingSize @defs descriptorSetIx bindingIx
-
-                   IM.insertWith mergeSameDS descriptorSetIx
-                                (IM.singleton bindingIx (descriptorType pt, stageFlag shader))
-                                acc
+               IM.insertWith mergeSameDS descriptorSetIx
+                            (IM.singleton bindingIx (descriptorType pt, stageFlag shader))
+                            acc
             _ -> acc -- we keep folding. currently we don't validate anything futher
           ) acc' ls
         ) Prelude.mempty
@@ -154,18 +144,10 @@ createDescriptorSetBindingsMap ppstages = Ur $ makeDescriptorSetMap (go Prelude.
     mergeSameDS :: BindingsMap
                 -> BindingsMap
                 -> BindingsMap
-    mergeSameDS = IM.mergeWithKey (\_ (dt,sf) (dt',sf') -> if dt Prelude.== dt' then Just (dt, sf .|. sf')
-                                                                                else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id -- TODO: Could pattern match on type equality too?
-
-
--- unused
--- type family FindDescriptorType (set :: Nat) (binding :: Nat) (defs :: [FIR.Definition]) :: Nat where
---   FindDescriptorType set binding (FIR.Global _ '[SPIRV.DescriptorSet set, SPIRV.Binding binding] t:ds) = Ghengin.Utils.SizeOf t
---   FindDescriptorType set binding (_:ds) = FindDescriptorType set binding ds
---   FindDescriptorType set binding '[] = TypeError (Text "Error computing descriptor type")
-
--- What I couldn't do: Prove that the type family application results in a type that always instances a certain class.
-
+    mergeSameDS = IM.mergeWithKey (\_ (dt,sf) (dt',sf') ->
+      if dt Prelude.== dt'
+        then Just (dt, sf .|. sf')
+      else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id
 
 descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType
 descriptorType = \case
@@ -174,7 +156,6 @@ descriptorType = \case
   -- SPIRV.PointerTy SPIRV.Storage.UniformConstant SPIRV.Sampler -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
   SPIRV.PointerTy SPIRV.Storage.UniformConstant (SPIRV.SampledImage _) -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
   x -> error $ "Unexpected/unsupported descriptor set #1 descriptor type: " <> show x
-
 
 ---------------------
 --- : | Pools | : ---
@@ -293,10 +274,6 @@ allocateEmptyDescriptorSet ix = extract <=< allocateEmptyDescriptorSets (VL.make
   where
     extract :: (V 1 DescriptorSet, DescriptorPool) ⊸ Renderer (DescriptorSet, DescriptorPool)
     extract (ds,p) = pure (VL.elim id ds,p)
-    extract (ds,p)   = Linear.do
-      p' <- Alias.newAlias destroyDescriptorPool p
-      freeDescriptorSets p' ds -- This will destroy certainly destroy the pool, since we've just created the reference and haven't shared it.
-      error $ "Internal error: Failed to allocate a single descriptor set #" <> show ix
 
 -- | Like 'allocateEmptyDescriptorSet' but allocate multiple sets at once
 -- INVARIANT: The Int vector does not have duplicate Ints
@@ -450,6 +427,5 @@ freeResourceMap = enterD "Freeing resource map!" . Alias.forget
 -- | Forget a descriptor resource. This might free the resource if it's the last reference to it
 -- (A DescriptorResource wraps a Reference Counted value)
 freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
--- ROMES:TODO: Should I be ensuring this is the last reference here?
 freeDescriptorResource = enterD "Freeing descriptor resource!" . Alias.forget
 

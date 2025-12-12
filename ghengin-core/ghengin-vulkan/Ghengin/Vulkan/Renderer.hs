@@ -34,6 +34,7 @@ import Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data.Linear
 import Control.Monad.IO.Class.Linear
 
+import Data.IORef
 import Data.Bits
 import Data.Word
 
@@ -53,6 +54,7 @@ import qualified Vulkan as Vk
 import Vulkan.Zero (zero)
 
 import Ghengin.Core.Log
+import Ghengin.Core.Type.Utils
 
 import qualified Graphics.UI.GLFW as GLFW
 
@@ -151,13 +153,22 @@ runRenderer dimensions r = Linear.do
 -- TODO: Figure out mismatch between current image index and current image frame.
 --
 -- I don't think we need the `t` transformer any longer!
-withCurrentFramePresent :: Int -- ^ Current frame index
-                        -> ( Vk.CommandBuffer
+withCurrentFramePresent :: ( Vk.CommandBuffer
                               ⊸ Int -- ^ Current image index
                              -> Renderer (a, Vk.CommandBuffer)
                            )
                          ⊸ Renderer a
-withCurrentFramePresent currentFrameIndex action = Linear.do
+withCurrentFramePresent action = Linear.do
+
+  Ur frameCountRef <- Renderer $ asks (\(Ur env) -> Ur (env.frameCounter))
+  Ur frameCount <- liftSystemIOU (readIORef frameCountRef)
+  liftSystemIO $ modifyIORef' frameCountRef (Prelude.+ 1)
+
+  -- This could in principle overflow... For now, good enough. It's
+  -- unlikely the frame count overflows with only 60 frames per second.
+  -- The game would have to run for years to overflow a 64 bit integer
+  let currentFrameIndex = frameCount `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
+
 
   Ur unsafeCurrentFrame <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)
   -- These are all unsafe too
@@ -193,15 +204,6 @@ withCurrentFramePresent currentFrameIndex action = Linear.do
   Unsafe.toLinearN @4 (\_ _ _ _ -> pure ()) cmdBuffer'' imageAvailableSem'' renderFinishedSem'' inFlightFence'
 
   pure a
-
-
--- | Get the current frame and increase the frame index (i.e. the next call to 'advanceCurrentFrame' will return the next frame)
--- advanceCurrentFrame :: Renderer VulkanFrameData
--- advanceCurrentFrame = do
---   nref <- asks (._frameInFlight)
---   n    <- liftIO $ readIORef nref
---   liftIO $ modifyIORef' nref (\x -> (x + 1) `rem` fromIntegral MAX_FRAMES_IN_FLIGHT)
---   asks ((V.! n) . (._frames))
 
 acquireNextImage :: Vk.Semaphore ⊸ Renderer (Ur Int, Vk.Semaphore)
 acquireNextImage = Unsafe.toLinear $ \sem -> Linear.do
@@ -326,20 +328,9 @@ getMousePos = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
   p <- liftSystemIOU (GLFW.getCursorPos _vulkanWindow._window)
   pure (p, renv)
 
--- :| Utils |:
-
--- getRenderExtent :: Renderer Vk.Extent2D
--- getRenderExtent = asks (._vulkanSwapChain._surfaceExtent)
-
--- getDevice :: Renderer Vk.Device
--- getDevice = asks (._vulkanDevice._device)
-
--- rendererBracket :: Renderer a -> (a -> Renderer ext b) -> (a -> Renderer ext c) -> Renderer ext c
--- rendererBracket x f g = Renderer $ ReaderT $ \renv ->
---   bracket (runReaderT (unRenderer x) renv)
---           ((`runReaderT` renv) . unRenderer . f)
---           ((`runReaderT` renv) . unRenderer . g)
-
+--------------------------------------------------------------------------------
+-- * Utils
+--------------------------------------------------------------------------------
 
 (.&&.) :: Bits a => a -> a -> Bool
 x .&&. y = (Prelude./= zeroBits) (x .&. y)
