@@ -27,9 +27,9 @@ type VertexDefs
      , "model"         ':-> Uniform '[ DescriptorSet 2, Binding 0 ]
                              (Struct '[ "m" ':-> M 4 4 Float ])
 
-     , "in_position"   ':-> Input '[ Location 0 ] (V 3 Float)
-     , "in_normal"     ':-> Input '[ Location 1 ] (V 3 Float)
-
+     , "in_position"   ':-> Input '[ Location 0, Component 0 ] (V 3 Float)
+     , "in_normal"     ':-> Input '[ Location 1, Component 0 ] (V 3 Float)
+     , "in_uv_y"       ':-> Input '[ Location 0, Component 3 ] (Float)
      ]
 
 
@@ -76,6 +76,7 @@ fragment :: FragmentShaderModule FragmentDefs _
 fragment = shader do
 
     ~(Vec4 pox poy poz _)  <- get @"in_position_object"
+
     -- ~(Vec4 nx ny nz _)  <- get @"in_normal"
     -- ~(Vec3 cx cy cz)    <- get @"in_color"
 
@@ -84,8 +85,9 @@ fragment = shader do
     max' <- use @(Name "minmax" :.: Name "max")
 
     let col_frac = invLerp (norm (Vec3 pox poy poz)) min' max'
+    let (Vec3 _ n_poy _) = normalise (Vec3 pox poy poz)
 
-    ~(Vec4 cx cy cz _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
+    ~(Vec4 cx cy cz _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac (n_poy*0.5 + 0.5))
 
     let lightDir  = Vec3 (-0.5) 1 0.5
     let lightCol  = Vec3 1 1 1
@@ -106,6 +108,7 @@ fragment = shader do
 type VertexData =
   '[ Slot 0 0 ':-> V 3 Float -- in pos
    , Slot 1 0 ':-> V 3 Float -- in normal
+   , Slot 0 3 ':-> Float -- uv y position
    ]
 
 shaders :: ShaderPipeline _

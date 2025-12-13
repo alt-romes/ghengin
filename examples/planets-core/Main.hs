@@ -67,11 +67,11 @@ import Planet.UI
 data UrGameData π = GameData
   { charStream      :: CharStream
   , mouseDragStream :: MouseDragStream
-  , planetMeshKey   :: MeshKey π '[Camera "view_matrix" "proj_matrix"] '[MinMax, Texture2D (RGBA8 UNorm)] '[Vec3, Vec3] '[Transform]
+  , planetMeshKey   :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
   , planet          :: Planet
   }
 
-gameLoop :: Compatible '[Vec3, Vec3] '[Transform] '[MinMax, Texture2D (RGBA8 UNorm)] '[Camera "view_matrix" "proj_matrix"] π
+gameLoop :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
          => UrGameData π -> Alias RenderPass ⊸ RenderQueue () ⊸ Renderer (RenderQueue ())
 gameLoop GameData{..} rp rq = Linear.do
  logT "New frame" 
@@ -196,19 +196,46 @@ defaultPlanet = Planet
           ]
       }
   , planetColor = PlanetColor
-    { planetColors =
-      Prelude.map
-        (\(bnd, WithVec3 rn gn bn) -> (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255))))
-        [ (1, vec3 0 83 255)
-        , (2, vec3 255 218 0)
-        , (5, vec3 255 120 0)
-        , (10, vec3 60 255 0)
-        , (20, vec3 27 183 0)
-        , (30, vec3 10 163 0)
-        , (40, vec3 158 37 0)
-        , (85, vec3 108 13 0)
-        , (100, vec3 231 231 231)
-        ]
+    { planetBiomes =
+      [ PlanetBiome
+        { biomeColors = mkColors
+          [ (1, vec3 0 83 255)
+          , (2, vec3 255 218 0)
+          , (5, vec3 255 120 0)
+          , (10, vec3 60 255 0)
+          , (20, vec3 27 183 0)
+          , (30, vec3 10 163 0)
+          , (40, vec3 158 37 0)
+          , (85, vec3 108 13 0)
+          , (100, vec3 231 231 231)
+          ]
+        , biomeSize = 2
+        }
+      , PlanetBiome
+        { biomeColors = mkColors
+          [ (1, vec3 200 0 0)
+          , (100, vec3 255 218 0)
+          ]
+        , biomeSize = 1
+        }
+      , PlanetBiome
+        { biomeColors = mkColors
+          [ (1, vec3 0 100 0)
+          , (100, vec3 255 218 0)
+          ]
+        , biomeSize = 1
+        }
+      , PlanetBiome
+        { biomeColors = mkColors
+          [ (1, vec3 0 0 100)
+          , (100, vec3 255 218 0)
+          ]
+        , biomeSize = 1
+        }
+      ]
     }
   }
+  where
+    mkColors = Prelude.map $ \(bnd, WithVec3 rn gn bn) ->
+      (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255)))
 

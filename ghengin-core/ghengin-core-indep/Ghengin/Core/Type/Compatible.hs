@@ -56,7 +56,7 @@ type family Compatible αs δs βs ξs π where
 type CompatibleVertex as p
       = ( MatchPropertiesSize as (InputLocations p)
                               (Text " mesh vertex properties in vertex " :<>: ShowType as)
-                              (Text " inputs in the vertex shader.")
+                              (Text " inputs in the vertex shader (" :<>: ShowType (GetVertexInputInfo p) :<>: Text ").")
         , CompatibleVertex' (Zip (NumbersFromTo 0 (Length as)) as) p
         )
 type CompatibleVertex' :: [(Nat,Type)] -> PipelineInfo -> Constraint
