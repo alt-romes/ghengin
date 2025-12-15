@@ -106,9 +106,9 @@ fragment = shader do
 
 -- | Data for each vertex in this shader pipeline
 type VertexData =
-  '[ Slot 0 0 ':-> V 3 Float -- in pos
+  '[ Slot 0 0 ':-> V 4 Float -- in pos
+   -- , Slot 0 3 ':-> Float -- uv y position (see bug #97 on FIR for why we can't have this yet)
    , Slot 1 0 ':-> V 3 Float -- in normal
-   , Slot 0 3 ':-> Float -- uv y position
    ]
 
 shaders :: ShaderPipeline _

@@ -37,7 +37,6 @@ shaderPipelineSimple
   G.:>-> vertexSimple
   G.:>-> fragmentSimple
 
--- ROMES:TODO: If this were V 3 Float, why don't we get an error? Shouldn't 'Input' 'Location' match 'Slot's?
 type VertexDefs =
   '[ "in_position" ':-> Input '[ Location 0 ] (V 3 Float)
    ]

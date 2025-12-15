@@ -5,7 +5,6 @@ module Ghengin.Core.Mesh.Vertex
   ( Vertex(Sin,(:&),(:&:))
   ) where
 
-import GHC.TypeNats
 import Data.Proxy
 import Graphics.Gl.Block
 import Foreign.Ptr.Diff (Diff(..))
@@ -17,25 +16,38 @@ import Language.Haskell.TH.Syntax
 import Geomancy.Vec3
 import Geomancy.Vec2
 
-
--- ROMES:TODO: It turns out alignment for Vertices is even something else entirely!!!
--- See FIR.Validation.Layout for information about the layout of vertice
+-- | Each vertex in a mesh is composed of a list of attributes (given as a
+-- type-level list of types @vs@).
+--
+-- Every type in @vs@ will occupy exactly one location. We don't currently
+-- support any way to specify two types pertaining to the same location but
+-- with different components. For instance, a @Vertex [Vec3, Float]@ will place
+-- a @Vec3@ in @Location 0@ and a @Float@ in @Location 1@. We validate that
+-- this is what the shader expects using @CompatibleMesh@. Each location is
+-- aligned to 16 bytes.
+--
+-- If your shader wants to have a slightly more complex layout, for example:
+--
+-- @
+-- type VertexData =
+--  '[ Slot 0 0 ':-> V 3 Float -- in pos
+--   , Slot 0 3 ':-> Float -- uv y position
+--   , Slot 1 0 ':-> V 3 Float -- in normal
+--   ]
+-- @
+--
+-- You can still construct a vertex which will match that layout by using
+-- @Vertex [Vec4, Vec3]@ and filling in the last component of the @Vec4@ with
+-- the float.
+--
+-- More complicated layouts (e.g. with Array, starting at a @Component@ other
+-- than 0, etc...) are currently not supported.
+--
+-- See FIR.Validation.Layout for more information about the layout of vertice
 -- information in shaders, slots (locations, components), and references to the
--- specification...
--- https://sheaf.gitlab.io/fir/FIR-Validation-Layout.html
---
--- The vulkan docs for shader layouts:
--- https://docs.vulkan.org/guide/latest/shader_memory_layout.html
---
--- std140 may be very slightly slower (?) if this were put under a lot of stress
--- (though it never will) -- for that case we could use existing vulkan
--- extensions to allow std430 for uniform buffers too (VK_KHR_uniform_buffer_standard_layout)
---
--- So I don't even know if it is possible to provide an instance for a vertex
--- of any attributes. Maybe FIR's Poke can do it...
---
--- Otherwise, we may only allow V4 vertice data and align to that...
-
+-- specification:
+-- - https://sheaf.gitlab.io/fir/FIR-Validation-Layout.html
+-- - https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/TechniquesforWorkingwithVertexData/TechniquesforWorkingwithVertexData.html
 data Vertex vs where
 
   -- | A vertex with a single property
@@ -52,62 +64,23 @@ pattern (:&:) a b = a :& Sin b
 infixr 6 :&:
 {-# COMPLETE (:&:) #-}
 
--- It is kind of precarious to copy over the generic implementation here.
--- Would be better to implement Generic for Vertex, and derive generically Block.
--- May need this https://ryanglscott.github.io/2018/02/11/how-to-derive-generic-for-some-gadts/
--- But failed my attempts because I had to bring into scope type variables in the RHS of the type family and couldn't...
+-- | Serializes the Vertex according to the location/component layout as per the haddocks of @'Vertex'@
+instance Block x => Storable (Vertex '[x]) where
+  sizeOf    _ = 16
+  alignment _ = 16
+  peekByteOff p o         = Sin <$> readPacked p (Diff o)
+  pokeByteOff p o (Sin v) = writePacked p (Diff o) v
 
-instance Block x => Block (Vertex '[x]) where
-  type PackedSize (Vertex '[x]) = PackedSize x
-  alignment140 _ = lcm 16 $ alignment140 (Proxy @x)
-  alignment430 _ = alignment430 (Proxy @x)
-  sizeOf140    _ = roundUp (sizeOf140 (Proxy @x)) (alignment140 (Proxy @x))
-  sizeOf430    _ = roundUp (sizeOf430 (Proxy @x)) (alignment430 (Proxy @x))
-  sizeOfPacked _ = sizeOfPacked (Proxy @x)
-  read140 p (Diff o) = Sin <$> read140 p (Diff o)
-  read430 p (Diff o) = Sin <$> read430 p (Diff o)
-  readPacked p (Diff o) = Sin <$> readPacked p (Diff o)
-  write140 p (Diff o) (Sin a) = write140 p (Diff o) a
-  write430 p (Diff o) (Sin a) = write430 p (Diff o) a
-  writePacked p (Diff o) (Sin a) = writePacked p (Diff o) a
-
-instance (Block (Vertex (y:ys)), Block x) => Block (Vertex (x:y:ys)) where
-  type PackedSize (Vertex (x ': y ': ys)) = PackedSize x + PackedSize (Vertex (y:ys))
-  alignment140 _ = max (alignment140 (Proxy @(Vertex '[x]))) (alignment140 (Proxy @(Vertex (y:ys))))
-  alignment430 _ = max (alignment430 (Proxy @(Vertex '[x]))) (alignment430 (Proxy @(Vertex (y:ys))))
-  sizeOf140    _ = roundUp (sizeOf140 (Proxy @(Vertex '[x]))) (alignment140 (Proxy @(Vertex (y:ys))))
-                   + sizeOf140 (Proxy @(Vertex (y:ys)))
-  sizeOf430    _ = roundUp (sizeOf430 (Proxy @(Vertex '[x]))) (alignment430 (Proxy @(Vertex (y:ys))))
-                   + sizeOf430 (Proxy @(Vertex (y:ys)))
-  sizeOfPacked _ = sizeOfPacked (Proxy @(Vertex '[x])) + sizeOfPacked (Proxy @(Vertex (y:ys)))
-  read140 p (Diff o) =
-    (:&)
-      <$> ((\case Sin x -> x) <$> read140 p (Diff @_ @(Vertex '[x]) o))
-      <*> read140 p (Diff $ o + roundUp (sizeOf140 (Proxy @(Vertex '[x]))) (alignment140 (Proxy @(Vertex (y:ys)))))
-  read430 p (Diff o) =
-    (:&)
-      <$> ((\case Sin x -> x) <$> read430 p (Diff @_ @(Vertex '[x]) o))
-      <*> read430 p (Diff $ o + roundUp (sizeOf430 (Proxy @(Vertex '[x]))) (alignment430 (Proxy @(Vertex (y:ys)))))
-  readPacked p (Diff o) =
-    (:&)
-      <$> ((\case Sin x -> x) <$> readPacked p (Diff @_ @(Vertex '[x]) o))
-      <*> readPacked p (Diff $ o + sizeOfPacked (Proxy @(Vertex '[x])))
-  write140 p (Diff o) (a :& b) = do
-    write140 p (Diff o) (Sin a)
-    write140 p (Diff $ o + roundUp (sizeOf140 (Proxy @(Vertex '[x]))) (alignment140 (Proxy @(Vertex (y:ys))))) b
-  write430 p (Diff o) (a :& b) = do
-    write430 p (Diff o) (Sin a)
-    write430 p (Diff $ o + roundUp (sizeOf430 (Proxy @(Vertex '[x]))) (alignment430 (Proxy @(Vertex (y:ys))))) b
-  writePacked p (Diff o) (a :& b) = do
-    writePacked p (Diff o) (Sin a)
-    writePacked p (Diff $ o + sizeOfPacked (Proxy @(Vertex '[x]))) b
-
--- NB: We use Std140 for Storable Vertex, which isn't quite right since
--- vertices need to abide by the location/component layout, but is fine for now.
---
--- A good explanation is in https://developer.apple.com/library/archive/documentation/3DDrawing/Conceptual/OpenGLES_ProgrammingGuide/TechniquesforWorkingwithVertexData/TechniquesforWorkingwithVertexData.html
-deriving via (Std140 (Vertex '[x])) instance Block x => Storable (Vertex '[x])
-deriving via (Std140 (Vertex (x:y:ys))) instance (Block x, Block (Vertex (y:ys))) => Storable (Vertex (x:y:ys))
+-- | Serializes the Vertex according to the location/component layout as per the haddocks of @'Vertex'@
+instance (Storable (Vertex (y:ys)), Block x) => Storable (Vertex (x:y:ys)) where
+  sizeOf    _ = 16 + sizeOf (undefined :: Vertex (y:ys))
+  alignment _ = 16
+  peekByteOff p o =
+    (:&) <$> readPacked p (Diff o)
+         <*> peekByteOff p (o + roundUp (sizeOfPacked (Proxy :: Proxy x)) 16)
+  pokeByteOff p o (v :& vs) = do
+    writePacked p (Diff o) v
+    pokeByteOff p (o + roundUp (sizeOfPacked (Proxy :: Proxy x)) 16) vs
 
 instance Show x => Show (Vertex '[x]) where
   show (Sin x) = show x

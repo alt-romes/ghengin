@@ -24,7 +24,8 @@ import Geomancy.Transform
 
 import Ghengin.Core
 import Ghengin.Core.Mesh
-import Geomancy.Vec3
+import Geomancy.Vec3 as V3
+import Geomancy.Vec4 as V4
 
 import Ghengin.Geometry.Sphere
 import Ghengin.Geometry.Normals
@@ -67,7 +68,7 @@ instance ShaderData MinMax where
 --------------------------------------------------------------------------------
 
 type PlanetMeshAttrs = '[Transform]
-type PlanetMeshVerts = '[Vec3, Vec3, Float]
+type PlanetMeshVerts = '[Vec4, Vec3]
 type PlanetMesh      = Mesh PlanetMeshVerts PlanetMeshAttrs
 
 data PlanetShape = PlanetShape
@@ -88,7 +89,7 @@ pointOnPlanet :: PlanetShape -> Vec3 -> (Vec3, Float)
 pointOnPlanet PlanetShape{..} pointOnUnitSphere =
   let elevation = evalNoise (unCollapsible planetNoise) pointOnUnitSphere
       finalElevation = inRangeVal planetRadius * (1+elevation)
-   in (pointOnUnitSphere ^* finalElevation, finalElevation)
+   in (pointOnUnitSphere V3.^* finalElevation, finalElevation)
 
 -- | Construct the planet mesh and return the minimum and maximum elevation points on the planet
 newPlanetMesh :: _ -- more constraints
@@ -104,7 +105,7 @@ newPlanetMesh rp Planet{..} = Linear.do
       (planetPs, elevations)
                = V.unzip $ V.map (\(p :&: _) -> pointOnPlanet planetShape p) (V.convert us)
       planetNs = computeNormals (SV.map fromIntegral is) planetPs
-      planetVs = V.zipWith (\x y -> x :& y :&: 0) (planetPs) planetNs
+      planetVs = V.zipWith (\(WithVec3 a b c) y -> vec4 a b c 1 :&: y) (planetPs) planetNs
       is       = weldVertices planetPs (SV.map fromIntegral is0)
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)

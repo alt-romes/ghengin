@@ -167,7 +167,6 @@ library backend-independent-bits
 
                       Ghengin.Core.Type.Compatible,
                       Ghengin.Core.Type.Compatible.Pixel,
-                      Ghengin.Core.Type.Sized,
                       Ghengin.Core.Type.Utils,
 
                       Ghengin.Core.Shader,
@@ -199,6 +198,7 @@ library backend-independent-bits
                       geomancy,
                       constraints,
                       ptrdiff,
+                      generics-sop,
 
                       -- CompatiblePixel
                       JuicyPixels,
