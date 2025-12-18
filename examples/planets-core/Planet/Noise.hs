@@ -67,6 +67,7 @@ data Noise
       { noiseLayers :: ![Noise]
       }
   deriving Eq
+  deriving Show
   deriving GHC.Generic
   deriving anyclass Generic
   deriving anyclass HasDatatypeInfo

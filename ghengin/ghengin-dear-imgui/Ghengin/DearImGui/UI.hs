@@ -174,7 +174,7 @@ instance Widget Double where
     newVal <- readIORef ref
     return (realToFrac newVal, changed)
 
--- Vec3 instance
+-- vec3 instance
 instance Widget Vec3 where
   widget (WithVec3 x y z) = do
     ref <- newIORef (x,y,z)
@@ -294,7 +294,7 @@ instance (KnownNat low, KnownNat high) => Widget (InRange low high Double) where
 -- | Collapsible section wrapper
 -- When collapsed, the inner widget is not displayed
 newtype Collapsible (lbl :: Symbol) a = Collapsible { unCollapsible :: a }
-  deriving newtype (Eq, Ord, Show, Default)
+  deriving (Eq, Ord, Show, Default)
 
 instance (KnownSymbol lbl, Widget a) => Widget (Collapsible lbl a) where
   widget (Collapsible val) = do
@@ -302,9 +302,9 @@ instance (KnownSymbol lbl, Widget a) => Widget (Collapsible lbl a) where
 
     if isCurrentlyOpen
       then do
-        ImGui.indent 16
+        ImGui.indent 5
         (newVal, changed) <- widget val
-        ImGui.unindent 16
+        ImGui.unindent 5
         ImGui.treePop
         return (Collapsible newVal, changed)
       else do
@@ -312,7 +312,7 @@ instance (KnownSymbol lbl, Widget a) => Widget (Collapsible lbl a) where
 
 -- | Checkbox wrapper
 newtype Checkbox = Checkbox { checkboxValue :: Bool }
-  deriving newtype (Eq, Ord, Show, Default)
+  deriving (Eq, Ord, Show, Default)
 
 instance Widget Checkbox where
   widget (Checkbox val) = do
@@ -347,7 +347,7 @@ instance (KnownNat low, KnownNat high) => Widget (Slider low high Int) where
 
 -- | Tooltip wrapper - shows tooltip on hover
 newtype WithTooltip (tip :: Symbol) a = WithTooltip { unTooltip :: a }
-  deriving newtype (Eq, Ord, Show, Default)
+  deriving (Eq, Ord, Show, Default)
 
 instance (KnownSymbol tip, Widget a) => Widget (WithTooltip tip a) where
   widget (WithTooltip content) = do

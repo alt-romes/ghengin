@@ -52,6 +52,7 @@ data Planet = Planet { planetShape :: !PlanetShape
                      , planetColor :: !PlanetColor
                      }
                      deriving GHC.Generic
+                     deriving Show
                      deriving anyclass Generic
                      deriving anyclass HasDatatypeInfo
                      deriving anyclass Widget
@@ -76,6 +77,7 @@ data PlanetShape = PlanetShape
   , planetRadius     :: !(InRange 0 100 Float)
   , planetNoise      :: !(Collapsible "Planet Noise" Noise)
   }
+  deriving Show
   deriving GHC.Generic
   deriving anyclass Generic
   deriving anyclass HasDatatypeInfo
@@ -141,10 +143,11 @@ data PlanetColor = PlanetColor
   -- ^ Noise for the biomes
   , biomeNoiseOffset :: Float
   , planetColorsInterpolate :: Bool
+  , biomeBlendAmount :: InRange 0 1 Float
   , planetBiomes :: ![Collapsible "Biome Settings" PlanetBiome]
   -- ^ A list of a percentage value and the color to use up to that percentage
-  , biomeBlendAmount :: InRange 0 1 Float
   }
+  deriving stock Show
   deriving stock GHC.Generic
   deriving anyclass Generic
   deriving anyclass HasDatatypeInfo
@@ -157,6 +160,7 @@ data PlanetBiome = PlanetBiome
   , biomeTintPercent :: InRange 0 1 Float
   , biomeColors      :: [(InRange 0 100 Int, Color)]
   }
+  deriving stock Show
   deriving stock GHC.Generic
   deriving anyclass Generic
   deriving anyclass HasDatatypeInfo
@@ -193,7 +197,6 @@ planetTexture PlanetColor{planetBiomes, planetColorsInterpolate} = Linear.do
          in PixelRGBA8 (round (r*255)) (round (g*255)) (round (b*255)) 255
   liftSystemIO $ savePngImage "my_generated_gradient_texture.png" (ImageRGBA8 gradientImg)
   newTexture gradientImg sampler
-
 
 -- | Given an int ∈ [0, 100] and a list of colors with a value in the same
 -- range, return the color with the matching closest int key to the given int.

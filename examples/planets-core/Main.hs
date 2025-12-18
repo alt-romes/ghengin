@@ -116,6 +116,15 @@ gameLoop GameData{..} rp rq = Linear.do
             pure $ Ur $ rotateY yawDelta <> rotateX pitchDelta <> tr)))
     Nothing -> pure rq
 
+  Ur c_input <- readCharInput charStream
+  case c_input of
+    Just 'p' -> Linear.do
+      -- Save new planet configuration to file
+      Ur time <- liftSystemIOU getCurrentTime
+      let filename = "planet-" ++ show time ++ ".hs"
+      liftSystemIO $ writeFile filename (show newPlanet)
+    _ -> return ()
+
   -- Render!
   (rp, rq) <- renderWith $ Linear.do
 
@@ -178,8 +187,8 @@ camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) dimens
 defaultPlanet :: Planet
 defaultPlanet = Planet
   { planetShape = PlanetShape
-      { planetResolution = 50
-      , planetRadius = 2.5
+      { planetResolution = 65
+      , planetRadius = 2.2
       , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
           [ StrengthenNoise 0.110 $ MinValueNoise
             { minNoiseVal = 0.930
@@ -263,7 +272,7 @@ defaultPlanet = Planet
         }
     , biomeBlendAmount = 0.2
     , biomeNoiseOffset = 0
-    , planetColorsInterpolate = True
+    , planetColorsInterpolate = False
     }
   }
   where
@@ -274,4 +283,3 @@ defaultPlanet = Planet
 -- More Planets
 --------------------------------------------------------------------------------
 
--- ...
