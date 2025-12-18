@@ -72,9 +72,9 @@ type PlanetMeshVerts = '[Vec4, Vec3]
 type PlanetMesh      = Mesh PlanetMeshVerts PlanetMeshAttrs
 
 data PlanetShape = PlanetShape
-  { planetResolution :: !(InRange 2 512 Int)
+  { planetResolution :: !(InRange 2 256 Int)
   , planetRadius     :: !(InRange 0 100 Float)
-  , planetNoise      :: !(Collapsible "Noise section" Noise)
+  , planetNoise      :: !(Collapsible "Planet Noise" Noise)
   }
   deriving GHC.Generic
   deriving anyclass Generic
@@ -91,6 +91,24 @@ pointOnPlanet PlanetShape{..} pointOnUnitSphere =
       finalElevation = inRangeVal planetRadius * (1+elevation)
    in (pointOnUnitSphere V3.^* finalElevation, finalElevation)
 
+-- | The Biome to pick (from float 0 to 1) at the given point on a unit sphere
+biomeOnPoint :: PlanetColor -> Vec3 -> Float
+biomeOnPoint PlanetColor{..} pointOnUnitSphere =
+  let noise = evalNoise (unCollapsible biomesNoise) pointOnUnitSphere
+      heightPercent = ((pointOnUnitSphere.y + 1) / 2) + (noise - biomeNoiseOffset)
+      blendRange = inRangeVal biomeBlendAmount / 2
+      -- biomeVal = fromMaybe 0 $ V.findIndex
+      --   (\b -> inRangeVal b.biomeStartHeight P.< heightPercent)
+      --   (V.fromList planetBiomes)
+      biomeVal =
+        V.ifoldl' (\acc i b -> let
+            dst = heightPercent - (inRangeVal b.biomeStartHeight)
+            weight = invLerp dst (-blendRange) blendRange
+           in acc * (1 - weight) + fromIntegral i * weight
+          ) 0 (V.fromList planetBiomes)
+
+   in biomeVal / (P.max 1 (fromIntegral (P.length planetBiomes - 1)))
+
 -- | Construct the planet mesh and return the minimum and maximum elevation points on the planet
 newPlanetMesh :: _ -- more constraints
               => CompatibleVertex PlanetMeshVerts π
@@ -104,8 +122,10 @@ newPlanetMesh rp Planet{..} = Linear.do
 
       (planetPs, elevations)
                = V.unzip $ V.map (\(p :&: _) -> pointOnPlanet planetShape p) (V.convert us)
+      planetBiomes -- TODO: When this changes, we don't have to update the whole mesh. Just recompute this and poke it into the VertexBuffer directly at the right stride.
+               = V.map (\(p :&: _) -> biomeOnPoint planetColor p) (V.convert us)
       planetNs = computeNormals (SV.map fromIntegral is) planetPs
-      planetVs = V.zipWith (\(WithVec3 a b c) y -> vec4 a b c 1 :&: y) (planetPs) planetNs
+      planetVs = V.zipWith3 (\(WithVec3 x y z) biome n -> vec4 x y z biome :&: n) planetPs planetBiomes planetNs
       is       = weldVertices planetPs (SV.map fromIntegral is0)
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)
@@ -120,8 +140,12 @@ type PlanetMaterialAttrs = '[MinMax, Texture2D (RGBA8 UNorm)]
 type PlanetMaterial = Material PlanetMaterialAttrs
 
 data PlanetColor = PlanetColor
-  { planetBiomes :: [PlanetBiome]
+  { biomesNoise  :: Collapsible "Biome Noise" Noise
+  -- ^ Noise for the biomes
+  , planetBiomes :: ![PlanetBiome] -- Collapsible "Biomes" [PlanetBiome]
   -- ^ A list of a percentage value and the color to use up to that percentage
+  , biomeBlendAmount :: InRange 0 1 Float
+  , biomeNoiseOffset :: Float
   }
   deriving stock GHC.Generic
   deriving anyclass Generic
@@ -130,8 +154,10 @@ data PlanetColor = PlanetColor
   deriving anyclass Default
 
 data PlanetBiome = PlanetBiome
-  { biomeSize   :: InRange 0 10 Int
-  , biomeColors :: [(InRange 0 100 Int, Color)]
+  { biomeStartHeight :: InRange 0 1 Float
+  , biomeColors      :: [(InRange 0 100 Int, Color)]
+  , biomeTint        :: Color
+  , biomeTintPercent :: InRange 0 1 Float
   }
   deriving stock GHC.Generic
   deriving anyclass Generic
@@ -152,20 +178,34 @@ newPlanetMaterial mm pl planet = Linear.do
 -- | Make a Texture from the planet color
 planetTexture :: PlanetColor -> Renderer (Alias (Texture2D (RGBA8 UNorm)))
 planetTexture PlanetColor{planetBiomes} = Linear.do
-  sampler <- createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-
-  -- Expand a list of biomes with arbitrary size into a list of biomes all with size=1
-  let expBiomes = concat $ P.map (\b -> P.replicate (inRangeVal (biomeSize b)) b) planetBiomes
+  sampler <- createSampler FILTER_LINEAR{-FILTER_NEAREST-} SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 
   -- Generate a gradient image. One width per percent of a color in the biome gradient. One height per biome (where a biome of size 2 counts as 2 biomes)
   let gradientImg = generateImage pixelPaint
                       100{-width=100%-}
-                      (P.length expBiomes){-height=N pixels for a biome of size N-}
-      pixelPaint x y = case find (\(InRange limit, _) -> x < limit) (biomeColors (expBiomes P.!! y)) of
-        Nothing -> PixelRGBA8 255 255 255 255
-        Just (_, Color (WithVec3 r g b)) -> PixelRGBA8 (round (r*255)) (round (g*255)) (round (b*255)) 255
+                      (P.length planetBiomes){-height=N pixels for a N biomes-}
+      pixelPaint x y =
+        let biome = planetBiomes P.!! y
+            tintPercent = inRangeVal biome.biomeTintPercent
+            tintColor = let (Color c) = biome.biomeTint in c
+            gradColor = evaluateGradient x (biomeColors biome)
+            WithVec3 r g b
+              = gradColor V3.^* (1 - tintPercent)
+                + tintColor V3.^* tintPercent
+         in PixelRGBA8 (round (r*255)) (round (g*255)) (round (b*255)) 255
   liftSystemIO $ savePngImage "my_generated_gradient_texture.png" (ImageRGBA8 gradientImg)
   newTexture gradientImg sampler
+
+
+-- | Given an int ∈ [0, 100] and a list of colors with a value in the same
+-- range, return the color with the matching closest int key to the given int.
+evaluateGradient :: Int -> [(InRange 0 100 Int, Color)] -> Vec3
+evaluateGradient value colors =
+  case find (\(InRange k, _) -> value <= k) colors of
+    Nothing -> case colors of
+      [] -> vec3 0 0 0
+      (_, Color c):_  -> c
+    Just (_, Color c) -> c
 
 --------------------------------------------------------------------------------
 
@@ -173,3 +213,5 @@ planetTexture PlanetColor{planetBiomes} = Linear.do
 instance ShaderData Transform where
   type FirType Transform = FIR.Struct '[ "m" 'FIR.:-> FIR.M 4 4 Float ]
 
+invLerp :: Float -> Float -> Float -> Float
+invLerp value from to = P.max 0 (P.min 1 ((value - from) / (to - from)))

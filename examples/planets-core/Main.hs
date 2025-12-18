@@ -82,15 +82,21 @@ gameLoop GameData{..} rp rq = Linear.do
   -- Update planet mesh according to UI
   Ur (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
   rq <-
-    if changedShape then
-      (editAtMeshesKey planetMeshKey rq (\pipeline mat [(msh, x)] -> Linear.do
+    if changedShape || changedColor then Linear.do -- TODO: If only the colors changed, no problem. We only have to regenerate the mesh if any of the biomes noise or start height changed.
+      rq <- (editAtMeshesKey planetMeshKey rq (\pipeline mat [(msh, x)] -> Linear.do
             ( (pmesh, pipeline),
               Ur minmax ) <- newPlanetMesh pipeline newPlanet 
             mat <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
-            freeMesh msh
-            return (pipeline, (mat, [(pmesh, x)]))
+
+            -- Re-use old transform and free old mesh
+            let !(DynamicBinding (Ur prv_tr), msh') = puncons msh
+            freeMesh msh'
+
+            pmesh' <- propertyAt @0 @Transform (\(Ur _) -> pure (Ur prv_tr)) pmesh
+
+            return (pipeline, (mat, [(pmesh', x)]))
           ))
-    else if changedColor then
+
       -- TODO: EditAtMaterialKey (using a materialKeyOfMeshKey)
       (editAtMeshesKey planetMeshKey rq (\pipeline mat [(msh, x)] -> Linear.do
             mat <- propertyAt @1 @_ (\tex -> Alias.forget tex >> planetTexture (planetColor newPlanet)) mat
@@ -140,6 +146,9 @@ main = do
       -- Is drag allowed? not if imgui is using the mouse
       Prelude.not Prelude.<$> ImGui.wantCaptureMouse
 
+    -- What planet?
+    let planet = defaultPlanet
+
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass)
 
     -- Init imgui
@@ -148,15 +157,15 @@ main = do
     pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil))
     -- todo: minmax should be per-mesh
     ( (pmesh, pipeline),
-      Ur minmax )    <- (newPlanetMesh pipeline defaultPlanet)
-    (pmat, pipeline) <- (newPlanetMaterial minmax pipeline defaultPlanet)
+      Ur minmax )    <- (newPlanetMesh pipeline planet)
+    (pmat, pipeline) <- (newPlanetMaterial minmax pipeline planet)
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
     (rq, Ur mkey)    <- pure (insertMaterial pkey pmat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey pmesh rq)
 
-    rq <- gameLoop GameData{planet=defaultPlanet, planetMeshKey=mshkey, ..} rp2 rq
+    rq <- gameLoop GameData{planet, planetMeshKey=mshkey, ..} rp2 rq
 
     (freeRenderQueue rq)
     (ImGui.destroyImCtx imctx)
@@ -170,7 +179,7 @@ defaultPlanet :: Planet
 defaultPlanet = Planet
   { planetShape = PlanetShape
       { planetResolution = 50
-      , planetRadius = 3
+      , planetRadius = 2.5
       , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
           [ StrengthenNoise 0.110 $ MinValueNoise
             { minNoiseVal = 0.930
@@ -196,8 +205,21 @@ defaultPlanet = Planet
           ]
       }
   , planetColor = PlanetColor
-    { planetBiomes =
+    { planetBiomes = -- ImGui.Collapsible
       [ PlanetBiome
+        { biomeColors = mkColors
+          [ (1,   vec3 24  150 183)
+          , (2,   vec3 255 248 205)
+          , (5,   vec3 255 234 234)
+          , (15,  vec3 225 225 225)
+          , (75,  vec3 195 195 195)
+          , (100, vec3 255 255 255)
+          ]
+        , biomeStartHeight = 0
+        , biomeTint = ImGui.Color (vec3 1 0 1)
+        , biomeTintPercent = 0
+        }
+      , PlanetBiome
         { biomeColors = mkColors
           [ (1, vec3 0 83 255)
           , (2, vec3 255 218 0)
@@ -209,33 +231,46 @@ defaultPlanet = Planet
           , (85, vec3 108 13 0)
           , (100, vec3 231 231 231)
           ]
-        , biomeSize = 2
+        , biomeStartHeight = 0.38
+        , biomeTint = ImGui.Color (vec3 0 1 1)
+        , biomeTintPercent = 0
         }
       , PlanetBiome
         { biomeColors = mkColors
-          [ (1, vec3 200 0 0)
-          , (100, vec3 255 218 0)
+          [ (1, vec3 15 25 35)      -- Deep blue-black water
+          , (2, vec3 255 80 0)      -- Glowing lava at shore
+          , (5, vec3 200 40 0)      -- Cooling lava flows
+          , (10, vec3 120 20 0)     -- Dark red volcanic rock
+          , (20, vec3 80 15 10)     -- Deep red-brown slopes
+          , (30, vec3 90 25 15)     -- Iron-rich volcanic stone
+          , (40, vec3 140 30 0)     -- Oxidized red rock
+          , (60, vec3 180 35 0)     -- Glowing red basalt
+          , (85, vec3 220 50 0)     -- Bright red-orange ridges
+          , (100, vec3 255 100 0)   -- Molten orange peaks
           ]
-        , biomeSize = 1
-        }
-      , PlanetBiome
-        { biomeColors = mkColors
-          [ (1, vec3 0 100 0)
-          , (100, vec3 255 218 0)
-          ]
-        , biomeSize = 1
-        }
-      , PlanetBiome
-        { biomeColors = mkColors
-          [ (1, vec3 0 0 100)
-          , (100, vec3 255 218 0)
-          ]
-        , biomeSize = 1
+        , biomeStartHeight = 0.96
+        , biomeTint = ImGui.Color (vec3 0 1 0)
+        , biomeTintPercent = 0
         }
       ]
+    , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.05 $
+        LayersCoherentNoise
+        { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
+        , baseRoughness = 1.0
+        , roughness     = 2.0
+        , numLayers     = 3
+        , persistence   = 2
+        }
+    , biomeBlendAmount = 0.2
+    , biomeNoiseOffset = 0
     }
   }
   where
     mkColors = Prelude.map $ \(bnd, WithVec3 rn gn bn) ->
       (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255)))
 
+--------------------------------------------------------------------------------
+-- More Planets
+--------------------------------------------------------------------------------
+
+-- ...
