@@ -16,6 +16,7 @@ module Ghengin.Core.Type.Compatible
   ) where
 
 import Prelude
+import Graphics.Gl.Block (PackedSize)
 import GHC.TypeError
 import Data.Kind ( Type, Constraint )
 import FIR.Pipeline
@@ -29,9 +30,8 @@ import FIR.ProgramState
 import SPIRV.Decoration (Decoration(..))
 import qualified SPIRV.Image as SPIRV
 
-import Ghengin.Core.Shader.Data hiding (SizeOf) -- TODO: ultimately, we don't want to hide SizeOf, and want to get rid of Sized
+import Ghengin.Core.Shader.Data
 import Ghengin.Core.Type.Utils
-import Ghengin.Core.Type.Sized
 
 ------- Compatible ---------------------------------
 
@@ -54,9 +54,12 @@ type family Compatible αs δs βs ξs π where
 -- | 'CompatibleVertex' validates the vertices types against the vertices the
 -- shader pipeline expects.
 type CompatibleVertex as p
-      = ( MatchPropertiesSize as (InputLocations p)
-                              (Text " mesh vertex properties in vertex " :<>: ShowType as)
-                              (Text " inputs in the vertex shader.")
+      = (
+          MatchVertexSize (Length as*16) (PipelineVertexStride (GetVertexInputInfo p))
+                              (Text " bytes in a Vertex " :<>: ShowType as)
+                              (Text " bytes of stride (per-vertex size) expected in the vertex shader ("
+                                :<>: ShowType (GetVertexInputInfo p) :<>: Text ")."
+                                :$$: Text "This may be caused by a bug in computing the stride in FIR (see https://gitlab.com/sheaf/fir/-/issues/97) if you rely on non-zero Component offsets.")
         , CompatibleVertex' (Zip (NumbersFromTo 0 (Length as)) as) p
         )
 type CompatibleVertex' :: [(Nat,Type)] -> PipelineInfo -> Constraint
@@ -64,10 +67,13 @@ type family CompatibleVertex' as p where
   CompatibleVertex' '[] _ = ()
   CompatibleVertex' ('(n,x) ': xs) p
     = ( ShaderData x
-      , Match (SizeOf (FirType x)) (SizeOf (InputByLocation' n p))
-                        (Text "Vertex property #" :<>: ShowType n :<>: TypeAndInternalType x
-                          :<>: Text " whose internal type is " :<>: ShowType (FirType x)
-                          :<>: Text " isn't compatible with the shader vertex property #" :<>: ShowType n :<>: Text " of type " :<>: ShowType (InputByLocation' n p))
+      , Match (PackedSize x) (ImageFormatPackedSize (InputByLocation' n p))
+                        (Text "Vertex property #" :<>: ShowType n :<>: Text " (" :<>: ShowType x
+                          :<>: Text ") of packed size " :<>: ShowType (PackedSize x)
+                          :<>: Text " isn't compatible with the shader vertex location #" :<>: ShowType n
+                          :<>: Text " of type " :<>: ShowType (InputByLocation' n p) :<>: Text " of size "
+                          :<>: ShowType (ImageFormatPackedSize (InputByLocation' n p))
+                          :$$: Text ". Read the details about Layout/Components in the haddocks of Vertex.")
       , CompatibleVertex' xs p
       )
 
@@ -150,6 +156,11 @@ type family MatchPropertiesSize' t t' e e' where
   MatchPropertiesSize' x y s1 s2
     = Unsatisfiable (Text "There are " :<>: ShowType x :<>: s1 :<>: Text " but " :<>: ShowType y :<>: s2)
 
+type MatchVertexSize :: Nat -> Nat -> ErrorMessage -> ErrorMessage -> Constraint
+type family MatchVertexSize t t' e e' where
+  MatchVertexSize x x _ _ = ()
+  MatchVertexSize x y s1 s2
+    = Unsatisfiable (Text "There are " :<>: ShowType x :<>: s1 :<>: Text " but " :<>: ShowType y :<>: s2)
 
 ------- Descriptor Set Bindings --------------------
 
@@ -200,5 +211,14 @@ type family TakeImageFormat os where
 type InputByLocation' :: Nat -> PipelineInfo -> SPIRV.ImageFormat Nat
 type family InputByLocation' loc info where
   InputByLocation' loc info = FromMaybe (Lookup loc (InputLocations info)) (TypeError (Text "Input [Location #" :<>: ShowType loc :<>: Text "] not found in " :<>: ShowType info))
+
+type PipelineVertexStride :: (PrimitiveTopology Nat, VertexLocationDescriptions, BindingStrides) -> Nat
+type family PipelineVertexStride a where
+  PipelineVertexStride '(_, _, '[ 0 ':-> vertex_stride ]) = vertex_stride
+
+type ImageFormatPackedSize :: SPIRV.ImageFormat Nat -> Nat
+type family ImageFormatPackedSize a where
+  ImageFormatPackedSize ('SPIRV.ImageFormat _ '[]) = 0
+  ImageFormatPackedSize ('SPIRV.ImageFormat c (x ': xs)) = (x `Div` 8) + ImageFormatPackedSize ('SPIRV.ImageFormat c xs)
 
 ----------------------------------------------------

@@ -18,7 +18,8 @@ type VertexDefs
   = '[ "out_position" ':-> Output '[ Location 0 ] (V 4 Float)
      , "out_normal"   ':-> Output '[ Location 1 ] (V 4 Float)
 
-     , "out_position_object" ':-> Output '[ Location 2 ] (V 4 Float)
+     , "out_position_object" ':-> Output '[ Location 2 ] (V 3 Float)
+     , "out_uv_y"            ':-> Output '[ Location 2, Component 3 ] (Float)
 
      , "camera"        ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                              (Struct [ "view_matrix" ':-> M 4 4 Float
@@ -27,9 +28,9 @@ type VertexDefs
      , "model"         ':-> Uniform '[ DescriptorSet 2, Binding 0 ]
                              (Struct '[ "m" ':-> M 4 4 Float ])
 
-     , "in_position"   ':-> Input '[ Location 0 ] (V 3 Float)
-     , "in_normal"     ':-> Input '[ Location 1 ] (V 3 Float)
-
+     , "in_position"   ':-> Input '[ Location 0, Component 0 ] (V 3 Float)
+     , "in_normal"     ':-> Input '[ Location 1, Component 0 ] (V 3 Float)
+     , "in_uv_y"       ':-> Input '[ Location 0, Component 3 ] (Float)
      ]
 
 
@@ -50,7 +51,10 @@ vertex = shader do
     put @"out_normal"   ((transpose . inverse{-fix for non linear what-}) (viewM !*! modelM) !*^ Vec4 nx ny nz 0)
 
     -- Output position in object space
-    put @"out_position_object" (Vec4 x y z 1)
+    put @"out_position_object" (Vec3 x y z)
+
+    -- Output UV y position
+    put @"out_uv_y" =<< get @"in_uv_y"
 
     put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ Vec4 x y z 1)
 
@@ -62,7 +66,9 @@ type FragmentDefs
       , "in_normal"   ':-> Input '[ Location 1 ] (V 4 Float)
 
       -- The position in object-space, to get distance from center of planet
-      , "in_position_object" ':-> Input '[ Location 2 ] (V 4 Float)
+      , "in_position_object" ':-> Input '[ Location 2 ] (V 3 Float)
+      -- The biome color as a uv Y float
+     ,  "in_uv_y"     ':-> Input '[ Location 2, Component 3 ] (Float)
 
       , "minmax"      ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
                                     ( Struct '[ "min" ':-> Float
@@ -75,17 +81,16 @@ type FragmentDefs
 fragment :: FragmentShaderModule FragmentDefs _
 fragment = shader do
 
-    ~(Vec4 pox poy poz _)  <- get @"in_position_object"
-    -- ~(Vec4 nx ny nz _)  <- get @"in_normal"
-    -- ~(Vec3 cx cy cz)    <- get @"in_color"
+    ~(Vec3 pox poy poz) <- get @"in_position_object"
 
     -- Color
     min' <- use @(Name "minmax" :.: Name "min")
     max' <- use @(Name "minmax" :.: Name "max")
+    biome_col_v <- get @"in_uv_y"
 
     let col_frac = invLerp (norm (Vec3 pox poy poz)) min' max'
 
-    ~(Vec4 cx cy cz _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac col_frac)
+    ~(Vec4 cx cy cz _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac biome_col_v)
 
     let lightDir  = Vec3 (-0.5) 1 0.5
     let lightCol  = Vec3 1 1 1
@@ -105,6 +110,7 @@ fragment = shader do
 -- | Data for each vertex in this shader pipeline
 type VertexData =
   '[ Slot 0 0 ':-> V 3 Float -- in pos
+   , Slot 0 3 ':-> Float -- uv y position
    , Slot 1 0 ':-> V 3 Float -- in normal
    ]
 

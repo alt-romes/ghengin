@@ -16,7 +16,6 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Material
 import Ghengin.Core.Type.Compatible
-import Ghengin.Core.Log
 
 import qualified Data.Vector as V
 import qualified Data.Vector.Storable as SV
@@ -25,7 +24,8 @@ import Geomancy.Transform
 
 import Ghengin.Core
 import Ghengin.Core.Mesh
-import Geomancy.Vec3
+import Geomancy.Vec3 as V3
+import Geomancy.Vec4 as V4
 
 import Ghengin.Geometry.Sphere
 import Ghengin.Geometry.Normals
@@ -41,7 +41,6 @@ import Ghengin.Vulkan.Renderer.Texture
 import Generics.SOP
 -- JuicyPixels
 import Codec.Picture
-import Codec.Picture.Types (promotePixel)
 
 import Planet.Noise
 
@@ -52,7 +51,6 @@ import Planet.Noise
 data Planet = Planet { planetShape :: !PlanetShape
                      , planetColor :: !PlanetColor
                      }
-                     deriving Eq
                      deriving GHC.Generic
                      deriving anyclass Generic
                      deriving anyclass HasDatatypeInfo
@@ -70,17 +68,14 @@ instance ShaderData MinMax where
 --------------------------------------------------------------------------------
 
 type PlanetMeshAttrs = '[Transform]
-type PlanetMeshVerts = '[Vec3, Vec3]
--- TODO: Report GHC BUG: If I use the type synonyms in 'PlanetMesh' then GHC is
--- not clever enough to figure it out.
-type PlanetMesh = Mesh '[Vec3, Vec3] '[Transform]
+type PlanetMeshVerts = '[Vec4, Vec3]
+type PlanetMesh      = Mesh PlanetMeshVerts PlanetMeshAttrs
 
 data PlanetShape = PlanetShape
-  { planetResolution :: !(InRange 2 512 Int)
+  { planetResolution :: !(InRange 2 256 Int)
   , planetRadius     :: !(InRange 0 100 Float)
-  , planetNoise      :: !(Collapsible "Noise section" Noise)
+  , planetNoise      :: !(Collapsible "Planet Noise" Noise)
   }
-  deriving Eq
   deriving GHC.Generic
   deriving anyclass Generic
   deriving anyclass HasDatatypeInfo
@@ -94,12 +89,30 @@ pointOnPlanet :: PlanetShape -> Vec3 -> (Vec3, Float)
 pointOnPlanet PlanetShape{..} pointOnUnitSphere =
   let elevation = evalNoise (unCollapsible planetNoise) pointOnUnitSphere
       finalElevation = inRangeVal planetRadius * (1+elevation)
-   in (pointOnUnitSphere ^* finalElevation, finalElevation)
+   in (pointOnUnitSphere V3.^* finalElevation, finalElevation)
+
+-- | The Biome to pick (from float 0 to 1) at the given point on a unit sphere
+biomeOnPoint :: PlanetColor -> Vec3 -> Float
+biomeOnPoint PlanetColor{..} pointOnUnitSphere =
+  let noise = evalNoise (unCollapsible biomesNoise) pointOnUnitSphere
+      heightPercent = ((pointOnUnitSphere.y + 1) / 2) + (noise - biomeNoiseOffset)
+      blendRange = inRangeVal biomeBlendAmount / 2
+      -- biomeVal = fromMaybe 0 $ V.findIndex
+      --   (\b -> inRangeVal b.biomeStartHeight P.< heightPercent)
+      --   (V.fromList planetBiomes)
+      biomeVal =
+        V.ifoldl' (\acc i b -> let
+            dst = heightPercent - (inRangeVal b.biomeStartHeight)
+            weight = invLerp dst (-blendRange) blendRange
+           in acc * (1 - weight) + fromIntegral i * weight
+          ) 0 (V.fromList planetBiomes)
+
+   in biomeVal / (P.max 1 (fromIntegral (P.length planetBiomes - 1)))
 
 -- | Construct the planet mesh and return the minimum and maximum elevation points on the planet
 newPlanetMesh :: _ -- more constraints
-              => CompatibleVertex '[Vec3, Vec3] π
-              => CompatibleMesh '[Transform] π
+              => CompatibleVertex PlanetMeshVerts π
+              => CompatibleMesh PlanetMeshAttrs π
               => RenderPipeline π bs
                ⊸ Planet
               -> Renderer ((PlanetMesh, RenderPipeline π bs), Ur MinMax)
@@ -109,8 +122,10 @@ newPlanetMesh rp Planet{..} = Linear.do
 
       (planetPs, elevations)
                = V.unzip $ V.map (\(p :&: _) -> pointOnPlanet planetShape p) (V.convert us)
+      planetBiomes -- TODO: When this changes, we don't have to update the whole mesh. Just recompute this and poke it into the VertexBuffer directly at the right stride.
+               = V.map (\(p :&: _) -> biomeOnPoint planetColor p) (V.convert us)
       planetNs = computeNormals (SV.map fromIntegral is) planetPs
-      planetVs = V.zipWith (:&:) (planetPs) planetNs
+      planetVs = V.zipWith3 (\(WithVec3 x y z) biome n -> vec4 x y z biome :&: n) planetPs planetBiomes planetNs
       is       = weldVertices planetPs (SV.map fromIntegral is0)
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)
@@ -125,11 +140,26 @@ type PlanetMaterialAttrs = '[MinMax, Texture2D (RGBA8 UNorm)]
 type PlanetMaterial = Material PlanetMaterialAttrs
 
 data PlanetColor = PlanetColor
-  { planetColors :: [(InRange 0 100 Int, Color)]
+  { biomesNoise  :: Collapsible "Biome Noise" Noise
+  -- ^ Noise for the biomes
+  , planetBiomes :: ![PlanetBiome] -- Collapsible "Biomes" [PlanetBiome]
   -- ^ A list of a percentage value and the color to use up to that percentage
+  , biomeBlendAmount :: InRange 0 1 Float
+  , biomeNoiseOffset :: Float
   }
-  deriving Eq
-  deriving GHC.Generic
+  deriving stock GHC.Generic
+  deriving anyclass Generic
+  deriving anyclass HasDatatypeInfo
+  deriving anyclass Widget
+  deriving anyclass Default
+
+data PlanetBiome = PlanetBiome
+  { biomeStartHeight :: InRange 0 1 Float
+  , biomeColors      :: [(InRange 0 100 Int, Color)]
+  , biomeTint        :: Color
+  , biomeTintPercent :: InRange 0 1 Float
+  }
+  deriving stock GHC.Generic
   deriving anyclass Generic
   deriving anyclass HasDatatypeInfo
   deriving anyclass Widget
@@ -147,15 +177,35 @@ newPlanetMaterial mm pl planet = Linear.do
 
 -- | Make a Texture from the planet color
 planetTexture :: PlanetColor -> Renderer (Alias (Texture2D (RGBA8 UNorm)))
-planetTexture PlanetColor{planetColors} = Linear.do
-  sampler <- createSampler FILTER_NEAREST SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-  -- Generate a gradient image. Single pixel height, one pixel of a color per percent.
-  let gradientImg = generateImage pixelPaint 100{-width=100%-} 100{-height=1 pixel-}
-      pixelPaint x _ = case find (\(InRange limit, _) -> x < limit) planetColors of
-        Nothing -> PixelRGBA8 255 255 255 255
-        Just (_, Color (WithVec3 r g b)) -> PixelRGBA8 (round (r*255)) (round (g*255)) (round (b*255)) 255
+planetTexture PlanetColor{planetBiomes} = Linear.do
+  sampler <- createSampler FILTER_LINEAR{-FILTER_NEAREST-} SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+
+  -- Generate a gradient image. One width per percent of a color in the biome gradient. One height per biome (where a biome of size 2 counts as 2 biomes)
+  let gradientImg = generateImage pixelPaint
+                      100{-width=100%-}
+                      (P.length planetBiomes){-height=N pixels for a N biomes-}
+      pixelPaint x y =
+        let biome = planetBiomes P.!! y
+            tintPercent = inRangeVal biome.biomeTintPercent
+            tintColor = let (Color c) = biome.biomeTint in c
+            gradColor = evaluateGradient x (biomeColors biome)
+            WithVec3 r g b
+              = gradColor V3.^* (1 - tintPercent)
+                + tintColor V3.^* tintPercent
+         in PixelRGBA8 (round (r*255)) (round (g*255)) (round (b*255)) 255
   liftSystemIO $ savePngImage "my_generated_gradient_texture.png" (ImageRGBA8 gradientImg)
   newTexture gradientImg sampler
+
+
+-- | Given an int ∈ [0, 100] and a list of colors with a value in the same
+-- range, return the color with the matching closest int key to the given int.
+evaluateGradient :: Int -> [(InRange 0 100 Int, Color)] -> Vec3
+evaluateGradient value colors =
+  case find (\(InRange k, _) -> value <= k) colors of
+    Nothing -> case colors of
+      [] -> vec3 0 0 0
+      (_, Color c):_  -> c
+    Just (_, Color c) -> c
 
 --------------------------------------------------------------------------------
 
@@ -163,3 +213,5 @@ planetTexture PlanetColor{planetColors} = Linear.do
 instance ShaderData Transform where
   type FirType Transform = FIR.Struct '[ "m" 'FIR.:-> FIR.M 4 4 Float ]
 
+invLerp :: Float -> Float -> Float -> Float
+invLerp value from to = P.max 0 (P.min 1 ((value - from) / (to - from)))

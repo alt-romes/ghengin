@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 {-# LANGUAGE CPP #-}
 module Ghengin.Core.Prelude
@@ -97,6 +98,42 @@ import Graphics.Gl.Block
 import Data.Linear.Alias as Alias
 
 import qualified Unsafe.Linear as Unsafe
+
+import GHC.Records
+import Geomancy.Vec2 (Vec2, pattern WithVec2)
+import Geomancy.Vec3 (Vec3, pattern WithVec3)
+import Geomancy.Vec4 (Vec4, pattern WithVec4)
+
+--------------------------------------------------------------------------------
+-- * Vec2, Vec3, Vec4 accessors
+--------------------------------------------------------------------------------
+
+instance HasField "x" Vec2 Float where
+  getField (WithVec2 x _) = x
+
+instance HasField "y" Vec2 Float where
+  getField (WithVec2 _ y) = y
+
+instance HasField "x" Vec3 Float where
+  getField (WithVec3 x _ _) = x
+
+instance HasField "y" Vec3 Float where
+  getField (WithVec3 _ y _) = y
+
+instance HasField "z" Vec3 Float where
+  getField (WithVec3 _ _ z) = z
+
+instance HasField "x" Vec4 Float where
+  getField (WithVec4 x _ _ _) = x
+
+instance HasField "y" Vec4 Float where
+  getField (WithVec4 _ y _ _) = y
+
+instance HasField "z" Vec4 Float where
+  getField (WithVec4 _ _ z _) = z
+
+instance HasField "w" Vec4 Float where
+  getField (WithVec4 _ _ _ w) = w
 
 --------------------------------------------------------------------------------
 -- * Storable vector utils
