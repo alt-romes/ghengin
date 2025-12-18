@@ -54,10 +54,10 @@ newUnitFace res up =
 
    in UF positions' ixs
 
--- | Crashes on resolution = 1
-newUnitSphere :: Int -- ^ Resolution
+-- | Create a unit sphere based on inflating a cube
+newUnitCubeSphere :: Int -- ^ Resolution. Invariant: @res > 1@
               -> UnitSphere
-newUnitSphere res =
+newUnitCubeSphere res =
   let UF v1 i1 = newUnitFace res Vectors.up
       UF v2 i2 = newUnitFace res Vectors.down
       UF v3 i3 = newUnitFace res Vectors.left
@@ -72,11 +72,11 @@ newUnitSphere res =
    in
       UnitSphere (SV.zipWith (\a b -> a :&: b) ps (V.convert ns)) (SV.map fromIntegral is)
 
--- | Draw a single face
-newUnitSphereFace :: Bool -- ^ Top face = TRUE; Front face = FALSE;
+-- | Draw a single face of a cubesphere
+newUnitCubeSphereFace :: Bool -- ^ Top face = TRUE; Front face = FALSE;
                   -> Int -- ^ 
                   -> UnitSphere
-newUnitSphereFace topf res =
+newUnitCubeSphereFace topf res =
   let UF v1 i1 = newUnitFace res (if topf then Vectors.up else Vectors.back)
       is = SV.fromList i1 
       ps = SV.fromList v1
@@ -84,11 +84,11 @@ newUnitSphereFace topf res =
    in
       UnitSphere (SV.zipWith (\a b -> a :&: b) ps (V.convert ns)) (SV.map fromIntegral is)
 
-newSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3] π)
+newCubeSphereMesh :: (CompatibleMesh '[] π, CompatibleVertex [Vec3, Vec3] π)
               => RenderPipeline π bs
               -> Int -- ^ Resolution
               -> Renderer (Mesh [Vec3, Vec3] '[], RenderPipeline π bs)
-newSphereMesh pi res =
-  let UnitSphere vs is = newUnitSphere res
+newCubeSphereMesh pi res =
+  let UnitSphere vs is = newUnitCubeSphere res
    in createMeshWithIxsSV pi GHNil vs is
 

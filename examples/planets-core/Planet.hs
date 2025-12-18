@@ -115,7 +115,7 @@ newPlanetMesh :: _ -- more constraints
               -> Renderer ((PlanetMesh, RenderPipeline π bs), Ur MinMax)
 newPlanetMesh rp Planet{..} = Linear.do
 
-  let UnitSphere us is0 = newUnitSphere (inRangeVal planetShape.planetResolution)
+  let UnitSphere us is0 = newUnitCubeSphere (inRangeVal planetShape.planetResolution)
 
       (planetPs, elevations)
                = V.unzip $ V.map (\(p :&: _) -> pointOnPlanet planetShape p) (V.convert us)
