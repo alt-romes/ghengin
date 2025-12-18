@@ -206,7 +206,7 @@ defaultPlanet = Planet
       }
   , planetColor = PlanetColor
     { planetBiomes = -- ImGui.Collapsible
-      [ PlanetBiome
+      [ ImGui.Collapsible PlanetBiome
         { biomeColors = mkColors
           [ (1,   vec3 24  150 183)
           , (2,   vec3 255 248 205)
@@ -219,7 +219,7 @@ defaultPlanet = Planet
         , biomeTint = ImGui.Color (vec3 1 0 1)
         , biomeTintPercent = 0
         }
-      , PlanetBiome
+      , ImGui.Collapsible PlanetBiome
         { biomeColors = mkColors
           [ (1, vec3 0 83 255)
           , (2, vec3 255 218 0)
@@ -235,7 +235,7 @@ defaultPlanet = Planet
         , biomeTint = ImGui.Color (vec3 0 1 1)
         , biomeTintPercent = 0
         }
-      , PlanetBiome
+      , ImGui.Collapsible PlanetBiome
         { biomeColors = mkColors
           [ (1, vec3 15 25 35)      -- Deep blue-black water
           , (2, vec3 255 80 0)      -- Glowing lava at shore
@@ -263,6 +263,7 @@ defaultPlanet = Planet
         }
     , biomeBlendAmount = 0.2
     , biomeNoiseOffset = 0
+    , planetColorsInterpolate = True
     }
   }
   where

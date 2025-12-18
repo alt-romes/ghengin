@@ -97,11 +97,8 @@ biomeOnPoint PlanetColor{..} pointOnUnitSphere =
   let noise = evalNoise (unCollapsible biomesNoise) pointOnUnitSphere
       heightPercent = ((pointOnUnitSphere.y + 1) / 2) + (noise - biomeNoiseOffset)
       blendRange = inRangeVal biomeBlendAmount / 2
-      -- biomeVal = fromMaybe 0 $ V.findIndex
-      --   (\b -> inRangeVal b.biomeStartHeight P.< heightPercent)
-      --   (V.fromList planetBiomes)
       biomeVal =
-        V.ifoldl' (\acc i b -> let
+        V.ifoldl' (\acc i (Collapsible b) -> let
             dst = heightPercent - (inRangeVal b.biomeStartHeight)
             weight = invLerp dst (-blendRange) blendRange
            in acc * (1 - weight) + fromIntegral i * weight
@@ -142,10 +139,11 @@ type PlanetMaterial = Material PlanetMaterialAttrs
 data PlanetColor = PlanetColor
   { biomesNoise  :: Collapsible "Biome Noise" Noise
   -- ^ Noise for the biomes
-  , planetBiomes :: ![PlanetBiome] -- Collapsible "Biomes" [PlanetBiome]
+  , biomeNoiseOffset :: Float
+  , planetColorsInterpolate :: Bool
+  , planetBiomes :: ![Collapsible "Biome Settings" PlanetBiome]
   -- ^ A list of a percentage value and the color to use up to that percentage
   , biomeBlendAmount :: InRange 0 1 Float
-  , biomeNoiseOffset :: Float
   }
   deriving stock GHC.Generic
   deriving anyclass Generic
@@ -155,9 +153,9 @@ data PlanetColor = PlanetColor
 
 data PlanetBiome = PlanetBiome
   { biomeStartHeight :: InRange 0 1 Float
-  , biomeColors      :: [(InRange 0 100 Int, Color)]
   , biomeTint        :: Color
   , biomeTintPercent :: InRange 0 1 Float
+  , biomeColors      :: [(InRange 0 100 Int, Color)]
   }
   deriving stock GHC.Generic
   deriving anyclass Generic
@@ -177,7 +175,7 @@ newPlanetMaterial mm pl planet = Linear.do
 
 -- | Make a Texture from the planet color
 planetTexture :: PlanetColor -> Renderer (Alias (Texture2D (RGBA8 UNorm)))
-planetTexture PlanetColor{planetBiomes} = Linear.do
+planetTexture PlanetColor{planetBiomes, planetColorsInterpolate} = Linear.do
   sampler <- createSampler FILTER_LINEAR{-FILTER_NEAREST-} SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 
   -- Generate a gradient image. One width per percent of a color in the biome gradient. One height per biome (where a biome of size 2 counts as 2 biomes)
@@ -185,10 +183,10 @@ planetTexture PlanetColor{planetBiomes} = Linear.do
                       100{-width=100%-}
                       (P.length planetBiomes){-height=N pixels for a N biomes-}
       pixelPaint x y =
-        let biome = planetBiomes P.!! y
+        let Collapsible biome = planetBiomes P.!! y
             tintPercent = inRangeVal biome.biomeTintPercent
             tintColor = let (Color c) = biome.biomeTint in c
-            gradColor = evaluateGradient x (biomeColors biome)
+            gradColor = evaluateGradient planetColorsInterpolate x (biomeColors biome)
             WithVec3 r g b
               = gradColor V3.^* (1 - tintPercent)
                 + tintColor V3.^* tintPercent
@@ -199,13 +197,27 @@ planetTexture PlanetColor{planetBiomes} = Linear.do
 
 -- | Given an int ∈ [0, 100] and a list of colors with a value in the same
 -- range, return the color with the matching closest int key to the given int.
-evaluateGradient :: Int -> [(InRange 0 100 Int, Color)] -> Vec3
-evaluateGradient value colors =
-  case find (\(InRange k, _) -> value <= k) colors of
-    Nothing -> case colors of
-      [] -> vec3 0 0 0
-      (_, Color c):_  -> c
-    Just (_, Color c) -> c
+evaluateGradient :: Bool -> Int -> [(InRange 0 100 Int, Color)] -> Vec3
+evaluateGradient interpolate value colors = do
+  if interpolate then
+    case find (\(InRange k, _) -> value <= k) colors of
+      Nothing -> case colors of
+        [] -> vec3 0 0 0
+        (_, Color c):_  -> c
+      Just (InRange k2, Color c2) ->
+        let (InRange k1, Color c1) = case reverse $ P.takeWhile (\(InRange k, _) -> value > k) colors of
+              [] -> case colors of
+                [] -> (InRange 0, Color (vec3 0 0 0))
+                x:_ -> x
+              x:_ -> x
+            t = invLerp (fromIntegral value) (fromIntegral k1) (fromIntegral k2)
+         in c1 V3.^* (1 - t) + c2 V3.^* t
+  else
+    case find (\(InRange k, _) -> value <= k) colors of
+      Nothing -> case colors of
+        [] -> vec3 0 0 0
+        (_, Color c):_  -> c
+      Just (_, Color c) -> c
 
 --------------------------------------------------------------------------------
 
