@@ -46,7 +46,8 @@ source-repository-package
 
 source-repository-package
   type:     git
-  location: https://gitlab.com/sheaf/fir.git
+  location: https://gitlab.com/rodrigo.m.mesquita/fir.git
+  -- location: https://gitlab.com/sheaf/fir.git
 
 -----------------------------
 -- Other ......... patches --
