@@ -69,7 +69,7 @@ instance ShaderData MinMax where
 --------------------------------------------------------------------------------
 
 type PlanetMeshAttrs = '[Transform]
-type PlanetMeshVerts = '[Vec4, Vec3]
+type PlanetMeshVerts = '[Vec4, Vec4]
 type PlanetMesh      = Mesh PlanetMeshVerts PlanetMeshAttrs
 
 data PlanetShape = PlanetShape
@@ -86,12 +86,12 @@ data PlanetShape = PlanetShape
 
 -- | Make the point on a planet for the given point on a unit sphere
 --
--- Returns the updated point and the elevation of that point
+-- Returns the final point on the planet and the unscaled elevation at that point
 pointOnPlanet :: PlanetShape -> Vec3 -> (Vec3, Float)
 pointOnPlanet PlanetShape{..} pointOnUnitSphere =
   let elevation = evalNoise (unCollapsible planetNoise) pointOnUnitSphere
-      finalElevation = inRangeVal planetRadius * (1+elevation)
-   in (pointOnUnitSphere V3.^* finalElevation, finalElevation)
+      finalElevation = inRangeVal planetRadius * (1 + (P.max 0 elevation))
+   in (pointOnUnitSphere V3.^* finalElevation, elevation)
 
 -- | The Biome to pick (from float 0 to 1) at the given point on a unit sphere
 biomeOnPoint :: PlanetColor -> Vec3 -> Float
@@ -124,7 +124,9 @@ newPlanetMesh rp Planet{..} = Linear.do
       planetBiomes -- TODO: When this changes, we don't have to update the whole mesh. Just recompute this and poke it into the VertexBuffer directly at the right stride.
                = V.map (\(p :&: _) -> biomeOnPoint planetColor p) (V.convert us)
       planetNs = computeNormals (SV.map fromIntegral is) planetPs
-      planetVs = V.zipWith3 (\(WithVec3 x y z) biome n -> vec4 x y z biome :&: n) planetPs planetBiomes planetNs
+      planetVs = V.zipWith4 (\(WithVec3 x y z) biome (WithVec3 nx ny nz) elev ->
+                               vec4 x y z biome :&: vec4 nx ny nz elev)
+                    planetPs planetBiomes planetNs elevations
       is       = weldVertices planetPs (SV.map fromIntegral is0)
 
       minmax = MinMax (P.minimum elevations) (P.maximum elevations)
@@ -159,6 +161,7 @@ data PlanetBiome = PlanetBiome
   , biomeTint        :: Color
   , biomeTintPercent :: InRange 0 1 Float
   , biomeColors      :: [(InRange 0 100 Int, Color)]
+  , biomeOceanColors :: [(InRange 0 100 Int, Color)]
   }
   deriving stock Show
   deriving stock GHC.Generic
@@ -182,15 +185,21 @@ planetTexture :: PlanetColor -> Renderer (Alias (Texture2D (RGBA8 UNorm)))
 planetTexture PlanetColor{planetBiomes, planetColorsInterpolate} = Linear.do
   sampler <- createSampler FILTER_LINEAR{-FILTER_NEAREST-} SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 
+  let w_resolution = 100
+
   -- Generate a gradient image. One width per percent of a color in the biome gradient. One height per biome (where a biome of size 2 counts as 2 biomes)
   let gradientImg = generateImage pixelPaint
-                      100{-width=100%-}
+                      (2*w_resolution){- [0, 100] for ocean colors then [0,100] more for normal colors-}
                       (P.length planetBiomes){-height=N pixels for a N biomes-}
       pixelPaint x y =
         let Collapsible biome = planetBiomes P.!! y
             tintPercent = inRangeVal biome.biomeTintPercent
             tintColor = let (Color c) = biome.biomeTint in c
-            gradColor = evaluateGradient planetColorsInterpolate x (biomeColors biome)
+            gradColor
+              | x < w_resolution
+              = evaluateGradient planetColorsInterpolate x (biomeOceanColors biome)
+              | otherwise
+              = evaluateGradient planetColorsInterpolate (x-w_resolution) (biomeColors biome)
             WithVec3 r g b
               = gradColor V3.^* (1 - tintPercent)
                 + tintColor V3.^* tintPercent

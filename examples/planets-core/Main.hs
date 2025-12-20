@@ -224,6 +224,9 @@ defaultPlanet = Planet
           , (75,  vec3 195 195 195)
           , (100, vec3 255 255 255)
           ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 24  150 183)
+          ]
         , biomeStartHeight = 0
         , biomeTint = ImGui.Color (vec3 1 0 1)
         , biomeTintPercent = 0
@@ -239,6 +242,9 @@ defaultPlanet = Planet
           , (40, vec3 158 37 0)
           , (85, vec3 108 13 0)
           , (100, vec3 231 231 231)
+          ]
+        , biomeOceanColors = mkColors
+          [ (1, vec3 0 83 255)
           ]
         , biomeStartHeight = 0.38
         , biomeTint = ImGui.Color (vec3 0 1 1)
@@ -256,6 +262,9 @@ defaultPlanet = Planet
           , (60, vec3 180 35 0)     -- Glowing red basalt
           , (85, vec3 220 50 0)     -- Bright red-orange ridges
           , (100, vec3 255 100 0)   -- Molten orange peaks
+          ]
+        , biomeOceanColors = mkColors
+          [ (1, vec3 15 25 35)
           ]
         , biomeStartHeight = 0.96
         , biomeTint = ImGui.Color (vec3 0 1 0)

@@ -15,11 +15,11 @@ import Ghengin.Camera.Shader.Lighting
 ---- Vertex -----
 
 type VertexDefs
-  = '[ "out_position" ':-> Output '[ Location 0 ] (V 4 Float)
-     , "out_normal"   ':-> Output '[ Location 1 ] (V 4 Float)
+  = '[ "out_position"  ':-> Output '[ Location 0 ] (V 4 Float)
+     , "out_normal"    ':-> Output '[ Location 1 ] (V 4 Float)
 
-     , "out_position_object" ':-> Output '[ Location 2 ] (V 3 Float)
-     , "out_uv_y"            ':-> Output '[ Location 2, Component 3 ] (Float)
+     , "out_biome_col" ':-> Output '[ Location 2, Component 0 ] (Float)
+     , "out_elevation" ':-> Output '[ Location 2, Component 1 ] (Float)
 
      , "camera"        ':-> Uniform '[ DescriptorSet 0, Binding 0 ]
                              (Struct [ "view_matrix" ':-> M 4 4 Float
@@ -30,7 +30,8 @@ type VertexDefs
 
      , "in_position"   ':-> Input '[ Location 0, Component 0 ] (V 3 Float)
      , "in_normal"     ':-> Input '[ Location 1, Component 0 ] (V 3 Float)
-     , "in_uv_y"       ':-> Input '[ Location 0, Component 3 ] (Float)
+     , "in_biome_col"  ':-> Input '[ Location 0, Component 3 ] (Float)
+     , "in_elevation"  ':-> Input '[ Location 1, Component 3 ] (Float)
      ]
 
 
@@ -50,11 +51,8 @@ vertex = shader do
     -- (For non-uniform transformations we could also pre-compute a "Normal Matrix" rather than using this.)
     put @"out_normal"   ((transpose . inverse{-fix for non linear what-}) (viewM !*! modelM) !*^ Vec4 nx ny nz 0)
 
-    -- Output position in object space
-    put @"out_position_object" (Vec3 x y z)
-
-    -- Output UV y position
-    put @"out_uv_y" =<< get @"in_uv_y"
+    put @"out_biome_col" =<< get @"in_biome_col"
+    put @"out_elevation" =<< get @"in_elevation"
 
     put @"gl_Position" ((projM !*! viewM !*! modelM) !*^ Vec4 x y z 1)
 
@@ -62,35 +60,39 @@ vertex = shader do
 
 
 type FragmentDefs
-  =  '[ "in_position" ':-> Input '[ Location 0 ] (V 4 Float)
-      , "in_normal"   ':-> Input '[ Location 1 ] (V 4 Float)
+  =  '[ "in_position"  ':-> Input '[ Location 0 ] (V 4 Float)
+      , "in_normal"    ':-> Input '[ Location 1 ] (V 4 Float)
 
-      -- The position in object-space, to get distance from center of planet
-      , "in_position_object" ':-> Input '[ Location 2 ] (V 3 Float)
-      -- The biome color as a uv Y float
-     ,  "in_uv_y"     ':-> Input '[ Location 2, Component 3 ] (Float)
+     ,  "in_biome_col" ':-> Input '[ Location 2, Component 0 ] (Float)
+     ,  "in_elevation" ':-> Input '[ Location 2, Component 1 ] (Float)
 
-      , "minmax"      ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
+      , "minmax"       ':-> Uniform '[ DescriptorSet 1, Binding 0 ]
                                     ( Struct '[ "min" ':-> Float
                                               , "max" ':-> Float ] )
 
-      , "gradient"    ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
+      , "gradient"     ':-> Texture2D '[ DescriptorSet 1, Binding 1 ] (RGBA8 UNorm)
       ]
 
 
 fragment :: FragmentShaderModule FragmentDefs _
 fragment = shader do
 
-    ~(Vec3 pox poy poz) <- get @"in_position_object"
-
     -- Color
     min' <- use @(Name "minmax" :.: Name "min")
     max' <- use @(Name "minmax" :.: Name "max")
-    biome_col_v <- get @"in_uv_y"
+    biome_col_v <- get @"in_biome_col"
+    elevation_v <- get @"in_elevation"
 
-    let col_frac = invLerp (norm (Vec3 pox poy poz)) min' max'
+    let ocean_col    = invLerp elevation_v min' 0
+    let terrain_col  = invLerp elevation_v 0 max'
+    let ocean_uv_x   = lerp 0 0.5 ocean_col   -- t for first half of texture
+    let terrain_uv_x = lerp 0.5 1 terrain_col -- t for second half of texture
 
-    ~(Vec4 cx cy cz _) <- use @(ImageTexel "gradient") NilOps (Vec2 col_frac biome_col_v)
+    -- Weighted add to construct final uv_x into texture
+    let mask = floor ocean_col -- 1 for terrain (elevation_v>=0), 0 for ocean (elevation_v<0)
+    let uv_x = (ocean_uv_x*(1-mask)) + (terrain_uv_x*mask)
+
+    ~(Vec4 cx cy cz _) <- use @(ImageTexel "gradient") NilOps (Vec2 uv_x biome_col_v)
 
     let lightDir  = Vec3 (-0.5) 1 0.5
     let lightCol  = Vec3 1 1 1
@@ -110,8 +112,9 @@ fragment = shader do
 -- | Data for each vertex in this shader pipeline
 type VertexData =
   '[ Slot 0 0 ':-> V 3 Float -- in pos
-   , Slot 0 3 ':-> Float -- uv y position
+   , Slot 0 3 ':-> Float -- in biome frac
    , Slot 1 0 ':-> V 3 Float -- in normal
+   , Slot 1 3 ':-> Float -- in elevation
    ]
 
 shaders :: ShaderPipeline _
@@ -122,6 +125,9 @@ shaders
 
 ----- Utils --------------------------------------------------------------------
 
-invLerp :: FIR.DivisionRing a => a -> a -> a -> a
-invLerp value from to = (value FIR.- from) FIR./ (to FIR.- from)
+invLerp :: (FIR.DivisionRing a) => a -> a -> a -> a
+invLerp value from to = (value - from) / (to - from)
 
+lerp :: (Semiring a, CancellativeAdditiveMonoid a) => a -> a -> a -> a
+-- lerp v0 v1 t = v0 FIR.+ t FIR.* (v1 FIR.- v0);
+lerp v0 v1 t = (1 - t) * v0 + t * v1;

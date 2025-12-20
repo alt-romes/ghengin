@@ -89,7 +89,7 @@ evalNoise LayersCoherentNoise{..} p
       sum $ take (inRangeVal numLayers) $
       zipWith layerNoise frequencies amplitudes
 evalNoise StrengthenNoise{..} p = evalNoise baseNoise p * strength
-evalNoise MinValueNoise{..}   p = max 0 (evalNoise baseNoise p - minNoiseVal)
+evalNoise MinValueNoise{..}   p = evalNoise baseNoise p - minNoiseVal
 evalNoise RidgedNoise{..}     p = double2Float $
   Ridged.noiseValue (ridged seed (inRangeVal octaves) scale frequency lacunarity) (vec3Point p)
 evalNoise AddNoiseMasked{..}  p =
@@ -97,7 +97,8 @@ evalNoise AddNoiseMasked{..}  p =
     Nothing -> 0
     Just (firstLayer NonEmpty.:| otherLayers) ->
       let firstLayerVal = evalNoise firstLayer p
-       in firstLayerVal + sum (map ((*firstLayerVal{-mask-}) . (`evalNoise` p)) otherLayers)
+          mask = max 0 $ firstLayerVal
+       in firstLayerVal + sum (map ((*mask) . (`evalNoise` p)) otherLayers)
 evalNoise AddNoiseLayers{..}  p = sum (map (`evalNoise` p) noiseLayers)
 
 vec3Point :: Vec3 -> Point
