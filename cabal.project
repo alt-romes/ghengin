@@ -1,5 +1,6 @@
 packages:
           ./examples/core/
+          ./examples/ghengin/
           ./ghengin-core/
           ./linear-utils/
           ./ghengin/

@@ -80,15 +80,8 @@ common common-flags
                       LinearTypes,
                       QualifiedDo,
                       QuantifiedConstraints,
-                      -- Use Ghengin.Core.Prelude!
+                      -- Use Ghengin.Prelude!
                       NoImplicitPrelude,
-
-                      -- This is just an experiment, but honestly it might be
-                      -- the right thing to do by default for the engine?
-
-                      -- If you find this comment here later, try benchmarking this
-                      -- Strict,
-                      -- StrictData,
 
   default-language: GHC2021
 
@@ -96,9 +89,14 @@ common common-flags
 -- `ghengin-core` and provides an unrestricted monad on top of it.
 library
     import:           common-flags
-    exposed-modules:  Ghengin.Monad
+    exposed-modules:
+      Ghengin.Prelude,
+      Ghengin.Monad,
+      Ghengin.Input
     build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core:backend-independent-bits,
-                      linear-base, linear-utils, geomancy >= 0.3
+                      linear-base, reference-counting, linear-utils, geomancy >= 0.3,
+                      ghengin:dear-imgui,
+                      mtl
     hs-source-dirs:   ghengin
     default-language: GHC2021
 

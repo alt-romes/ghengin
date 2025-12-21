@@ -164,15 +164,15 @@ main = do
     -- What planet?
     let planet = defaultPlanet
 
-    (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass)
+    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
 
     -- Init imgui
-    (rp1, imctx) <- (Alias.useM rp1 ImGui.initImGui)
+    (rp1, imctx) <- Alias.useM rp1 ImGui.initImGui
 
-    pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil))
+    pipeline   <- makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil)
     ( (pmesh, pipeline),
-      Ur minmax )    <- (newPlanetMesh pipeline planet)
-    (pmat, pipeline) <- (newPlanetMaterial minmax pipeline planet)
+      Ur minmax )    <- newPlanetMesh pipeline planet
+    (pmat, pipeline) <- newPlanetMaterial minmax pipeline planet
 
     -- remember to provide helper function in ghengin to insert meshes with pipelines and mats, without needing to do this:
     (rq, Ur pkey)    <- pure (insertPipeline pipeline LMon.mempty)
