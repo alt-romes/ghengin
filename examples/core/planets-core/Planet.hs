@@ -76,8 +76,12 @@ data PlanetShape = PlanetShape
   { planetResolution :: !(InRange 2 256 Int)
   , planetRadius     :: !(InRange 0 100 Float)
   , planetNoise      :: !(Collapsible "Planet Noise" Noise)
+  , biomesNoise      :: !(Collapsible "Biome Noise" Noise)
+  , biomeNoiseOffset :: !Float
+  , biomeBlendAmount :: !(InRange 0 1 Float)
   }
   deriving Show
+  deriving stock P.Eq
   deriving GHC.Generic
   deriving anyclass Generic
   deriving anyclass HasDatatypeInfo
@@ -94,8 +98,8 @@ pointOnPlanet PlanetShape{..} pointOnUnitSphere =
    in (pointOnUnitSphere V3.^* finalElevation, elevation)
 
 -- | The Biome to pick (from float 0 to 1) at the given point on a unit sphere
-biomeOnPoint :: PlanetColor -> Vec3 -> Float
-biomeOnPoint PlanetColor{..} pointOnUnitSphere =
+biomeOnPoint :: PlanetShape -> PlanetColor -> Vec3 -> Float
+biomeOnPoint PlanetShape{..} PlanetColor{..} pointOnUnitSphere =
   let noise = evalNoise (unCollapsible biomesNoise) pointOnUnitSphere
       heightPercent = ((pointOnUnitSphere.y + 1) / 2) + (noise - biomeNoiseOffset)
       blendRange = inRangeVal biomeBlendAmount / 2
@@ -121,8 +125,8 @@ newPlanetMesh rp Planet{..} = Linear.do
 
       (planetPs, elevations)
                = V.unzip $ V.map (\(p :&: _) -> pointOnPlanet planetShape p) (V.convert us)
-      planetBiomes -- TODO: When this changes, we don't have to update the whole mesh. Just recompute this and poke it into the VertexBuffer directly at the right stride.
-               = V.map (\(p :&: _) -> biomeOnPoint planetColor p) (V.convert us)
+      planetBiomes
+               = V.map (\(p :&: _) -> biomeOnPoint planetShape planetColor p) (V.convert us)
       planetNs = computeNormals (SV.map fromIntegral is) planetPs
       planetVs = V.zipWith4 (\(WithVec3 x y z) biome (WithVec3 nx ny nz) elev ->
                                vec4 x y z biome :&: vec4 nx ny nz elev)
@@ -141,15 +145,12 @@ type PlanetMaterialAttrs = '[MinMax, Texture2D (RGBA8 UNorm)]
 type PlanetMaterial = Material PlanetMaterialAttrs
 
 data PlanetColor = PlanetColor
-  { biomesNoise  :: Collapsible "Biome Noise" Noise
-  -- ^ Noise for the biomes
-  , biomeNoiseOffset :: Float
-  , planetColorsInterpolate :: Bool
-  , biomeBlendAmount :: InRange 0 1 Float
+  { planetColorsInterpolate :: Bool
   , planetBiomes :: ![Collapsible "Biome Settings" PlanetBiome]
   -- ^ A list of a percentage value and the color to use up to that percentage
   }
   deriving stock Show
+  deriving stock P.Eq
   deriving stock GHC.Generic
   deriving anyclass Generic
   deriving anyclass HasDatatypeInfo
@@ -164,6 +165,7 @@ data PlanetBiome = PlanetBiome
   , biomeOceanColors :: [(InRange 0 100 Int, Color)]
   }
   deriving stock Show
+  deriving stock P.Eq
   deriving stock GHC.Generic
   deriving anyclass Generic
   deriving anyclass HasDatatypeInfo

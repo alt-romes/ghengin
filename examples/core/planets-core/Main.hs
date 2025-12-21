@@ -49,7 +49,7 @@ import Vulkan.Core10.FundamentalTypes (Extent2D(..))
 import qualified Data.Monoid.Linear as LMon
 import qualified FIR
 import qualified Math.Linear as FIR
-import qualified Prelude
+import qualified Prelude as P
 import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Camera
@@ -82,19 +82,28 @@ gameLoop GameData{..} rp rq = Linear.do
   -- Update planet mesh according to UI
   Ur (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
   rq <-
-    if changedShape || changedColor then Linear.do -- TODO: If only the colors changed, no problem. We only have to regenerate the mesh if any of the biomes noise or start height changed.
-      rq <- editAtMeshesKey planetMeshKey rq $ \pipeline mat [(msh, x)] -> Linear.do
-            ( (pmesh, pipeline),
-              Ur minmax ) <- newPlanetMesh pipeline newPlanet 
-            mat <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
+    if changedShape || changedColor then Linear.do
 
-            -- Re-use old transform and free old mesh
-            let !(DynamicBinding (Ur old_tr), msh') = puncons msh
-            freeMesh msh'
+      rq <-
+        -- Only regen when vertex data must change
+        if newPlanet.planetShape P./= planet.planetShape
+           || P.map (.unCollapsible.biomeStartHeight) newPlanet.planetColor.planetBiomes
+              P./= P.map (.unCollapsible.biomeStartHeight) planet.planetColor.planetBiomes
+          then Linear.do
+            editAtMeshesKey planetMeshKey rq $ \pipeline mat [(msh, x)] -> Linear.do
+              ( (pmesh, pipeline),
+                Ur minmax ) <- newPlanetMesh pipeline newPlanet
+              mat <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
 
-            pmesh' <- propertyAt @0 @Transform (\(Ur _) -> pure (Ur old_tr)) pmesh
+              -- Re-use old transform and free old mesh
+              let !(DynamicBinding (Ur old_tr), msh') = puncons msh
+              freeMesh msh'
 
-            return (pipeline, (mat, [(pmesh', x)]))
+              pmesh' <- propertyAt @0 @Transform (\(Ur _) -> pure (Ur old_tr)) pmesh
+
+              return (pipeline, (mat, [(pmesh', x)]))
+          else
+            return rq
 
       editMaterial (meshKey2MatKey planetMeshKey) rq $ \mat -> Linear.do
         propertyAt @1 @_ (\tex -> Alias.forget tex >> planetTexture (planetColor newPlanet)) mat
@@ -143,14 +152,14 @@ gameLoop GameData{..} rp rq = Linear.do
 dimensions :: Num a => (a, a)
 dimensions = (1920, 1080)
 
-main :: Prelude.IO ()
+main :: P.IO ()
 main = do
  withLinearIO $
   runRenderer dimensions Linear.do
     Ur charStream <- registerCharStream
     Ur mouseDragStream <- registerMouseDragStream $ do
       -- Is drag allowed? not if imgui is using the mouse
-      Prelude.not Prelude.<$> ImGui.wantCaptureMouse
+      P.not P.<$> ImGui.wantCaptureMouse
 
     -- What planet?
     let planet = defaultPlanet
@@ -161,7 +170,6 @@ main = do
     (rp1, imctx) <- (Alias.useM rp1 ImGui.initImGui)
 
     pipeline   <- (makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil))
-    -- todo: minmax should be per-mesh
     ( (pmesh, pipeline),
       Ur minmax )    <- (newPlanetMesh pipeline planet)
     (pmat, pipeline) <- (newPlanetMaterial minmax pipeline planet)
@@ -210,6 +218,16 @@ defaultPlanet = Planet
               }
             }
           ]
+      , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.05 $
+          LayersCoherentNoise
+          { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
+          , baseRoughness = 1.0
+          , roughness     = 2.0
+          , numLayers     = 3
+          , persistence   = 2
+          }
+      , biomeBlendAmount = 0.2
+      , biomeNoiseOffset = 0
       }
   , planetColor = PlanetColor
     { planetBiomes =
@@ -274,21 +292,11 @@ defaultPlanet = Planet
         , biomeTintPercent = 0
         }
       ]
-    , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.05 $
-        LayersCoherentNoise
-        { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
-        , baseRoughness = 1.0
-        , roughness     = 2.0
-        , numLayers     = 3
-        , persistence   = 2
-        }
-    , biomeBlendAmount = 0.2
-    , biomeNoiseOffset = 0
     , planetColorsInterpolate = False
     }
   }
   where
-    mkColors = Prelude.map $ \(bnd, WithVec3 rn gn bn) ->
+    mkColors = P.map $ \(bnd, WithVec3 rn gn bn) ->
       (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255)))
 
 --------------------------------------------------------------------------------
@@ -321,6 +329,16 @@ pinkPlanet = Planet
               }
             }
           ]
+      , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.05 $
+          LayersCoherentNoise
+          { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
+          , baseRoughness = 1.0
+          , roughness     = 2.0
+          , numLayers     = 3
+          , persistence   = 2
+          }
+      , biomeBlendAmount = 0.2
+      , biomeNoiseOffset = 0
       }
   , planetColor = PlanetColor
     { planetBiomes =
@@ -386,20 +404,10 @@ pinkPlanet = Planet
         , biomeTintPercent = 0
         }
       ]
-    , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.05 $
-        LayersCoherentNoise
-        { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
-        , baseRoughness = 1.0
-        , roughness     = 2.0
-        , numLayers     = 3
-        , persistence   = 2
-        }
-    , biomeBlendAmount = 0.2
-    , biomeNoiseOffset = 0
     , planetColorsInterpolate = False
     }
   }
   where
-    mkColors = Prelude.map $ \(bnd, WithVec3 rn gn bn) ->
+    mkColors = P.map $ \(bnd, WithVec3 rn gn bn) ->
       (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255)))
 
