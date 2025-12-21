@@ -1,13 +1,6 @@
 cabal-version:      3.4
 
---------------------------------------------------------------------------------
--- this file is split off from ../ghengin.cabal
--- we had to split these libraries into a different package
--- to fix HLS when using backpack
--- when that's fixed, move the packages back together to the same cabal project file
---------------------------------------------------------------------------------
-
-name:               ghengin-games
+name:               ghengin-core-games
 tested-with:        GHC ==9.12.1
 version:            0.1.0.0
 license:            BSD-3-Clause
