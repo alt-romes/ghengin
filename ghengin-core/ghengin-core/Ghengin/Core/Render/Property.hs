@@ -40,8 +40,7 @@ data PropertyBinding α where
 
 -- NB: Currently, we use std140 for uniform & storage buffers, but this could
 -- eventually be std430 if we used VK_KHR_uniform_buffer_standard_layout. These
--- layouts are provided by Block from gl-block (though this would require FIR to
--- also line this up).
+-- layouts are provided by Block from gl-block.
 
   -- | Write the property to a mapped buffer every frame
   DynamicBinding :: ∀ α. (Block α, PBInv α ~ Ur α) -- Block to write the buffers with proper standard
@@ -75,6 +74,8 @@ instance MonadIO m => Shareable m (PropertyBinding α) where
 -- type that shows up in the typelist.
 --
 -- For all intents and purposes, this is the inverse of 'PropertyBinding'.
+--
+-- Can't have f2103d2ae525424a because of GHC bug #19517
 type family PBInv α = r | r -> α where
   PBInv (Texture2D fmt) = Alias (Texture2D fmt)
   PBInv x               = Ur x
@@ -110,10 +111,6 @@ Likewise we have Mesh property bindings at dset #2
 -- * Dynamic buffers: It will create a mapped buffer but write nothing to it - these buffers are written every frame.
 -- * Static buffer: It will create and write a buffer that can be manually updated
 -- * Texture2D: It will simply add the already existing texture that was created (and engine prepared) on texture creation
---
--- Additionally, update the reference counts of resources that are reference
--- counted:
---  * Texture2D
 makeResources :: ∀ α. BindingsMap -> PropertyBindings α ⊸ Renderer (ResourceMap, PropertyBindings α)
 makeResources bm = enterD "makeResources" . go_build 0 bm
   where
@@ -291,10 +288,8 @@ class HasProperties φ => HasPropertyAt n β φ α where
   -- This is almost like a lens, but while the we use the linear control
   -- functor rather than the data one, we won't be able to use this lens as a
   -- getter
-  -- ROMES:TODO: I suppose I no longer can have %p here instead of %1? Try thinking about it again...
-  -- propertyAt :: ∀ γ ρ χ. Linear.Functor γ => (β %ρ -> γ (Renderer β)) %χ -> (φ α ⊸ γ (Renderer (φ α)))
   propertyAt :: ∀ χ β'. (β' ~ PBInv β) => (β' ⊸ Renderer β') %χ -> (φ α ⊸ Renderer (φ α))
-                     -- ^ linearity here enforces correct freeing of linear property!
+                            -- linearity here ^ enforces correct freeing of linear property!
 
 instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β φ α where
   propertyAt = propertyAt' @n @0 @φ @α @β
@@ -304,7 +299,6 @@ instance (HasPropertyAt' n 0 φ α β, HasProperties φ) => HasPropertyAt n β �
 -- There is a default implementation for 'HasPropertyAt' and instances are only
 -- required for the 'HasProperties' class
 class HasPropertyAt' n m φ α β where
-  -- propertyAt' :: Linear.Functor f => (β %p -> f (Renderer β)) %x -> (φ α ⊸ f (Renderer (φ α)))
   propertyAt' :: (β' ~ PBInv β) => (β' ⊸ Renderer β') %x -> (φ α ⊸ Renderer (φ α))
 
 instance (Unsatisfiable (Text "The requested property " :<>: ShowType α :<>: Text " does not exist in the properties list" {- :<>: ShowType α -})) => HasPropertyAt' n n' φ '[] α where
@@ -317,39 +311,15 @@ instance {-# OVERLAPPING #-}
   , KnownNat n
   ) => HasPropertyAt' n n φ (β:αs) β where
 
-  -- propertyAt' :: MonadRenderer μ => Lens (φ (β:αs)) (μ (φ (β:αs))) β (μ (Ur β))
-  -- propertyAt' :: ∀ χ γ. Linear.Functor γ => (β %1 -> γ (Renderer β)) %χ -> (φ (β:αs) ⊸ γ (Renderer (φ (β:αs))))
-  -- propertyAt' :: ∀ χ. (β ⊸ Renderer β) %χ -> (φ (β:αs) ⊸ Renderer (φ (β:αs)))
-  -- lens version:
-  -- propertyAt' afmub s =
-  --   case puncons s of -- ft
-  --     -- TODO: prop might have to be linear
-  --     (prop, xs0)      ->
-  --       case propertyValue prop of
-  --         (a, prop1) ->
-  --           (\mub ->
-  --             descriptors xs0 Linear.>>= \case
-  --               (dset, resmap, xs1) -> edit prop1 dset resmap xs1 mub
-  --           ) Linear.<$> afmub a
   propertyAt' :: ∀ χ β'. (β' ~ PBInv β) => (β' ⊸ Renderer β') %χ -> (φ (β:αs) ⊸ Renderer (φ (β:αs)))
   propertyAt' afmub s =
-    case puncons s of -- ft
-      -- TODO: prop might have to be linear
+    case puncons s of
       (prop, xs0)      ->
-        -- case propertyValue prop of
-        --   (a, prop1) ->
-              descriptors xs0 Linear.>>= \case
-                (dset, resmap, xs1) -> edit prop dset resmap xs1 afmub
-            -- (\mub ->
-            --   descriptors xs0 Linear.>>= \case
-            --     (dset, resmap, xs1) -> edit prop1 dset resmap xs1 afmub
-            -- ) Linear.<$> afmub a
+        descriptors xs0 Linear.>>= \case
+          (dset, resmap, xs1) -> edit prop dset resmap xs1 afmub
    where
     edit :: (β' ~ PBInv β) => PropertyBinding β ⊸ Alias DescriptorSet ⊸ Alias ResourceMap ⊸ φ αs ⊸ (β' ⊸ Renderer β') ⊸ Renderer (φ (β:αs))
     edit prop dset resmap xs fmub = Linear.do
-      -- Ur b <- mub
-      -- TODO: Perhaps assert this isn't the last usage of dset and resmap,
-      -- though I imagine it would be quite hard to get into that situation.
       (dset'  , freeDSet)   <- Alias.get dset
       (resmap', freeResMap) <- Alias.get resmap
       (updatedProp, dset'', resmap'') <- editProperty prop fmub (nat @n) dset' resmap'
@@ -363,21 +333,12 @@ instance {-# OVERLAPPABLE #-}
   ) => HasPropertyAt' n m φ (α ': αs) β where
 
   -- propertyAt' :: MonadRenderer μ => Lens (φ (α:αs)) (μ (φ (α:αs))) β (μ (Ur β))
-  -- propertyAt' :: ∀ f p x. Linear.Functor f => (β %1 -> f (Renderer β)) %x -> (φ (α:αs) ⊸ f (Renderer (φ (α:αs))))
   propertyAt' :: ∀ x β'. (β' ~ PBInv β) => (β' ⊸ Renderer β') %x -> (φ (α:αs) ⊸ Renderer (φ (α:αs)))
   propertyAt' f x =
     case puncons x of
       (prop, xs) ->
-        -- fmap (pcons prop) <$> propertyAt' @n @(m+1) @φ @αs @β f xs
         pcons prop <$> propertyAt' @n @(m+1) @φ @αs @β f xs
     
--- Does it make sense to have this?
--- instance
---   ( Length α ~ m
---   , TypeError (Text "Failed to get property binding #" :<>: ShowType n :<>: Text " from properties " :<>: ShowType α)
---   ) => HasPropertyAt' n m φ α b where
---     propertyAt' = undefined
-
 -- | Edit the value of a property. You most likely don't need this function.
 -- See 'HasPropertyAt'.
 editProperty :: ∀ α
@@ -392,11 +353,9 @@ editProperty prop update i dset resmap0 = Linear.do
     DynamicBinding (x :: Ur α) -> Linear.do
       Ur ux <- update x
 
-      -- We don't need to do the following update on editProperty since
-      -- `writeProperty` will already write the mapped buffer of dynamic
-      -- properties every frame.
-      -- (UniformResource bufref, resmap1) <- getDescriptorResource resmap0 i
-      -- writeDynamicBinding bufref ux >>= Alias.forget
+      -- We don't need to do the update to a *dynamic* property on editProperty
+      -- since `writeProperty` always writes the mapped buffer of dynamic
+      -- properties, every frame.
 
       pure (DynamicBinding (Ur ux), dset, resmap0)
 
@@ -439,15 +398,16 @@ editProperty prop update i dset resmap0 = Linear.do
 
   where
     -- TODO: For now, static bindings use a mapped buffer as well, but it'd be
-    -- better to use a GPU local buffer to which we write only so often (see createDeviceLocalBuffer)
+    -- better to use a GPU local buffer to which we write only so often (see
+    -- makeResources and createDeviceLocalBuffer)
     writeStaticBinding :: Block α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
     writeStaticBinding = writeMappedBuffer @α
 
     -- | Overwrite the texture bound on a descriptor set at binding #n
     --
     -- TODO: Is it OK to overwrite previously written descriptor sets at specific points?
-    -- TODO: this one has the potential to be wrong, think about it carefully eventually
-    -- ROMES:TODO: Textures!!!!
+    --  I think not really, bc we don't have per-frame descriptor sets
+    --    TODO: per-frame descriptor sets
     updateTextureBinding :: forall fmt. DescriptorSet ⊸ Alias (Texture2D fmt) ⊸ Renderer DescriptorSet
     updateTextureBinding dset' t
       = updateDescriptorSet dset' (IM.insert i (Texture2DResource t) IM.empty) >>=

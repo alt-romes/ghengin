@@ -83,25 +83,22 @@ gameLoop GameData{..} rp rq = Linear.do
   Ur (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
   rq <-
     if changedShape || changedColor then Linear.do -- TODO: If only the colors changed, no problem. We only have to regenerate the mesh if any of the biomes noise or start height changed.
-      rq <- (editAtMeshesKey planetMeshKey rq (\pipeline mat [(msh, x)] -> Linear.do
+      rq <- editAtMeshesKey planetMeshKey rq $ \pipeline mat [(msh, x)] -> Linear.do
             ( (pmesh, pipeline),
               Ur minmax ) <- newPlanetMesh pipeline newPlanet 
             mat <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
 
             -- Re-use old transform and free old mesh
-            let !(DynamicBinding (Ur prv_tr), msh') = puncons msh
+            let !(DynamicBinding (Ur old_tr), msh') = puncons msh
             freeMesh msh'
 
-            pmesh' <- propertyAt @0 @Transform (\(Ur _) -> pure (Ur prv_tr)) pmesh
+            pmesh' <- propertyAt @0 @Transform (\(Ur _) -> pure (Ur old_tr)) pmesh
 
             return (pipeline, (mat, [(pmesh', x)]))
-          ))
 
-      -- TODO: EditAtMaterialKey (using a materialKeyOfMeshKey)
-      (editAtMeshesKey planetMeshKey rq (\pipeline mat [(msh, x)] -> Linear.do
-            mat <- propertyAt @1 @_ (\tex -> Alias.forget tex >> planetTexture (planetColor newPlanet)) mat
-            return (pipeline, (mat, [(msh, x)]))
-          ))
+      editMaterial (meshKey2MatKey planetMeshKey) rq $ \mat -> Linear.do
+        propertyAt @1 @_ (\tex -> Alias.forget tex >> planetTexture (planetColor newPlanet)) mat
+
     else
       pure rq
 

@@ -42,9 +42,7 @@ newtype RenderQueue a = RenderQueue (PipelineMap (MaterialMap (MeshMap a)))
 
 type PipelineMap a = Map Unique (Some2 RenderPipeline, a)
 type MaterialMap a = Map Unique (Some Material, a)
-type MeshMap a = Map Unique [(Some2 Mesh, a)]
--- ^ We need a list of meshes for a given mesh key because we may have more
--- than one of the same mesh in the render queue.
+type MeshMap     a = Map Unique [(Some2 Mesh, a)]
 
 instance Semigroup (RenderQueue α) where
   (<>) = Unsafe.toLinear2 \(RenderQueue q) (RenderQueue q') ->
@@ -61,11 +59,6 @@ instance Semigroup (RenderQueue α) where
 instance Monoid (RenderQueue α) where
   mempty = RenderQueue M.empty
 
--- fromList :: [(RenderPacket, a)] ⊸ RenderQueue a
--- fromList = foldr (uncurry insert) mempty
--- fromList = foldr ((<>) . (`insert` mempty)) mempty :)
--- {-# INLINE fromList #-}
-
 type PipelineKey :: FIR.Pipeline.PipelineInfo -> [Type] -> Type
 data PipelineKey π p = UnsafePipelineKey !Unique
 
@@ -74,6 +67,12 @@ data MaterialKey π p ma = UnsafeMaterialKey !Unique !(PipelineKey π p)
 
 type MeshKey :: FIR.Pipeline.PipelineInfo -> [Type] -> [Type] -> [Type] -> [Type] -> Type
 data MeshKey π p ma vertexAttributes meshProperties = UnsafeMeshKey !Unique !(MaterialKey π p ma)
+
+meshKey2MatKey :: MeshKey π p ma va mma -> MaterialKey π p ma
+meshKey2MatKey (UnsafeMeshKey _ k) = k
+
+matKey2PipKey :: MaterialKey π p ma -> PipelineKey π p
+matKey2PipKey (UnsafeMaterialKey _ k) = k
 
 --------------------------------------------------------------------------------
 
