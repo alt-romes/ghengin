@@ -98,7 +98,7 @@ fragment = shader do
     let lightCol  = Vec3 1 1 1
     let objectCol = Vec3 cx cy cz
     let specularStrength = 2
-    let shininess = 8
+    let shininess = 64
 
     lightValue <- blinnPhong 0.02 shininess specularStrength lightDir lightCol
 
