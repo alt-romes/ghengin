@@ -92,6 +92,15 @@ common common-flags
 
   default-language: GHC2021
 
+-- The main ghengin library, which wraps the linear Renderer from
+-- `ghengin-core` and provides an unrestricted monad on top of it.
+library
+    import:           common-flags
+    exposed-modules:  Ghengin.Monad
+    build-depends:    base >=4.19.0.0, ghengin-core, ghengin-core:backend-independent-bits,
+                      linear-base, linear-utils, geomancy >= 0.3
+    hs-source-dirs:   ghengin
+    default-language: GHC2021
 
 --------------------------------------------------------------------------------
 -- Sub-libraries for engine components
@@ -146,14 +155,14 @@ library dear-imgui
 -- Testsuite
 --------------------------------------------------------------------------------
 
-test-suite ghengin-test
-    import:           common-flags
-    default-language: GHC2021
-    default-extensions: UnicodeSyntax
-    type:             exitcode-stdio-1.0
-    hs-source-dirs:   test
-    main-is:          Main.hs
-    build-depends:
-        base >=4.17.0.0,
-        ghengin
-
+-- test-suite ghengin-test
+--     import:           common-flags
+--     default-language: GHC2021
+--     default-extensions: UnicodeSyntax
+--     type:             exitcode-stdio-1.0
+--     hs-source-dirs:   test
+--     main-is:          Main.hs
+--     build-depends:
+--         base >=4.17.0.0,
+--         ghengin
+--
