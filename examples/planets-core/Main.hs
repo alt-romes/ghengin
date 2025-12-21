@@ -156,7 +156,7 @@ main = do
       Prelude.not Prelude.<$> ImGui.wantCaptureMouse
 
     -- What planet?
-    let planet = pinkPlanet
+    let planet = defaultPlanet
 
     (rp1, rp2) <- (Alias.share =<< createSimpleRenderPass)
 
@@ -194,9 +194,9 @@ defaultPlanet = Planet
       , planetRadius = 2.2
       , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
           [ StrengthenNoise 0.110 $ MinValueNoise
-            { minNoiseVal = 0.930
+            { minNoiseVal = 0.87
             , baseNoise   = LayersCoherentNoise
-              { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 255 147 0
+              { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 (194/255) (129/255) (41/255)
               , baseRoughness = 1.5
               , roughness     = 2.5
               , numLayers     = 20
@@ -206,7 +206,7 @@ defaultPlanet = Planet
           , StrengthenNoise 5 $ MinValueNoise
             { minNoiseVal = 0.120
             , baseNoise   = RidgedNoise
-              { seed          = 25
+              { seed          = 349
               , octaves       = 10
               , scale         = 0.59
               , frequency     = 2
