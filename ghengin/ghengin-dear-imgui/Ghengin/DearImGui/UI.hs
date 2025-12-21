@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings, DefaultSignatures, DerivingStrategies, DisambiguateRecordFields, DuplicateRecordFields #-}
+{-# LANGUAGE OverloadedStrings, DefaultSignatures, DerivingStrategies, DisambiguateRecordFields, DuplicateRecordFields, DerivingVia #-}
 module Ghengin.DearImGui.UI
   ( module Ghengin.DearImGui.UI
   , module Data.Default
@@ -62,7 +62,7 @@ gUISum constrs ns = do
   
   -- Create combo box for constructor selection
   idxRef <- newIORef currentIdx
-  constrChanged <- ImGui.combo "" idxRef constrNames
+  constrChanged <- ImGui.combo "##combo" idxRef constrNames
   newIdx <- readIORef idxRef
   
   -- If constructor changed, create new default value for that constructor
@@ -119,7 +119,7 @@ gUIProduct displayCon constr prod = case constr of
   Record name fields -> do
     when displayCon $
       ImGui.text $ T.pack name
-    ImGui.withIndent 5 $
+    ImGui.withIndent 5 $ do
       gUIRecord 0 fields prod
 
 -- | UI for n-ary product with field names (records)
@@ -129,11 +129,10 @@ gUIRecord :: All Widget xs
           -> NP I xs
           -> IO (NP I xs, Bool)
 gUIRecord _ Nil Nil = return (Nil, False)
-gUIRecord idx (FieldInfo fieldN :* fields) (I val :* vals) = 
-  ImGui.withID idx $ do
+gUIRecord !idx (FieldInfo fieldN :* fields) (I val :* vals) = do
     -- Use field name as label
     ImGui.text $ T.pack fieldN
-    (val', changed1) <- widget val
+    (val', changed1) <- ImGui.withID (T.pack fieldN) $ widget val
     
     (vals', changed2) <- gUIRecord (idx + 1) fields vals
     return (I val' :* vals', changed1 || changed2)
@@ -144,7 +143,7 @@ gUINP :: All Widget xs
       -> NP I xs
       -> IO (NP I xs, Bool)
 gUINP _ Nil = return (Nil, False)
-gUINP idx (I val :* vals) = 
+gUINP !idx (I val :* vals) =
   ImGui.withID idx $ do
     -- ImGui.text $ T.pack ("[" ++ show idx ++ "]")
     -- ImGui.sameLine
@@ -175,11 +174,11 @@ instance Widget Double where
     newVal <- readIORef ref
     return (realToFrac newVal, changed)
 
--- Vec3 instance
+-- vec3 instance
 instance Widget Vec3 where
   widget (WithVec3 x y z) = do
     ref <- newIORef (x,y,z)
-    c1 <- ImGui.dragFloat3 "" ref 0.01 (fromIntegral (minBound @Int)) (fromIntegral (maxBound @Int))
+    c1 <- ImGui.dragFloat3 "##vec3" ref 0.01 (fromIntegral (minBound @Int)) (fromIntegral (maxBound @Int))
     (newX,newY,newZ) <- readIORef ref
     return (vec3 newX newY newZ, c1)
 
@@ -256,7 +255,7 @@ instance Widget Color where
   widget (Color (WithVec3 x y z)) = do
     ref <- newIORef (ImGui.ImVec3 x y z)
     
-    c1 <- ImGui.colorEdit3 "" ref
+    c1 <- ImGui.colorEdit3 "##color" ref
     
     ImGui.ImVec3 newX newY newZ <- readIORef ref
     return (Color $ vec3 newX newY newZ, c1)
@@ -295,24 +294,25 @@ instance (KnownNat low, KnownNat high) => Widget (InRange low high Double) where
 -- | Collapsible section wrapper
 -- When collapsed, the inner widget is not displayed
 newtype Collapsible (lbl :: Symbol) a = Collapsible { unCollapsible :: a }
-  deriving newtype (Eq, Ord, Show, Default)
+  deriving (Eq, Ord, Show, Default)
 
 instance (KnownSymbol lbl, Widget a) => Widget (Collapsible lbl a) where
   widget (Collapsible val) = do
-    isCurrentlyOpen <- ImGui.collapsingHeader (T.pack $ symbolVal (Proxy @lbl)) Nothing
+    isCurrentlyOpen <- ImGui.treeNode (T.pack $ symbolVal (Proxy @lbl) ++ "##collapsible")
 
     if isCurrentlyOpen
       then do
-        ImGui.indent 16
+        ImGui.indent 5
         (newVal, changed) <- widget val
-        ImGui.unindent 16
+        ImGui.unindent 5
+        ImGui.treePop
         return (Collapsible newVal, changed)
       else do
         return (Collapsible val, False)
 
 -- | Checkbox wrapper
 newtype Checkbox = Checkbox { checkboxValue :: Bool }
-  deriving newtype (Eq, Ord, Show, Default)
+  deriving (Eq, Ord, Show, Default)
 
 instance Widget Checkbox where
   widget (Checkbox val) = do
@@ -320,6 +320,8 @@ instance Widget Checkbox where
     changed <- ImGui.checkbox "##checkbox" ref
     newVal <- readIORef ref
     return (Checkbox newVal, changed)
+
+deriving via Checkbox instance Widget Bool
 
 -- | Slider with explicit bounds (alternative to InRange for different UI)
 newtype Slider (low :: Nat) (high :: Nat) (a :: Type) = Slider { sliderVal :: a }
@@ -345,7 +347,7 @@ instance (KnownNat low, KnownNat high) => Widget (Slider low high Int) where
 
 -- | Tooltip wrapper - shows tooltip on hover
 newtype WithTooltip (tip :: Symbol) a = WithTooltip { unTooltip :: a }
-  deriving newtype (Eq, Ord, Show, Default)
+  deriving (Eq, Ord, Show, Default)
 
 instance (KnownSymbol tip, Widget a) => Widget (WithTooltip tip a) where
   widget (WithTooltip content) = do

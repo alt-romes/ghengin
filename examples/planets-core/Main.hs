@@ -116,6 +116,15 @@ gameLoop GameData{..} rp rq = Linear.do
             pure $ Ur $ rotateY yawDelta <> rotateX pitchDelta <> tr)))
     Nothing -> pure rq
 
+  Ur c_input <- readCharInput charStream
+  case c_input of
+    Just 'p' -> Linear.do
+      -- Save new planet configuration to file
+      Ur time <- liftSystemIOU getCurrentTime
+      let filename = "planet-" ++ show time ++ ".hs"
+      liftSystemIO $ writeFile filename (show newPlanet)
+    _ -> return ()
+
   -- Render!
   (rp, rq) <- renderWith $ Linear.do
 
@@ -176,15 +185,128 @@ camera :: Camera "view_matrix" "proj_matrix"
 camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) dimensions
 
 defaultPlanet :: Planet
+pinkPlanet  :: Planet
+xenonSulphur  :: Planet
+
 defaultPlanet = Planet
   { planetShape = PlanetShape
-      { planetResolution = 50
-      , planetRadius = 2.5
+      { planetResolution = 65
+      , planetRadius = 2.2
+      , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
+          [ StrengthenNoise 0.110 $ MinValueNoise
+            { minNoiseVal = 0.87
+            , baseNoise   = LayersCoherentNoise
+              { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 (194/255) (129/255) (41/255)
+              , baseRoughness = 1.5
+              , roughness     = 2.5
+              , numLayers     = 20
+              , persistence   = 0.4
+              }
+            }
+          , StrengthenNoise 5 $ MinValueNoise
+            { minNoiseVal = 0.120
+            , baseNoise   = RidgedNoise
+              { seed          = 349
+              , octaves       = 10
+              , scale         = 0.59
+              , frequency     = 2
+              , lacunarity    = 5.2
+              }
+            }
+          ]
+      }
+  , planetColor = PlanetColor
+    { planetBiomes =
+      [ ImGui.Collapsible PlanetBiome
+        { biomeColors = mkColors
+          [ (1,   vec3 255 248 205)
+          , (5,   vec3 255 234 234)
+          , (15,  vec3 225 225 225)
+          , (75,  vec3 195 195 195)
+          , (100, vec3 255 255 255)
+          ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 8   40  70)   -- Deep ocean trenches
+          , (30,  vec3 12  60  100)  -- Deep water
+          , (60,  vec3 20  80  130)  -- Mid-depth ocean
+          , (85,  vec3 30  110 160)  -- Continental shelf
+          , (100, vec3 24  150 183)  -- Shallow coastal waters (matches terrain color 1)
+          ]
+        , biomeStartHeight = 0
+        , biomeTint = ImGui.Color (vec3 1 0 1)
+        , biomeTintPercent = 0
+        }
+      , ImGui.Collapsible PlanetBiome
+        { biomeColors = mkColors
+          [ (1, vec3 255 218 0)
+          , (5, vec3 255 120 0)
+          , (10, vec3 60 255 0)
+          , (20, vec3 27 183 0)
+          , (30, vec3 10 163 0)
+          , (40, vec3 158 37 0)
+          , (85, vec3 108 13 0)
+          , (100, vec3 231 231 231)
+          ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 10  50  85)   -- Deep ocean
+          , (50,  vec3 0   68  255)  -- Mid ocean
+          , (100, vec3 0   83  255)  -- Coastal waters (matches terrain color 1)
+          ]
+        , biomeStartHeight = 0.38
+        , biomeTint = ImGui.Color (vec3 0 1 1)
+        , biomeTintPercent = 0
+        }
+      , ImGui.Collapsible PlanetBiome
+        { biomeColors = mkColors
+          [ (1, vec3 255 80 0)      -- Glowing lava at shore
+          , (5, vec3 200 40 0)      -- Cooling lava flows
+          , (10, vec3 120 20 0)     -- Dark red volcanic rock
+          , (20, vec3 80 15 10)     -- Deep red-brown slopes
+          , (30, vec3 90 25 15)     -- Iron-rich volcanic stone
+          , (40, vec3 140 30 0)     -- Oxidized red rock
+          , (60, vec3 180 35 0)     -- Glowing red basalt
+          , (85, vec3 220 50 0)     -- Bright red-orange ridges
+          , (100, vec3 255 100 0)   -- Molten orange peaks
+          ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 5   25  45)   -- Very deep dark blue
+          , (50,  vec3 11  22  33)   -- Deep midnight blue
+          , (100, vec3 15  25  35)   -- Dark ocean blue (matches terrain color 1)
+          ]
+        , biomeStartHeight = 0.96
+        , biomeTint = ImGui.Color (vec3 0 1 0)
+        , biomeTintPercent = 0
+        }
+      ]
+    , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.05 $
+        LayersCoherentNoise
+        { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
+        , baseRoughness = 1.0
+        , roughness     = 2.0
+        , numLayers     = 3
+        , persistence   = 2
+        }
+    , biomeBlendAmount = 0.2
+    , biomeNoiseOffset = 0
+    , planetColorsInterpolate = False
+    }
+  }
+  where
+    mkColors = Prelude.map $ \(bnd, WithVec3 rn gn bn) ->
+      (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255)))
+
+--------------------------------------------------------------------------------
+-- More Planets
+--------------------------------------------------------------------------------
+
+pinkPlanet = Planet
+  { planetShape = PlanetShape
+      { planetResolution = 65
+      , planetRadius = 2.2
       , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
           [ StrengthenNoise 0.110 $ MinValueNoise
             { minNoiseVal = 0.930
             , baseNoise   = LayersCoherentNoise
-              -- { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
               { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 255 147 0
               , baseRoughness = 1.5
               , roughness     = 2.5
@@ -205,48 +327,63 @@ defaultPlanet = Planet
           ]
       }
   , planetColor = PlanetColor
-    { planetBiomes = -- ImGui.Collapsible
-      [ PlanetBiome
+    { planetBiomes =
+      [ ImGui.Collapsible PlanetBiome
         { biomeColors = mkColors
-          [ (1,   vec3 24  150 183)
-          , (2,   vec3 255 248 205)
-          , (5,   vec3 255 234 234)
-          , (15,  vec3 225 225 225)
-          , (75,  vec3 195 195 195)
-          , (100, vec3 255 255 255)
+          [ (1,   vec3 15  45  75)   -- Deep navy blue
+          , (2,   vec3 200 230 255)  -- Pale ice blue
+          , (5,   vec3 230 245 255)  -- Almost white ice
+          , (15,  vec3 240 240 240)  -- Light grey
+          , (75,  vec3 210 210 210)  -- Medium grey
+          , (100, vec3 255 255 255)  -- Pure white
+          ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 10  30  60)   -- Deep midnight blue ocean
+          , (50,  vec3 15  45  75)   -- Navy depths
+          , (100, vec3 25  60  95)   -- Lighter blue shallows
           ]
         , biomeStartHeight = 0
         , biomeTint = ImGui.Color (vec3 1 0 1)
         , biomeTintPercent = 0
         }
-      , PlanetBiome
+      , ImGui.Collapsible PlanetBiome
         { biomeColors = mkColors
-          [ (1, vec3 0 83 255)
-          , (2, vec3 255 218 0)
-          , (5, vec3 255 120 0)
-          , (10, vec3 60 255 0)
-          , (20, vec3 27 183 0)
-          , (30, vec3 10 163 0)
-          , (40, vec3 158 37 0)
-          , (85, vec3 108 13 0)
-          , (100, vec3 231 231 231)
+          [ (1,   vec3 120 80  200)  -- Purple coastal waters
+          , (2,   vec3 255 180 220)  -- Pink beaches
+          , (5,   vec3 255 100 150)  -- Hot pink lowlands
+          , (10,  vec3 200 50  255)  -- Magenta plains
+          , (20,  vec3 150 30  200)  -- Deep purple forests
+          , (30,  vec3 100 20  150)  -- Dark violet jungle
+          , (40,  vec3 200 120 50)   -- Orange-brown plateaus
+          , (85,  vec3 150 80  30)   -- Rust highlands
+          , (100, vec3 255 220 180)  -- Cream peaks
+          ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 80  40  150)  -- Deep purple ocean
+          , (50,  vec3 120 80  200)  -- Medium purple
+          , (100, vec3 160 120 230)  -- Light purple shallows
           ]
         , biomeStartHeight = 0.38
         , biomeTint = ImGui.Color (vec3 0 1 1)
         , biomeTintPercent = 0
         }
-      , PlanetBiome
+      , ImGui.Collapsible PlanetBiome
         { biomeColors = mkColors
-          [ (1, vec3 15 25 35)      -- Deep blue-black water
-          , (2, vec3 255 80 0)      -- Glowing lava at shore
-          , (5, vec3 200 40 0)      -- Cooling lava flows
-          , (10, vec3 120 20 0)     -- Dark red volcanic rock
-          , (20, vec3 80 15 10)     -- Deep red-brown slopes
-          , (30, vec3 90 25 15)     -- Iron-rich volcanic stone
-          , (40, vec3 140 30 0)     -- Oxidized red rock
-          , (60, vec3 180 35 0)     -- Glowing red basalt
-          , (85, vec3 220 50 0)     -- Bright red-orange ridges
-          , (100, vec3 255 100 0)   -- Molten orange peaks
+          [ (1,   vec3 0   40  50)   -- Dark teal water
+          , (2,   vec3 0   255 200)  -- Bright cyan lava shores
+          , (5,   vec3 0   220 180)  -- Turquoise flows
+          , (10,  vec3 0   180 140)  -- Teal volcanic rock
+          , (20,  vec3 0   140 120)  -- Dark cyan slopes
+          , (30,  vec3 50  200 180)  -- Aqua stone
+          , (40,  vec3 100 230 210)  -- Mint basalt
+          , (60,  vec3 150 250 230)  -- Pale cyan ridges
+          , (85,  vec3 200 255 245)  -- Ice cyan peaks
+          , (100, vec3 240 255 255)  -- White-cyan summit
+          ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 0   20  30)   -- Deep dark teal
+          , (50,  vec3 0   40  50)   -- Navy teal
+          , (100, vec3 0   60  70)   -- Lighter teal
           ]
         , biomeStartHeight = 0.96
         , biomeTint = ImGui.Color (vec3 0 1 0)
@@ -263,14 +400,116 @@ defaultPlanet = Planet
         }
     , biomeBlendAmount = 0.2
     , biomeNoiseOffset = 0
+    , planetColorsInterpolate = False
     }
   }
   where
     mkColors = Prelude.map $ \(bnd, WithVec3 rn gn bn) ->
       (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255)))
 
---------------------------------------------------------------------------------
--- More Planets
---------------------------------------------------------------------------------
+xenonSulphur = Planet
+  { planetShape = PlanetShape
+      { planetResolution = 100  -- Increased for sharper jagged peaks
+      , planetRadius = 2.2      -- A larger super-earth
+      , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
+          [ -- Base Layer: Rolling alien hills
+            StrengthenNoise 0.08 $ MinValueNoise
+            { minNoiseVal = 0.82
+            , baseNoise   = LayersCoherentNoise
+              { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 100 0 255
+              , baseRoughness = 1.2
+              , roughness     = 2.2
+              , numLayers     = 8
+              , persistence   = 0.5
+              }
+            }
+          , -- Detail Layer: Sharp, crystalline ridges
+            StrengthenNoise 1.2 $ MinValueNoise
+            { minNoiseVal = 0.05
+            , baseNoise   = RidgedNoise
+              { seed        = 1337
+              , octaves     = 12
+              , scale       = 0.8
+              , frequency   = 1.8
+              , lacunarity  = 2.4 -- Low lacunarity makes the ridges look thicker/blockier
+              }
+            }
+          ]
+      }
+  , planetColor = PlanetColor
+    { planetBiomes =
+      [ -- BIOME 1: The Obsidian Lowlands (Dark & Moody)
+        ImGui.Collapsible PlanetBiome
+        { biomeColors = mkColors
+          [ (1,   vec3 5   5   10)   -- Vantablack rock
+          , (10,  vec3 30  30  35)   -- Dark charcoal
+          , (30,  vec3 60  20  80)   -- Faint purple mineral deposits
+          , (60,  vec3 20  20  20)   -- Grey stone
+          , (85,  vec3 100 100 100)  -- Ash grey
+          , (100, vec3 150 150 150)  -- White ash peaks
+          ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 10  0   20)   -- Almost black violet depths
+          , (50,  vec3 40  0   80)   -- Deep indigo
+          , (100, vec3 80  10  160)  -- Glowing electric purple shallows
+          ]
+        , biomeStartHeight = 0
+        , biomeTint = ImGui.Color (vec3 0.5 0 1)
+        , biomeTintPercent = 0.1
+        }
+      , -- BIOME 2: The Crimson Iron Flats (Vibrant Contrast)
+        ImGui.Collapsible PlanetBiome
+        { biomeColors = mkColors
+          [ (1,   vec3 40  0   0)    -- Dried blood red
+          , (20,  vec3 120 10  10)   -- Rust red
+          , (40,  vec3 180 40  10)   -- Iron oxide orange
+          , (70,  vec3 255 80  0)    -- Bright ember orange
+          , (90,  vec3 255 150 50)   -- Glowing heat
+          , (100, vec3 255 200 150)  -- White-hot peaks
+          ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 30  5   0)    -- Dark maroon
+          , (50,  vec3 100 20  0)    -- Blood red fluid
+          , (100, vec3 200 50  0)    -- Bright red coast
+          ]
+        , biomeStartHeight = 0.45
+        , biomeTint = ImGui.Color (vec3 1 0 0)
+        , biomeTintPercent = 0.2
+        }
+      , -- BIOME 3: The Toxic Sulfur Highlands (Neon Highlights)
+        ImGui.Collapsible PlanetBiome
+        { biomeColors = mkColors
+          [ (1,   vec3 20  40  0)    -- Dark swamp green
+          , (15,  vec3 50  80  0)    -- Olive
+          , (30,  vec3 100 150 0)    -- Acid green
+          , (50,  vec3 180 220 0)    -- Lime
+          , (75,  vec3 220 255 0)    -- Neon Yellow (Sulfur)
+          , (100, vec3 255 255 200)  -- Pale yellow crystal spires
+          ]
+        , biomeOceanColors = mkColors
+          [ (1,   vec3 0   20  10)   -- Dark sludge
+          , (50,  vec3 10  60  30)   -- Toxic waste green
+          , (100, vec3 50  200 100)  -- Radioactive bright green
+          ]
+        , biomeStartHeight = 0.8
+        , biomeTint = ImGui.Color (vec3 0.8 1 0)
+        , biomeTintPercent = 0
+        }
+      ]
+    , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.5 $
+        LayersCoherentNoise
+        { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 255 255 255
+        , baseRoughness = 0.8
+        , roughness     = 1.5
+        , numLayers     = 4
+        , persistence   = 0.5
+        }
+    , biomeBlendAmount = 0.15 -- Sharp transitions between the alien zones
+    , biomeNoiseOffset = 0
+    , planetColorsInterpolate = True -- Smooth gradients within biomes
+    }
+  }
+  where
+    mkColors = Prelude.map $ \(bnd, WithVec3 rn gn bn) ->
+      (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255)))
 
--- ...

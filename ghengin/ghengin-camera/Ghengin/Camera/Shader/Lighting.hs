@@ -50,7 +50,7 @@ blinnPhong ambientStrength shininess specularStrength unNormalLightDir lightColo
 
         normalVec  = normalise (Vec3 nx ny nz)
         lightDir   = normalise unNormalLightDir
-        viewDir    = normalise (Vec3 (-px) (-py) (-pz)) -- (bc. viewPos is (0,0,0) because we use view_space coords)
+        viewDir    = normalise (Vec3 px py pz) -- (bc. viewPos is (0,0,0) because we use view_space coords)
         halfwayDir = normalise (lightDir ^+^ viewDir)
         -- light intensity given by cosine of direction to light and the normal in world space
         diffuse    = max (dot lightDir normalVec) 0

@@ -28,6 +28,7 @@ preparePlanetUI Planet{..} = Linear.do
   Ur newPlanetColorRef <- liftIO (newIORef planetColor)
 
   ImGui.withNewFrame $ do
+    -- ImGui.showIDStackToolWindow
     ImGui.withWindowOpen "Planet" $ do
       (p, b) <- widget planetShape
       Base.when b $ do
