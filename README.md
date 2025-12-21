@@ -12,6 +12,10 @@ The working examples are the following. In sequence, they build up to a
 Cooler examples:
 
 * `planets-core` implements Sebastian Lague's procedural planets
+  <img width="908" height="783" alt="Screenshot 2025-12-21 at 12 05 15" src="https://github.com/user-attachments/assets/44671d74-c06d-4a8b-955c-bcc18dd86b82" />
+  <img width="806" height="723" alt="Screenshot 2025-12-21 at 01 43 04" src="https://github.com/user-attachments/assets/adf4cc8f-f28a-4e29-833d-730169d192c2" />
+
+
 * `teapot-obj` renders the Utah teapot using Blinn-Phong lighting and a perspective camera
 
 Solid examples:
