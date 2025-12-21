@@ -97,8 +97,8 @@ fragment = shader do
     let lightDir  = Vec3 (-0.5) 1 0.5
     let lightCol  = Vec3 1 1 1
     let objectCol = Vec3 cx cy cz
-    let specularStrength = 2
-    let shininess = 64
+    let specularStrength = 2*(1-mask)
+    let shininess = 1+127*(1-mask) -- only shining on the ocean
 
     lightValue <- blinnPhong 0.02 shininess specularStrength lightDir lightCol
 
@@ -125,9 +125,9 @@ shaders
 
 ----- Utils --------------------------------------------------------------------
 
-invLerp :: (FIR.DivisionRing a) => a -> a -> a -> a
-invLerp value from to = (value - from) / (to - from)
+invLerp :: (Ord a, FIR.DivisionRing a) => a -> a -> a -> a
+invLerp value from to = max 0 (min 1 ((value - from) / (to - from)))
 
 lerp :: (Semiring a, CancellativeAdditiveMonoid a) => a -> a -> a -> a
--- lerp v0 v1 t = v0 FIR.+ t FIR.* (v1 FIR.- v0);
-lerp v0 v1 t = (1 - t) * v0 + t * v1;
+lerp v0 v1 t = v0 + t * (v1 - v0);
+-- lerp v0 v1 t = (1 - t) * v0 + t * v1;
