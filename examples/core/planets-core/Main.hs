@@ -181,8 +181,8 @@ main = do
 
     rq <- gameLoop GameData{planet, planetMeshKey=mshkey, ..} rp2 rq
 
-    (freeRenderQueue rq)
-    (ImGui.destroyImCtx imctx)
+    freeRenderQueue rq
+    ImGui.destroyImCtx imctx
 
     return (Ur ())
 

@@ -134,7 +134,19 @@ executable planets-core
     main-is:        Main.hs
     other-modules:  Planet, Planet.Noise, Planet.UI, Shaders
     hs-source-dirs: planets-core
-    build-depends:  ghengin:dear-imgui, JuicyPixels
+    build-depends:  ghengin:dear-imgui, ghengin:dear-imgui-vulkan, JuicyPixels
+    mixins:         ghengin:dear-imgui
+                    requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                             , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                             , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                             , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                             , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                             , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                             , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                             , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                             , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                             , Ghengin.DearImGui.Backend as Ghengin.DearImGui.Vulkan
+                             )
 
 -- Load and render teapot.obj with blinn-phong
 executable teapot-obj
@@ -226,7 +238,19 @@ executable dear-imgui
     main-is:        Main.hs
     other-modules:  Shaders
     hs-source-dirs: dear-imgui
-    build-depends:  ghengin:dear-imgui
+    build-depends:  ghengin:dear-imgui, ghengin:dear-imgui-vulkan
+    mixins:         ghengin:dear-imgui
+                    requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                             , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                             , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                             , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                             , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                             , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                             , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                             , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                             , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                             , Ghengin.DearImGui.Backend as Ghengin.DearImGui.Vulkan
+                             )
 
 --------------------------------------------------------------------------------
 -- Experiments

@@ -1,0 +1,73 @@
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE BlockArguments #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedLists #-}
+{-# LANGUAGE RecordWildCards #-}
+{-# LANGUAGE LinearTypes #-}
+{-# LANGUAGE QualifiedDo #-}
+signature Ghengin.DearImGui.Backend
+  ( module Ghengin.DearImGui.Backend
+  , module DearImGui ) where
+
+import qualified Prelude
+import Control.Monad.IO.Class.Linear
+
+import DearImGui -- for re-exporting im UI
+
+import Ghengin.Core.Renderer.Command
+import Ghengin.Core.Renderer.Kernel
+import Ghengin.Core.Renderer.RenderPass
+
+data ImCtx
+
+-- | Init ImGui (for some renderpass?)
+initImGui :: RenderPass %1 -> Renderer (RenderPass, ImCtx)
+
+-- | Shutdown ImGui
+destroyImCtx :: ImCtx ⊸ Renderer ()
+
+-- | Register the start of a new frame and write here your immediate mode GUI
+-- by using the re-exported functions. Prepares the ImGui structures at the end
+-- by calling @ImGui::Render()@.
+--
+-- == Example
+--
+-- @
+-- import qualified Ghengin.DearImGui.Vulkan as ImGui
+-- ...
+--
+-- loop = ...
+--   (pollWindowEvents ↑)
+--
+--   ImGui.withNewFrame $ do
+--    ImGui.showDemoWindow
+--
+--   (rp, rq) <- renderWith $ Linear.do
+--      ...
+--      renderPassCmd ... $ Linear.do
+--
+--        renderQueueCmd rq
+--
+--        ImGui.renderDrawData
+--   loop
+-- @
+withNewFrame :: MonadIO n => Prelude.IO () -> n ()
+
+-- | This needs to be called as part of a custom render pass to draw the data
+-- prepared by 'imguiRender'. See 'Ghengin.Core.renderWith'. An example usage
+-- is in @examples/dear-imgui@.
+renderDrawData :: MonadIO m => RenderPassCmd m
+
+--------------------------------------------------------------------------------
+-- * Internals that may eventually be useful
+--------------------------------------------------------------------------------
+
+-- | Register the start of a new frame
+registerNewFrame :: MonadIO m => m ()
+
+-- | Make dear-imgui calculate the draw structures that will be rendered on the
+-- 'renderDrawData' render pass command. This will use all the immediate mode
+-- commands you used before. (i.e. @ImGui::Render()@)
+imguiRender :: MonadIO m => m ()
+
