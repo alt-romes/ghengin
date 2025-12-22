@@ -12,7 +12,20 @@ Resources:
 * [Order your graphics draw calls around!](http://realtimecollisiondetection.net/blog/?p=86)
 * [Optimizing State Changes in Rendering Engines](http://real.mtak.hu/28740/1/szecsi_gg14_statechange.pdf)
 
-See Note [Render Packet Key] and [Material Key]
+
+See also "Choosing a Scene Graph" from Game Engine Architecture:
+
+> For example, if you’re implementing a fighting game, in which two char- acters
+  battle it out in a ring surrounded by a mostly static environment, you may not
+  need much of a scene graph at all. If your game takes place primar- ily in
+  enclosed indoor environments, a BSP tree or portal system may serve you well.
+  If the action takes place outdoors on relatively flat terrain, and the scene is
+  viewed primarily from above (as might be the case in a strategy game or god
+  game), a simple quadtree might be all that’s required to achieve high rendering
+  speeds.
+
+We currently only have a tree, without any culling. We just traverse the tree
+linearly and draw every leaf.
 -}
 module Ghengin.Core.Render.Queue where
 
