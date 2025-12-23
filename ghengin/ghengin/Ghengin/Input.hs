@@ -5,7 +5,7 @@ import qualified Ghengin.Core.Prelude as Linear
 import qualified Ghengin.Core.Input as Core
 
 -- ghengin:dear-imgui
-import qualified Ghengin.DearImGui.Vulkan as ImGui
+import qualified Ghengin.DearImGui.Backend as ImGui
 import qualified Ghengin.DearImGui.UI as ImGui
 
 import Ghengin.Monad

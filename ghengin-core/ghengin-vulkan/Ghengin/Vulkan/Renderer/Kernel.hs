@@ -47,7 +47,6 @@ data RendererReaderEnv
           , frameCounter :: !(IORef Int)
           -- ^ Frame counter
           }
--- ROMES: Worried linear StateT might reduce performance, hope not
 newtype Renderer a
   = Renderer { unRenderer :: Linear.ReaderT (Ur RendererReaderEnv) (Linear.StateT RendererEnv System.IO.Linear.IO) a }
 

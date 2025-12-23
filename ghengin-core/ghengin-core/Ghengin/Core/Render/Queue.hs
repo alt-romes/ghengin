@@ -70,7 +70,7 @@ instance Semigroup (RenderQueue α) where
         ) id id q q'
 
 instance Monoid (RenderQueue α) where
-  mempty = RenderQueue M.empty
+  mempty = emptyRenderQueue
 
 type PipelineKey :: FIR.Pipeline.PipelineInfo -> [Type] -> Type
 data PipelineKey π p = UnsafePipelineKey !Unique
@@ -86,6 +86,9 @@ meshKey2MatKey (UnsafeMeshKey _ k) = k
 
 matKey2PipKey :: MaterialKey π p ma -> PipelineKey π p
 matKey2PipKey (UnsafeMaterialKey _ k) = k
+
+emptyRenderQueue :: RenderQueue a
+emptyRenderQueue = RenderQueue M.empty
 
 --------------------------------------------------------------------------------
 

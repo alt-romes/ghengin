@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Ghengin.Monad where
 
 -- linear-base
@@ -29,7 +30,7 @@ import Ghengin.Prelude
 -- ghengin-level capabilities) you may want to check out @ghengin-core@'s
 -- 'Renderer' monad.
 newtype Ghengin a = Ghengin
-  { unGhengin :: ReaderT GhenginReader (UrT (Linear.StateT GhenginState Renderer)) a }
+  { unGhengin :: ReaderT GhenginReader (UrT (Linear.StateT RenderState Renderer)) a }
   deriving (Functor, Applicative, Monad, MonadIO, MonadReader GhenginReader)
 
 -- | The reader environment for the game engine monad 'Ghengin'
@@ -37,8 +38,10 @@ data GhenginReader = GhenginReader
   { conf :: !GhenginConf
   }
 
-data GhenginState = GhenginState
-  { mainRenderPass :: !(Alias RenderPass)
+data RenderState = RenderState
+  { renderPass :: !(Alias RenderPass)
+  , renderQueue :: !(RenderQueue ())
+  -- ^ Evolve this, as necessary, into a cooler better render graph.
   }
 
 -- | Make a new 'GhenginReader' environment from the a 'GhenginConf' configuration
@@ -63,14 +66,16 @@ runGhengin conf@GhenginConf{..} (Ghengin act) =
                Linear.pure (rp, Just imctx)
           else Linear.pure (rp, Nothing)
 
-      (x, GhenginState{..}) <-
+      (x, RenderState{..}) <-
         Linear.runStateT
           (runUrT (runReaderT act (newGhenginReader conf)))
-          GhenginState
-            { mainRenderPass = rp
+          RenderState
+            { renderPass = rp
+            , renderQueue = emptyRenderQueue
             }
 
-      Alias.forget mainRenderPass
+      Alias.forget renderPass
+      freeRenderQueue renderQueue
 
       case mimctx of
         Nothing -> Linear.pure ()
@@ -79,17 +84,14 @@ runGhengin conf@GhenginConf{..} (Ghengin act) =
       Linear.pure x
 
 --------------------------------------------------------------------------------
--- Lifting
+-- On Renderer
 --------------------------------------------------------------------------------
+
+renderState :: (RenderState %1 -> Renderer (Ur a, RenderState)) -> Ghengin a
+renderState act = Ghengin (ReaderT \_ -> (UrT (Linear.StateT \s -> act s)))
 
 liftRenderer :: Renderer (Ur a) %1 -> Ghengin a
 liftRenderer r = Ghengin (ReaderT \_ -> (UrT (Linear.StateT \s -> (,s) Linear.<$> r)))
-
--- | Get the "main" render pass to use in a Renderer action.
--- Right now, there's a single "main" render pass.
--- Why, and how, should we have something other than a single built-in one?
-withRenderPass :: (RenderPass %1 -> Renderer (Ur a)) -> Ghengin a
-withRenderPass = _
 
 --------------------------------------------------------------------------------
 -- Configuration

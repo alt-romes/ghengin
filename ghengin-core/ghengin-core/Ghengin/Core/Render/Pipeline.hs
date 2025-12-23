@@ -49,16 +49,6 @@ data RenderPipeline info tys where
 
 data SomePipeline = ∀ α β. SomePipeline (RenderPipeline α β)
 
--- TODO: PushConstants must also be inferred from the shader code
--- Add them as possible alternative to descritpor set #2?
--- ROMES:TODO:PushConstants automatically used alongside dset #2
-
--- Shader pipeline and buffers are only be created once and reused across
--- render packets that use the same one (Note that render packets store
--- references to these things).
--- TODO: Currently we assume all our descriptor sets are Uniform or Storage buffers
--- and our buffers too but eventually Uniform & Storage will be just a constructor of
--- a more general Buffer and we should select the correct type of buffer individually.
 makeRenderPipeline :: forall τ info tops descs strides
                     . ( PipelineConstraints info tops descs strides
                       , CompatiblePipeline τ info
@@ -90,7 +80,7 @@ makeRenderPipelineWith gps renderPass shaderPipeline props0 = Linear.do
   --
   -- 'createDescriptorSets' does (1) (2) and (3)
   --
-  -- We need to do 'createDescriptorSets' as many times as there are frames in flight.
+  -- TODO: We need to do 'createDescriptorSets' as many times as there are frames in flight.
   --
   -- TODO: The dpool per frame in flight doesn't make any sense at the moment, for now we simply allocate from the first pool.
   -- TODO: it doesn't need to be per frame in flight, we just need two to switch between, despite the number of frames in flight
@@ -128,9 +118,7 @@ makeRenderPipelineWith gps renderPass shaderPipeline props0 = Linear.do
     <- Alias.useM renderPass $
         createGraphicsPipeline gps
            shaderPipeline
-           -- ROMES:TODO: Update push constants! This is not it! (It's hardcoded, and things are never actually pushed)
-           -- [Vk.PushConstantRange { offset = 0 , size = 64 :: Word32, stageFlags = Vk.SHADER_STAGE_VERTEX_BIT }] -- Model transform in push constant
-           []
+           [] -- No push constants?
            dpool1
 
   logT "Creating reference counted"
