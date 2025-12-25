@@ -1,0 +1,167 @@
+cabal-version:      3.4
+
+name:               games
+tested-with:        GHC ==9.12.1
+version:            0.1.0.0
+license:            BSD-3-Clause
+license-file:       ../LICENSE
+author:             romes
+maintainer:         rodrigo.m.mesquita@gmail.com
+category:           Graphics
+build-type:         Simple
+extra-doc-files:    ../CHANGELOG.md
+
+flag dev
+  default: True
+  manual: True
+  description: This flag controls development settings and should be manually disabled when the game is being built for release. The ghengin packaging tools will take care to set this flag to false when packaging.
+               When enabled, vulkan validation layers are enabled.
+               Run `cabal build -f-dev` to build with the flag disabled.
+               -- Enable with -f+dev
+
+flag debug
+  default: False
+  manual: True
+  description: Linter + Debug mode
+
+common common-flags
+  build-depends: generics-sop
+  build-depends:
+    -- Can't depend on ghengin-core and friends without instancing them because of backpack
+    ghengin-core, ghengin-core:vulkan, ghengin:geometry, ghengin-core:backend-independent-bits,
+    ghengin:camera, mtl, vector, hsnoise, containers, random, linear-base,
+    geomancy, vulkan >= 3.26, time, fir, filepath, text-short,
+    vector-sized, base >=4.19.0.0, os-string, gl-block, GLFW-b, stm,
+    reference-counting
+
+  if flag(debug)
+    ghc-options: -dasm-lint
+                 -dcmm-lint
+                 -dstg-lint
+                 -- -dlint
+                 -- -dcore-lint
+                 -- -fpolymorphic-specialisation
+
+    cc-options: -DDEBUG
+    cpp-options: -DDEBUG
+    -- ghc-options: -g2 -rtsopts -debug
+
+  if flag(dev)
+    cc-options: -DDEBUG
+    cpp-options: -DDEBUG
+  else
+    ghc-options: -O2
+    cc-options: -O2
+
+  ghc-options: -Wall -Wno-partial-type-signatures
+
+  default-extensions: UnicodeSyntax,
+                      MultiParamTypeClasses,
+                      NoStarIsType,
+                      RankNTypes,
+                      DataKinds,
+                      PolyKinds,
+                      GADTs,
+                      ViewPatterns,
+                      TypeApplications,
+                      TypeFamilies,
+                      ExplicitNamespaces,
+                      TypeFamilyDependencies,
+                      TypeOperators,
+                      LambdaCase,
+                      BlockArguments,
+                      RecordWildCards,
+                      UnboxedTuples,
+                      PatternSynonyms,
+                      DisambiguateRecordFields,
+                      DeriveGeneric,
+                      DerivingVia,
+                      DerivingStrategies,
+                      LinearTypes,
+                      QualifiedDo,
+                      QuantifiedConstraints,
+                      RoleAnnotations,
+                      PostfixOperators,
+
+                      -- No need to use Ghengin.Core.Prelude, bc we're using the Ghengin monad which wraps Core!
+                      -- NoImplicitPrelude,
+
+  default-language: GHC2021
+  mixins:           ghengin-core
+                    requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                             , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                             , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                             , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                             , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                             , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                             , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                             , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                             , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                             )
+  -- We need to instance ghengin-geometry too...
+  -- That's quite awful? Maybe not... TODO: OPEN A TICKET
+  mixins:           ghengin:geometry
+                    requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                             , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                             , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                             , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                             , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                             , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                             , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                             , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                             , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                             )
+
+  mixins:         ghengin:camera
+                  requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                           , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                           , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                           , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                           , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                           , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                           , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                           , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                           , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                           )
+
+  mixins:         ghengin
+                  requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                           , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                           , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                           , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                           , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                           , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                           , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                           , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                           , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+                           -- and
+                           , Ghengin.DearImGui.Backend as Ghengin.DearImGui.Vulkan
+                           )
+
+  mixins:         ghengin:dear-imgui
+                  requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
+                           , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
+                           , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
+                           , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
+                           , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
+                           , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
+                           , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
+                           , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
+                           , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
+
+                           -- and
+                           , Ghengin.DearImGui.Backend as Ghengin.DearImGui.Vulkan
+                           )
+
+--------------------------------------------------------------------------------
+-- Cooler examples
+--------------------------------------------------------------------------------
+
+-- Sebastian Lague's Procedural Planets
+executable planets-ghengin
+    import:         common-flags
+    main-is:        Main.hs
+    other-modules:  Planet, Planet.Noise, Planet.UI, Shaders
+    hs-source-dirs: planets
+    build-depends:  ghengin:dear-imgui, ghengin:dear-imgui-vulkan, ghengin, JuicyPixels
+
