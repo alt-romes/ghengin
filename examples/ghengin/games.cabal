@@ -157,11 +157,12 @@ common common-flags
 -- Cooler examples
 --------------------------------------------------------------------------------
 
--- Sebastian Lague's Procedural Planets
-executable planets-ghengin
+-- God's Newest Hire (using Sebastian Lague's Procedural Planets)
+executable gods-newest-hire
     import:         common-flags
     main-is:        Main.hs
     other-modules:  Planet, Planet.Noise, Planet.UI, Shaders
-    hs-source-dirs: planets
-    build-depends:  ghengin:dear-imgui, ghengin:dear-imgui-vulkan, ghengin, JuicyPixels
+    hs-source-dirs: gods-newest-hire
+    build-depends:  ghengin:dear-imgui, ghengin:dear-imgui-vulkan, ghengin,
+                    JuicyPixels, monad-bayes
 
