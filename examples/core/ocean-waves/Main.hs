@@ -45,7 +45,7 @@ import Common
 
 gameLoop :: forall (_s :: FIR.PipelineInfo). PipelineKey _s PipelineProps -> UTCTime -> RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop pkey lastTime rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
+ Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 

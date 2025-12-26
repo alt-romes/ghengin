@@ -69,16 +69,16 @@ makeMainPipeline = makeRenderPipeline (shaderPipeline WINDOW_SIZE)
 
 gameLoop :: forall (_s :: FIR.PipelineInfo). Vec2 -> PipelineKey _s '[MousePos] -> RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop (WithVec2 previousPosX previousPosY) pkey rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
+ Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
-  (pollWindowEvents ↑)
+  pollWindowEvents
 
-  Ur (double2Float -> newPosX, double2Float -> newPosY) <- (getMousePos ↑)
+  Ur (double2Float -> newPosX, double2Float -> newPosY) <- getMousePos
   liftSystemIO $ print (newPosX, newPosY)
 
   let pos = vec2 (0.5 * (previousPosX + newPosX)) (0.5 * (previousPosY + newPosY))
 
-  rq'  <- (editPipeline pkey rq (propertyAt @0 (\(Ur _) -> pure $ Ur $ MousePos pos)) ↑)
+  rq'  <- editPipeline pkey rq (propertyAt @0 (\(Ur _) -> pure $ Ur $ MousePos pos))
 
   rq'' <- render rq'
 

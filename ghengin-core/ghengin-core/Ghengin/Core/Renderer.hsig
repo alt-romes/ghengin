@@ -34,7 +34,7 @@ withCurrentFramePresent :: ( CommandBuffer
                          ⊸ Renderer a
 
 -- A bit GLFW-centric, but passable...
-shouldCloseWindow :: Renderer Bool
+shouldCloseWindow :: Renderer (Ur Bool)
 pollWindowEvents :: Renderer ()
 getMousePos :: Renderer (Ur (Double, Double))
 withWindow :: (GLFW.Window ⊸ Linear.IO GLFW.Window) -> Renderer ()

@@ -37,9 +37,9 @@ import qualified FIR
 
 gameLoop :: PipelineKey a '[ InStruct "t" Float ] -> Alias RenderPass ⊸ RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop pkey rp rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
- if should_close then (Alias.forget rp ↑) >> return rq else Linear.do
-  (pollWindowEvents ↑)
+ Ur should_close <- shouldCloseWindow
+ if should_close then Alias.forget rp >> return rq else Linear.do
+  pollWindowEvents
 
   rq <- liftCore $
     editPipeline pkey rq $ propertyAt @0 @(InStruct "t" Float) $ \(Ur (InStruct time)) ->

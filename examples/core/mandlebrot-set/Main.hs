@@ -69,7 +69,7 @@ makeMainPipeline = makeRenderPipeline (shaderPipeline WINDOW_SIZE)
 
 gameLoop :: forall (_s :: FIR.PipelineInfo). Vec2 -> PipelineKey _s '[MousePos] -> RenderQueue () ⊸ Core (RenderQueue ())
 gameLoop (WithVec2 previousPosX previousPosY) pkey rq = Linear.do
- should_close <- (shouldCloseWindow ↑)
+ Ur should_close <- (shouldCloseWindow ↑)
  if should_close then return rq else Linear.do
   (pollWindowEvents ↑)
 

@@ -75,7 +75,7 @@ gameLoop :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Cam
          => UrGameData π -> Alias RenderPass ⊸ RenderQueue () ⊸ Renderer (RenderQueue ())
 gameLoop GameData{..} rp rq = Linear.do
  logT "New frame" 
- should_close <- (shouldCloseWindow)
+ Ur should_close <- (shouldCloseWindow)
  if should_close then (Alias.forget rp) >> return rq else Linear.do
   (pollWindowEvents)
 

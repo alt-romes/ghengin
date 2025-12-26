@@ -55,7 +55,7 @@ gameLoop :: MeshKey _ _ _ _ '[Transform] -- ^ rq key to cube mesh
           ⊸ RenderQueue ()
           ⊸ Renderer (RenderQueue ())
 gameLoop mkey rp rq = Linear.do
- should_close <- shouldCloseWindow
+ Ur should_close <- shouldCloseWindow
  if should_close then Alias.forget rp >> return rq else Linear.do
   pollWindowEvents
 

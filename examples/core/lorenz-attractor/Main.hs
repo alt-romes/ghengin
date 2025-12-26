@@ -51,7 +51,7 @@ gameLoop :: PipelineKey _ '[Camera "view_matrix" "proj_matrix"] -- ^ rq key to c
           ⊸ RenderQueue ()
           ⊸ Renderer (RenderQueue ())
 gameLoop ckey matkey mkey last rp rq = Linear.do
- should_close <- shouldCloseWindow
+ Ur should_close <- shouldCloseWindow
  if should_close then Alias.forget rp >> return rq else Linear.do
   pollWindowEvents
 

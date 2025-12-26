@@ -310,9 +310,9 @@ rateFn surface d = do
 -- TODO: Should really be in Ghengin.Core.Input, and the Window should be part
 -- of Core? maybe not so simple to then use it here.
 
-shouldCloseWindow :: Renderer Bool
+shouldCloseWindow :: Renderer (Ur Bool)
 shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
-  b <- liftSystemIO (GLFW.windowShouldClose _vulkanWindow._window)
+  b <- liftSystemIOU (GLFW.windowShouldClose _vulkanWindow._window)
   pure $ (b, renv)
 
 pollWindowEvents :: Renderer ()

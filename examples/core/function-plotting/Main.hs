@@ -53,7 +53,7 @@ gameLoop :: Float -- ^ Zoom
           ⊸ RenderQueue ()
           ⊸ Renderer (RenderQueue ())
 gameLoop zoom keys pipkeys rp rq = Linear.do
- should_close <- shouldCloseWindow
+ Ur should_close <- shouldCloseWindow
  if should_close then Alias.forget rp >> return rq else Linear.do
   pollWindowEvents
 
