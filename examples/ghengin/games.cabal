@@ -161,7 +161,7 @@ common common-flags
 executable gods-newest-hire
     import:         common-flags
     main-is:        Main.hs
-    other-modules:  Planet, Planet.Noise, Planet.UI, Shaders
+    other-modules:  Planet, Planet.Noise, Planet.UI, Shaders, Simulation
     hs-source-dirs: gods-newest-hire
     build-depends:  ghengin:dear-imgui, ghengin:dear-imgui-vulkan, ghengin,
                     JuicyPixels, monad-bayes

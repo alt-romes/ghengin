@@ -83,12 +83,28 @@ runGhengin conf@GhenginConf{..} (Ghengin act) =
 
       Linear.pure x
 
+-- | Register a new frame.
+--
+-- This function updates the engine time(lines), updates window events, and
+-- passes @True@ to the continuation if the game should exit (e.g. user
+-- clicked to close the window)
+runGameLoop :: (Bool -> Ghengin a) -> Ghengin a
+runGameLoop act = do
+  liftRenderer pollWindowEvents
+  Ur should_close <- liftRenderer shouldCloseWindow
+  act should_close
+
 --------------------------------------------------------------------------------
 -- On Renderer
 --------------------------------------------------------------------------------
 
 renderState :: (RenderState %1 -> Renderer (Ur a, RenderState)) -> Ghengin a
 renderState act = Ghengin (ReaderT \_ -> (UrT (Linear.StateT \s -> act s)))
+
+editRenderQueue :: (RenderQueue %1 -> Renderer RenderQueue) -> Ghengin a
+editRenderQueue f = renderState $ \RenderState{..} -> Linear.do
+  renderQueue <- f renderQueue
+  Linear.return RenderState{..}
 
 liftRenderer :: Renderer (Ur a) %1 -> Ghengin a
 liftRenderer r = Ghengin (ReaderT \_ -> (UrT (Linear.StateT \s -> (,s) Linear.<$> r)))

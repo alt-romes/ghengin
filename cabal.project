@@ -31,6 +31,8 @@ constraints:
 
 allow-newer:
     base,
+    containers,
+    time,
     template-haskell,
     filepath,
     fir:*,
