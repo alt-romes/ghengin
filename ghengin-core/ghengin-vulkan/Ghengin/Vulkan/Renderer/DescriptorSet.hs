@@ -54,9 +54,10 @@ import Ghengin.Vulkan.Renderer.Sampler
 import Ghengin.Vulkan.Renderer.Kernel
 
 import Ghengin.Vulkan.Renderer.Texture
-import Ghengin.Vulkan.Renderer.Pipeline (stageFlag)
 
 import Ghengin.Core.Shader.Pipeline
+
+import FIR.Vulkan.Pipeline
 
 import qualified Data.Linear.Alias as Alias
 

@@ -46,8 +46,6 @@ import qualified Data.Linear.Alias as Alias
 import Ghengin.Core.Type.Compatible.Pixel
 import qualified Ghengin.Core.Shader.Data as Shader
 
--- TODO: More generally, we could have 1D and 3D textures too. There's also Images...
--- See FIR.Syntax.Synonyms
 type Texture2D :: ImageFormat Nat -> Type
 data Texture2D (fmt :: ImageFormat Nat)
   = Texture2D { image   :: VulkanImage

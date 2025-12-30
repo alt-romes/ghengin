@@ -239,6 +239,13 @@ library vulkan
                       Ghengin.Vulkan.Renderer.GLFW.Window,
                       Ghengin.Vulkan.Renderer.Synchronization,
 
+                      -- Vulkan x FIR --
+                      ------------------
+                      -- Modules adapted from FIR's excellent fir-examples/src/Vulkan
+                      -- which have vulkan abstractions that rely on FIR data/types.
+                      FIR.Vulkan.Pipeline,
+                      FIR.Vulkan.Formats
+
     hs-source-dirs:   ghengin-vulkan
 
     build-depends:    base,

@@ -18,7 +18,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Ghengin.Vulkan.Renderer.Pipeline where
 
-import Debug.Trace
 import qualified Prelude
 import Ghengin.Core.Log
 import Prelude.Linear hiding (zero, fromMaybe, IO)
@@ -32,19 +31,12 @@ import Control.Exception (assert)
 
 import Data.Bits ((.|.))
 import Data.Coerce
-import qualified Data.Functor ((<&>))
-import Data.Maybe
 import FIR
-  ( (:->)((:->))
-  , BindingStrides, VertexLocationDescriptions
+  ( BindingStrides, VertexLocationDescriptions
   , GetVertexInputInfo
-  , ImageFormat
-  , ImageFormat(ImageFormat), pattern UI, pattern I, pattern F
   , Known, knownValue
   , PipelineInfo
-  , PrimitiveTopology(..)
   , Shader(..)
-  , Word32
   )
 import FIR.Validation.Pipeline (ValidPipelineInfo)
 import GHC.TypeNats ( Nat )
@@ -62,7 +54,9 @@ import qualified Unsafe.Linear as Unsafe
 import Ghengin.Core.Shader.Pipeline
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.RenderPass
-import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet (DescriptorPool(..))
+import Ghengin.Vulkan.Renderer.DescriptorSet (DescriptorPool(..))
+
+import FIR.Vulkan.Pipeline
 
 #ifdef DEBUG_WRITE_SHADERS
 import System.IO.Temp (writeSystemTempFile)
@@ -105,18 +99,6 @@ defaultGraphicsPipelineSettings = GPS CullBack BlendNone PolygonFill
 dynamicStates :: V.Vector Vk.DynamicState
 dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT -- TODO: Eventually only the viewport needs to be dynamic right?
                 , Vk.DYNAMIC_STATE_SCISSOR ]
-
--- withGraphicsPipeline :: -- (KnownDefinitions vertexdefs, KnownDefinitions fragdefs)
---                      Module vertexdefs -> Module fragdefs
---                      -> Vk.RenderPass
---                      -> V.Vector Vk.DescriptorSetLayout
---                      -> V.Vector Vk.PushConstantRange
---                      -> (VulkanPipeline -> Renderer a) -> Renderer a
--- withGraphicsPipeline vert frag rp sls pcr f = Renderer $ ReaderT $ \renv ->
---                                           bracket
---                                             (runReaderT (unRenderer $ createGraphicsPipeline vert frag rp sls pcr) renv)
---                                             ((`runReaderT` renv) . unRenderer . destroyPipeline)
---                                             ((`runReaderT` renv) . unRenderer . f)
 
 type PipelineConstraints info top descs strides =
           ( ValidPipelineInfo info
@@ -177,21 +159,6 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
     -- Fixed functions configuration
     dynamicStateInfo = Vk.PipelineDynamicStateCreateInfo zero dynamicStates
     
-    -- vertexInputInfo = Vk.PipelineVertexInputStateCreateInfo
-    --                   { next = ()
-    --                   , flags = zero
-    --                     -- ROMES:TODO: Hardcoded for now. Later we might have
-    --                     -- graphics pipelines for different types of vertices
-    --                   , vertexBindingDescriptions = [Mesh.vertexInputBindingDescription]
-    --                   , vertexAttributeDescriptions = Mesh.vertexInputAttributeDescriptions
-    --                   }
-
-    -- inputAssembly = Vk.PipelineInputAssemblyStateCreateInfo
-    --                 { flags = zero
-    --                 , topology = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST -- _STRIP -- 3 vertices = triangle with no reuse.
-    --                 , primitiveRestartEnable = False -- Whether 0xFFFF and 0xFFFFFFFF are special values to break _STRIP topology variants
-    --                 }
-
     -- Both viewport and scissor can be dynamically changed in the pipeline, so
     -- we only need to specify their amount
     viewportStateInfo = Vk.PipelineViewportStateCreateInfo
@@ -314,7 +281,6 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
   Ur (_, pipelines) <- liftSystemIOU $ Vk.createGraphicsPipelines dev Vk.NULL_HANDLE [VkC.SomeStruct pipelineInfo] Nothing
   pipeline <- pure $ assert (V.length pipelines == 1) $ V.unsafeHead pipelines
 
-  -- ROMES:TODO: Free shader modules
   logT "Free shader modules"
   devs <- Data.Linear.traverse (liftIO . destroyShaderModule dev) shaderModules -- destroy shader modules after creating the pipeline
   Unsafe.toLinear (\_ -> pure ()) devs -- forget dev aliases
@@ -322,14 +288,11 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
   pure (renderP, (VulkanPipeline pipeline unsafePipelineLayout, dpool))
 
 
-
 destroyPipeline :: RendererPipeline t ⊸ Renderer ()
 destroyPipeline = Unsafe.toLinear \(VulkanPipeline pipeline pipelineLayout) -> unsafeUseDevice \dev -> do
   Vk.destroyPipeline dev pipeline Nothing
   Vk.destroyPipelineLayout dev pipelineLayout Nothing
 
-
--- :| Shader Modules |:
 
 createShaderModule :: Vk.Device ⊸ ShaderByteCode -> IO (Vk.ShaderModule, Vk.Device)
 createShaderModule = Unsafe.toLinear $ \dev sbc ->
@@ -366,10 +329,6 @@ compileFIRShader m = liftSystemIO do
 destroyShaderModule :: Vk.Device ⊸ Vk.ShaderModule ⊸ System.IO.Linear.IO Vk.Device
 destroyShaderModule = Unsafe.toLinear2 \d sm -> d <$ liftSystemIO (Vk.destroyShaderModule d sm Nothing)
 
---------------------------------------------------------------------------------
--- Pipeline configuration
---------------------------------------------------------------------------------
-
 colorBlendAttachment :: BlendMode -> Vk.PipelineColorBlendAttachmentState
 colorBlendAttachment BlendNone = (colorBlendAttachment BlendAdd){Vk.blendEnable = False}
 colorBlendAttachment BlendAdd =
@@ -395,13 +354,6 @@ colorBlendAttachment BlendAlpha =
      , alphaBlendOp = Vk.BLEND_OP_ADD
      }
 
---------------------------------------------------------------------------------
--- FIR shader info reification functions
---------------------------------------------------------------------------------
--- To some extent, FIR is doing exactly what I should be doing but better.
--- From https://gitlab.com/sheaf/fir/-/blob/master/fir-examples/src/Vulkan/Pipeline.hs
--- At some point, uniformise with it ^^^
-
 shaderInfo
   :: FIR.Shader
   %p -> Vk.ShaderModule
@@ -416,159 +368,3 @@ shaderInfo = Unsafe.toLinear2 \shaderStage shaderModule ->
     , Vk.specializationInfo = Nothing
     }, shaderModule)
 
-simpleFormat :: ImageFormat Word32 -> Maybe Vk.Format
-simpleFormat ( ImageFormat UI widths ) = case widths of
-  [8]           -> Just Vk.FORMAT_R8_UINT
-  [8,8]         -> Just Vk.FORMAT_R8G8_UINT
-  [8,8,8]       -> Just Vk.FORMAT_R8G8B8_UINT
-  [8,8,8,8]     -> Just Vk.FORMAT_R8G8B8A8_UINT
-  [16]          -> Just Vk.FORMAT_R16_UINT
-  [16,16]       -> Just Vk.FORMAT_R16G16_UINT
-  [16,16,16]    -> Just Vk.FORMAT_R16G16B16_UINT
-  [16,16,16,16] -> Just Vk.FORMAT_R16G16B16A16_UINT
-  [32]          -> Just Vk.FORMAT_R32_UINT
-  [32,32]       -> Just Vk.FORMAT_R32G32_UINT
-  [32,32,32]    -> Just Vk.FORMAT_R32G32B32_UINT
-  [32,32,32,32] -> Just Vk.FORMAT_R32G32B32A32_UINT
-  [64]          -> Just Vk.FORMAT_R64_UINT
-  [64,64]       -> Just Vk.FORMAT_R64G64_UINT
-  [64,64,64]    -> Just Vk.FORMAT_R64G64B64_UINT
-  [64,64,64,64] -> Just Vk.FORMAT_R64G64B64A64_UINT
-  _             -> Nothing
-simpleFormat ( ImageFormat I widths ) = case widths of
-  [8]           -> Just Vk.FORMAT_R8_SINT
-  [8,8]         -> Just Vk.FORMAT_R8G8_SINT
-  [8,8,8]       -> Just Vk.FORMAT_R8G8B8_SINT
-  [8,8,8,8]     -> Just Vk.FORMAT_R8G8B8A8_SINT
-  [16]          -> Just Vk.FORMAT_R16_SINT
-  [16,16]       -> Just Vk.FORMAT_R16G16_SINT
-  [16,16,16]    -> Just Vk.FORMAT_R16G16B16_SINT
-  [16,16,16,16] -> Just Vk.FORMAT_R16G16B16A16_SINT
-  [32]          -> Just Vk.FORMAT_R32_SINT
-  [32,32]       -> Just Vk.FORMAT_R32G32_SINT
-  [32,32,32]    -> Just Vk.FORMAT_R32G32B32_SINT
-  [32,32,32,32] -> Just Vk.FORMAT_R32G32B32A32_SINT
-  [64]          -> Just Vk.FORMAT_R64_SINT
-  [64,64]       -> Just Vk.FORMAT_R64G64_SINT
-  [64,64,64]    -> Just Vk.FORMAT_R64G64B64_SINT
-  [64,64,64,64] -> Just Vk.FORMAT_R64G64B64A64_SINT
-  _             -> Nothing
-simpleFormat ( ImageFormat F widths ) = case widths of
-  [16]          -> Just Vk.FORMAT_R16_SFLOAT
-  [16,16]       -> Just Vk.FORMAT_R16G16_SFLOAT
-  [16,16,16]    -> Just Vk.FORMAT_R16G16B16_SFLOAT
-  [16,16,16,16] -> Just Vk.FORMAT_R16G16B16A16_SFLOAT
-  [32]          -> Just Vk.FORMAT_R32_SFLOAT
-  [32,32]       -> Just Vk.FORMAT_R32G32_SFLOAT
-  [32,32,32]    -> Just Vk.FORMAT_R32G32B32_SFLOAT
-  [32,32,32,32] -> Just Vk.FORMAT_R32G32B32A32_SFLOAT
-  [64]          -> Just Vk.FORMAT_R64_SFLOAT
-  [64,64]       -> Just Vk.FORMAT_R64G64_SFLOAT
-  [64,64,64]    -> Just Vk.FORMAT_R64G64B64_SFLOAT
-  [64,64,64,64] -> Just Vk.FORMAT_R64G64B64A64_SFLOAT
-  _             -> Nothing
-simpleFormat _ = Nothing
-
-topology :: PrimitiveTopology n -> Vk.PrimitiveTopology
-topology Points                    = Vk.PRIMITIVE_TOPOLOGY_POINT_LIST
-topology (Line List              ) = Vk.PRIMITIVE_TOPOLOGY_LINE_LIST
-topology (Line Strip             ) = Vk.PRIMITIVE_TOPOLOGY_LINE_STRIP
-topology (Line Fan               ) = error "Invalid topology: fan of lines."
-topology (Triangle List          ) = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST
-topology (Triangle Strip         ) = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP
-topology (Triangle Fan           ) = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_FAN
-topology (Line AdjacencyList     ) = Vk.PRIMITIVE_TOPOLOGY_LINE_LIST_WITH_ADJACENCY
-topology (Line AdjacencyStrip    ) = Vk.PRIMITIVE_TOPOLOGY_LINE_STRIP_WITH_ADJACENCY
-topology (Triangle AdjacencyList ) = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_LIST_WITH_ADJACENCY
-topology (Triangle AdjacencyStrip) = Vk.PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP_WITH_ADJACENCY
-topology (PatchesOfSize         _) = Vk.PRIMITIVE_TOPOLOGY_PATCH_LIST
-
-assemblyInfo
-  :: FIR.PrimitiveTopology n -> Vk.PipelineInputAssemblyStateCreateInfo
-assemblyInfo primTop =
-  Vk.PipelineInputAssemblyStateCreateInfo
-    { Vk.flags                  = zero
-    , Vk.topology               = topology primTop
-    , Vk.primitiveRestartEnable = False
-    }
-
-tessellationInfo
-  :: PrimitiveTopology Word32 -> Maybe ( Vk.PipelineTessellationStateCreateInfo '[] )
-tessellationInfo (PatchesOfSize pts) = Just $
-  Vk.PipelineTessellationStateCreateInfo
-    { Vk.next               = ()
-    , Vk.flags              = zero
-    , Vk.patchControlPoints = fromIntegral pts
-    }
-tessellationInfo _ = Nothing
-
-topologyAndVertexInputStateInfo
-  :: ∀
-      ( info    :: PipelineInfo               )
-      ( top     :: PrimitiveTopology Nat      )
-      ( descs   :: VertexLocationDescriptions )
-      ( strides :: BindingStrides             )
-  . ( '(top, descs, strides) ~ GetVertexInputInfo info
-    , Known (PrimitiveTopology Nat)    top
-    , Known VertexLocationDescriptions descs
-    , Known BindingStrides             strides
-    )
-  => ( PrimitiveTopology Word32, Vk.PipelineVertexInputStateCreateInfo '[] )
-topologyAndVertexInputStateInfo =
-  let
-    primTop :: FIR.PrimitiveTopology Word32
-    primTop = knownValue @top
-
-    bindingStrides :: [ Word32 :-> Word32 ]
-    bindingStrides = knownValue @strides
-
-    attributes :: [ Word32 :-> (Word32, Word32, ImageFormat Word32) ]
-    attributes = knownValue @descs
-
-    computeVulkanFormat :: ImageFormat Word32 -> Vk.Format
-    computeVulkanFormat fmt
-      = fromMaybe
-          ( error $ "Unsupported format " ++ show fmt ++ " used as a vertex input attribute." )
-          ( let x = simpleFormat fmt in trace ("Graphics pipeline vertex input format: " ++ show x) x)
-
-    vertexBindingDescriptions :: [ Vk.VertexInputBindingDescription ]
-    vertexBindingDescriptions =
-      bindingStrides Data.Functor.<&> \( binding :-> stride ) ->
-          Vk.VertexInputBindingDescription
-            { Vk.binding   = binding
-            , Vk.stride    = stride
-            , Vk.inputRate = Vk.VERTEX_INPUT_RATE_VERTEX
-            }
-
-    vertexAttributeDescriptions :: [ Vk.VertexInputAttributeDescription ]
-    vertexAttributeDescriptions =
-      attributes Data.Functor.<&> \ ( location :-> ( binding, offset, format ) ) ->
-        Vk.VertexInputAttributeDescription 
-          { Vk.location = location
-          , Vk.binding  = binding
-          , Vk.format   = computeVulkanFormat format
-          , Vk.offset   = offset
-          }
- 
-    vertexInputStateInfo :: Vk.PipelineVertexInputStateCreateInfo '[]
-    vertexInputStateInfo =
-      Vk.PipelineVertexInputStateCreateInfo
-        { Vk.next                        = ()
-        , Vk.flags                       = zero
-        , Vk.vertexBindingDescriptions   = V.fromList vertexBindingDescriptions
-        , Vk.vertexAttributeDescriptions = V.fromList vertexAttributeDescriptions
-        }
-
-   in (primTop, vertexInputStateInfo)
-
-----------------------
----- Vulkan Utils ----
-----------------------
-
-stageFlag :: FIR.Shader %p -> Vk.ShaderStageFlagBits
-stageFlag FIR.VertexShader                 = Vk.SHADER_STAGE_VERTEX_BIT
-stageFlag FIR.TessellationControlShader    = Vk.SHADER_STAGE_TESSELLATION_CONTROL_BIT
-stageFlag FIR.TessellationEvaluationShader = Vk.SHADER_STAGE_TESSELLATION_EVALUATION_BIT
-stageFlag FIR.GeometryShader               = Vk.SHADER_STAGE_GEOMETRY_BIT
-stageFlag FIR.FragmentShader               = Vk.SHADER_STAGE_FRAGMENT_BIT
-stageFlag FIR.ComputeShader                = Vk.SHADER_STAGE_COMPUTE_BIT

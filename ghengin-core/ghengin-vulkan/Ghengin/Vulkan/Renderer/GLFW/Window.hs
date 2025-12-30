@@ -9,7 +9,7 @@
 {-# LANGUAGE BlockArguments #-}
 -- | TODO: One day, abstract over window API too
 module Ghengin.Vulkan.Renderer.GLFW.Window
-  (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow, loopUntilClosedOr
+  (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow
   , GLFW.windowShouldClose, GLFW.pollEvents
   , initGLFW, terminateGLFW , GLFWToken
   ) where
@@ -80,25 +80,6 @@ createSurface = Unsafe.toLinear2 \i w -> liftSystemIO $ do
 destroySurface :: Linear.MonadIO m => Vk.Instance ⊸ Vk.SurfaceKHR ⊸ m Vk.Instance
 destroySurface = Unsafe.toLinear2 \i s -> liftSystemIO $ i Prelude.<$ Vk.destroySurfaceKHR i s Nothing
 {-# INLINE destroySurface #-}
-
--- | Run an IO action many many times until the window is closed by a normal
--- window-closing event.
-loopUntilClosedOr :: ∀ m s. Linear.MonadIO m => GLFW.Window ⊸ Ur s ⊸ (Ur s ⊸ m (Bool, Ur s)) -> m (GLFW.Window, Ur s)
-loopUntilClosedOr = loopUntilClosedOr' False
-  where
-  loopUntilClosedOr' :: Linear.MonadIO m => Bool ⊸ GLFW.Window ⊸ Ur s ⊸ (Ur s ⊸ m (Bool, Ur s)) -> m (GLFW.Window, Ur s)
-  loopUntilClosedOr' shouldClose win (Ur s) action =
-    if shouldClose then pure (win,Ur s)
-    else Linear.do
-      wShouldClose win >>= \case
-        (True , win') -> pure (win', Ur s)
-        (False, win') -> Linear.do
-          liftSystemIO GLFW.pollEvents
-          (shouldClose',Ur s') <- action (Ur s)
-          loopUntilClosedOr' shouldClose' win' (Ur s') action
-      where
-        wShouldClose :: GLFW.Window ⊸ m (Bool, GLFW.Window)
-        wShouldClose = Unsafe.toLinear \w -> (,w) <$> liftSystemIO (GLFW.windowShouldClose w)
 
 data GLFWToken = GLFWToken
 

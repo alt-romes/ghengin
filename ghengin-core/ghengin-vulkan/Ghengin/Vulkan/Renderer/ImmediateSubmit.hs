@@ -32,9 +32,6 @@ data ImmediateSubmitCtx = ImmediateSubmitCtx { _uploadFence   :: !Vk.Fence
 
 -- :| Immediate Submit |:
 
--- Ah... I see, there's an ImmediateSubmitCtx in VulkanDevice, so it doesn't
--- make that much sense to receive it on creation... ach
--- ROMES:TODO...
 createImmediateSubmitCtx :: MonadIO m
                          => VulkanDevice
                           ⊸ m (ImmediateSubmitCtx, VulkanDevice)

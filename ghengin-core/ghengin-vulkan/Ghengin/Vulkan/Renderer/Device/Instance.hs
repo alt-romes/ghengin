@@ -56,11 +56,11 @@ createInstance validationLayers = Linear.liftSystemIO $ do
 
   where
     appInfo  :: Vk.ApplicationInfo
-    appInfo = Vk.ApplicationInfo { applicationName    = Just "Ghengin"
+    appInfo = Vk.ApplicationInfo { applicationName    = Just "Ghengin" -- TODO
                                  , applicationVersion = 0
                                  , engineName         = Just "Ghengin"
                                  , engineVersion      = 0
-                                 , apiVersion         = Vk.API_VERSION_1_2
+                                 , apiVersion         = Vk.API_VERSION_1_3
                                  }
 
     instanceInfo :: V.Vector BS.ByteString -> Vk.InstanceCreateInfo '[]

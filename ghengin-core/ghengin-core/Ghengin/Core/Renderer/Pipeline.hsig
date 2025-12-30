@@ -21,12 +21,6 @@ data RendererPipeline (t :: PipelineType)
 -- ROMES:TODO: Type data
 data PipelineType = Graphics | Compute
 
--- import Ghengin.Vulkan.Pipeline
---     ( createGraphicsPipeline,
---       destroyPipeline,
---       PipelineConstraints,
---       VulkanPipeline )
-
 type PipelineConstraints info top descs strides =
           ( ValidPipelineInfo info
           , '(top, descs, strides) ~ GetVertexInputInfo info
@@ -41,9 +35,8 @@ type PipelineConstraints info top descs strides =
 -- Note that the returned vulkan pipeline must be managed in a structure that
 -- ensures each pipeline renders all related items in sequence instead of
 -- jumping in between pipeline
-createGraphicsPipeline  :: -- (KnownDefinitions vertexdefs, KnownDefinitions fragdefs)
-                        -- (CompilableProgram v, CompilableProgram f)
-                        ∀  ( info    :: PipelineInfo               )
+createGraphicsPipeline  :: ∀ 
+                           ( info    :: PipelineInfo               )
                            ( top     :: PrimitiveTopology Nat      )
                            ( descs   :: VertexLocationDescriptions )
                            ( strides :: BindingStrides             )

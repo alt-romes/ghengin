@@ -44,9 +44,6 @@ module Ghengin.Vulkan.Renderer.Command
   , createCommandBuffers
   , destroyCommandBuffers
 
-  -- ROMES:TODO
-  -- , embed
-
   -- * Images
   , copyFullBufferToImage
   , transitionImageLayout

@@ -35,9 +35,15 @@ import Ghengin.Core.Log
 type RenderPipeline :: FIR.Pipeline.PipelineInfo -> [Type] -> Type
 data RenderPipeline info tys where
 
-  RenderPipeline :: RendererPipeline Graphics -- ^ The graphics pipeline underlying this render pipeline. Can a graphics pipeline be shared amongst Render Pipelines such that this field needs to be ref counted?
-                 ⊸  Alias RenderPass -- ^ A reference counted reference to a render pass, since we might share render passes amongst pipelines
-                 ⊸  (Alias DescriptorSet, Alias ResourceMap, Ur DescriptorSetMap, Alias DescriptorPool) -- A descriptor set per frame; currently we are screwing up drawing multiple frames. Descriptor Set for the render properties.
+  RenderPipeline :: RendererPipeline Graphics
+                 -- ^ The graphics pipeline underlying this render pipeline.
+                 ⊸  Alias RenderPass
+                 -- ^ A reference counted reference to a render pass, since we
+                 -- might share render passes amongst pipelines
+                 ⊸  (Alias DescriptorSet, Alias ResourceMap, Ur DescriptorSetMap, Alias DescriptorPool)
+                 -- ^ A descriptor set per frame; currently we are screwing up
+                 -- drawing multiple frames. Descriptor Set for the render
+                 -- properties.
                  ⊸  ShaderPipeline info
                  -> Unique
                  -> RenderPipeline info '[] 

@@ -101,11 +101,11 @@ destroyDeviceLocalBuffer (DeviceLocalBuffer b dm) = enterD "destroyDeviceLocalBu
 -- This is unlike DeviceLocalBuffers, which are allocated on the device and
 -- require a staging buffer and a copy command to be written
 data MappedBuffer = MappedBuffer { buffer  :: {-# UNPACK #-} !Vk.Buffer
-                                  , devMem  :: {-# UNPACK #-} !Vk.DeviceMemory
-                                  , hostMem :: {-# UNPACK #-} !(Ptr ())
-                                    -- ^ When `DeviceMemory` is mapped, we get a `hostMem` pointer to it.
-                                  , bufSize :: {-# UNPACK #-} !(Ur Word)
-                                  }
+                                 , devMem  :: {-# UNPACK #-} !Vk.DeviceMemory
+                                 , hostMem :: {-# UNPACK #-} !(Ptr ())
+                                   -- ^ When `DeviceMemory` is mapped, we get a `hostMem` pointer to it.
+                                 , bufSize :: {-# UNPACK #-} !(Ur Word)
+                                 }
 
 data BufferType = Uniform | Storage
   deriving Show

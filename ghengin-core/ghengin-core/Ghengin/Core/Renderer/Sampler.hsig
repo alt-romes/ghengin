@@ -1,12 +1,20 @@
 signature Ghengin.Core.Renderer.Sampler where
 
--- TODO: Define isomporphic types and remove vulkan dependency
-import qualified Vulkan as Vk
-
 import Ghengin.Core.Renderer.Kernel
 
 data Sampler
 
-createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer (Alias Sampler)
+data SamplerFilter
+  = FilterNearest
+  | FilterLinear
+
+data SamplerAddressMode
+  = SamplerRepeat
+  | SamplerMirroredRepeat
+  | SamplerClampToEdge
+  | SamplerMirrorClampToEdge
+  | SamplerClampToBorder
+
+createSampler :: SamplerFilter -> SamplerAddressMode -> Renderer (Alias Sampler)
 destroySampler :: Sampler ⊸ Renderer ()
 
