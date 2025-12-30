@@ -6,20 +6,13 @@ module Ghengin.Vulkan.Renderer.Sampler
   , createSampler
   , destroySampler
 
-  -- * Filters
-  , Vk.Filter
-    ( Vk.FILTER_NEAREST
-    , Vk.FILTER_LINEAR
-    )
+  -- * Abstract filter types
+  , SamplerFilter(..)
+  , filterToVk
 
-  -- * Address modes
-  , Vk.SamplerAddressMode
-    ( Vk.SAMPLER_ADDRESS_MODE_REPEAT
-    , Vk.SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT
-    , Vk.SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
-    , Vk.SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE
-    , Vk.SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
-    )
+  -- * Abstract address mode types
+  , SamplerAddressMode(..)
+  , addressModeToVk
 
   ) where
 
@@ -34,6 +27,30 @@ import Ghengin.Vulkan.Renderer.Kernel
 
 import qualified Data.Linear.Alias as Alias
 
+data SamplerFilter
+  = FilterNearest
+  | FilterLinear
+
+-- | Convert abstract filter to Vulkan filter
+filterToVk :: SamplerFilter -> Vk.Filter
+filterToVk FilterNearest = Vk.FILTER_NEAREST
+filterToVk FilterLinear = Vk.FILTER_LINEAR
+
+data SamplerAddressMode
+  = SamplerRepeat
+  | SamplerMirroredRepeat
+  | SamplerClampToEdge
+  | SamplerMirrorClampToEdge
+  | SamplerClampToBorder
+
+-- | Convert abstract address mode to Vulkan address mode
+addressModeToVk :: SamplerAddressMode -> Vk.SamplerAddressMode
+addressModeToVk SamplerRepeat = Vk.SAMPLER_ADDRESS_MODE_REPEAT
+addressModeToVk SamplerMirroredRepeat = Vk.SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT
+addressModeToVk SamplerClampToEdge = Vk.SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+addressModeToVk SamplerMirrorClampToEdge = Vk.SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE
+addressModeToVk SamplerClampToBorder = Vk.SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER
+
 newtype Sampler = Sampler { sampler :: Vk.Sampler }
 
 -- | Create a sampler with the given filter and sampler address mode
@@ -46,16 +63,16 @@ newtype Sampler = Sampler { sampler :: Vk.Sampler }
 -- * VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE: Take the color of the edge closest to the coordinate beyond the image dimensions.
 -- * VK_SAMPLER_ADDRESS_MODE_MIRROR_CLAMP_TO_EDGE: Like clamp to edge, but instead uses the edge opposite to the closest edge.
 -- * VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER: Return a solid color when sampling beyond the dimensions of the image.
-createSampler :: Vk.Filter -> Vk.SamplerAddressMode -> Renderer (Alias Sampler)
+createSampler :: SamplerFilter -> SamplerAddressMode -> Renderer (Alias Sampler)
 createSampler filter addrMode = enterD "Creating Sampler" Linear.do
   let
       -- TODO: Make more flexible as needed
-      info = Vk.SamplerCreateInfo { magFilter = filter
-                                  , minFilter = filter
-                                  
-                                  , addressModeU = addrMode
-                                  , addressModeV = addrMode
-                                  , addressModeW = addrMode
+      info = Vk.SamplerCreateInfo { magFilter = filterToVk filter
+                                  , minFilter = filterToVk filter
+
+                                  , addressModeU = addressModeToVk addrMode
+                                  , addressModeV = addressModeToVk addrMode
+                                  , addressModeW = addressModeToVk addrMode
 
                                   , anisotropyEnable = False
                                   , maxAnisotropy = 1 -- Could query for MAX
