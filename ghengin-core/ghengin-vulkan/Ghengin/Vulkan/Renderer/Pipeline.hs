@@ -45,7 +45,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.IntMap as IM
 import qualified Data.Vector as V
-import qualified FIR hiding (ShaderPipeline, (:>->))
+import qualified FIR
 import qualified Vulkan as Vk
 import qualified Vulkan.CStruct.Extends as VkC
 
@@ -68,7 +68,7 @@ data RendererPipeline (t :: PipelineType)
                    , _pipelineLayout :: Vk.PipelineLayout
                    }
 
--- ROMES:TODO: Type data
+-- TODO: Use type data
 data PipelineType = Graphics | Compute
 
 --------------------------------------------------------------------------------
@@ -121,21 +121,23 @@ createGraphicsPipeline  ::
                         .  PipelineConstraints info top descs strides
                         => GraphicsPipelineSettings
                         -> ShaderPipeline info
-                        -> V.Vector Vk.PushConstantRange
                         -> DescriptorPool
                          ⊸ RenderPass
                          ⊸ Renderer (RenderPass, (RendererPipeline Graphics, DescriptorPool))
-createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dpool renderP -> enterD "createGraphicsPipeline" $ Linear.do
+createGraphicsPipeline gps (ShaderPipeline ppstages) = Unsafe.toLinearN @2 \dpool renderP -> enterD "createGraphicsPipeline" $ Linear.do
+  -- TODO: seems truly unsafe to alias the descriptor set layouts like this.
+  -- we give an alias to the pipeline layout, and apparently forget about it...
+  -- do we ever need the descriptor set layouts again outside of pipeline layout?
   Ur descriptorSetLayouts <- liftSystemIOU $ Prelude.pure $ V.fromList $ IM.elems dpool.set_bindings
 
   Ur dev <- unsafeGetDevice
 
   let
     pipelineShaders :: [(FIR.Shader, Vk.ShaderModule)]
-                     ⊸ ShaderPipeline info2
+                     ⊸ FIR.PipelineStages info2 ()
                     -> IO [(FIR.Shader, Vk.ShaderModule)]
-    pipelineShaders acc (ShaderPipeline FIR.VertexInput) = pure $ reverse acc
-    pipelineShaders acc ( info :>-> sm@(FIR.ShaderModule _ :: FIR.ShaderModule name shader defs endState) )
+    pipelineShaders acc (FIR.VertexInput) = pure $ reverse acc
+    pipelineShaders acc (info FIR.:>-> (sm@(FIR.ShaderModule _ :: FIR.ShaderModule name shader defs endState), ()) )
       = Linear.do
         (vksm, dev') <- compileFIRShader sm >>= Unsafe.toLinear2 createShaderModule dev
         Unsafe.toLinear (\_ -> pure ()) dev' -- forget dev' alias
@@ -143,7 +145,6 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
 
   logT "Make pipeline shaders"
   !shaders <- liftIO $ pipelineShaders [] ppstages
-  logT "Done"
   (Ur shaderStageInfos, shaderModules) <- pure $ first (Unsafe.toLinear Ur . map (\case (Ur x) -> x)) $ -- [Ur x] to Ur [x]
                                                  unzip $ map (uncurry shaderInfo) shaders :: Renderer (Ur [Vk.PipelineShaderStageCreateInfo '[]], [Vk.ShaderModule])
 
@@ -244,17 +245,14 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
                         }
 
 
-    -- In this config we can specify uniform values and push constants (other
-    -- way of passing dynamic values to shaders)
     pipelineLayoutInfo = Vk.PipelineLayoutCreateInfo
                          { flags = zero
                          , setLayouts = descriptorSetLayouts
-                         , pushConstantRanges = pushConstantRanges
+                         , pushConstantRanges = []
                          }
 
-  logT "Create pipeline layout"
+  logT "Creating pipeline layout"
   Ur unsafePipelineLayout <- liftSystemIOU $ Vk.createPipelineLayout dev pipelineLayoutInfo Nothing
-  logT "Done"
 
   let 
     pipelineInfo = Vk.GraphicsPipelineCreateInfo { next = ()
@@ -287,6 +285,7 @@ createGraphicsPipeline gps ppstages pushConstantRanges = Unsafe.toLinearN @2 \dp
 
   pure (renderP, (VulkanPipeline pipeline unsafePipelineLayout, dpool))
 
+-- TODO: createComputePipeline
 
 destroyPipeline :: RendererPipeline t ⊸ Renderer ()
 destroyPipeline = Unsafe.toLinear \(VulkanPipeline pipeline pipelineLayout) -> unsafeUseDevice \dev -> do

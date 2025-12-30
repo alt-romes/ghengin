@@ -7,6 +7,6 @@ data RendererPipeline (t :: PipelineType)
                    , _pipelineLayout :: Vk.PipelineLayout
                    }
 
--- ROMES:TODO: Type data
+-- TODO: Use type data
 data PipelineType = Graphics | Compute
 

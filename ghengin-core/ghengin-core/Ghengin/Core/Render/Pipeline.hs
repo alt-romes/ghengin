@@ -124,7 +124,6 @@ makeRenderPipelineWith gps renderPass shaderPipeline props0 = Linear.do
     <- Alias.useM renderPass $
         createGraphicsPipeline gps
            shaderPipeline
-           [] -- No push constants?
            dpool1
 
   logT "Creating reference counted"
