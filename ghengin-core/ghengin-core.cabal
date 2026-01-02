@@ -89,14 +89,6 @@ library
                       Ghengin.Core.Material,
                       Ghengin.Core.Mesh,
 
-                      -- Moved to ghengin-core-indep until #23322 is fixed
-                      -- Ghengin.Core.Mesh.Vertex,
-                      -- Ghengin.Core.Type.Compatible,
-                      -- Ghengin.Core.Type.Utils,
-                      -- Ghengin.Core.Shader,
-                      -- Ghengin.Core.Shader.Pipeline,
-                      -- Ghengin.Core.Shader.Canonical,
-
                       Ghengin.Core.Render.Pipeline,
                       Ghengin.Core.Render.Property,
                       Ghengin.Core.Render.Packet,
@@ -119,7 +111,20 @@ library
                         -- generics-sop, for deriving generically
                         Generics.SOP
 
-                        -- TODO: Also re-export all modules from ghengin-core-indep?
+    -- Re-export modules that are part of ghengin-core-indep (see also #23322)
+    -- Keep these modules in sync with the exported modules from ghengin-core-indep!
+    reexported-modules: Ghengin.Core.Mesh.Vertex,
+
+                        Ghengin.Core.Type.Compatible,
+                        Ghengin.Core.Type.Compatible.Pixel,
+                        Ghengin.Core.Type.Utils,
+
+                        Ghengin.Core.Shader,
+                        Ghengin.Core.Shader.Data,
+                        Ghengin.Core.Shader.Pipeline,
+
+                        Ghengin.Core.Prelude,
+                        Ghengin.Core.Log,
 
     hs-source-dirs:   ghengin-core
 
@@ -173,9 +178,7 @@ library backend-independent-bits
                       Ghengin.Core.Shader,
                       Ghengin.Core.Shader.Data,
                       Ghengin.Core.Shader.Pipeline,
-                      Ghengin.Core.Shader.Canonical,
 
-                      -- New modules
                       Ghengin.Core.Prelude,
                       Ghengin.Core.Log,
 

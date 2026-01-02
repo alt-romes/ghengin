@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 module Ghengin.Core.Shader
   ( module Ghengin.Core.Shader
-  , module Ghengin.Core.Shader.Canonical
   , module Ghengin.Core.Shader.Pipeline
   , type (FIR.:->), M.Value
   )
@@ -12,7 +11,6 @@ module Ghengin.Core.Shader
 import Graphics.Gl.Block
 import Data.Kind
 import GHC.TypeLits
-import Ghengin.Core.Shader.Canonical
 import Ghengin.Core.Shader.Pipeline
 import Geomancy.Vec2
 import Geomancy.Vec3
@@ -33,11 +31,11 @@ import Ghengin.Core.Shader.Data
 
 type VertexShaderModule defs
   = FIR.ShaderModule "main" FIR.VertexShader
-                     (("main" 'FIR.:-> FIR.EntryPoint '[] FIR.Vertex) ': CanonicalizeDefs defs)
+                     (("main" 'FIR.:-> FIR.EntryPoint '[] FIR.Vertex) ': defs)
 
 type FragmentShaderModule defs
   = FIR.ShaderModule "main" FIR.FragmentShader
-                     (("out_colour" 'FIR.:-> FIR.Output '[ FIR.Location 0 ] (V 4 Float)) ': ("main" 'FIR.:-> FIR.EntryPoint '[ FIR.OriginUpperLeft ] FIR.Fragment) ': CanonicalizeDefs defs)
+                     (("out_colour" 'FIR.:-> FIR.Output '[ FIR.Location 0 ] (V 4 Float)) ': ("main" 'FIR.:-> FIR.EntryPoint '[ FIR.OriginUpperLeft ] FIR.Fragment) ': defs)
 
 
 -- * Instances for ShaderData
