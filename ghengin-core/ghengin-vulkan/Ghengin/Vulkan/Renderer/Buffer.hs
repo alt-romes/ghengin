@@ -15,13 +15,13 @@ import qualified Data.Linear.Alias as Alias
 
 import qualified Data.Vector.Storable as SV
 import Foreign.Ptr
+import Foreign.Ptr.Diff (Diff(..))
 import Foreign.Marshal.Utils
 import Data.Bits
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
--- import qualified Ghengin.Vulkan.Renderer.Command as Cmd
 import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Core.Mesh.Vertex
 
@@ -48,11 +48,6 @@ data VertexBuffer where
   VertexBuffer :: !DeviceLocalBuffer
                 ⊸ Word32               -- ^ N vertices
                -> VertexBuffer
--- NB: We use Std140 throughout this module for Vertex, which isn't quite
--- right since vertices need to abide by the location/component layout
--- specification... but since Std140 gives some padding this should work fine
--- if you are using Vertices with Vector attributes only.
--- Ghengin.Core.Mesh.Vertex also defines a Storable instance for vertices based on Std140
 
 createVertexBuffer :: ∀ αs. Storable (Vertex αs) => SV.Vector (Vertex αs) -> Renderer VertexBuffer
 createVertexBuffer vv =
@@ -110,7 +105,7 @@ data BufferType = Uniform | Storage
   deriving Show
 
 -- | Create a uniform buffer with a given size, but don't copy memory to it
--- yet. See 'writeUniformBuffer' for that.
+-- yet. See 'writeMappedBuffer' for that.
 createMappedBuffer :: Word -> BufferType -> Renderer (Alias MappedBuffer)
 createMappedBuffer size descriptorType = enterD "createMappedBuffer" Linear.do
   let bsize = fromIntegral size
@@ -126,18 +121,23 @@ createMappedBuffer size descriptorType = enterD "createMappedBuffer" Linear.do
     bufferUsageBit Uniform = Vk.BUFFER_USAGE_UNIFORM_BUFFER_BIT
     bufferUsageBit Storage = Vk.BUFFER_USAGE_STORAGE_BUFFER_BIT
 
--- | Note how the storable must be the same as the storable of the uniform
--- buffer so that the sizes match
-writeMappedBuffer :: ∀ α. Block α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
-writeMappedBuffer refcbuf x = enterD "writeMappedBuffer" Linear.do
-  (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(MappedBuffer _ _ ptr (Ur s)) -> Linear.do
-    logT $ fromString $
-      "Ptr: " ++ show ptr ++
-      "; size:" ++ show (sizeOf140 (Proxy @α)) ++
-      "; device memory size: " ++ show s
-    -- For uniform buffers we use std140 (extended layout)
-    liftSystemIO $ write140 @α (castPtr ptr) Category.id x
-    logT "Successfully wrote mapped buffer"
+-- | Write to a 'MappedBuffer' using the given write action.
+--
+-- Typically, the poke action should use @gl-block@'s @'write140'@ or
+-- @'write430'@ to guarantee the alignment expected by the shader is respected.
+--
+-- === __Example__
+--
+-- @
+-- writeMappedBuffer write140 mbuf (vec3 1 2 3) -- for uniform buffers
+-- writeMappedBuffer write430 mbuf ...          -- for storage buffers
+-- @
+writeMappedBuffer :: forall a. (Ptr a -> Diff a a -> a -> Prelude.IO ())
+                  -> Alias MappedBuffer ⊸ a -> Renderer (Alias MappedBuffer)
+writeMappedBuffer writeIt refcbuf x = enterD "writeMappedBuffer" Linear.do
+  (ub, ()) <- Alias.useM refcbuf $ Unsafe.toLinear \ub@(MappedBuffer _ _ ptr (Ur _)) -> Linear.do
+    liftSystemIO $
+      writeIt (castPtr ptr) Category.id x
     pure (ub, ())
   pure ub
 

@@ -144,6 +144,7 @@ library
 
                       ghengin-core:backend-independent-bits,
                       linear-utils,
+                      ptrdiff,
                       constraints,
 
                       -- we use this for now directly in some hacky bits...
@@ -267,7 +268,8 @@ library vulkan
                       bytestring,
                       mtl,
                       vector,
-                      linear-utils
+                      linear-utils,
+                      ptrdiff
 
     -- Until #23322 is fixed?
     -- Nope, also doesn't work. Perhaps we could support this sort of cyclic dependencies.

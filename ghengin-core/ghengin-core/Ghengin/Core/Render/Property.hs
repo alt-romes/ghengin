@@ -38,10 +38,6 @@ import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific ren
 -- frame, you should use a 'DynamicBinding'.
 data PropertyBinding α where
 
--- NB: Currently, we use std140 for uniform & storage buffers, but this could
--- eventually be std430 if we used VK_KHR_uniform_buffer_standard_layout. These
--- layouts are provided by Block from gl-block.
-
   -- | Write the property to a mapped buffer every frame
   DynamicBinding :: ∀ α. (Block α, PBInv α ~ Ur α) -- Block to write the buffers with proper standard
                  => Ur α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor every frame
@@ -156,7 +152,7 @@ makeResources bm = enterD "makeResources" . go_build 0 bm
 
           -- Allocate the associated buffers. These buffers will be written to
           -- every frame (unlike buffers underlying `StaticBinding`s)
-          mb <- createMappedBuffer (fromIntegral $ sizeOf140 (Proxy @β)) bt
+          mb <- createMappedBuffer (fromIntegral $ sizeOfFor bt (Proxy @β)) bt
 
           pure (dRes bt mb, DynamicBinding (Ur x))
 
@@ -164,11 +160,11 @@ makeResources bm = enterD "makeResources" . go_build 0 bm
           -- Allocate the associated buffers
           -- TODO: This be a deviceLocalBuffer
           -- TODO: instead -> createDeviceLocalBuffer bt x
-          mb <- createMappedBuffer (fromIntegral $ sizeOf140 (Proxy @β)) bt 
+          mb <- createMappedBuffer (fromIntegral $ sizeOfFor bt (Proxy @β)) bt
 
           -- Write the static information to this buffer right away. It may be
           -- later updated if the static property is edited with `editProperty`.
-          mb' <- writeMappedBuffer mb x
+          mb' <- writeMappedBuffer (writeFor bt) mb x
 
           pure (dRes bt mb', StaticBinding (Ur x))
 
@@ -179,6 +175,11 @@ makeResources bm = enterD "makeResources" . go_build 0 bm
           -- Image has already been allocated when the texture was created, we
           -- simply share it to the resource map
           pure (Texture2DResource t1, Texture2DBinding t2)
+
+    sizeOfFor Uniform = sizeOf140
+    sizeOfFor Storage = sizeOf430
+    writeFor  Uniform = write140
+    writeFor  Storage = write430
 
 -- | Write a property binding value to a mapped buffer.  Eventually we might
 -- want to associate the binding set and binding #number and get them directly
@@ -204,10 +205,10 @@ writeProperty dr pb = case pb of
     case dr of
       UniformResource buf -> Linear.do
         -- Dynamic bindings are written every frame
-        buf' <- writeMappedBuffer buf a
+        buf' <- writeMappedBuffer write140 buf a
         pure (UniformResource buf', DynamicBinding (Ur a))
       StorageResource buf -> Linear.do
-        buf' <- writeMappedBuffer buf a
+        buf' <- writeMappedBuffer write430 buf a
         pure (StorageResource buf', DynamicBinding (Ur a))
       Texture2DResource t -> Alias.forget t >>
         error "writeProperty: one can't write a dynamic binding into a non-mapped-buffer resource"
@@ -385,13 +386,13 @@ editProperty prop update i dset resmap0 = Linear.do
       getDescriptorResource resmap0 i >>= \case
         (UniformResource bufref, resmap1) -> Linear.do
 
-          writeStaticBinding bufref ux >>= Alias.forget
+          writeStaticBinding write140 bufref ux >>= Alias.forget
 
           pure (StaticBinding (Ur ux), dset, resmap1)
 
         (StorageResource bufref, resmap1) -> Linear.do
 
-          writeStaticBinding bufref ux >>= Alias.forget
+          writeStaticBinding (write430 @α) bufref ux >>= Alias.forget
 
           pure (StaticBinding (Ur ux), dset, resmap1)
 
@@ -418,7 +419,6 @@ editProperty prop update i dset resmap0 = Linear.do
     -- TODO: For now, static bindings use a mapped buffer as well, but it'd be
     -- better to use a GPU local buffer to which we write only so often (see
     -- makeResources and createDeviceLocalBuffer)
-    writeStaticBinding :: Block α => Alias MappedBuffer ⊸ α -> Renderer (Alias MappedBuffer)
     writeStaticBinding = writeMappedBuffer @α
 
     -- | Overwrite the texture bound on a descriptor set at binding #n
