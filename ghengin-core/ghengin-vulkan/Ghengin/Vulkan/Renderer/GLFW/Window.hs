@@ -46,7 +46,6 @@ createVulkanWindow inst dimensions label = Linear.do
   (surface, inst', win') <- createSurface inst win
   pure (VulkanWindow win' surface, inst')
 
--- TODO: Can I destroy the window before the instance?
 destroyVulkanWindow :: Linear.MonadIO m => Vk.Instance ⊸ VulkanWindow ⊸ m Vk.Instance
 destroyVulkanWindow inst (VulkanWindow win surface) = Linear.do
   inst' <- destroySurface inst surface

@@ -151,8 +151,6 @@ runRenderer dimensions r = Linear.do
 -- N is 'MAX_FRAMES_IN_FLIGHT'
 --
 -- TODO: Figure out mismatch between current image index and current image frame.
---
--- I don't think we need the `t` transformer any longer!
 withCurrentFramePresent :: ( Vk.CommandBuffer
                               ⊸ Int -- ^ Current image index
                              -> Renderer (a, Vk.CommandBuffer)
@@ -280,9 +278,6 @@ rateFn surface d = do
         swapChainAdequate   = Prelude.not (Prelude.null surfaceFormats) Prelude.&& Prelude.not (null surfacePresentModes)
         extensionsSupported = Prelude.not $ Prelude.null $ L.intersect (V.toList deviceExtensions) (V.toList $ V.map (.extensionName) extensionProps)
 
-    -- If the app couldn't function without geometry shaders
-    -- guard feats.geometryShader
-
     (graphicsF, presentF) <- queueFamilies
     Control.Monad.guard swapChainAdequate
     Control.Monad.guard extensionsSupported
@@ -305,10 +300,6 @@ rateFn surface d = do
 
         isSuitablePresent :: Int -> Prelude.IO Bool
         isSuitablePresent  i = Vk.getPhysicalDeviceSurfaceSupportKHR pd (Prelude.fromIntegral i) sr
-
--- :| Windowing with GLFW |:
--- TODO: Should really be in Ghengin.Core.Input, and the Window should be part
--- of Core? maybe not so simple to then use it here.
 
 shouldCloseWindow :: Renderer (Ur Bool)
 shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do

@@ -28,8 +28,6 @@ data ImmediateSubmitCtx = ImmediateSubmitCtx { _uploadFence   :: !Vk.Fence
                                              , _commandBuffer :: !Vk.CommandBuffer
                                              }
 
--- ROMES:TODO: Use an independent render pass (that can be done in parallel to the main one?)
-
 -- :| Immediate Submit |:
 
 createImmediateSubmitCtx :: MonadIO m

@@ -242,9 +242,10 @@ library vulkan
                       -- Vulkan x FIR --
                       ------------------
                       -- Modules adapted from FIR's excellent fir-examples/src/Vulkan
-                      -- which have vulkan abstractions that rely on FIR data/types.
+                      -- which have vulkan abstractions. Some rely on FIR types.
                       FIR.Vulkan.Pipeline,
                       FIR.Vulkan.Formats
+                      -- FIR.Vulkan.Resource
 
     hs-source-dirs:   ghengin-vulkan
 

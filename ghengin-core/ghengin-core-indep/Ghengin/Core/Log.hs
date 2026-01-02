@@ -29,12 +29,12 @@ data Logger
 class MonadIO m => HasLogger m where
   -- | Get a logger. Don't forget to add an inline pragma!
   getLogger :: m (Ur Logger)
-  -- | Increment the depth of the logging. This makes it quite hard to instance
-  -- HasLogger for all MonadTrans over a HasLogger m.
+  -- | Increment the depth of the logging.
   withLevelUp  :: m a ⊸ m a
 
 instance (MonadIO m, HasLogger m) => HasLogger (StateT s m) where
   getLogger = lift getLogger
+  {-# INLINE getLogger #-}
   withLevelUp (StateT m) = StateT $ \s -> withLevelUp (m s)
 
 -- | Returns a new logger and an IO cleanup action
@@ -59,13 +59,16 @@ log msg = getLogger >>= \(Ur logger) -> G.do
 #endif
 
 -- | Log if debug level (@-DDEBUG@) is set
-logD :: HasLogger m => LogStr -> m ()
-{-# INLINE logD #-}
+logDebug, logD :: HasLogger m => LogStr -> m ()
+{-# INLINE logDebug #-}
 #ifdef DEBUG
-logD = log
+logDebug = log
 #else
-logD = const (pure ())
+logDebug = const (pure ())
 #endif
+
+logD = logDebug
+{-# INLINE logD #-}
 
 -- | Log and increase logging depth until action is left if debug level
 -- (@-DDEBUG@) is set

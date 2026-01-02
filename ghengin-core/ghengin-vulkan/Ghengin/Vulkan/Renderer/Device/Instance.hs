@@ -36,7 +36,7 @@ instanceExtensions = [
 
 createInstance :: Linear.MonadIO m
                => V.Vector BS.ByteString -- ^ Validation layers
-               -- -> BS.ByteString          -- ^ Application name
+               -- -> BS.ByteString       -- ^ Application name
                -> m Vk.Instance
 createInstance validationLayers = Linear.liftSystemIO $ do
   -- This will only return something if GLFW has been initialized

@@ -64,7 +64,6 @@ createVertexBuffer vv =
 data DeviceLocalBuffer where
   DeviceLocalBuffer :: {-# UNPACK #-} !Vk.Buffer
                      ⊸ {-# UNPACK #-} !Vk.DeviceMemory
-                     -- ⊸ Word -- Size
                      ⊸ DeviceLocalBuffer
 
 -- | Fills a device (GPU) local buffer with the provided flags and the provided data
@@ -174,10 +173,8 @@ createBuffer size usage properties = Linear.do
 -- (e.g. creating device local buffers and copying textures to the device), and
 -- finally frees the staging buffer
 withStagingBuffer :: ∀ α (ρ :: Type). SV.Storable α => SV.Vector α -> (Vk.Buffer ⊸ Vk.DeviceSize -> Renderer ρ) ⊸ Renderer ρ
--- ROMES:TODO: nevermind brackets for now, if we ever make this compile we can worry about linear bracket-ing then
 withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
   -- Accquire staging buffer
-  -- -----------------------
   let !l          = SV.length bufferData
       !bufferSize = fromIntegral $ fromIntegral l * sizeOf @α undefined
   (stagingBuffer0, stagingMem0) <- createBuffer bufferSize Vk.BUFFER_USAGE_TRANSFER_SRC_BIT (Vk.MEMORY_PROPERTY_HOST_VISIBLE_BIT .|. Vk.MEMORY_PROPERTY_HOST_COHERENT_BIT)
@@ -195,7 +192,7 @@ withStagingBuffer bufferData f = enterD "withStagingBuffer" Linear.do
 
   -- Use staging buffer
   -- ------------------
-  !p <- f stagingBuffer0 bufferSize -- TODO: On exception must free stagingBuffer0 still...
+  !p <- f stagingBuffer0 bufferSize
 
   -- Release things
   -- -----------------------------------
@@ -210,40 +207,25 @@ destroyMappedBuffer (MappedBuffer b dm hostMemory (Ur _size)) = enterD "destroyM
   freeMemory dm'
   destroyBuffer b
 
--- data Buffer = Buffer Vk.Buffer Vk.DeviceMemory
-
 -------- Utils -------------------------
 
--- | Linear wrapper around Vk.mapMemory.
---
--- It's a bit weird we dont' need to free the host memory, but until we (TODO)
--- make sure, we return the host memory ptr as unrestricted
+-- | Create a CPU mapped region to the given device memory
 mapMemory :: Vk.DeviceMemory ⊸ Vk.DeviceSize -> Vk.DeviceSize -> Vk.MemoryMapFlags -> Renderer (Vk.DeviceMemory, (Ptr ()))
 mapMemory = Unsafe.toLinear $ \mem offset size flgs -> enterD "mapMemory" $ (mem,) <$> (unsafeUseDevice $ \dev -> Vk.mapMemory dev mem offset size flgs)
 
--- | Linear wrapper for Vk.unmapMemory
+-- | Free a CPU mapped region
 unmapMemory :: Vk.DeviceMemory
-             ⊸ Ptr ()
-             -- ^ The pointer to the mapped region on the CPU
+             ⊸ Ptr () -- ^ This mapped region on the CPU is freed
              ⊸ Renderer Vk.DeviceMemory
 unmapMemory = Unsafe.toLinear2 $ \stgMem _hostMem -> enterD "unmapMemory" $ Linear.do
   unsafeUseDevice $ \device -> Vk.unmapMemory device stgMem
   -- Host mem is not returned because it becomes unavailable after unmapping.
   pure stgMem
 
--- -- | Linear wrapper for Vk.freeMemory
+-- | Free device memory
 freeMemory :: Vk.DeviceMemory ⊸ Renderer ()
 freeMemory = Unsafe.toLinear $ \mem -> enterD "freeMemory" $ unsafeUseDevice $ \device -> Vk.freeMemory device mem Nothing 
 
--- -- | Linear wrapper for Vk.freeMemory
+-- | Destroy a Vk.Buffer
 destroyBuffer :: Vk.Buffer ⊸ Renderer ()
 destroyBuffer = Unsafe.toLinear $ \buffer -> enterDA "destroyBuffer" buffer $ unsafeUseDevice $ \device -> Vk.destroyBuffer device buffer Nothing 
-
-
--- TODO: Can't forget to call this to free buffer memories after meshes (or the related entities) die
--- destroyBufferAndMemory :: Vk.Buffer ⊸ Vk.DeviceMemory ⊸ Renderer ()
--- destroyBufferAndMemory = Unsafe.toLinear2 $ \buffer mem -> Linear.do
---   unsafeUseDevice $ \device -> Vk.destroyBuffer device buffer Nothing
---   unsafeUseDevice $ \device -> Vk.freeMemory device mem Nothing
-
-
