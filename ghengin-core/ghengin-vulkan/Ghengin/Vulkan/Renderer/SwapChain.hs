@@ -143,7 +143,7 @@ chooseSwapchainFormat
   => Vk.SurfaceFormatKHR
   -> Vk.PhysicalDevice %1
   -> Vk.SurfaceKHR %1
-  -> m (Vk.SurfaceFormatKHR, Vk.PhysicalDevice, Vk.SurfaceKHR)
+  -> m (Ur Vk.SurfaceFormatKHR, Vk.PhysicalDevice, Vk.SurfaceKHR)
 chooseSwapchainFormat
   preferredFormat@( Vk.SurfaceFormatKHR fmt_p spc_p )
   = Unsafe.toLinear2 \physicalDevice surface -> Linear.liftSystemIO $ do
@@ -153,9 +153,9 @@ chooseSwapchainFormat
         [] -> error "No formats found."
         ( best : _ )
           | Vk.FORMAT_UNDEFINED <- Vk.Surface.format best
-            -> pure (preferredFormat, physicalDevice, surface)
+            -> pure (Ur preferredFormat, physicalDevice, surface)
           | otherwise
-            -> pure (best, physicalDevice, surface)
+            -> pure (Ur best, physicalDevice, surface)
 
     where
       match :: Eq a => a -> a -> Int

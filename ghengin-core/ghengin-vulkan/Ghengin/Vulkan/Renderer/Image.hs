@@ -10,9 +10,8 @@ import Prelude hiding (($))
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
---- TODO: Linear Types
-
 import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Context
 
 import Control.Monad.IO.Class.Linear
 import qualified Unsafe.Linear as Unsafe
@@ -22,7 +21,7 @@ data VulkanImage = VulkanImage { _image :: Vk.Image
                                , _imageView :: Vk.ImageView
                                } deriving Generic
 
-createImage :: MonadIO m => VulkanDevice ⊸ Vk.Format -> Vk.Extent3D -> Vk.MemoryPropertyFlags -> Vk.ImageUsageFlagBits -> Vk.ImageAspectFlags -> m (VulkanImage, VulkanDevice)
+createImage :: MonadIO m => VulkanContext ⊸ Vk.Format -> Vk.Extent3D -> Vk.MemoryPropertyFlags -> Vk.ImageUsageFlagBits -> Vk.ImageAspectFlags -> m (VulkanImage, VulkanContext)
 createImage = Unsafe.toLinear $ \device format extent properties usage aspect -> liftSystemIO $ do
   let
       imageInfo = Vk.ImageCreateInfo { imageType = Vk.IMAGE_TYPE_2D
@@ -89,7 +88,6 @@ createImageView dev format aspect img = do
 destroyImageView :: MonadIO m => Vk.ImageView ⊸ Vk.Device ⊸ m Vk.Device
 destroyImageView = Unsafe.toLinear2 $ \i d -> liftSystemIO (d <$ Vk.destroyImageView d i Nothing)
 
--- TODO: Destroy Image isn't being called for the earlier images we were creating!?!
 destroyImage :: MonadIO m => Vk.Device ⊸ VulkanImage ⊸ m Vk.Device
 destroyImage = Unsafe.toLinear2 $ \d (VulkanImage im mem view) -> liftSystemIO $ do
   Vk.destroyImage d im Nothing

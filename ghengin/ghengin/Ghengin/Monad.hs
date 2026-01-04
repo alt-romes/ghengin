@@ -101,7 +101,7 @@ runGameLoop act = do
 renderState :: (RenderState %1 -> Renderer (Ur a, RenderState)) -> Ghengin a
 renderState act = Ghengin (ReaderT \_ -> (UrT (Linear.StateT \s -> act s)))
 
-editRenderQueue :: (RenderQueue %1 -> Renderer RenderQueue) -> Ghengin a
+editRenderQueue :: (RenderQueue () %1 -> Renderer (RenderQueue ())) -> Ghengin a
 editRenderQueue f = renderState $ \RenderState{..} -> Linear.do
   renderQueue <- f renderQueue
   Linear.return RenderState{..}

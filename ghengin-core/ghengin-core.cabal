@@ -74,6 +74,7 @@ common common-flags
                       QuantifiedConstraints,
                       RoleAnnotations,
                       PostfixOperators,
+                      ImportQualifiedPost,
 
                       -- Use Ghengin.Core.Prelude!
                       NoImplicitPrelude,
@@ -225,13 +226,10 @@ library vulkan
                       Ghengin.Vulkan.Renderer.RenderPass,
                       Ghengin.Vulkan.Renderer.Texture,
 
-                      -- To be an instance eventually
                       Ghengin.Vulkan.Renderer,
 
-                      -- Don't know
                       Ghengin.Vulkan.Renderer.ImmediateSubmit,
                       Ghengin.Vulkan.Renderer.Image,
-                      Ghengin.Vulkan.Renderer.SwapChain,
                       Ghengin.Vulkan.Renderer.Sampler,
                       Ghengin.Vulkan.Renderer.Frame,
 
@@ -239,14 +237,19 @@ library vulkan
                       Ghengin.Vulkan.Renderer.Command,
                       -- Modules that don't instance signatures
                       Ghengin.Vulkan.Renderer.Device,
-                      Ghengin.Vulkan.Renderer.Device.Instance,
                       Ghengin.Vulkan.Renderer.GLFW.Window,
                       Ghengin.Vulkan.Renderer.Synchronization,
+
+                      Ghengin.Vulkan.Renderer.Context,
+                      Ghengin.Vulkan.Renderer.Device.Instance,
+                      Ghengin.Vulkan.Renderer.Device.Physical,
+                      -- todo: Context.SwapChain
+                      Ghengin.Vulkan.Renderer.SwapChain,
 
                       -- Vulkan x FIR --
                       ------------------
                       -- Modules adapted from FIR's excellent fir-examples/src/Vulkan
-                      -- which have vulkan abstractions. Some rely on FIR types.
+                      -- which have vulkan abstractions shared between us and FIR.
                       FIR.Vulkan.Pipeline,
                       FIR.Vulkan.Formats
                       -- FIR.Vulkan.Resource
@@ -256,6 +259,7 @@ library vulkan
     build-depends:    base,
                       fir,
                       vulkan,
+                      text-short,
                       GLFW-b,
                       linear-base,
                       reference-counting >= 0.2.0.0,
@@ -268,6 +272,7 @@ library vulkan
                       JuicyPixels,
 
                       containers,
+                      filepath,
                       bytestring,
                       mtl,
                       vector,
