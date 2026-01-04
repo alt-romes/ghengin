@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE DuplicateRecordFields #-}
 {-# LANGUAGE QuantifiedConstraints #-}
-{-# LANGUAGE CPP #-}
 module Ghengin.Core.Prelude
   (
   -- * Re-exports
@@ -22,6 +22,7 @@ module Ghengin.Core.Prelude
   , UrT(..)
   -- linear vectors
   , VL.V(..)
+  , withSized
 
   -- containers
   , IM.IntMap, M.Map, S.Set
@@ -52,57 +53,52 @@ module Ghengin.Core.Prelude
   )
   where
 
-import Data.Proxy
-import Data.Unrestricted.Linear
-import GHC.TypeLits
--- Perhaps it would be better to re-export explicit modules instead of their prelude
-import Prelude.Linear hiding ( IO, log
-                             , Semigroup(..), Monoid(..), mappend, mconcat
-                             , fst, snd
-                             -- For now, we don't adhere to the "better Num" from linear base
-                             , Num(..), FromInteger(..), Additive(..), AddIdentity(..), AdditiveGroup(..), Multiplicative(..), MultIdentity(..), Semiring, Ring, FromInteger(..)
-                             , transpose
-                             )
-import Control.Functor.Linear hiding (get,modify)
-import qualified Control.Functor.Linear as Linear
+import Control.Functor.Linear        hiding ( get, modify )
+import Control.Functor.Linear        qualified as Linear
 import Control.Monad.IO.Class.Linear
-import System.IO.Linear
-import Prelude (Semigroup(..), Monoid(..), mappend, mconcat
-               -- For now, we don't adhere to the "better Num" from linear base
-               , Num(..)
-               )
-import qualified Prelude
 
+import Data.Bifunctor.Linear            ( bimap )
+import Data.Functor.Linear              qualified as Data.Linear
+import Data.Int
+import Data.IntMap                      qualified as IM
+import Data.IORef                       ( IORef )
+import Data.Kind
+import Data.Linear.Alias                as Alias
+import Data.List.NonEmpty               qualified as NE
+import Data.Map                         qualified as M
+import Data.Proxy
+import Data.Set                         qualified as S
 import Data.Tuple.Linear
-import Data.Bifunctor.Linear (bimap)
+import Data.Unrestricted.Linear
 import Data.Unrestricted.Linear.Orphans ()
-import qualified Data.Functor.Linear as Data.Linear
-
-import qualified Data.IntMap as IM
-import qualified Data.Set as S
-import qualified Data.Map as M
-import qualified Data.List.NonEmpty as NE
-import qualified Data.Vector as V
-import qualified Data.Vector.Storable as SV
-import qualified Data.V.Linear.Internal as VL
-import qualified Data.V.Linear.Internal.Instances ()
+import Data.V.Linear.Internal           qualified as VL
+import Data.V.Linear.Internal.Instances qualified ()
+import Data.Vector                      qualified as V
+import Data.Vector.Storable             qualified as SV
+import Data.Word
 
 import GHC.Generics
-import Data.Kind
-import Data.Word
-import Data.Int
-import Data.IORef (IORef)
+import GHC.Records
+import GHC.TypeLits
+
+import Geomancy.Vec2 ( Vec2, pattern WithVec2 )
+import Geomancy.Vec3 ( Vec3, pattern WithVec3 )
+import Geomancy.Vec4 ( Vec4, pattern WithVec4 )
 
 import Graphics.Gl.Block
 
-import Data.Linear.Alias as Alias
+import Prelude        ( Monoid (..), Num (..), Semigroup (..), mappend,
+                        mconcat )
+import Prelude qualified
+import Prelude.Linear hiding ( AddIdentity (..), Additive (..),
+                        AdditiveGroup (..), FromInteger (..), IO, Monoid (..),
+                        MultIdentity (..), Multiplicative (..), Num (..), Ring,
+                        Semigroup (..), Semiring, fst, log, mappend, mconcat,
+                        snd, transpose )
 
-import qualified Unsafe.Linear as Unsafe
+import System.IO.Linear
 
-import GHC.Records
-import Geomancy.Vec2 (Vec2, pattern WithVec2)
-import Geomancy.Vec3 (Vec3, pattern WithVec3)
-import Geomancy.Vec4 (Vec4, pattern WithVec4)
+import Unsafe.Linear qualified as Unsafe
 
 --------------------------------------------------------------------------------
 -- * Vec2, Vec3, Vec4 accessors
@@ -136,7 +132,7 @@ instance HasField "w" Vec4 Float where
   getField (WithVec4 _ _ _ w) = w
 
 --------------------------------------------------------------------------------
--- * Storable vector utils
+-- * Vector utils
 --------------------------------------------------------------------------------
 
 type SVector = SV.Vector
@@ -144,6 +140,11 @@ type SVector = SV.Vector
 -- | Convert a list in a storable vector. Useful when creating meshes from lists
 toSV :: SV.Storable a => [a] -> SV.Vector a
 toSV = SV.fromList
+
+withSized :: forall a r. V.Vector a -> (forall n. KnownNat n => VL.V n a -> r) -> r
+withSized v f = case someNatVal (fromIntegral (V.length v)) of
+  Just (SomeNat (Proxy :: Proxy n)) -> f (VL.V v :: VL.V n a)
+  Nothing -> error "impossible: Vector has negative length"
 
 --------------------------------------------------------------------------------
 
@@ -181,11 +182,11 @@ instance (Dupable (c a), Dupable (GHList c as)) => Dupable (GHList c (a:as)) whe
                       (a1,a2) -> case dup2 as of
                                    (as1, as2) -> (a1:##as1, a2:##as2)
 
-instance (∀ a. Forgettable m (c a)) => Forgettable m (GHList c as) where
-  forget GHNil = pure ()
+instance (forall a. Forgettable m (c a)) => Forgettable m (GHList c as) where
+  forget GHNil      = pure ()
   forget (a :## as) = Alias.forget a >> Alias.forget as
 
-instance (∀ a. Shareable m (c a)) => Shareable m (GHList c as) where
+instance (forall a. Shareable m (c a)) => Shareable m (GHList c as) where
   share GHNil = pure (GHNil, GHNil)
   share (a :## as) = Linear.do
     (a1,a2)    <- Alias.share a
@@ -211,7 +212,7 @@ vmap :: (a %p -> b) -> VL.V n a %p -> VL.V n b
 vmap f (VL.V xs) = VL.V $ Unsafe.toLinear (V.map (\x -> f x)) xs
 
 -- | Like 'Data.Linear.traverse', but polymorphic multiplicity (for some reason, not the default)
-vtraverse :: (KnownNat n, Applicative f) => (a %p -> f b) -> VL.V n a %p -> f (VL.V n b) 
+vtraverse :: (KnownNat n, Applicative f) => (a %p -> f b) -> VL.V n a %p -> f (VL.V n b)
 vtraverse = Unsafe.toLinear2 Data.Linear.traverse . Unsafe.toLinear
           -- I really think this is safe, for these vectors at least.
           -- If we consume the $a$s linearly, we consume V linearly
