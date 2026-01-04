@@ -250,7 +250,8 @@ library vulkan
                       -- Modules adapted from FIR's excellent fir-examples/src/Vulkan
                       -- which have vulkan abstractions shared between us and FIR.
                       FIR.Vulkan.Pipeline,
-                      FIR.Vulkan.Formats
+                      FIR.Vulkan.Formats,
+                      FIR.Vulkan.Memory
                       -- FIR.Vulkan.Resource
 
     hs-source-dirs:   ghengin-vulkan

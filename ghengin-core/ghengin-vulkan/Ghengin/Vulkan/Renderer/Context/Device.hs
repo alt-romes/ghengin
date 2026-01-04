@@ -11,16 +11,13 @@ module Ghengin.Vulkan.Renderer.Context.Device
   ( createDevice
   , destroyDevice
   , getDeviceQueue
-  , findMemoryType -- what?
   ) where
 
 import Control.Monad.IO.Class.Linear qualified as Linear
 
-import Data.Bits
 import Data.ByteString ( ByteString )
 import Data.Maybe
 import Data.Vector     ( Vector )
-import Data.Vector     qualified as V
 import Data.Word
 
 import Prelude        hiding ( ($) )
@@ -97,11 +94,5 @@ getDeviceQueue :: Linear.MonadIO m
 getDeviceQueue = Unsafe.toLinear \dev famIx ix -> Linear.liftSystemIO $ do
   queue <- Vk.getDeviceQueue dev famIx ix
   pure (queue, dev)
---------------------------------------------------------------------------------
-findMemoryType :: Word32 -> Vk.MemoryPropertyFlags -> Vk.PhysicalDevice -> IO Word32
-findMemoryType typeFilter properties physicalDevice = do
-  memProperties <- Vk.getPhysicalDeviceMemoryProperties physicalDevice
-  pure $ V.head $ V.imapMaybe (\i t -> if ((typeFilter .&. (1 `unsafeShiftL` i)) /= 0) && ((t.propertyFlags .&. properties) == properties)
-                                          then pure (fromIntegral i) else Nothing) memProperties.memoryTypes
 
 

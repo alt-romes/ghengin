@@ -4,94 +4,158 @@
 {-# LANGUAGE LinearTypes #-}
 module Ghengin.Vulkan.Renderer.Image where
 
+import Data.Word
 import GHC.Generics
-import Prelude.Linear (($))
-import Prelude hiding (($))
-import Vulkan.Zero (zero)
+import qualified Prelude as P
+import qualified Data.Vector as V
 import qualified Vulkan as Vk
+import qualified Vulkan.Zero as Vk
 
-import Ghengin.Vulkan.Renderer.Context.Device
+import Ghengin.Core.Prelude as Linear
 import Ghengin.Vulkan.Renderer.Context
+import FIR.Vulkan.Memory
 
-import Control.Monad.IO.Class.Linear
 import qualified Unsafe.Linear as Unsafe
 
-data VulkanImage = VulkanImage { _image :: Vk.Image
-                               , _devMem :: Vk.DeviceMemory
-                               , _imageView :: Vk.ImageView
-                               } deriving Generic
+--------------------------------------------------------------------------------
+-- ** Image Info
+--------------------------------------------------------------------------------
+-- (from fir-examples)
+data ImageInfo
+  = ImageInfo
+  { imageType        :: Vk.ImageType
+  , imageExtent      :: Vk.Extent3D
+  , imageFormat      :: Vk.Format
+  , imageLayout      :: Vk.ImageLayout
+  , imageMipLevels   :: Word32
+  , imageArrayLayers :: Word32
+  , imageSamples     :: Vk.SampleCountFlagBits
+  , imageTiling      :: Vk.ImageTiling
+  , imageUsage       :: Vk.ImageUsageFlags
+  }
 
-createImage :: MonadIO m => VulkanContext ⊸ Vk.Format -> Vk.Extent3D -> Vk.MemoryPropertyFlags -> Vk.ImageUsageFlagBits -> Vk.ImageAspectFlags -> m (VulkanImage, VulkanContext)
-createImage = Unsafe.toLinear $ \device format extent properties usage aspect -> liftSystemIO $ do
-  let
-      imageInfo = Vk.ImageCreateInfo { imageType = Vk.IMAGE_TYPE_2D
-                                     , extent    = extent
-                                     , mipLevels = 1
-                                     , arrayLayers = 1
-                                     , format      = format
-                                     , tiling      = Vk.IMAGE_TILING_OPTIMAL
-                                     , initialLayout = Vk.IMAGE_LAYOUT_UNDEFINED
-                                     , usage         = usage
-                                     , samples       = Vk.SAMPLE_COUNT_1_BIT
-                                     , sharingMode   = Vk.SHARING_MODE_EXCLUSIVE
-                                     , queueFamilyIndices = []
-                                     , flags = zero
-                                     , next = ()
-                                     }
-  img  <- Vk.createImage device._device imageInfo Nothing
+pattern Default2DImageInfo :: Vk.Extent3D -> Vk.Format -> Vk.ImageUsageFlags -> ImageInfo
+pattern Default2DImageInfo extent3D fmt usage
+  = ImageInfo
+  { imageType        = Vk.IMAGE_TYPE_2D
+  , imageExtent      = extent3D
+  , imageFormat      = fmt
+  , imageLayout      = Vk.IMAGE_LAYOUT_UNDEFINED
+  , imageMipLevels   = 1
+  , imageArrayLayers = 1
+  , imageSamples     = Vk.SAMPLE_COUNT_1_BIT
+  , imageTiling      = Vk.IMAGE_TILING_OPTIMAL
+  , imageUsage       = usage
+  }
 
-  memReq       <- Vk.getImageMemoryRequirements device._device img
-  memTypeIndex <- findMemoryType memReq.memoryTypeBits properties device._physicalDevice
-  let
-      memAllocInfo = Vk.MemoryAllocateInfo { next = ()
-                                           , allocationSize  = memReq.size
-                                           , memoryTypeIndex = memTypeIndex
-                                           }
+--------------------------------------------------------------------------------
+-- ** Image View Info/Context
+--------------------------------------------------------------------------------
 
-  -- TODO: Of course, when we want to bind a memory to an image, we don’t need
-  -- to create a new memory object each time. It is more optimal to create a
-  -- small number of larger memory objects and bind parts of them by providing
-  -- a proper offset value.
-  imgMem <- Vk.allocateMemory device._device memAllocInfo Nothing
+data ImageViewContext
+  = NoView
+  | WithView 
 
-  Vk.bindImageMemory device._device img imgMem 0
+data ImageView ( ctx :: ImageViewContext ) where
+  NoImageView :: ImageView NoView
+  ImageView   :: Vk.ImageView %1 -> ImageView WithView
 
-  imgView <- createImageView device._device format aspect img
+data ImageViewInfo ( ctx :: ImageViewContext ) where
+  NoViewInfo   :: ImageViewInfo NoView
+  WithViewInfo :: Vk.ImageViewType %1 -> Vk.ImageAspectFlags %1 -> ImageViewInfo WithView
 
-  pure (VulkanImage img imgMem imgView, device)
+--------------------------------------------------------------------------------
+-- * Images
+--------------------------------------------------------------------------------
 
-createImageView :: Vk.Device -> Vk.Format -> Vk.ImageAspectFlags -> Vk.Image -> IO Vk.ImageView
-createImageView dev format aspect img = do
-  Vk.createImageView dev config Nothing
-    where
-      config =
-        Vk.ImageViewCreateInfo
-          { next = ()
-          , flags = Vk.ImageViewCreateFlagBits 0
-          , image = img
-          , viewType = Vk.IMAGE_VIEW_TYPE_2D
-          , format = format
-            -- The next parameter is cool: could make hard color changes
-          , components = Vk.ComponentMapping { r = Vk.COMPONENT_SWIZZLE_IDENTITY
-                                             , g = Vk.COMPONENT_SWIZZLE_IDENTITY
-                                             , b = Vk.COMPONENT_SWIZZLE_IDENTITY
-                                             , a = Vk.COMPONENT_SWIZZLE_IDENTITY
-                                             }
-          , subresourceRange = Vk.ImageSubresourceRange { aspectMask     = aspect
-                                                        , baseMipLevel   = 0
-                                                        , levelCount     = 1
-                                                        , baseArrayLayer = 0
-                                                        , layerCount     = 1
-                                                        }
+data VulkanImage (viewCtx :: ImageViewContext) = VulkanImage
+  { image     :: Vk.Image
+  , devMem    :: Vk.DeviceMemory
+  , imageView :: ImageView viewCtx
+  } deriving Generic
+
+createImage
+  :: Linear.MonadIO m
+  => VulkanContext rCtx %1
+  -> ImageInfo
+  -> ImageViewInfo viewCtx
+  -> Vk.MemoryPropertyFlags
+  -> m (VulkanImage viewCtx, VulkanContext rCtx)
+createImage = Unsafe.toLinear \vkContext ImageInfo{ .. } viewInfo reqs ->
+  let imgCreateInfo :: Vk.ImageCreateInfo '[]
+      imgCreateInfo =
+        Vk.ImageCreateInfo
+          { next               = ()
+          , flags              = Vk.zero
+          , imageType          = imageType
+          , format             = imageFormat
+          , extent             = imageExtent
+          , mipLevels          = imageMipLevels
+          , arrayLayers        = imageArrayLayers
+          , samples            = imageSamples
+          , tiling             = imageTiling
+          , usage              = imageUsage
+          , sharingMode        = Vk.SHARING_MODE_EXCLUSIVE
+          , queueFamilyIndices = V.empty
+          , initialLayout      = imageLayout
           }
+  in liftSystemIO $ do
+    image   <- Vk.createImage vkContext.device imgCreateInfo Nothing
+    memReqs <- Vk.getImageMemoryRequirements vkContext.device image
 
-destroyImageView :: MonadIO m => Vk.ImageView ⊸ Vk.Device ⊸ m Vk.Device
-destroyImageView = Unsafe.toLinear2 $ \i d -> liftSystemIO (d <$ Vk.destroyImageView d i Nothing)
+    -- TODO: When we want to bind memory to an image, we needn't create a new
+    -- memory object each time. It would be more optimal to create a small number of
+    -- larger memory objects and bind parts of them by providing a proper offset
+    -- value.
+    ( devMem, physicalDevice, device ) <- Linear.withLinearIO $ fmap (Unsafe.toLinear Ur) $
+      allocateMemory vkContext.physicalDevice vkContext.device memReqs reqs Vk.zero
 
-destroyImage :: MonadIO m => Vk.Device ⊸ VulkanImage ⊸ m Vk.Device
-destroyImage = Unsafe.toLinear2 $ \d (VulkanImage im mem view) -> liftSystemIO $ do
-  Vk.destroyImage d im Nothing
-  Vk.freeMemory d mem Nothing
-  Vk.destroyImageView d view Nothing
-  pure d
+    Vk.bindImageMemory vkContext.device image devMem 0
+    vkImage <- case viewInfo of
+      NoViewInfo ->
+        P.pure VulkanImage{image, devMem, imageView = NoImageView}
+      WithViewInfo viewType aspect -> do
+        let
+          components :: Vk.ComponentMapping
+          components =
+            Vk.ComponentMapping
+              { Vk.r = Vk.COMPONENT_SWIZZLE_IDENTITY
+              , Vk.g = Vk.COMPONENT_SWIZZLE_IDENTITY
+              , Vk.b = Vk.COMPONENT_SWIZZLE_IDENTITY
+              , Vk.a = Vk.COMPONENT_SWIZZLE_IDENTITY
+              }
 
+          subResourceRange :: Vk.ImageSubresourceRange
+          subResourceRange =
+            Vk.ImageSubresourceRange
+              { Vk.aspectMask     = aspect
+              , Vk.baseMipLevel   = 0
+              , Vk.levelCount     = 1
+              , Vk.baseArrayLayer = 0
+              , Vk.layerCount     = 1
+              }
+
+          viewCreateInfo :: Vk.ImageViewCreateInfo '[]
+          viewCreateInfo =
+            Vk.ImageViewCreateInfo
+              { Vk.next             = ()
+              , Vk.flags            = Vk.zero
+              , Vk.image            = image
+              , Vk.viewType         = viewType
+              , Vk.format           = imageFormat
+              , Vk.components       = components
+              , Vk.subresourceRange = subResourceRange
+              }
+        imageView <- Vk.createImageView vkContext.device viewCreateInfo Nothing
+        P.pure VulkanImage{image, devMem, imageView = ImageView imageView}
+    P.pure (vkImage, vkContext { physicalDevice, device })
+
+destroyImage :: Linear.MonadIO m => Vk.Device ⊸ VulkanImage viewCtx ⊸ m Vk.Device
+destroyImage = Unsafe.toLinear2 $ \device VulkanImage{..} -> liftSystemIO $ do
+  Vk.destroyImage device image Nothing
+  Vk.freeMemory device devMem Nothing
+  case imageView of
+    NoImageView -> P.pure ()
+    ImageView vkImgView ->
+      Vk.destroyImageView device vkImgView Nothing
+  P.pure device
