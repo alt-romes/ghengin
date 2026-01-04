@@ -46,11 +46,10 @@ data VulkanDevice = VulkanDevice { _physicalDevice      :: !Vk.PhysicalDevice
                                  }
 
 createVulkanDevice :: Vk.Instance
-                    ⊸ Vector ByteString -- ^ Validation Layers
-                   -> Vector ByteString -- ^ Device Extensions
+                    ⊸ Vector ByteString -- ^ Device Extensions
                    -> DeviceRateFunction
                    -> Linear.IO (VulkanDevice, Vk.Instance)
-createVulkanDevice = Unsafe.toLinear $ \inst validationLayers deviceExtensions rateFn -> Linear.liftSystemIO $ do
+createVulkanDevice = Unsafe.toLinear $ \inst deviceExtensions rateFn -> Linear.liftSystemIO $ do
 
   (physicalDevice, graphicsQF, presentQF) <- pickPhysicalDevice inst rateFn
   physicalDeviceFeatures <- Vk.getPhysicalDeviceFeatures physicalDevice -- currently features aren't considered in the rateFn but they could be; we just read them again afterwards.
@@ -59,7 +58,7 @@ createVulkanDevice = Unsafe.toLinear $ \inst validationLayers deviceExtensions r
     deviceCreateInfo = Vk.DeviceCreateInfo { next = ()
                                            , flags = Vk.DeviceCreateFlags 0
                                            , queueCreateInfos = (V.fromList . map (VkC.SomeStruct . deviceQueueCreateInfo) . S.toList) [graphicsQF, presentQF]
-                                           , enabledLayerNames = validationLayers
+                                           , enabledLayerNames = []
                                            , enabledExtensionNames = deviceExtensions
                                            , enabledFeatures = Just physicalDeviceFeatures
                                            }

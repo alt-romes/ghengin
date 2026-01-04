@@ -26,10 +26,6 @@ import Unsafe.Linear
 
 type DeviceM io a = Device ⊸ io (a, Device)
 
-destroyInstance :: MonadIO m
-                => Instance ⊸ ("allocator" ::: Maybe AllocationCallbacks) -> m ()
-destroyInstance i ac = toLinear liftSystemIO $ toLinear Vk.destroyInstance i ac
-
 createDescriptorPool :: forall a io
                       . ( Extendss DescriptorPoolCreateInfo a
                         , PokeChain a

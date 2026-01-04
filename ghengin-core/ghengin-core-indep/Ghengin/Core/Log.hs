@@ -45,8 +45,12 @@ newLogger logt = G.do
   pure (Ur (Logger logger 0), clean)
 
 -- | Unconditionally log a message to the default logger
-log :: (ToLogStr msg, HasLogger m) => msg -> m ()
+log, logInfo :: (ToLogStr msg, HasLogger m) => msg -> m ()
+logDebug, logD :: HasLogger m => LogStr -> m ()
 {-# INLINE log #-}
+{-# INLINE logInfo #-}
+{-# INLINE logDebug #-}
+{-# INLINE logD #-}
 log msg = getLogger >>= \(Ur logger) -> G.do
   let -- Log with preceeding unicode symbols
       leading_syms = Prelude.take (logger._depth*2) (Prelude.cycle ['│',' '])
@@ -59,16 +63,14 @@ log msg = getLogger >>= \(Ur logger) -> G.do
 #endif
 
 -- | Log if debug level (@-DDEBUG@) is set
-logDebug, logD :: HasLogger m => LogStr -> m ()
-{-# INLINE logDebug #-}
 #ifdef DEBUG
 logDebug = log
 #else
 logDebug = const (pure ())
 #endif
 
+logInfo = log
 logD = logDebug
-{-# INLINE logD #-}
 
 -- | Log and increase logging depth until action is left if debug level
 -- (@-DDEBUG@) is set

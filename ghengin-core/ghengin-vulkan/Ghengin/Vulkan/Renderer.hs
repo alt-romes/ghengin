@@ -72,8 +72,6 @@ import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Kernel
 import qualified System.IO.Linear as Linear
 
--- ROMES: Eventually thikn about bracketing again, but for linear types to work simply get rid of it
-
 runRenderer :: (Int, Int)
             -- ^ Dimensions of the window to render on (width, height)
             -> Renderer a ⊸ Linear.IO a
@@ -83,13 +81,13 @@ runRenderer dimensions r = Linear.do
   -----------------
   glfwtoken <- initGLFW
 
-  inst <- createInstance validationLayers
+  inst <- createInstance "Ghengin"
 
   (win, inst) <- createVulkanWindow inst dimensions "Ghengin"
 
   (Ur rateFunc, win) <- pure $ Unsafe.toLinear (\w -> (Ur (rateFn w._surface), w)) win
 
-  (device, inst) <- createVulkanDevice inst validationLayers deviceExtensions rateFunc
+  (device, inst) <- createVulkanDevice inst deviceExtensions rateFunc
 
   (swapchain, win, device) <- createSwapChain win device
 
@@ -237,16 +235,6 @@ presentPresentQueue = Unsafe.toLinear \sem imageIndex -> Linear.do
                                       }
   Ur _ <- liftSystemIOU $ Vk.queuePresentKHR presentQueue presentInfo
   pure sem
-
-validationLayers :: Vector ByteString
-validationLayers = [
--- We must be careful: if we're releasing our game bundled with the dynamic
--- libraries (e.g. using ghengin-dist-macos), we cannot use a validation layer
--- because those aren't bundled.
-#ifdef DEBUG
-                    "VK_LAYER_KHRONOS_validation"
-#endif
-                   ]
 
 deviceExtensions :: Vector ByteString
 deviceExtensions = [ Vk.KHR_SWAPCHAIN_EXTENSION_NAME
