@@ -80,7 +80,7 @@ import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
-import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Context.Device
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.RenderPass
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Pipeline

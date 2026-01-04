@@ -1,6 +1,6 @@
 -- Adapted from fir-examples
-module Ghengin.Vulkan.Renderer.Device.Physical
-  ( createPhysicalDevice
+module Ghengin.Vulkan.Renderer.Context.Device.Physical
+  ( choosePhysicalDevice
   , findQueueFamilyIndex
   ) where
 
@@ -22,8 +22,8 @@ import Unsafe.Linear qualified as Unsafe
 import Vulkan qualified
 import Vulkan.Zero qualified as Vulkan
 
-createPhysicalDevice :: Linear.MonadIO m => Vulkan.Instance %1 -> m (Vulkan.PhysicalDevice, Vulkan.Instance)
-createPhysicalDevice = Unsafe.toLinear \inst -> Linear.liftSystemIO $ do
+choosePhysicalDevice :: Linear.MonadIO m => Vulkan.Instance %1 -> m (Vulkan.PhysicalDevice, Vulkan.Instance)
+choosePhysicalDevice = Unsafe.toLinear \inst -> Linear.liftSystemIO $ do
   -- TODO: Allow choosing the physical device (e.g. with cli flags)
   physicalDevices <- snd <$> Vulkan.enumeratePhysicalDevices inst
 

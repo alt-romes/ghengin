@@ -36,11 +36,11 @@ import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Log
 import Ghengin.Core.Type.Utils (With(..))
 
-import Ghengin.Vulkan.Renderer.SwapChain       -- TODO: Context.Swapchain
-import Ghengin.Vulkan.Renderer.Device.Instance -- TODO: Context.Instance
-import Ghengin.Vulkan.Renderer.Device.Physical -- TODO: Context.Device.Physical
-import Ghengin.Vulkan.Renderer.Device          -- TODO: Context.Device
 import Ghengin.Vulkan.Renderer.GLFW.Window as GLFW
+import Ghengin.Vulkan.Renderer.Context.Swapchain
+import Ghengin.Vulkan.Renderer.Context.Instance
+import Ghengin.Vulkan.Renderer.Context.Device
+import Ghengin.Vulkan.Renderer.Context.Device.Physical
 
 import qualified Unsafe.Linear as Unsafe
 
@@ -123,7 +123,7 @@ initialiseContext appName ( RenderInfo { queueType, surfaceInfo } ) = Linear.do
 
   ( physicalDevice, vkInstance ) <-
     logDebug "Creating physical device" >>
-    createPhysicalDevice vkInstance
+    choosePhysicalDevice vkInstance
 
   ( Ur queueFamilyIndex, physicalDevice ) <-
     logDebug "Finding suitable queue family" >>

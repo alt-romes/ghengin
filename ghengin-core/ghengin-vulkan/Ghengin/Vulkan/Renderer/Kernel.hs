@@ -14,10 +14,10 @@ import Control.Monad.IO.Class.Linear as Linear
 import qualified Data.V.Linear as V
 import qualified Data.Vector as Vector
 
-import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Context.Device
 import Ghengin.Vulkan.Renderer.Command (CommandM, copyFullBuffer, clearColorImage)
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
-import Ghengin.Vulkan.Renderer.SwapChain
+import Ghengin.Vulkan.Renderer.Context.Swapchain
 import Ghengin.Vulkan.Renderer.Frame
 
 -- One day abstract over Window API

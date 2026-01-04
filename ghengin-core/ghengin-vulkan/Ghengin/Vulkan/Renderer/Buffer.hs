@@ -22,7 +22,7 @@ import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
-import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Context.Device
 import Ghengin.Core.Mesh.Vertex
 
 import qualified Unsafe.Linear as Unsafe

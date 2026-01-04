@@ -35,8 +35,8 @@ import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
 import Ghengin.Vulkan.Renderer.Image
-import Ghengin.Vulkan.Renderer.Device
-import Ghengin.Vulkan.Renderer.SwapChain
+import Ghengin.Vulkan.Renderer.Context.Device
+import Ghengin.Vulkan.Renderer.Context.Swapchain
 import Ghengin.Vulkan.Renderer.Kernel
 
 import qualified Unsafe.Linear as Unsafe

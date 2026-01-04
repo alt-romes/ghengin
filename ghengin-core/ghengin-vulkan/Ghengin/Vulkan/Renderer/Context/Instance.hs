@@ -6,7 +6,7 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE RecordWildCards     #-}
-module Ghengin.Vulkan.Renderer.Device.Instance
+module Ghengin.Vulkan.Renderer.Context.Instance
   ( createInstance, destroyInstance ) where
 
 import GHC.IsList (fromList)

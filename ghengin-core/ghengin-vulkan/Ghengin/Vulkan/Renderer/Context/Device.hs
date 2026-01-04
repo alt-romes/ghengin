@@ -7,7 +7,7 @@
 {-# LANGUAGE OverloadedStrings   #-}
 {-# LANGUAGE QualifiedDo         #-}
 {-# LANGUAGE RecordWildCards     #-}
-module Ghengin.Vulkan.Renderer.Device
+module Ghengin.Vulkan.Renderer.Context.Device
   ( createDevice
   , destroyDevice
   , getDeviceQueue

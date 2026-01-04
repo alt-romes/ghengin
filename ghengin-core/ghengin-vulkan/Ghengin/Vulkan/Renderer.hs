@@ -62,9 +62,9 @@ import qualified Graphics.UI.GLFW as GLFW
 import Ghengin.Vulkan.Renderer.DescriptorSet
 import Ghengin.Vulkan.Renderer.Buffer
 
-import Ghengin.Vulkan.Renderer.Device.Instance
-import Ghengin.Vulkan.Renderer.Device
-import Ghengin.Vulkan.Renderer.SwapChain
+import Ghengin.Vulkan.Renderer.Context.Instance
+import Ghengin.Vulkan.Renderer.Context.Device
+import Ghengin.Vulkan.Renderer.Context.Swapchain
 import Ghengin.Vulkan.Renderer.Command
 import Ghengin.Vulkan.Renderer.Frame
 import Ghengin.Vulkan.Renderer.GLFW.Window as GLFW

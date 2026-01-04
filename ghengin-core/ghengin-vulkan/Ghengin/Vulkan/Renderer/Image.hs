@@ -10,7 +10,7 @@ import Prelude hiding (($))
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
-import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Context.Device
 import Ghengin.Vulkan.Renderer.Context
 
 import Control.Monad.IO.Class.Linear

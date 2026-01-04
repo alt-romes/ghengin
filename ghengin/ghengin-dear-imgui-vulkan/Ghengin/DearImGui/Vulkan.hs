@@ -33,8 +33,8 @@ import qualified DearImGui.GLFW.Vulkan as IM
 
 import Ghengin.Vulkan.Renderer.Command
 import Ghengin.Vulkan.Renderer.GLFW.Window
-import Ghengin.Vulkan.Renderer.SwapChain
-import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Context.Swapchain
+import Ghengin.Vulkan.Renderer.Context.Device
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.RenderPass
 

@@ -5,7 +5,7 @@ import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
 import Ghengin.Core.Prelude
 import Ghengin.Core.Log
-import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Context.Device
 import qualified Prelude
 import qualified Vulkan as Vk
 import qualified Data.Linear.Alias as Alias

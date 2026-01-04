@@ -236,15 +236,14 @@ library vulkan
                       -- Should soon enough be part of the required pieces
                       Ghengin.Vulkan.Renderer.Command,
                       -- Modules that don't instance signatures
-                      Ghengin.Vulkan.Renderer.Device,
                       Ghengin.Vulkan.Renderer.GLFW.Window,
                       Ghengin.Vulkan.Renderer.Synchronization,
 
                       Ghengin.Vulkan.Renderer.Context,
-                      Ghengin.Vulkan.Renderer.Device.Instance,
-                      Ghengin.Vulkan.Renderer.Device.Physical,
-                      -- todo: Context.SwapChain
-                      Ghengin.Vulkan.Renderer.SwapChain,
+                      Ghengin.Vulkan.Renderer.Context.Instance,
+                      Ghengin.Vulkan.Renderer.Context.Device,
+                      Ghengin.Vulkan.Renderer.Context.Device.Physical,
+                      Ghengin.Vulkan.Renderer.Context.Swapchain,
 
                       -- Vulkan x FIR --
                       ------------------

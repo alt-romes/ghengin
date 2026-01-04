@@ -9,7 +9,7 @@ import qualified Vulkan as Vk
 import qualified Unsafe.Linear as Unsafe
 
 import Ghengin.Vulkan.Renderer.Synchronization
-import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Context.Device
 
 data VulkanFrameData = VulkanFrameData { _renderFence      :: Vk.Fence
                                        , _renderSemaphore  :: Vk.Semaphore

@@ -9,7 +9,7 @@
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE BlockArguments #-}
-module Ghengin.Vulkan.Renderer.SwapChain
+module Ghengin.Vulkan.Renderer.Context.Swapchain
   ( SwapchainInfo(..)
   , createSwapchain, destroySwapchain
   , chooseSwapchainFormat

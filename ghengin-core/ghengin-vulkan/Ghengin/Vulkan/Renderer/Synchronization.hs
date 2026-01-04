@@ -19,7 +19,7 @@ import qualified Vulkan as Vk
 
 import qualified Unsafe.Linear as Unsafe
 
-import Ghengin.Vulkan.Renderer.Device
+import Ghengin.Vulkan.Renderer.Context.Device
 
 -- | Create a Semaphore
 createSemaphore :: MonadIO m => VulkanContext ⊸ m (Vk.Semaphore, VulkanContext)
