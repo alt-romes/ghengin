@@ -40,6 +40,9 @@ data Some f where
 data Some2 f where
   Some2 :: ∀ f a b. f a b ⊸ Some2 f
 
+data f `With` c where
+  SomeWith :: forall c f a. c a => f a %1 -> f `With` c
+
 nat :: ∀ m. KnownNat m => Int
 nat = fromIntegral (natVal (Proxy @m))
 

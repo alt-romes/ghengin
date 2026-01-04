@@ -22,24 +22,21 @@ import Data.Ord
 import Data.Word
 import qualified Unsafe.Linear as Unsafe
 import qualified Control.Functor.Linear as Linear
-import Control.Monad.IO.Class.Linear (liftSystemIOU)
 import qualified Control.Monad.IO.Class.Linear as Linear
-import Data.Unrestricted.Linear (UrT(..),runUrT)
 
-import Data.Vector (Vector)
 import qualified Data.Vector as V
 import qualified Data.V.Linear as VL
 import qualified Data.List as L
 
-import qualified Graphics.UI.GLFW as GLFW
 import qualified Vulkan as Vk
 import qualified Vulkan as Vk.Surface
   ( SurfaceFormatKHR(..)
   , SurfaceCapabilitiesKHR(..) )
+import qualified Vulkan.Zero as Vk
 
-import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Vulkan.Renderer.GLFW.Window
-import Ghengin.Vulkan.Renderer.Image
+import Ghengin.Core.Prelude (withSized)
+import Ghengin.Core.Type.Utils (With(..))
 
 import GHC.TypeNats
 
@@ -67,7 +64,7 @@ createSwapchain
   -> Vk.SurfaceKHR %1
   -> Vk.SurfaceFormatKHR
   -> Vk.ImageUsageFlags
-  -> m (SwapchainInfo, Vk.PhysicalDevice, Vk.Device)
+  -> m (SwapchainInfo `With` KnownNat, Vk.PhysicalDevice, Vk.Device)
 createSwapchain = Unsafe.toLinear3 \physicalDevice device surface surfaceFormat imageUsage -> Linear.liftSystemIO $ do
 
   surfaceCapabilities <- Vk.getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
@@ -100,7 +97,7 @@ createSwapchain = Unsafe.toLinear3 \physicalDevice device surface surfaceFormat 
         , imageArrayLayers      = 1
         , imageUsage            = imageUsage
         , imageSharingMode      = Vk.SHARING_MODE_EXCLUSIVE
-        , queueFamilyIndices    = Boxed.Vector.empty
+        , queueFamilyIndices    = V.empty
         , preTransform          = currentTransform -- or VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
         , compositeAlpha        = Vk.COMPOSITE_ALPHA_OPAQUE_BIT_KHR
         , presentMode           = chooseSwapchainPresentMode presentModes
@@ -115,10 +112,10 @@ createSwapchain = Unsafe.toLinear3 \physicalDevice device surface surfaceFormat 
           { swapchain
           , swapchainImages
           , swapchainSurface = surface
-          , swapchainExtent  = Ur swapchainExtent
+          , swapchainExtent  = Ur currentExtent
           , surfaceFormat    = Ur surfaceFormat
           }
-    pure (swapchainInfo, physicalDevice, device)
+    pure (SomeWith swapchainInfo, physicalDevice, device)
 
 destroySwapchain :: Linear.MonadIO m
                  => Vk.Instance %1
@@ -133,7 +130,7 @@ destroySwapchain = Unsafe.toLinear3 \inst device
     , swapchainExtent = Ur _
     , surfaceFormat = Ur _
     } -> Linear.do
-      liftSystemIO $ Vk.destroySwapchainKHR device swapchain Nothing
+      Linear.liftSystemIO $ Vk.destroySwapchainKHR device swapchain Nothing
       inst <- destroySurface inst swapchainSurface
       Linear.pure (inst, device)
 
@@ -146,13 +143,13 @@ chooseSwapchainFormat
   => Vk.SurfaceFormatKHR
   -> Vk.PhysicalDevice %1
   -> Vk.SurfaceKHR %1
-  -> m (Vk.SurfaceFormatKHR, Vk
+  -> m (Vk.SurfaceFormatKHR, Vk.PhysicalDevice, Vk.SurfaceKHR)
 chooseSwapchainFormat
   preferredFormat@( Vk.SurfaceFormatKHR fmt_p spc_p )
   = Unsafe.toLinear2 \physicalDevice surface -> Linear.liftSystemIO $ do
-      sufaceFormats <- snd <$> Vk.getPhysicalDeviceSurfaceFormatsKHR physicalDevice surface
+      surfaceFormats <- snd <$> Vk.getPhysicalDeviceSurfaceFormatsKHR physicalDevice surface
 
-      case sortOn ( Down . score ) ( Boxed.Vector.toList surfaceFormats ) of
+      case L.sortOn ( Down . score ) ( V.toList surfaceFormats ) of
         [] -> error "No formats found."
         ( best : _ )
           | Vk.FORMAT_UNDEFINED <- Vk.Surface.format best
