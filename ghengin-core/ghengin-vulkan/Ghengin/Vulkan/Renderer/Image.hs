@@ -6,7 +6,7 @@ module Ghengin.Vulkan.Renderer.Image where
 
 import Data.Word
 import GHC.Generics
-import qualified Prelude as P
+import qualified Prelude as Ur
 import qualified Data.Vector as V
 import qualified Vulkan as Vk
 import qualified Vulkan.Zero as Vk
@@ -109,11 +109,11 @@ createImage = Unsafe.toLinear \vkContext ImageInfo{ .. } viewInfo reqs ->
     -- value.
     ( devMem, physicalDevice, device ) <- Linear.withLinearIO $ fmap (Unsafe.toLinear Ur) $
       allocateMemory vkContext.physicalDevice vkContext.device memReqs reqs Vk.zero
-
     Vk.bindImageMemory vkContext.device image devMem 0
+
     vkImage <- case viewInfo of
       NoViewInfo ->
-        P.pure VulkanImage{image, devMem, imageView = NoImageView}
+        Ur.pure VulkanImage{image, devMem, imageView = NoImageView}
       WithViewInfo viewType aspect -> do
         let
           components :: Vk.ComponentMapping
@@ -147,15 +147,15 @@ createImage = Unsafe.toLinear \vkContext ImageInfo{ .. } viewInfo reqs ->
               , Vk.subresourceRange = subResourceRange
               }
         imageView <- Vk.createImageView vkContext.device viewCreateInfo Nothing
-        P.pure VulkanImage{image, devMem, imageView = ImageView imageView}
-    P.pure (vkImage, vkContext { physicalDevice, device })
+        Ur.pure VulkanImage{image, devMem, imageView = ImageView imageView}
+    Ur.pure (vkImage, vkContext { physicalDevice, device })
 
 destroyImage :: Linear.MonadIO m => Vk.Device ⊸ VulkanImage viewCtx ⊸ m Vk.Device
 destroyImage = Unsafe.toLinear2 $ \device VulkanImage{..} -> liftSystemIO $ do
   Vk.destroyImage device image Nothing
   Vk.freeMemory device devMem Nothing
   case imageView of
-    NoImageView -> P.pure ()
+    NoImageView -> Ur.pure ()
     ImageView vkImgView ->
       Vk.destroyImageView device vkImgView Nothing
-  P.pure device
+  Ur.pure device
