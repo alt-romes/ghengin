@@ -1,99 +1,103 @@
-{-# LANGUAGE OverloadedLists #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE DataKinds           #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE LinearTypes         #-}
+{-# LANGUAGE OverloadedLists     #-}
 {-# LANGUAGE OverloadedRecordDot #-}
-{-# LANGUAGE DataKinds #-}
-{-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE LinearTypes #-}
-{-# LANGUAGE QualifiedDo #-}
-module Ghengin.Vulkan.Renderer.Device where
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE QualifiedDo         #-}
+{-# LANGUAGE RecordWildCards     #-}
+module Ghengin.Vulkan.Renderer.Device
+  ( createDevice
+  , destroyDevice
+  , getDeviceQueue
+  , findMemoryType -- what?
+  ) where
 
-import Prelude hiding (($))
-import Prelude.Linear (($))
-import Data.Ord
+import Control.Monad.IO.Class.Linear qualified as Linear
+
 import Data.Bits
+import Data.ByteString ( ByteString )
 import Data.Maybe
+import Data.Vector     ( Vector )
+import Data.Vector     qualified as V
 import Data.Word
 
-import Data.ByteString (ByteString)
-import Data.Vector (Vector)
-import qualified Data.Vector as V
-import qualified Data.List as L
-import qualified Data.Set as S
-import qualified System.IO.Linear as Linear
-import qualified Control.Monad.IO.Class.Linear as Linear
+import Prelude        hiding ( ($) )
+import Prelude.Linear ( ($) )
 
-import qualified Vulkan.CStruct.Extends as VkC
-import qualified Vulkan as Vk
+import Unsafe.Linear qualified as Unsafe
 
-import qualified Unsafe.Linear as Unsafe
+import Vulkan                 qualified as Vk
+import Vulkan.Zero            qualified as Vk
+import Vulkan.CStruct.Extends qualified as VkC
+--------------------------------------------------------------------------------
+deviceExtensions :: Vector ByteString
+deviceExtensions =
+  [
+#if defined(darwin_HOST_OS)
+    -- required from 1.3 with MoltenVk
+    Vk.KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+#endif
+  ]
 
--- We create a logical device always with a graphics queue and a present queue
+createDevice :: Linear.MonadIO m
+             => Vk.PhysicalDevice %1
+             -> Int               -- ^ Queue family index
+             -> Vector ByteString -- ^ Extensions required
+             -> m (Vk.Device, Vk.PhysicalDevice)
+createDevice = Unsafe.toLinear $ \physicalDevice queueFamilyIndex extensionsRequired -> Linear.liftSystemIO $ do
 
-type GraphicsQueueFamily = Word32
-type PresentQueueFamily  = Word32
-
--- | Device rating function.
---  The return value is maybe a tuple with three items: the rating associated with the device (higher is better), the graphics queue family and the present queue family
-type DeviceRateFunction = (Vk.PhysicalDevice -> IO (Maybe (Int, GraphicsQueueFamily, PresentQueueFamily)))
-
-data VulkanDevice = VulkanDevice { _physicalDevice      :: !Vk.PhysicalDevice
-                                 , _device              :: !Vk.Device
-                                 , _graphicsQueue       :: !Vk.Queue
-                                 , _presentQueue        :: !Vk.Queue
-                                 , _graphicsQueueFamily :: !GraphicsQueueFamily
-                                 , _presentQueueFamily  :: !PresentQueueFamily
-                                 }
-
-createVulkanDevice :: Vk.Instance
-                    ⊸ Vector ByteString -- ^ Device Extensions
-                   -> DeviceRateFunction
-                   -> Linear.IO (VulkanDevice, Vk.Instance)
-createVulkanDevice = Unsafe.toLinear $ \inst deviceExtensions rateFn -> Linear.liftSystemIO $ do
-
-  (physicalDevice, graphicsQF, presentQF) <- pickPhysicalDevice inst rateFn
-  physicalDeviceFeatures <- Vk.getPhysicalDeviceFeatures physicalDevice -- currently features aren't considered in the rateFn but they could be; we just read them again afterwards.
+  physicalDeviceFeatures <- Vk.getPhysicalDeviceFeatures physicalDevice
 
   let
-    deviceCreateInfo = Vk.DeviceCreateInfo { next = ()
-                                           , flags = Vk.DeviceCreateFlags 0
-                                           , queueCreateInfos = (V.fromList . map (VkC.SomeStruct . deviceQueueCreateInfo) . S.toList) [graphicsQF, presentQF]
-                                           , enabledLayerNames = []
-                                           , enabledExtensionNames = deviceExtensions
-                                           , enabledFeatures = Just physicalDeviceFeatures
-                                           }
+    queueCreateInfo :: Vk.DeviceQueueCreateInfo '[]
+    queueCreateInfo = Vk.DeviceQueueCreateInfo
+      { next = ()
+      , flags = Vk.zero
+      , queueFamilyIndex = fromIntegral queueFamilyIndex
+      , queuePriorities  = [ 1.0 :: Float ]
+      }
 
-    deviceQueueCreateInfo ix = Vk.DeviceQueueCreateInfo { next = ()
-                                                        , flags = Vk.DeviceQueueCreateFlagBits 0
-                                                        , queueFamilyIndex = ix
-                                                        -- For now all queues have same priority (there should only be one queue anyway?)
-                                                        , queuePriorities  = [1]
-                                                        }
+    vk12Features :: Vk.PhysicalDeviceVulkan12Features
+    vk12Features = Vk.zero
+      { Vk.descriptorIndexing = True
+      , Vk.descriptorBindingVariableDescriptorCount = True
+      , Vk.runtimeDescriptorArray = True
+      , Vk.bufferDeviceAddress = True
+      }
 
-  device        <- Vk.createDevice physicalDevice deviceCreateInfo Nothing
-  graphicsQueue <- Vk.getDeviceQueue device graphicsQF 0
-  presentQueue  <- Vk.getDeviceQueue device presentQF  0
-  pure (VulkanDevice physicalDevice device graphicsQueue presentQueue graphicsQF presentQF, inst)
+    vk13Features :: Vk.PhysicalDeviceVulkan13Features
+    vk13Features = Vk.zero
+      { Vk.synchronization2 = True
+      , Vk.dynamicRendering = True
+      }
 
+    deviceCreateInfo :: Vk.DeviceCreateInfo '[Vk.PhysicalDeviceVulkan13Features, Vk.PhysicalDeviceVulkan12Features]
+    deviceCreateInfo = Vk.DeviceCreateInfo
+      { next = (vk13Features, (vk12Features, ()))
+      , flags = Vk.zero
+      , queueCreateInfos = [VkC.SomeStruct queueCreateInfo]
+      , enabledLayerNames = []
+      , enabledExtensionNames = extensionsRequired <> deviceExtensions
+      , enabledFeatures = Just physicalDeviceFeatures
+      }
 
-destroyVulkanDevice :: VulkanDevice ⊸ Linear.IO ()
-destroyVulkanDevice = Unsafe.toLinear $ \d -> Linear.liftSystemIO (Vk.destroyDevice d._device Nothing)
+  device <- Vk.createDevice physicalDevice deviceCreateInfo Nothing
+  pure (device, physicalDevice)
 
-
-pickPhysicalDevice :: Vk.Instance
-                   -> DeviceRateFunction
-                   -> IO (Vk.PhysicalDevice, GraphicsQueueFamily, PresentQueueFamily)
-pickPhysicalDevice inst rateFn = do
-  (_, dvs) <- Vk.enumeratePhysicalDevices inst
-  case dvs of
-    [] -> fail "Failed to find GPUs with Vulkan support!"
-    _  ->
-      L.sortOn (Down . fst) . V.toList . V.filter (isJust . fst) . (`V.zip` dvs) <$> traverse rateFn dvs >>= \case
-        (Just (_,graphicsQF,presentQF),device):_ -> pure (device, graphicsQF, presentQF)
-        (Nothing,_):_ -> fail "Impossible! Failed to find a suitable GPU!"
-        [] -> fail "Failed to find a suitable GPU!"
-
-
+destroyDevice :: Linear.MonadIO m => Vk.Device ⊸ m ()
+destroyDevice = Unsafe.toLinear $ \d -> Linear.liftSystemIO (Vk.destroyDevice d Nothing)
+--------------------------------------------------------------------------------
+getDeviceQueue :: Linear.MonadIO m
+               => Vk.Device %1
+               -> ("queueFamilyIndex" Vk.::: Word32)
+               -> ("queueIndex" Vk.::: Word32)
+               -> m (Vk.Queue, Vk.Device)
+getDeviceQueue = Unsafe.toLinear \dev famIx ix -> Linear.liftSystemIO $ do
+  queue <- Vk.getDeviceQueue dev famIx ix
+  pure (queue, dev)
+--------------------------------------------------------------------------------
 findMemoryType :: Word32 -> Vk.MemoryPropertyFlags -> Vk.PhysicalDevice -> IO Word32
 findMemoryType typeFilter properties physicalDevice = do
   memProperties <- Vk.getPhysicalDeviceMemoryProperties physicalDevice

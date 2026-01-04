@@ -7,17 +7,31 @@
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE BlockArguments #-}
--- | TODO: One day, abstract over window API too
 module Ghengin.Vulkan.Renderer.GLFW.Window
-  (VulkanWindow(..), createVulkanWindow, destroyVulkanWindow
-  , GLFW.windowShouldClose, GLFW.pollEvents
-  , initGLFW, terminateGLFW , GLFWToken
+  ( 
+  -- * Creating windows and surfaces
+    WindowInfo(..)
+  -- ** Window
+  , createWindow
+  , destroyWindow
+  -- ** Surface
+  , createSurface
+  , destroySurface
+
+  -- * Initializing GLFW
+  , GLFWToken
+  , initGLFW
+  , terminateGLFW
+
+  -- * GLFW re-exports
+  , GLFW.Window
+  , GLFW.windowShouldClose
+  , GLFW.pollEvents
   ) where
 
 import GHC.Int (Int32)
 import qualified Prelude
 import Prelude.Linear
-import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear as Linear
 import qualified Unsafe.Linear as Unsafe
 
@@ -32,41 +46,27 @@ import qualified Graphics.UI.GLFW as GLFW
 import qualified Vulkan.Exception as Vk (VulkanException(..))
 import qualified Vulkan as Vk
 
-data VulkanWindow = VulkanWindow { _window  :: !GLFW.Window
-                                 , _surface :: !Vk.SurfaceKHR
-                                 }
+-- | Window construction info
+data WindowInfo
+  = WindowInfo
+  { width      :: Int
+  , height     :: Int
+  , windowName :: String
+  }
 
-createVulkanWindow :: Linear.MonadIO m
-                   => Vk.Instance
-                    ⊸ (Int, Int) -- ^ (width, height)
-                   -> String     -- ^ window name
-                   -> m (VulkanWindow, Vk.Instance)
-createVulkanWindow inst dimensions label = Linear.do
-  win <- createWindow dimensions label
-  (surface, inst', win') <- createSurface inst win
-  pure (VulkanWindow win' surface, inst')
-
-destroyVulkanWindow :: Linear.MonadIO m => Vk.Instance ⊸ VulkanWindow ⊸ m Vk.Instance
-destroyVulkanWindow inst (VulkanWindow win surface) = Linear.do
-  inst' <- destroySurface inst surface
-  destroyWindow win
-  pure inst'
-
--- | Creates a window and its GLFW context. Probably doesn't work if we need
--- multiple windows
-createWindow :: Linear.MonadIO m => (Int, Int) -> String -> m GLFW.Window
-createWindow (w,h) label = liftSystemIO $ do
-  Just win <- GLFW.createWindow w h label Nothing Nothing
+-- | Creates a window and its GLFW context.
+createWindow :: Linear.MonadIO m => WindowInfo -> m GLFW.Window
+createWindow WindowInfo{..} = liftSystemIO $ do
+  Just win <- GLFW.createWindow width height windowName Nothing Nothing
   Prelude.pure win
 {-# INLINE createWindow #-}
 
--- | Destroys the window and the GLFW context. To have multiple windows this
--- wouldn't work
+-- | Destroys the window and the GLFW context.
 destroyWindow :: Linear.MonadIO m => GLFW.Window ⊸ m ()
 destroyWindow = Unsafe.toLinear \win -> liftSystemIO $ GLFW.destroyWindow win
 {-# INLINE destroyWindow #-}
 
--- | Create a surface (it must be destroyed by Vulkan).
+-- | Create a vulkan surface from the 'GLFW.Window'
 createSurface :: Linear.MonadIO m => Vk.Instance ⊸ GLFW.Window ⊸ m (Vk.SurfaceKHR, Vk.Instance, GLFW.Window)
 createSurface = Unsafe.toLinear2 \i w -> liftSystemIO $ do
   alloca $ \surfacePtr -> do
@@ -76,10 +76,13 @@ createSurface = Unsafe.toLinear2 \i w -> liftSystemIO $ do
     Prelude.pure (surface, i, w)
 {-# INLINE createSurface #-}
 
+-- | Destroy a vulkan surface
+-- Note: All SwapchainKHR objects created for surface must have been destroyed prior to destroying surface
 destroySurface :: Linear.MonadIO m => Vk.Instance ⊸ Vk.SurfaceKHR ⊸ m Vk.Instance
 destroySurface = Unsafe.toLinear2 \i s -> liftSystemIO $ i Prelude.<$ Vk.destroySurfaceKHR i s Nothing
 {-# INLINE destroySurface #-}
 
+-- | A linear token to ensure GLFW is terminated
 data GLFWToken = GLFWToken
 
 -- | Returns a linear token to guarantee GLFW is terminated
@@ -90,6 +93,7 @@ initGLFW = liftSystemIO $ do
   GLFW.windowHint (GLFW.WindowHint'ClientAPI GLFW.ClientAPI'NoAPI)
   Prelude.pure GLFWToken
 
+-- | Consume a linear token to terminate GLFW
 terminateGLFW :: Linear.MonadIO m => GLFWToken ⊸ m ()
 terminateGLFW GLFWToken = liftSystemIO $ GLFW.terminate
 
