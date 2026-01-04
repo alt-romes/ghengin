@@ -9,7 +9,12 @@
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE BlockArguments #-}
-module Ghengin.Vulkan.Renderer.SwapChain (VulkanSwapChain(..), createSwapChain, destroySwapChain) where
+module Ghengin.Vulkan.Renderer.SwapChain
+  ( SwapchainInfo(..)
+  , createSwapchain, destroySwapchain
+  , chooseSwapchainFormat
+  )
+  where
 
 import Prelude hiding (($))
 import Prelude.Linear (($), Ur(..))
@@ -23,115 +28,154 @@ import Data.Unrestricted.Linear (UrT(..),runUrT)
 
 import Data.Vector (Vector)
 import qualified Data.Vector as V
+import qualified Data.V.Linear as VL
 import qualified Data.List as L
 
 import qualified Graphics.UI.GLFW as GLFW
 import qualified Vulkan as Vk
+import qualified Vulkan as Vk.Surface
+  ( SurfaceFormatKHR(..)
+  , SurfaceCapabilitiesKHR(..) )
 
 import Ghengin.Vulkan.Renderer.Device
 import Ghengin.Vulkan.Renderer.GLFW.Window
 import Ghengin.Vulkan.Renderer.Image
 
-data VulkanSwapChain = VulkanSwapChain { _swapchain     :: !Vk.SwapchainKHR
-                                       , _imageViews    :: !(Vector Vk.ImageView)
-                                       , _surfaceFormat :: !Vk.SurfaceFormatKHR
-                                       , _surfaceExtent :: !Vk.Extent2D
-                                       , _depthImage    :: !VulkanImage
-                                       }
+import GHC.TypeNats
 
-createSwapChain :: Linear.MonadIO m => VulkanWindow ⊸ VulkanDevice ⊸ m (VulkanSwapChain, VulkanWindow, VulkanDevice)
-createSwapChain = Unsafe.toLinear2 \win device -> Linear.do
+-- TODO:, _depthImage    :: !VulkanImage
+-- Ur swpchainImageViews  <- liftSystemIOU $ V.mapM (createImageView device._device surfaceFormat.format Vk.IMAGE_ASPECT_COLOR_BIT) swpchainImages
+-- let depthFormat = Vk.FORMAT_D32_SFLOAT -- We could query for supported formats and choose the best
+-- (depthImage, device') <- createImage device depthFormat (Vk.Extent3D extent.width extent.height 1) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT Vk.IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT Vk.IMAGE_ASPECT_DEPTH_BIT
 
-  let physicalDevice = device._physicalDevice
-      surface        = win._surface
+--------------------------------------------------------------------------------
+data SwapchainInfo (n :: Nat)
+  = SwapchainInfo
+      { swapchain        :: Vk.SwapchainKHR
+      , swapchainImages  :: VL.V n Vk.Image
+        -- ^ These images are managed by the swapchain, and should never be
+        -- freed directly. See 'destroySwapchain'.
+      , swapchainSurface :: Vk.SurfaceKHR
+      , swapchainExtent  :: Ur Vk.Extent2D
+      , surfaceFormat    :: Ur Vk.SurfaceFormatKHR
+      }
 
-  -- Query Swapchain Support
-  Ur surfaceCapabilities      <- liftSystemIOU $ Vk.getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
-  Ur (_, surfaceFormats)      <- liftSystemIOU $ Vk.getPhysicalDeviceSurfaceFormatsKHR physicalDevice surface
-  Ur (_, surfacePresentModes) <- liftSystemIOU $ Vk.getPhysicalDeviceSurfacePresentModesKHR physicalDevice surface
+createSwapchain
+  :: Linear.MonadIO m
+  => Vk.PhysicalDevice %1
+  -> Vk.Device %1
+  -> Vk.SurfaceKHR %1
+  -> Vk.SurfaceFormatKHR
+  -> Vk.ImageUsageFlags
+  -> m (SwapchainInfo, Vk.PhysicalDevice, Vk.Device)
+createSwapchain = Unsafe.toLinear3 \physicalDevice device surface surfaceFormat imageUsage -> Linear.liftSystemIO $ do
 
-  let surfaceFormat = chooseSwapSurfaceFormat surfaceFormats
-      presentMode   = chooseSwapPresentMode   surfacePresentModes
+  surfaceCapabilities <- Vk.getPhysicalDeviceSurfaceCapabilitiesKHR physicalDevice surface
+  (_, presentModes)   <- Vk.getPhysicalDeviceSurfacePresentModesKHR physicalDevice surface
 
-  Ur extent <- liftSystemIOU $ chooseSwapExtent win._window surfaceCapabilities
+  let
+    minImageCount, maxImageCount, imageCount :: Word32
+    minImageCount = Vk.Surface.minImageCount surfaceCapabilities
+    maxImageCount = Vk.Surface.maxImageCount surfaceCapabilities
+    imageCount
+      | maxImageCount == 0 = minImageCount + 1 -- no maximum
+      | otherwise = min ( minImageCount + 1 ) maxImageCount
 
-  let desiredIC  = surfaceCapabilities.minImageCount + 1
-      imageCount = if surfaceCapabilities.maxImageCount > 0            -- 0 indicates there is no maximum
-                      && desiredIC > surfaceCapabilities.maxImageCount -- We can't ask for more than there are available
-                        then surfaceCapabilities.maxImageCount         -- Simply take the max
-                        else desiredIC                                 -- Min + 1 so we don't need to wait for the driver before we can acquire another image to draw to
+    currentExtent :: Vk.Extent2D
+    currentExtent = Vk.Surface.currentExtent surfaceCapabilities
 
-      areDifferentFamily = device._graphicsQueueFamily /= device._presentQueueFamily
-      indices = [device._graphicsQueueFamily, device._presentQueueFamily] :: V.Vector Word32
-      config = Vk.SwapchainCreateInfoKHR { next = ()
-                                         , flags = Vk.SwapchainCreateFlagBitsKHR 0
-                                         , surface = surface
-                                         , minImageCount = imageCount
-                                         , imageFormat = surfaceFormat.format
-                                         , imageColorSpace = surfaceFormat.colorSpace
-                                         , imageExtent = extent
-                                         , imageArrayLayers = 1
-                                         , imageUsage = Vk.IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-                                         , imageSharingMode = if areDifferentFamily then Vk.SHARING_MODE_CONCURRENT else Vk.SHARING_MODE_EXCLUSIVE
-                                         , queueFamilyIndices = if areDifferentFamily then indices else []
-                                         , preTransform = surfaceCapabilities.currentTransform
-                                         , compositeAlpha = Vk.COMPOSITE_ALPHA_OPAQUE_BIT_KHR
-                                         , presentMode = presentMode
-                                         , clipped = True
-                                         , oldSwapchain = Vk.NULL_HANDLE
-                                         }
+    currentTransform :: Vk.SurfaceTransformFlagBitsKHR
+    currentTransform = Vk.Surface.currentTransform surfaceCapabilities
 
-  Ur swpc <- liftSystemIOU $ Vk.createSwapchainKHR device._device config Nothing
-  Ur (_, swpchainImages) <- liftSystemIOU $ Vk.getSwapchainImagesKHR device._device swpc
-  Ur swpchainImageViews  <- liftSystemIOU $ V.mapM (createImageView device._device surfaceFormat.format Vk.IMAGE_ASPECT_COLOR_BIT) swpchainImages
+    swapchainCreateInfo :: Vk.SwapchainCreateInfoKHR '[]
+    swapchainCreateInfo =
+      Vk.SwapchainCreateInfoKHR
+        { next                  = ()
+        , flags                 = Vk.zero
+        , surface               = surface
+        , minImageCount         = imageCount
+        , imageFormat           = Vk.Surface.format     surfaceFormat
+        , imageColorSpace       = Vk.Surface.colorSpace surfaceFormat
+        , imageExtent           = currentExtent
+        , imageArrayLayers      = 1
+        , imageUsage            = imageUsage
+        , imageSharingMode      = Vk.SHARING_MODE_EXCLUSIVE
+        , queueFamilyIndices    = Boxed.Vector.empty
+        , preTransform          = currentTransform -- or VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR
+        , compositeAlpha        = Vk.COMPOSITE_ALPHA_OPAQUE_BIT_KHR
+        , presentMode           = chooseSwapchainPresentMode presentModes
+        , clipped               = True
+        , oldSwapchain          = Vk.NULL_HANDLE
+        }
 
-  let depthFormat = Vk.FORMAT_D32_SFLOAT -- We could query for supported formats and choose the best
+  swapchain              <- Vk.createSwapchainKHR device swapchainCreateInfo Nothing
+  (_, swapchainImageVec) <- Vk.getSwapchainImagesKHR device swapchain
+  withSized swapchainImageVec \ swapchainImages -> Linear.do
+    let swapchainInfo = SwapchainInfo
+          { swapchain
+          , swapchainImages
+          , swapchainSurface = surface
+          , swapchainExtent  = Ur swapchainExtent
+          , surfaceFormat    = Ur surfaceFormat
+          }
+    pure (swapchainInfo, physicalDevice, device)
 
-  (depthImage, device') <- createImage device depthFormat (Vk.Extent3D extent.width extent.height 1) Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT Vk.IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT Vk.IMAGE_ASPECT_DEPTH_BIT
+destroySwapchain :: Linear.MonadIO m
+                 => Vk.Instance %1
+                 -> Vk.Device %1
+                 -> SwapchainInfo n %1
+                 -> m (Vk.Instance, Vk.Device)
+destroySwapchain = Unsafe.toLinear3 \inst device
+  SwapchainInfo
+    { swapchain
+    , swapchainImages = _ {- managed by swapchain, not us! -}
+    , swapchainSurface
+    , swapchainExtent = Ur _
+    , surfaceFormat = Ur _
+    } -> Linear.do
+      liftSystemIO $ Vk.destroySwapchainKHR device swapchain Nothing
+      inst <- destroySurface inst swapchainSurface
+      Linear.pure (inst, device)
 
-  Linear.pure (VulkanSwapChain swpc swpchainImageViews surfaceFormat extent depthImage, win, device')
+--------------------------------------------------------------------------------
+-- Choosing Swapchain properties
+--------------------------------------------------------------------------------
 
+chooseSwapchainFormat
+  :: Linear.MonadIO m
+  => Vk.SurfaceFormatKHR
+  -> Vk.PhysicalDevice %1
+  -> Vk.SurfaceKHR %1
+  -> m (Vk.SurfaceFormatKHR, Vk
+chooseSwapchainFormat
+  preferredFormat@( Vk.SurfaceFormatKHR fmt_p spc_p )
+  = Unsafe.toLinear2 \physicalDevice surface -> Linear.liftSystemIO $ do
+      sufaceFormats <- snd <$> Vk.getPhysicalDeviceSurfaceFormatsKHR physicalDevice surface
 
-destroySwapChain :: Linear.MonadIO m => VulkanDevice ⊸ VulkanSwapChain ⊸ m VulkanDevice
-destroySwapChain = Unsafe.toLinear2 \d swpc -> Linear.do
-  Linear.liftSystemIO $ do
+      case sortOn ( Down . score ) ( Boxed.Vector.toList surfaceFormats ) of
+        [] -> error "No formats found."
+        ( best : _ )
+          | Vk.FORMAT_UNDEFINED <- Vk.Surface.format best
+            -> pure (preferredFormat, physicalDevice, surface)
+          | otherwise
+            -> pure (best, physicalDevice, surface)
 
-    Vk.destroyImageView d._device swpc._depthImage._imageView Nothing
-    Vk.destroyImage     d._device swpc._depthImage._image     Nothing
-    Vk.freeMemory       d._device swpc._depthImage._devMem    Nothing
+    where
+      match :: Eq a => a -> a -> Int
+      match a b
+        | a == b    = 1
+        | otherwise = 0
 
-  Ur vs <- runUrT $ mapM (\x -> UrT $ Unsafe.toLinear Ur Linear.<$> Unsafe.toLinear2 destroyImageView x d._device) swpc._imageViews
-  Linear.liftSystemIO $ Vk.destroySwapchainKHR d._device swpc._swapchain Nothing
-  Unsafe.toLinear (\_ -> Linear.pure ()) vs
-  Linear.pure d
+      score :: Vk.SurfaceFormatKHR -> Int
+      score ( Vk.SurfaceFormatKHR fmt spc )
+        = match fmt fmt_p
+        + match spc spc_p
 
-
-chooseSwapSurfaceFormat :: V.Vector Vk.SurfaceFormatKHR -> Vk.SurfaceFormatKHR
-chooseSwapSurfaceFormat (V.toList -> availableFormats) =
-  case L.sortOn (Down . rateSurfaceFormat) availableFormats of
-    [] -> error "chooseSwapSurfaceFormat: no available surfaceFormat"
-    x:_ -> x
-  where
-    rateSurfaceFormat :: Vk.SurfaceFormatKHR -> Bool
-    rateSurfaceFormat availableFormat =
-      availableFormat.format == Vk.FORMAT_B8G8R8A8_SRGB &&
-        availableFormat.colorSpace == Vk.COLOR_SPACE_SRGB_NONLINEAR_KHR
-
-chooseSwapPresentMode :: V.Vector Vk.PresentModeKHR -> Vk.PresentModeKHR
-chooseSwapPresentMode availablePresentModes =
+chooseSwapchainPresentMode :: V.Vector Vk.PresentModeKHR -> Vk.PresentModeKHR
+chooseSwapchainPresentMode availablePresentModes =
   case V.uncons $ V.filter hasMailboxMode availablePresentModes of
     Nothing -> Vk.PRESENT_MODE_FIFO_KHR -- Guaranteed to be available
     Just (x, _) -> x                    -- Mailbox mode available
   where
     hasMailboxMode :: Vk.PresentModeKHR -> Bool
     hasMailboxMode = (==) Vk.PRESENT_MODE_MAILBOX_KHR
-
-chooseSwapExtent :: GLFW.Window -> Vk.SurfaceCapabilitiesKHR -> IO Vk.Extent2D 
-chooseSwapExtent win capabilities =
-  if capabilities.currentExtent.width /= maxBound @Word32
-     then pure capabilities.currentExtent
-     else do
-       (w,h) <- GLFW.getFramebufferSize win
-       pure $ Vk.Extent2D (clamp (capabilities.minImageExtent.width,  capabilities.maxImageExtent.width) (fromIntegral w))
-                          (clamp (capabilities.minImageExtent.height, capabilities.maxImageExtent.height) (fromIntegral h))
-
