@@ -82,15 +82,29 @@ runRenderer dimensions r = Linear.do
   -----------------
   glfwtoken <- initGLFW
 
-  inst <- createInstance "Ghengin"
+  let appName = "Ghengin" -- todo: receive as input
 
-  (win, inst) <- createVulkanWindow inst dimensions "Ghengin"
+  window    <- createWindow WindowInfo
+    { width      = fst dimensions
+    , height     = snd dimensions
+    , windowName = appName
+    }
 
-  (Ur rateFunc, win) <- pure $ Unsafe.toLinear (\w -> (Ur (rateFn w._surface), w)) win
-
-  (device, inst) <- createVulkanDevice inst deviceExtensions rateFunc
-
-  (swapchain, win, device) <- createSwapChain win device
+  vkContext <- initialiseContext @WithSwapchain appName RenderInfo
+    { queueType = Vk.QUEUE_GRAPHICS_BIT
+    , surfaceInfo = SurfaceInfo
+      { surfaceWindow   = window
+      , preferredFormat = Ur $
+          Vk.SurfaceFormatKHR
+            Vk.FORMAT_B8G8R8A8_SRGB
+            Vk.COLOR_SPACE_SRGB_NONLINEAR_KHR
+      , surfaceUsage = Ur $
+          [ -- Needed for screenshots?
+            -- Vk.IMAGE_USAGE_TRANSFER_SRC_BIT
+          , Vk.IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+          ]
+      }
+    }
 
   (imsCtx, device) <- createImmediateSubmitCtx device
 
@@ -236,50 +250,6 @@ presentPresentQueue = Unsafe.toLinear \sem imageIndex -> Linear.do
                                       }
   Ur _ <- liftSystemIOU $ Vk.queuePresentKHR presentQueue presentInfo
   pure sem
-
-rateFn :: Vk.SurfaceKHR -> DeviceRateFunction
-rateFn surface d = do
-  props  <- Vk.getPhysicalDeviceProperties d
-  _feats <- Vk.getPhysicalDeviceFeatures d
-  (_, extensionProps) <- Vk.enumerateDeviceExtensionProperties d Nothing
-
-  -- These can't be null
-  (_, surfaceFormats)      <- Vk.getPhysicalDeviceSurfaceFormatsKHR d surface
-  (_, surfacePresentModes) <- Vk.getPhysicalDeviceSurfacePresentModesKHR d surface
-  
-  queueFamilies <- findQueueFamilies d surface
-
-  Prelude.pure $ do
-    let s1 = if props.deviceType Prelude.== Vk.PHYSICAL_DEVICE_TYPE_DISCRETE_GPU
-               then 1000 else 0
-
-        s2 = props.limits.maxImageDimension2D
-
-        swapChainAdequate   = Prelude.not (Prelude.null surfaceFormats) Prelude.&& Prelude.not (null surfacePresentModes)
-        extensionsSupported = Prelude.not $ Prelude.null $ L.intersect (V.toList deviceExtensions) (V.toList $ V.map (.extensionName) extensionProps)
-
-    (graphicsF, presentF) <- queueFamilies
-    Control.Monad.guard swapChainAdequate
-    Control.Monad.guard extensionsSupported
-    Prelude.pure (s1 Prelude.+ Prelude.fromIntegral s2, graphicsF, presentF)
-
-  where
-    findQueueFamilies :: Vk.PhysicalDevice -> Vk.SurfaceKHR -> Prelude.IO (Maybe (Word32, Word32))
-    findQueueFamilies pd sr = do
-      props <- Vk.getPhysicalDeviceQueueFamilyProperties pd
-      graphicsF <- findM (isSuitableGraphics Prelude.. snd) (V.indexed props)
-      presentF  <- findM (isSuitablePresent  Prelude.. fst) (V.indexed props)
-      Prelude.pure $ do
-        ig <- graphicsF
-        pg <- presentF
-        Prelude.pure (fromIntegral $ fst ig, fromIntegral $ fst pg)
-
-      where
-        isSuitableGraphics :: Vk.QueueFamilyProperties -> Prelude.IO Bool
-        isSuitableGraphics q = Prelude.pure $ q.queueFlags .&&. Vk.QUEUE_GRAPHICS_BIT
-
-        isSuitablePresent :: Int -> Prelude.IO Bool
-        isSuitablePresent  i = Vk.getPhysicalDeviceSurfaceSupportKHR pd (Prelude.fromIntegral i) sr
 
 shouldCloseWindow :: Renderer (Ur Bool)
 shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
