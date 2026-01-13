@@ -14,14 +14,11 @@ import Control.Monad.IO.Class.Linear as Linear
 import qualified Data.V.Linear as V
 import qualified Data.Vector as Vector
 
-import Ghengin.Vulkan.Renderer.Context.Device
 import Ghengin.Vulkan.Renderer.Command (CommandM, copyFullBuffer, clearColorImage)
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
+import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Vulkan.Renderer.Context.Swapchain
 import Ghengin.Vulkan.Renderer.Frame
-
--- One day abstract over Window API
-import Ghengin.Vulkan.Renderer.GLFW.Window
 
 import qualified Vulkan as Vk
 import Ghengin.Core.Log
@@ -32,10 +29,7 @@ import qualified Unsafe.Linear as Unsafe
 type Alias = Alias.Alias Renderer
 
 data RendererEnv =
-  REnv { _instance        :: !Vk.Instance
-       , _vulkanDevice    :: !VulkanDevice
-       , _vulkanWindow    :: !VulkanWindow
-       , _vulkanSwapChain :: !VulkanSwapChain
+  REnv { vulkanContext    :: !(VulkanContext WithSwapchain)
        , _commandPool     :: !Vk.CommandPool
        , _frames          :: !(V.V 2 VulkanFrameData)
        , _immediateSubmit :: !ImmediateSubmitCtx
@@ -85,11 +79,12 @@ runRenderer' l renv (Renderer rend) = Linear.do
   Ur r <- liftSystemIOU (newIORef 0)
   runStateT (runReaderT rend (Ur (RREnv l r))) renv
 
-useVulkanDevice :: (VulkanDevice %1 -> System.IO.Linear.IO (a, VulkanDevice)) %1 -> Renderer a
-useVulkanDevice f = renderer $ \(REnv{..}) -> f _vulkanDevice >>= \case (a, d') -> pure (a, REnv{_vulkanDevice=d',..})
+withVulkanContext :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (a, VulkanContext WithSwapchain)) %1 -> Renderer a
+withVulkanContext f = renderer $ \(REnv{..}) -> f vulkanContext >>= \case
+  (a, d') -> pure (a, REnv{vulkanContext=d',..})
 
 withDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
-withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
+withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv.vulkanContext.device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
 
 -- | Unsafely run a Vulkan action on a linear MonadIO that requires a
 -- Vulkan.Device reference as a linear action on 'Renderer'.
@@ -99,28 +94,23 @@ withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv._vulkanDevice._devi
 -- Note, this is quite unsafe really, but makes usage of non-linear vulkan much easier
 unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b) -> Renderer b
 unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
-  b <- liftSystemIO $ f (_vulkanDevice._device)
+  b <- liftSystemIO $ f (vulkanContext.device)
   pure $ (b, renv)
 
-unsafeUseVulkanDevice :: (VulkanDevice -> Unrestricted.IO b) -> Renderer b
-unsafeUseVulkanDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
-  b <- liftSystemIO $ f _vulkanDevice
+unsafeWithVulkanContext :: (VulkanContext WithSwapchain -> Unrestricted.IO b) -> Renderer b
+unsafeWithVulkanContext f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+  b <- liftSystemIO $ f vulkanContext
   pure $ (b, renv)
 
 unsafeGetDevice :: Renderer (Ur Vk.Device)
-unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv._vulkanDevice._device, renv)
-
--- | Like 'unsafeUseDevice' but additionally use unsafely a linearly value in the unsafe function
-unsafeUseDeviceAnd :: (a -> Vk.Device -> Unrestricted.IO b)
-                   -> a ⊸ Renderer (b, a)
-unsafeUseDeviceAnd f = Unsafe.toLinear $ \x -> (,x) <$> unsafeUseDevice (f x)
+unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv.vulkanContext.device, renv)
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
 immediateSubmit :: CommandM System.IO.Linear.IO a ⊸ Renderer a
 immediateSubmit cmd = renderer $ \(REnv{..}) -> Linear.do
-  ((dev', imsctx'), x) <- immediateSubmit' _vulkanDevice _immediateSubmit cmd
-  pure (x, REnv{_vulkanDevice=dev',_immediateSubmit=imsctx',..})
+  ((dev', imsctx'), x) <- immediateSubmit' vulkanContext _immediateSubmit cmd
+  pure (x, REnv{vulkanContext=dev',_immediateSubmit=imsctx',..})
 
 -- | Run a one-shot command that copies the whole data between two buffers.
 -- Returns the two buffers, in the order they were passed to the function
@@ -131,13 +121,18 @@ copyBuffer src dst size = Linear.do
 
 -- | Get the extent of the images in the swapchain?
 getRenderExtent :: Renderer (Ur Vk.Extent2D)
-getRenderExtent = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv._vulkanSwapChain._surfaceExtent, renv)
+getRenderExtent = renderer $ Unsafe.toLinear $ \renv ->
+  case renv.vulkanContext.aSwapchainInfo of
+    ASwapchainInfo si -> pure (si.swapchainExtent, renv)
 
 -- | Clears all images in the swapchain to the given color
 clearRenderImages :: Float -> Float -> Float -> Float -> Renderer ()
 clearRenderImages r g b a = Linear.do
   Ur imgs <- renderer $ Unsafe.toLinear $ \(REnv{..}) -> Linear.do
-    Ur (_, imgs) <- liftSystemIOU $ Vk.getSwapchainImagesKHR _vulkanDevice._device _vulkanSwapChain._swapchain
+    Ur (_, imgs) <- liftSystemIOU $ do
+      case vulkanContext.aSwapchainInfo of
+        ASwapchainInfo si ->
+          Vk.getSwapchainImagesKHR vulkanContext.device si.swapchain
     pure (Ur imgs, REnv{..})
 
   immediateSubmit $ consume <$> (Data.Linear.forM (Vector.toList imgs) (Unsafe.toLinear \img -> clearColorImage img r g b a))

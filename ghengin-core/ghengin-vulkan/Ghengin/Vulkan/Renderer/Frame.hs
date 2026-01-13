@@ -9,7 +9,7 @@ import qualified Vulkan as Vk
 import qualified Unsafe.Linear as Unsafe
 
 import Ghengin.Vulkan.Renderer.Synchronization
-import Ghengin.Vulkan.Renderer.Context.Device
+import Ghengin.Vulkan.Renderer.Context
 
 data VulkanFrameData = VulkanFrameData { _renderFence      :: Vk.Fence
                                        , _renderSemaphore  :: Vk.Semaphore
@@ -18,17 +18,17 @@ data VulkanFrameData = VulkanFrameData { _renderFence      :: Vk.Fence
                                        }
 
 
-initVulkanFrameData :: MonadIO m => Vk.CommandBuffer ⊸ VulkanDevice ⊸ m (VulkanFrameData, VulkanDevice)
-initVulkanFrameData buf dev = Linear.do
-  (inFlightFence    , dev) <- createFence dev True
-  (imageAvailableSem, dev) <- createSemaphore dev
-  (renderFinishedSem, dev) <- createSemaphore dev
-  pure (VulkanFrameData inFlightFence imageAvailableSem renderFinishedSem buf, dev)
+initVulkanFrameData :: MonadIO m => Vk.CommandBuffer ⊸ VulkanContext ctx ⊸ m (VulkanFrameData, VulkanContext ctx)
+initVulkanFrameData buf ctx = Linear.do
+  (inFlightFence    , ctx) <- createFence ctx True
+  (imageAvailableSem, ctx) <- createSemaphore ctx
+  (renderFinishedSem, ctx) <- createSemaphore ctx
+  pure (VulkanFrameData inFlightFence imageAvailableSem renderFinishedSem buf, ctx)
 
-destroyVulkanFrameData :: MonadIO m => VulkanFrameData ⊸ VulkanDevice ⊸ m VulkanDevice
-destroyVulkanFrameData (VulkanFrameData f s1 s2 buf) dev = Linear.do
-  dev <- destroyFence dev f
-  dev <- destroySem   dev s1
-  dev <- destroySem   dev s2
-  Unsafe.toLinear (\_ -> pure dev) buf
+destroyVulkanFrameData :: MonadIO m => VulkanFrameData ⊸ VulkanContext ctx ⊸ m (VulkanContext ctx)
+destroyVulkanFrameData (VulkanFrameData f s1 s2 buf) ctx = Linear.do
+  ctx <- destroyFence ctx f
+  ctx <- destroySem   ctx s1
+  ctx <- destroySem   ctx s2
+  Unsafe.toLinear (\_ -> pure ctx) buf
 

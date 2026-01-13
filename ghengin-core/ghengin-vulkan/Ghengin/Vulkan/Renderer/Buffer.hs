@@ -152,11 +152,11 @@ createBuffer size usage properties = Linear.do
                                        , sharingMode = Vk.SHARING_MODE_EXCLUSIVE
                                        , queueFamilyIndices = []
                                        }
-  unsafeUseVulkanDevice (\device -> do
-    let dev = device._device
+  unsafeWithVulkanContext (\ctx -> do
+    let dev = ctx.device
     buffer          <- Vk.createBuffer dev bufferInfo Nothing
     memRequirements <- Vk.getBufferMemoryRequirements dev buffer
-    memTypeIndex    <- findMemoryType memRequirements.memoryTypeBits properties device._physicalDevice
+    memTypeIndex    <- findMemoryType memRequirements.memoryTypeBits properties ctx.physicalDevice
     let allocInfo = Vk.MemoryAllocateInfo { next = ()
                                           , allocationSize = memRequirements.size
                                           , memoryTypeIndex = memTypeIndex

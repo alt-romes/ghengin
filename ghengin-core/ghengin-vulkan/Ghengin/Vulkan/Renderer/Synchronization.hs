@@ -19,24 +19,24 @@ import qualified Vulkan as Vk
 
 import qualified Unsafe.Linear as Unsafe
 
-import Ghengin.Vulkan.Renderer.Context.Device
+import Ghengin.Vulkan.Renderer.Context
 
 -- | Create a Semaphore
-createSemaphore :: MonadIO m => VulkanContext ⊸ m (Vk.Semaphore, VulkanContext)
-createSemaphore = Unsafe.toLinear $ \dev ->
+createSemaphore :: MonadIO m => VulkanContext ctx ⊸ m (Vk.Semaphore, VulkanContext ctx)
+createSemaphore = Unsafe.toLinear $ \ctx ->
   let semaphoreInfo = Vk.SemaphoreCreateInfo { next = (), flags = zero }
-   in (,dev) <$> liftSystemIO (Vk.createSemaphore dev._device semaphoreInfo Nothing)
+   in (,ctx) <$> liftSystemIO (Vk.createSemaphore ctx.device semaphoreInfo Nothing)
 
 -- | Create a Fence.
 -- If the first argument is 'True' the fence is already signaled when created
-createFence :: MonadIO m => VulkanContext ⊸ Bool -> m (Vk.Fence, VulkanContext)
-createFence = Unsafe.toLinear $ \dev isSignaled ->
+createFence :: MonadIO m => VulkanContext ctx ⊸ Bool -> m (Vk.Fence, VulkanContext ctx)
+createFence = Unsafe.toLinear $ \ctx isSignaled ->
   let fenceInfo = Vk.FenceCreateInfo { next = (), flags = if isSignaled then Vk.FENCE_CREATE_SIGNALED_BIT else zero }
-   in (,dev) <$> liftSystemIO (Vk.createFence dev._device fenceInfo Nothing)
+   in (,ctx) <$> liftSystemIO (Vk.createFence ctx.device fenceInfo Nothing)
 
-destroySem :: MonadIO m => VulkanContext ⊸ Vk.Semaphore ⊸ m VulkanContext
-destroySem   = Unsafe.toLinear2 $ \dev sem -> dev <$ liftSystemIO (Vk.destroySemaphore dev._device sem Nothing)
+destroySem :: MonadIO m => VulkanContext ctx ⊸ Vk.Semaphore ⊸ m (VulkanContext ctx)
+destroySem   = Unsafe.toLinear2 $ \ctx sem -> ctx <$ liftSystemIO (Vk.destroySemaphore ctx.device sem Nothing)
 
-destroyFence :: MonadIO m => VulkanContext ⊸ Vk.Fence ⊸ m VulkanContext
-destroyFence = Unsafe.toLinear2 $ \dev fen -> dev <$ liftSystemIO (Vk.destroyFence dev._device fen Nothing)
+destroyFence :: MonadIO m => VulkanContext ctx ⊸ Vk.Fence ⊸ m (VulkanContext ctx)
+destroyFence = Unsafe.toLinear2 $ \ctx fen -> ctx <$ liftSystemIO (Vk.destroyFence ctx.device fen Nothing)
 

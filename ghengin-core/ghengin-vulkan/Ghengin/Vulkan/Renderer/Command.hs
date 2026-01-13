@@ -80,8 +80,7 @@ import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
-import Ghengin.Vulkan.Renderer.Context.Device
-import {-# SOURCE #-} Ghengin.Vulkan.Renderer.RenderPass
+import Ghengin.Vulkan.Renderer.Context
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Pipeline
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Buffer
@@ -236,19 +235,19 @@ recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
 -- The graphics pipelines bound in this render pass command MUST have a reference to the same render pass, or, at least be compatible.
 renderPassCmd :: Linear.MonadIO m
               => Vk.Extent2D
-              -> Alias.Alias m RenderPass
                ⊸ RenderPassCmdM m a
                ⊸ CommandM m a
 renderPassCmd renderAreaExtent
  = Unsafe.toLinear2 \(Unsafe.get -> VulkanRenderPass rpass (frameBuffers)) (RenderPassCmd (Command rpcmds)) ->
    Command $ ReaderT \(CmdInfo buf currentImage) -> Linear.do
     let
-      renderPassInfo = Vk.RenderPassBeginInfo { next = ()
-                                              , renderPass  = rpass
-                                              , framebuffer = frameBuffers Vector.! currentImage
-                                              , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
-                                              , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 0 0]
-                                              }
+      renderPassInfo = Vk.RenderPassBeginInfo {
+          next = ()
+        , renderPass  = rpass
+        , framebuffer = frameBuffers Vector.! currentImage
+        , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
+        , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 0 0]
+        }
 
     Linear.liftSystemIO $ Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
 
@@ -322,30 +321,31 @@ bindGraphicsDescriptorSet' pipelay ix dset =
 -- :| Creation and Destruction |:
 
 -- | Creates a command pool for the graphics queue family
-createCommandPool :: Linear.MonadIO m => VulkanDevice ⊸ m (Vk.CommandPool, VulkanDevice)
-createCommandPool = Unsafe.toLinear $ \vkDevice ->
+createCommandPool :: forall ctx m. Linear.MonadIO m => VulkanContext ctx ⊸ m (Vk.CommandPool, VulkanContext ctx)
+createCommandPool = Unsafe.toLinear $ \vkCtx ->
   let
     poolInfo = Vk.CommandPoolCreateInfo { flags = Vk.COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
-                                        , queueFamilyIndex = vkDevice._graphicsQueueFamily
+                                        , queueFamilyIndex = fromIntegral vkCtx.queueFamilyIndex
                                         }
-   in (,vkDevice) Linear.<$> (Linear.liftSystemIO $ Vk.createCommandPool vkDevice._device poolInfo Nothing)
+   in (,vkCtx) Linear.<$> (Linear.liftSystemIO $ Vk.createCommandPool vkCtx.device poolInfo Nothing)
 
 
-destroyCommandPool :: Linear.MonadIO m => VulkanDevice ⊸ Vk.CommandPool ⊸ m VulkanDevice
-destroyCommandPool = Unsafe.toLinear2 $ \dev pool -> dev Linear.<$ Linear.liftSystemIO (Vk.destroyCommandPool dev._device pool Nothing)
+destroyCommandPool :: forall ctx m. Linear.MonadIO m => VulkanContext ctx ⊸ Vk.CommandPool ⊸ m (VulkanContext ctx)
+destroyCommandPool = Unsafe.toLinear2 $ \dev pool -> dev Linear.<$ Linear.liftSystemIO (Vk.destroyCommandPool dev.device pool Nothing)
 
 
-createCommandBuffers :: ∀ (n :: Nat) m. (KnownNat n, Linear.MonadIO m) => VulkanDevice ⊸ Vk.CommandPool ⊸ m (V.V n Vk.CommandBuffer, VulkanDevice, Vk.CommandPool)
+createCommandBuffers :: forall n ctx m. (KnownNat n, Linear.MonadIO m) => VulkanContext ctx ⊸ Vk.CommandPool ⊸ m (V.V n Vk.CommandBuffer, VulkanContext ctx, Vk.CommandPool)
 createCommandBuffers = Unsafe.toLinear2 \dev cpool ->
   let
     allocInfo = Vk.CommandBufferAllocateInfo { commandPool = cpool
                                              , level = Vk.COMMAND_BUFFER_LEVEL_PRIMARY
                                              , commandBufferCount = w32 @n
                                              }
-   in (,dev,cpool) Linear.. VI.V @n @Vk.CommandBuffer Linear.<$> Linear.liftSystemIO (Vk.allocateCommandBuffers dev._device allocInfo)
+   in (,dev,cpool) Linear.. VI.V @n @Vk.CommandBuffer Linear.<$> Linear.liftSystemIO (Vk.allocateCommandBuffers dev.device allocInfo)
 
-destroyCommandBuffers :: Linear.MonadIO m => VulkanDevice ⊸ Vk.CommandPool ⊸ V.V n Vk.CommandBuffer ⊸ m (VulkanDevice, Vk.CommandPool)
-destroyCommandBuffers = Unsafe.toLinear3 \dev pool (VI.V bufs) -> (dev,pool) Linear.<$ Linear.liftSystemIO (Vk.freeCommandBuffers dev._device pool bufs)
+destroyCommandBuffers :: forall n ctx m. Linear.MonadIO m => VulkanContext ctx ⊸ Vk.CommandPool ⊸ V.V n Vk.CommandBuffer ⊸ m (VulkanContext ctx, Vk.CommandPool)
+destroyCommandBuffers = Unsafe.toLinear3 \dev pool (VI.V bufs) -> (dev,pool) Linear.<$ Linear.liftSystemIO (Vk.freeCommandBuffers dev.device pool bufs)
+
 
 -- :| Images |: --
 
