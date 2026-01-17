@@ -251,7 +251,8 @@ library vulkan
                       -- which have vulkan abstractions shared between us and FIR.
                       FIR.Vulkan.Pipeline,
                       FIR.Vulkan.Formats,
-                      FIR.Vulkan.Memory
+                      FIR.Vulkan.Memory,
+                      FIR.Vulkan.Attachment
                       -- FIR.Vulkan.Resource
 
     hs-source-dirs:   ghengin-vulkan
