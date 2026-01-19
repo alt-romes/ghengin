@@ -106,6 +106,21 @@ runRenderer dimensions r = Linear.do
       }
     }
 
+  (Ur extent3D, vkContext) <- pure $
+    vkContextExtent3D vkContext
+
+  -- todo: check which depth attachment supported format is best
+  let depthFmt = Vk.FORMAT_D32_SFLOAT
+  -- > We only need a single image, even if we do double buffering in other
+  -- places. That's because the image is only ever accessed by the GPU and the
+  -- GPU can only ever write to a single depth image at a time.
+  (depthImage, vkContext) <-
+    createImage vkContext
+      (Default2DImageInfo extent3D depthFmt
+        Vk.IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT)
+      (WithViewInfo Vk.IMAGE_VIEW_TYPE_2D Vk.IMAGE_ASPECT_DEPTH_BIT)
+      Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- on GPU only
+
   (imsCtx, device) <- createImmediateSubmitCtx device
 
   -- (For now) we allocate just one command pool and one command buffer

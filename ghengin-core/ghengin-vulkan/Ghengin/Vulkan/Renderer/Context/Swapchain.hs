@@ -39,16 +39,6 @@ import Ghengin.Core.Prelude (withSized)
 import Ghengin.Core.Type.Utils (With(..))
 
 import GHC.TypeNats
-
--- TODO:, _depthImage    :: !VulkanImage
--- Ur swpchainImageViews  <- liftSystemIOU $ V.mapM (createImageView device._device surfaceFormat.format Vk.IMAGE_ASPECT_COLOR_BIT) swpchainImages
--- let depthFormat = Vk.FORMAT_D32_SFLOAT -- We could query for supported formats and choose the best
--- (depthImage, device') <- createImage device depthFormat
---    (Vk.Extent3D extent.width extent.height 1)
---    Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT
---    Vk.IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT
---    Vk.IMAGE_ASPECT_DEPTH_BIT
-
 --------------------------------------------------------------------------------
 data SwapchainInfo (n :: Nat)
   = SwapchainInfo

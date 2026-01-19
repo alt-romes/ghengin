@@ -7,6 +7,7 @@
 {-# LANGUAGE NamedFieldPuns        #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE OverloadedLists       #-}
+{-# LANGUAGE OverloadedRecordDot   #-}
 {-# LANGUAGE PolyKinds             #-}
 {-# LANGUAGE RankNTypes            #-}
 {-# LANGUAGE RecordWildCards       #-}
@@ -167,6 +168,26 @@ initialiseContext appName ( RenderInfo { queueType, surfaceInfo } ) = Linear.do
   ( queue, device ) <- getDeviceQueue device ( fromIntegral queueFamilyIndex ) 0
 
   pure VulkanContext {..}
+--------------------------------------------------------------------------------
+-- | Return the Extent3D of the vulkan context with the swapchain Extent2D and @depth = 1@.
+vkContextExtent :: VulkanContext WithSwapchain %1 -> (Ur Vulkan.Extent3D, VulkanContext WithSwapchain)
+vkContextExtent VulkanContext
+  { aSwapchainInfo = ASwapchainInfo SwapchainInfo
+      { swapchainExtent = Ur ext2D
+      , .. }
+  , .. } =
+  let extent3D :: Vulkan.Extent3D
+      extent3D
+        = Vulkan.Extent3D
+            { Vulkan.width  = ext2D.width
+            , Vulkan.height = ext2D.height
+            , Vulkan.depth  = 1
+            }
+  in (Ur extent3D, VulkanContext
+      { aSwapchainInfo = ASwapchainInfo SwapchainInfo
+          { swapchainExtent = Ur ext2D
+          , .. }
+      ,.. })
 --------------------------------------------------------------------------------
 assertSurfacePresentable
   :: Linear.MonadIO m

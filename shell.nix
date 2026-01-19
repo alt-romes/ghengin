@@ -5,7 +5,6 @@ mkShell ({
   packages = [
     haskell.compiler.ghc912
     haskell.packages.ghc912.cabal-install
-    stylish-haskell
     pkg-config
     zlib
     glfw
