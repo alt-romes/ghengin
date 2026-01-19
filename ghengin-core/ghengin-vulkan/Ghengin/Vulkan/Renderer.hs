@@ -109,7 +109,8 @@ runRenderer dimensions r = Linear.do
   (Ur extent3D, vkContext) <- pure $
     vkContextExtent3D vkContext
 
-  -- todo: check which depth attachment supported format is best
+  -- todo: check which depth attachment supported format is best,
+  -- see https://www.howtovulkan.com/#depth-attachment
   let depthFmt = Vk.FORMAT_D32_SFLOAT
   -- > We only need a single image, even if we do double buffering in other
   -- places. That's because the image is only ever accessed by the GPU and the
@@ -145,13 +146,10 @@ runRenderer dimensions r = Linear.do
   pure $ consumeUnits vunit
 
   device <- destroyCommandPool device commandPool'
-
   device <- destroyImmediateSubmitCtx device imsCtx
-  device <- destroySwapChain device swapchain
-  destroyVulkanDevice device
-  inst <- destroyVulkanWindow inst win
-  destroyInstance inst
 
+  vkContext <- destroyImage vkContext depthImage
+  destroyVulkanContext vkContext
   terminateGLFW glfwtoken
 
   liftSystemIO $ logger._log "[Done] Vulkan clean up\n"

@@ -12,6 +12,7 @@
 module FIR.Vulkan.Attachment where
 
 -- base
+import Prelude
 import Data.Word
   ( Word32 )
 

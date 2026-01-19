@@ -150,12 +150,12 @@ createImage = Unsafe.toLinear \vkContext ImageInfo{ .. } viewInfo reqs ->
         Ur.pure VulkanImage{image, devMem, imageView = ImageView imageView}
     Ur.pure (vkImage, vkContext { physicalDevice, device })
 
-destroyImage :: Linear.MonadIO m => Vk.Device ⊸ VulkanImage viewCtx ⊸ m Vk.Device
-destroyImage = Unsafe.toLinear2 $ \device VulkanImage{..} -> liftSystemIO $ do
-  Vk.destroyImage device image Nothing
-  Vk.freeMemory device devMem Nothing
+destroyImage :: Linear.MonadIO m => VulkanContext vkCtx ⊸ VulkanImage viewCtx ⊸ m (VulkanContext vkCtx)
+destroyImage = Unsafe.toLinear2 $ \ctx VulkanImage{..} -> liftSystemIO $ do
+  Vk.destroyImage ctx.device image Nothing
+  Vk.freeMemory ctx.device devMem Nothing
   case imageView of
     NoImageView -> Ur.pure ()
     ImageView vkImgView ->
-      Vk.destroyImageView device vkImgView Nothing
-  Ur.pure device
+      Vk.destroyImageView ctx.device vkImgView Nothing
+  Ur.pure ctx

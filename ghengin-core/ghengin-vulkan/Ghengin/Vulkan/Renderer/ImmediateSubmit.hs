@@ -23,12 +23,11 @@ import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Vulkan.Renderer.Command as Cmd
 import Ghengin.Vulkan.Renderer.Synchronization
 
-data ImmediateSubmitCtx = ImmediateSubmitCtx { _uploadFence   :: !Vk.Fence
-                                             , _commandPool   :: !Vk.CommandPool
-                                             , _commandBuffer :: !Vk.CommandBuffer
-                                             }
-
--- :| Immediate Submit |:
+data ImmediateSubmitCtx = ImmediateSubmitCtx
+  { uploadFence   :: !Vk.Fence
+  , commandPool   :: !Vk.CommandPool
+  , commandBuffer :: !Vk.CommandBuffer
+  }
 
 createImmediateSubmitCtx :: MonadIO m
                          => VulkanContext ctx
@@ -46,7 +45,6 @@ destroyImmediateSubmitCtx device0 (ImmediateSubmitCtx fence pool0 buffer) = Line
   (device2, pool1) <- destroyCommandBuffers device1 pool0 (V.make @1 buffer)
   device3 <- destroyCommandPool device2 pool1
   pure device3
-
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue

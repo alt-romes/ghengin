@@ -168,6 +168,20 @@ initialiseContext appName ( RenderInfo { queueType, surfaceInfo } ) = Linear.do
   ( queue, device ) <- getDeviceQueue device ( fromIntegral queueFamilyIndex ) 0
 
   pure VulkanContext {..}
+
+-- | Fully destroy a 'VulkanContext'
+destroyVulkanContext :: Linear.MonadIO m => VulkanContext WithSwapchain %1 -> m ()
+destroyVulkanContext = Unsafe.toLinear \VulkanContext{..} -> Linear.do
+  (vkInstance, device) <-
+    case aSwapchainInfo of
+      ASwapchainInfo swp_info ->
+        destroySwapchain vkInstance device swp_info
+  case window of
+    ContextWindow win ->
+      destroyWindow win
+  destroyDevice device
+  destroyInstance vkInstance
+
 --------------------------------------------------------------------------------
 -- | Return the Extent3D of the vulkan context with the swapchain Extent2D and @depth = 1@.
 vkContextExtent :: VulkanContext WithSwapchain %1 -> (Ur Vulkan.Extent3D, VulkanContext WithSwapchain)
