@@ -46,6 +46,8 @@ data SwapchainInfo (n :: Nat)
       , swapchainImages  :: VL.V n Vk.Image
         -- ^ These images are managed by the swapchain, and should never be
         -- freed directly. See 'destroySwapchain'.
+        -- Note: the N frames here do not necessarily match the number of
+        -- frames-in-flight.
       , swapchainSurface :: Vk.SurfaceKHR
       , swapchainExtent  :: Ur Vk.Extent2D
       , surfaceFormat    :: Ur Vk.SurfaceFormatKHR

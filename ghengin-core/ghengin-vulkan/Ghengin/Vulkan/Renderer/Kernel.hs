@@ -28,11 +28,15 @@ import qualified Unsafe.Linear as Unsafe
 
 type Alias = Alias.Alias Renderer
 
-data RendererEnv =
+data RendererEnv (n :: Nat {-^ Number of frames-in-flight -}) =
   REnv { vulkanContext    :: !(VulkanContext WithSwapchain)
+       , depthImage       :: !(VulkanImage WithView)
+       -- ^ We only need a single depth image, even if we do double buffering in other
+       -- places. That's because the depth image is only ever accessed by the GPU and
+       -- the GPU can only ever write to a single depth image at a time.
        , _commandPool     :: !Vk.CommandPool
-       , _frames          :: !(V.V 2 VulkanFrameData)
-       , _immediateSubmit :: !ImmediateSubmitCtx
+       , _frames          :: !(V.V n VulkanFrameData)
+       -- , _immediateSubmit :: !ImmediateSubmitCtx
        }
 data RendererReaderEnv
   = RREnv { _logger :: !Logger
@@ -41,8 +45,8 @@ data RendererReaderEnv
           , frameCounter :: !(IORef Int)
           -- ^ Frame counter
           }
-newtype Renderer a
-  = Renderer { unRenderer :: Linear.ReaderT (Ur RendererReaderEnv) (Linear.StateT RendererEnv System.IO.Linear.IO) a }
+newtype Renderer a = Renderer
+  { unRenderer :: Linear.ReaderT (Ur RendererReaderEnv) (Linear.StateT RendererEnv System.IO.Linear.IO) a }
 
 deriving instance Data.Linear.Functor Renderer
 deriving instance Data.Linear.Applicative Renderer
@@ -62,12 +66,6 @@ instance HasLogger Renderer where
   {-# INLINE getLogger #-}
   withLevelUp (Renderer (ReaderT r)) = Renderer $ ReaderT \(Ur RREnv{_logger=Logger l d,..}) -> r (Ur RREnv{_logger=Logger l (d+1),..})
   {-# INLINE withLevelUp #-}
-
-type MAX_FRAMES_IN_FLIGHT_T :: Nat
-type MAX_FRAMES_IN_FLIGHT_T = 2 -- We want to work on multiple frames but we don't want the CPU to get too far ahead of the GPU
-
--- pattern MAX_FRAMES_IN_FLIGHT :: Word32
--- pattern MAX_FRAMES_IN_FLIGHT = 2 
 
 -- | Make a renderer computation from a linear IO action that linearly uses a
 -- 'RendererEnv'

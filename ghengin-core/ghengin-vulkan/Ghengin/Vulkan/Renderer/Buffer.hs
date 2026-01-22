@@ -27,16 +27,12 @@ import Ghengin.Core.Mesh.Vertex
 
 import qualified Unsafe.Linear as Unsafe
 
--- Backpack craziness... importing things from the module we're instancing?
--- We might need to duplicate these definitions? If we do, does it work?
--- import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Buffer (Index32Buffer(..), VertexBuffer(..))
-
 -------- Specific buffers --------------
 
 -- inlined from ghengin-core
 data Index32Buffer where
   Index32Buffer :: !DeviceLocalBuffer
-                 ⊸ Word32                 -- ^ N indices
+                 ⊸ Word32 -- ^ N indices
                 -> Index32Buffer
 
 createIndex32Buffer :: SV.Vector Int32 -> Renderer Index32Buffer
@@ -46,7 +42,7 @@ createIndex32Buffer vv =
 
 data VertexBuffer where
   VertexBuffer :: !DeviceLocalBuffer
-                ⊸ Word32               -- ^ N vertices
+                ⊸ Word32 -- ^ N vertices
                -> VertexBuffer
 
 createVertexBuffer :: ∀ αs. Storable (Vertex αs) => SV.Vector (Vertex αs) -> Renderer VertexBuffer

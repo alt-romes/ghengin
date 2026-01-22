@@ -112,9 +112,6 @@ runRenderer dimensions r = Linear.do
   -- todo: check which depth attachment supported format is best,
   -- see https://www.howtovulkan.com/#depth-attachment
   let depthFmt = Vk.FORMAT_D32_SFLOAT
-  -- > We only need a single image, even if we do double buffering in other
-  -- places. That's because the image is only ever accessed by the GPU and the
-  -- GPU can only ever write to a single depth image at a time.
   (depthImage, vkContext) <-
     createImage vkContext
       (Default2DImageInfo extent3D depthFmt
@@ -122,7 +119,7 @@ runRenderer dimensions r = Linear.do
       (WithViewInfo Vk.IMAGE_VIEW_TYPE_2D Vk.IMAGE_ASPECT_DEPTH_BIT)
       Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- on GPU only
 
-  (imsCtx, device) <- createImmediateSubmitCtx device
+  -- (imsCtx, vkContext) <- createImmediateSubmitCtx vkContext
 
   -- (For now) we allocate just one command pool and one command buffer
   (commandPool, device) <- createCommandPool device
@@ -130,8 +127,8 @@ runRenderer dimensions r = Linear.do
 
   (frames, device) <- runStateT (Data.Linear.mapM (StateT . initVulkanFrameData) cmdBuffers) device
 
-  -- (Ur logger,cleanupLogger)  <- newLogger (LogFileNoRotate "log.ghengin.log" defaultBufSize)
-  (Ur logger,cleanupLogger)  <- newLogger (LogStdout defaultBufSize)
+  (Ur logger, cleanupLogger) <-
+    newLogger (LogStdout defaultBufSize) -- or (LogFileNoRotate "log.ghengin.log" defaultBufSize)
 
   -- Run renderer
   ---------------

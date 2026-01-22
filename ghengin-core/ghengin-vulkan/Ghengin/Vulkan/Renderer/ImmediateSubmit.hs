@@ -32,19 +32,18 @@ data ImmediateSubmitCtx = ImmediateSubmitCtx
 createImmediateSubmitCtx :: MonadIO m
                          => VulkanContext ctx
                           ⊸ m (ImmediateSubmitCtx, VulkanContext ctx)
-createImmediateSubmitCtx device0 = Linear.do
-  (fence, device1) <- createFence device0 False
-  (cpool0, device2) <- createCommandPool device1
-  (bs, device3, cpool1) <- createCommandBuffers @1 device2 cpool0
+createImmediateSubmitCtx ctx = Linear.do
+  (fence, ctx) <- createFence ctx False
+  (cpool0, ctx) <- createCommandPool ctx
+  (bs, device3, cpool1) <- createCommandBuffers @1 ctx cpool0
   let elim' :: (Vk.CommandBuffer ⊸ ImmediateSubmitCtx) ⊸ V.V 1 Vk.CommandBuffer ⊸ ImmediateSubmitCtx = V.elim @1
   pure (elim' (\b -> ImmediateSubmitCtx fence cpool1 b) bs, device3)
 
 destroyImmediateSubmitCtx :: MonadIO m => VulkanContext ctx ⊸ ImmediateSubmitCtx ⊸ m (VulkanContext ctx)
-destroyImmediateSubmitCtx device0 (ImmediateSubmitCtx fence pool0 buffer) = Linear.do
-  device1 <- destroyFence device0 fence
-  (device2, pool1) <- destroyCommandBuffers device1 pool0 (V.make @1 buffer)
-  device3 <- destroyCommandPool device2 pool1
-  pure device3
+destroyImmediateSubmitCtx ctx (ImmediateSubmitCtx fence pool0 buffer) = Linear.do
+  ctx <- destroyFence ctx fence
+  (ctx, pool1) <- destroyCommandBuffers ctx pool0 (V.make @1 buffer)
+  destroyCommandPool ctx pool1
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
@@ -54,7 +53,7 @@ immediateSubmit' :: MonadIO m
                  ⊸ CommandM m a
                  ⊸ m ((VulkanContext ctx, ImmediateSubmitCtx), a)
 -- Submit a command on a newly created buffer to the Graphics Queue
-immediateSubmit' device (ImmediateSubmitCtx fence pool buffer) cmd = Linear.do
+immediateSubmit' ctx0 (ImmediateSubmitCtx fence pool buffer) cmd = Linear.do
 
   (buffer', x) <- Cmd.recordCommandOneShot buffer cmd
 
@@ -67,7 +66,7 @@ immediateSubmit' device (ImmediateSubmitCtx fence pool buffer) cmd = Linear.do
 
     Vk.resetCommandPool ctx.device pool' Vk.zero
 
-    Prelude.pure (ctx, ImmediateSubmitCtx fence' pool' buffer'')) device fence pool buffer'
+    Prelude.pure (ctx, ImmediateSubmitCtx fence' pool' buffer'')) ctx0 fence pool buffer'
 
   pure (r, x)
 
