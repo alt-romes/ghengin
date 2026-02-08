@@ -2,6 +2,7 @@
    OverloadedRecordDot, BlockArguments #-}
 module Ghengin.Vulkan.Renderer.Kernel where
 
+import Data.Kind
 import GHC.TypeNats
 import qualified Prelude as Unrestricted
 import Prelude.Linear
@@ -28,16 +29,28 @@ import qualified Unsafe.Linear as Unsafe
 
 type Alias = Alias.Alias Renderer
 
-data RendererEnv = -- (n :: Nat {-^ Number of frames-in-flight -}) =
-  REnv { vulkanContext    :: !(VulkanContext WithSwapchain)
-       , depthImage       :: !(VulkanImage WithView)
-       -- ^ We only need a single depth image, even if we do double buffering in other
-       -- places. That's because the depth image is only ever accessed by the GPU and
-       -- the GPU can only ever write to a single depth image at a time.
-       -- , _commandPool     :: !Vk.CommandPool
-       -- , _frames          :: forall n. (V.V n VulkanFrameData)
-       -- , _immediateSubmit :: !ImmediateSubmitCtx
-       }
+type RendererEnv :: Nat {-^ Number of frames-in-flight -} -> Type
+data RendererEnv (n :: Nat) =
+  forall (swpcImgs :: Nat {- number of swapchain images -})
+  . KnownNat swpcImgs => RendererEnv
+    { vkContext         :: !(VulkanContext WithSwapchain)
+
+    -- | We only need a single depth image, even if we do double buffering in other
+    -- places. That's because the depth image is only ever accessed by the GPU and
+    -- the GPU can only ever write to a single depth image at a time.
+    , depthImage        :: !(VulkanImage WithView)
+
+    -- Synchronization
+    , fences            :: !(V.V n Vk.Fence)
+    , presentSemaphores :: !(V.V n Vk.Semaphore)
+    , renderSemaphores  :: !(V.V swpcImgs Vk.Semaphore)
+
+    -- Command buffers
+    , commandPool       :: !Vk.CommandPool
+    , commandBuffers    :: !(V.V n Vk.CommandBuffer)
+
+    -- , immediateSubmit :: !ImmediateSubmitCtx
+    }
 data RendererReaderEnv
   = RREnv { _logger :: !Logger
           -- ^ Logger and its cleanup action worry about performance later,
@@ -45,8 +58,12 @@ data RendererReaderEnv
           , frameCounter :: !(IORef Int)
           -- ^ Frame counter
           }
+
+type FramesInFlight :: Nat
+type FramesInFlight = 2
+
 newtype Renderer a = Renderer
-  { unRenderer :: Linear.ReaderT (Ur RendererReaderEnv) (Linear.StateT RendererEnv System.IO.Linear.IO) a }
+  { unRenderer :: Linear.ReaderT (Ur RendererReaderEnv) (Linear.StateT (RendererEnv FramesInFlight) System.IO.Linear.IO) a }
 
 deriving instance Data.Linear.Functor Renderer
 deriving instance Data.Linear.Applicative Renderer
@@ -69,20 +86,21 @@ instance HasLogger Renderer where
 
 -- | Make a renderer computation from a linear IO action that linearly uses a
 -- 'RendererEnv'
-renderer :: (RendererEnv %1 -> System.IO.Linear.IO (a, RendererEnv)) %1 -> Renderer a
+renderer :: (RendererEnv FramesInFlight %1 -> System.IO.Linear.IO (a, RendererEnv FramesInFlight)) %1 -> Renderer a
 renderer f = Renderer $ ReaderT \(Ur _) -> StateT f
 
-runRenderer' :: Logger -> RendererEnv ⊸ Renderer a ⊸ System.IO.Linear.IO (a, RendererEnv)
+runRenderer' :: Logger -> RendererEnv FramesInFlight ⊸ Renderer a ⊸ System.IO.Linear.IO (a, RendererEnv FramesInFlight)
 runRenderer' l renv (Renderer rend) = Linear.do
   Ur r <- liftSystemIOU (newIORef 0)
   runStateT (runReaderT rend (Ur (RREnv l r))) renv
 
 withVulkanContext :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (a, VulkanContext WithSwapchain)) %1 -> Renderer a
-withVulkanContext f = renderer $ \(REnv{..}) -> f vulkanContext >>= \case
-  (a, d') -> pure (a, REnv{vulkanContext=d',..})
+withVulkanContext f = renderer $ \(RendererEnv{..}) -> f vkContext >>= \case
+  (a, d') -> pure (a, RendererEnv{vkContext=d',..})
 
+-- todo: use linear optics.
 withDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
-withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv.vulkanContext.device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
+withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv.vkContext.device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
 
 -- | Unsafely run a Vulkan action on a linear MonadIO that requires a
 -- Vulkan.Device reference as a linear action on 'Renderer'.
@@ -91,26 +109,26 @@ withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv.vulkanContext.devic
 --
 -- Note, this is quite unsafe really, but makes usage of non-linear vulkan much easier
 unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b) -> Renderer b
-unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
-  b <- liftSystemIO $ f (vulkanContext.device)
+unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
+  b <- liftSystemIO $ f (vkContext.device)
   pure $ (b, renv)
 
 unsafeWithVulkanContext :: (VulkanContext WithSwapchain -> Unrestricted.IO b) -> Renderer b
-unsafeWithVulkanContext f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
-  b <- liftSystemIO $ f vulkanContext
+unsafeWithVulkanContext f = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
+  b <- liftSystemIO $ f vkContext
   pure $ (b, renv)
 
 unsafeGetDevice :: Renderer (Ur Vk.Device)
-unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv.vulkanContext.device, renv)
+unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv.vkContext.device, renv)
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
 immediateSubmit :: CommandM System.IO.Linear.IO a ⊸ Renderer a
-immediateSubmit cmd = renderer $ \(REnv{..}) -> Linear.do
+immediateSubmit cmd = renderer $ \(RendererEnv{..}) -> Linear.do
   undefined cmd
-  pure (undefined, REnv{..})
-  -- ((dev', imsctx'), x) <- immediateSubmit' vulkanContext _immediateSubmit cmd
-  -- pure (x, REnv{vulkanContext=dev',_immediateSubmit=imsctx',..})
+  pure (undefined, RendererEnv{..})
+  -- ((dev', imsctx'), x) <- immediateSubmit' vkContext _immediateSubmit cmd
+  -- pure (x, RendererEnv{vkContext=dev',_immediateSubmit=imsctx',..})
 
 -- | Run a one-shot command that copies the whole data between two buffers.
 -- Returns the two buffers, in the order they were passed to the function
@@ -122,18 +140,18 @@ copyBuffer src dst size = Linear.do
 -- | Get the extent of the images in the swapchain?
 getRenderExtent :: Renderer (Ur Vk.Extent2D)
 getRenderExtent = renderer $ Unsafe.toLinear $ \renv ->
-  case renv.vulkanContext.aSwapchainInfo of
+  case renv.vkContext.aSwapchainInfo of
     ASwapchainInfo si -> pure (si.swapchainExtent, renv)
 
 -- | Clears all images in the swapchain to the given color
 clearRenderImages :: Float -> Float -> Float -> Float -> Renderer ()
 clearRenderImages r g b a = Linear.do
-  Ur imgs <- renderer $ Unsafe.toLinear $ \(REnv{..}) -> Linear.do
+  Ur imgs <- renderer $ Unsafe.toLinear $ \(RendererEnv{..}) -> Linear.do
     Ur (_, imgs) <- liftSystemIOU $ do
-      case vulkanContext.aSwapchainInfo of
+      case vkContext.aSwapchainInfo of
         ASwapchainInfo si ->
-          Vk.getSwapchainImagesKHR vulkanContext.device si.swapchain
-    pure (Ur imgs, REnv{..})
+          Vk.getSwapchainImagesKHR vkContext.device si.swapchain
+    pure (Ur imgs, RendererEnv{..})
 
   immediateSubmit $ consume <$> (Data.Linear.forM (Vector.toList imgs) (Unsafe.toLinear \img -> clearColorImage img r g b a))
 

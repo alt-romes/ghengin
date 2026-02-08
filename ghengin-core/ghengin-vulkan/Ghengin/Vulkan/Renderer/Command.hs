@@ -454,12 +454,12 @@ bindIndex32Buffer :: Linear.MonadIO m
 bindIndex32Buffer ibuffer offset = unsafeRenderCmd ibuffer (\buf ibuf -> Vk.cmdBindIndexBuffer buf ibuf offset Vk.INDEX_TYPE_UINT32)
 {-# INLINE bindIndex32Buffer #-}
 
-draw :: Linear.MonadIO m => Word32 -> RenderCmd m
-draw vertexCount = unsafeRenderCmd_ (\buf -> Vk.cmdDraw buf vertexCount 1 0 0)
+draw :: Linear.MonadIO m => Word32 -> Word32 -> RenderCmd m
+draw vertexCount instanceCount = unsafeRenderCmd_ (\buf -> Vk.cmdDraw buf vertexCount instanceCount 0 0)
 {-# INLINE draw #-}
 
-drawIndexed :: Linear.MonadIO m => Word32 -> RenderCmd m
-drawIndexed ixCount = unsafeRenderCmd_ $ \buf -> Vk.cmdDrawIndexed buf ixCount 1 0 0 0
+drawIndexed :: Linear.MonadIO m => Word32 -> Word32 -> RenderCmd m
+drawIndexed ixCount instanceCount = unsafeRenderCmd_ $ \buf -> Vk.cmdDrawIndexed buf ixCount instanceCount 0 0 0
 {-# INLINE drawIndexed #-}
 
 -- | Draw primitives with indirect parameters from a buffer
@@ -591,10 +591,9 @@ bindGraphicsDescriptorSet' pipelay ix dset =
 -- | Creates a command pool for the graphics queue family
 createCommandPool :: forall ctx m. Linear.MonadIO m => VulkanContext ctx ⊸ m (Vk.CommandPool, VulkanContext ctx)
 createCommandPool = Unsafe.toLinear $ \vkCtx ->
-  let
-    poolInfo = Vk.CommandPoolCreateInfo { flags = Vk.COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
-                                        , queueFamilyIndex = fromIntegral vkCtx.queueFamilyIndex
-                                        }
+  let poolInfo = Vk.CommandPoolCreateInfo
+        { flags = Vk.COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT
+        , queueFamilyIndex = fromIntegral vkCtx.queueFamilyIndex }
    in (,vkCtx) Linear.<$> (Linear.liftSystemIO $ Vk.createCommandPool vkCtx.device poolInfo Nothing)
 
 
@@ -604,12 +603,12 @@ destroyCommandPool = Unsafe.toLinear2 $ \dev pool -> dev Linear.<$ Linear.liftSy
 
 createCommandBuffers :: forall n ctx m. (KnownNat n, Linear.MonadIO m) => VulkanContext ctx ⊸ Vk.CommandPool ⊸ m (V.V n Vk.CommandBuffer, VulkanContext ctx, Vk.CommandPool)
 createCommandBuffers = Unsafe.toLinear2 \dev cpool ->
-  let
-    allocInfo = Vk.CommandBufferAllocateInfo { commandPool = cpool
-                                             , level = Vk.COMMAND_BUFFER_LEVEL_PRIMARY
-                                             , commandBufferCount = w32 @n
-                                             }
-   in (,dev,cpool) Linear.. VI.V @n @Vk.CommandBuffer Linear.<$> Linear.liftSystemIO (Vk.allocateCommandBuffers dev.device allocInfo)
+  let allocInfo = Vk.CommandBufferAllocateInfo
+        { commandPool = cpool
+        , level = Vk.COMMAND_BUFFER_LEVEL_PRIMARY
+        , commandBufferCount = w32 @n }
+   in (,dev,cpool) Linear.. VI.V @n @Vk.CommandBuffer Linear.<$>
+    Linear.liftSystemIO (Vk.allocateCommandBuffers dev.device allocInfo)
 
 destroyCommandBuffers :: forall n ctx m. Linear.MonadIO m => VulkanContext ctx ⊸ Vk.CommandPool ⊸ V.V n Vk.CommandBuffer ⊸ m (VulkanContext ctx, Vk.CommandPool)
 destroyCommandBuffers = Unsafe.toLinear3 \dev pool (VI.V bufs) -> (dev,pool) Linear.<$ Linear.liftSystemIO (Vk.freeCommandBuffers dev.device pool bufs)
@@ -700,7 +699,7 @@ drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderCmdM m VertexBuff
 drawVertexBuffer (VertexBuffer (DeviceLocalBuffer buf mem) nverts) = Linear.do
   let offsets = V.make 0
   buffers' <- bindVertexBuffers 0 (V.make buf :: V.V 1 Vk.Buffer) offsets
-  draw nverts
+  draw nverts 1
   pure (VertexBuffer (DeviceLocalBuffer (V.elim (\x -> x) buffers') mem) nverts)
 
 drawVertexBufferIndexed :: Linear.MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderCmdM m (VertexBuffer, Index32Buffer)
@@ -708,7 +707,7 @@ drawVertexBufferIndexed (VertexBuffer (DeviceLocalBuffer vbuf mem) nverts) (Inde
   let offsets = V.make 0
   buffers' <- bindVertexBuffers 0 (V.make vbuf) offsets
   ibuf'    <- bindIndex32Buffer ibuf 0
-  drawIndexed nixs
+  drawIndexed nixs 1
   pure ( VertexBuffer (DeviceLocalBuffer (V.elim (\x -> x) buffers') mem) nverts
        , Index32Buffer (DeviceLocalBuffer ibuf' imem) nixs
        )

@@ -74,9 +74,6 @@ import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Kernel
 import qualified System.IO.Linear as Linear
 
-type FramesInFlight :: Nat
-type FramesInFlight = 2
-
 runRenderer :: (Int, Int)
             -- ^ Dimensions of the window to render on (width, height)
             -> Renderer a ⊸ Linear.IO a
@@ -148,36 +145,31 @@ runRenderer dimensions r = Linear.do
             return (SomeV semsv, ctx)
       withSwapchainInfo aSwapchainInfo mkRenderSemaphores
 
+  (commandPool, vkContext) <- createCommandPool vkContext
+  (commandBuffers, vkContext, commandPool) <- createCommandBuffers @FramesInFlight vkContext commandPool
+
   -- (imsCtx, vkContext) <- createImmediateSubmitCtx vkContext
 
-  -- (For now) we allocate just one command pool and one command buffer
-  -- (commandPool, device) <- createCommandPool device
-  -- (cmdBuffers, device, commandPool) <- createCommandBuffers @MAX_FRAMES_IN_FLIGHT_T device commandPool
-
-  -- (frames, device) <- runStateT (Data.Linear.mapM (StateT . initVulkanFrameData) cmdBuffers) device
-
-  -- (Ur logger, cleanupLogger) <-
-  --   newLogger (LogStdout defaultBufSize) -- or (LogFileNoRotate "log.ghengin.log" defaultBufSize)
+  (Ur logger, cleanupLogger) <-
+    newLogger (LogStdout defaultBufSize) -- or (LogFileNoRotate "log.ghengin.log" defaultBufSize)
 
   -- Run renderer
   ---------------
-  (a, _) -- REnv inst device win swapchain commandPool' frames' imsCtx)
-    <- runRenderer' undefined undefined r -- logger (REnv inst device win swapchain commandPool frames imsCtx) r
+  (a, RendererEnv{..}) <- runRenderer' logger RendererEnv{..} r
 
   -- Terminate
   ------------
-  -- liftSystemIO $ logger._log "[Start] Vulkan clean up\n"
 
-  -- (vunit, device) <- runStateT (Data.Linear.mapM (\f -> StateT (fmap ((),) . destroyVulkanFrameData f)) frames') device
-  -- pure $ consumeUnits vunit
-
-  -- device <- destroyCommandPool device commandPool'
   -- device <- destroyImmediateSubmitCtx device imsCtx
 
   let destroyVs :: V n s %1
-                -> (VulkanContext c %1 -> s %1 -> m (VulkanContext c))
-                -> StateT (VulkanContext c) m ()
+                -> (res %1 -> s %1 -> m res)
+                -> StateT res m ()
       destroyVs v k = consume <$> Data.forM v (\x -> StateT $ \c' -> ((),) <$> k c' x)
+
+  (vkContext, commandPool) <- destroyCommandBuffers vkContext commandPool commandBuffers
+
+  vkContext <- destroyCommandPool vkContext commandPool
 
   ((), vkContext) <- withResource vkContext $ Linear.do
     destroyVs fences destroyFence
@@ -188,9 +180,7 @@ runRenderer dimensions r = Linear.do
   destroyVulkanContext vkContext
   terminateGLFW glfwtoken
 
-  -- liftSystemIO $ logger._log "[Done] Vulkan clean up\n"
-
-  -- cleanupLogger
+  cleanupLogger
 
   pure a
 
@@ -301,7 +291,7 @@ presentPresentQueue = Unsafe.toLinear \sem imageIndex -> Linear.do
   pure sem
 
 shouldCloseWindow :: Renderer (Ur Bool)
-shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
   b <- liftSystemIOU (GLFW.windowShouldClose undefined) --_vulkanWindow._window)
   pure $ (b, renv)
 
@@ -309,13 +299,13 @@ pollWindowEvents :: Renderer ()
 pollWindowEvents = liftSystemIO $ GLFW.pollEvents
 
 withWindow :: (GLFW.Window ⊸ Linear.IO GLFW.Window) -> Renderer ()
-withWindow f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+withWindow f = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
   undefined
   -- w' <- f (_vulkanWindow._window)
   -- pure ((), renv{_vulkanWindow = renv._vulkanWindow{_window = w'}})
 
 getMousePos :: Renderer (Ur (Double, Double))
-getMousePos = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
+getMousePos = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
   p <- liftSystemIOU (GLFW.getCursorPos undefined)--_vulkanWindow._window)
   pure (p, renv)
 

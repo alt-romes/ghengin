@@ -23,8 +23,8 @@ import qualified System.IO
 #endif
 
 data Logger
-  = Logger { _log :: FastLogger
-           , _depth :: Int }
+  = Logger { log :: FastLogger
+           , depth :: Int }
 
 class MonadIO m => HasLogger m where
   -- | Get a logger. Don't forget to add an inline pragma!
@@ -45,31 +45,30 @@ newLogger logt = G.do
   pure (Ur (Logger logger 0), clean)
 
 -- | Unconditionally log a message to the default logger
-log, logInfo :: (ToLogStr msg, HasLogger m) => msg -> m ()
+logI, logInfo :: (ToLogStr msg, HasLogger m) => msg -> m ()
 logDebug, logD :: HasLogger m => LogStr -> m ()
-{-# INLINE log #-}
 {-# INLINE logInfo #-}
 {-# INLINE logDebug #-}
 {-# INLINE logD #-}
-log msg = getLogger >>= \(Ur logger) -> G.do
+logI msg = getLogger >>= \(Ur logger) -> G.do
   let -- Log with preceeding unicode symbols
-      leading_syms = Prelude.take (logger._depth*2) (Prelude.cycle ['│',' '])
+      leading_syms = Prelude.take (logger.depth*2) (Prelude.cycle ['│',' '])
       full_msg = toLogStr leading_syms <> toLogStr msg <> toLogStr "\n"
   liftSystemIO $
 #ifndef THINGS_ARE_GOING_THAT_BAD
-    logger._log full_msg
+    logger.log full_msg
 #else
     do BS.putStr (fromLogStr full_msg); !_ <- System.IO.hFlush System.IO.stdout; Prelude.return ()
 #endif
 
 -- | Log if debug level (@-DDEBUG@) is set
 #ifdef DEBUG
-logDebug = log
+logDebug = logI
 #else
 logDebug = const (pure ())
 #endif
 
-logInfo = log
+logInfo = logI
 logD = logDebug
 
 -- | Log and increase logging depth until action is left if debug level
@@ -78,9 +77,9 @@ enterD :: HasLogger m => LogStr -> m a ⊸ m a
 {-# INLINE enterD #-}
 #ifdef DEBUG
 enterD msg ma = G.do
-  () <- log (toLogStr "Entering: " <> msg)
+  () <- logD (toLogStr "Entering: " <> msg)
   !a <- withLevelUp ma
-  () <- log "Done."
+  () <- logD (toLogStr "Done.")
   pure a
 #else
 enterD _ x = x
@@ -92,9 +91,9 @@ enterDA :: HasLogger m => Show b => LogStr -> b -> m a ⊸ m a
 {-# INLINE enterDA #-}
 #ifdef DEBUG
 enterDA msg arg ma = G.do
-  () <- log (toLogStr "Entering: " <> msg <> toLogStr ("(" <> show arg <> ")"))
+  () <- logD (toLogStr "Entering: " <> msg <> toLogStr ("(" <> show arg <> ")"))
   !a <- withLevelUp ma
-  () <- log "Done."
+  () <- logD (toLogStr "Done.")
   pure a
 #else
 enterDA _ _ x = x
@@ -104,7 +103,7 @@ enterDA _ _ x = x
 logT :: HasLogger m => LogStr -> m ()
 {-# INLINE logT #-}
 #ifdef DEBUG_TRACE
-logT = log
+logT = logI
 #else
 logT = const (pure ())
 #endif
