@@ -8,7 +8,6 @@ import qualified Data.Linear.Alias as Alias
 import Ghengin.Core.Renderer.Pipeline
 import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.DescriptorSet
-import Ghengin.Core.Renderer.RenderPass
 
 import qualified Control.Functor.Linear as Linear
 import qualified Control.Monad.IO.Class.Linear as Linear

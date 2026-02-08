@@ -101,7 +101,6 @@ library
                       Ghengin.Core.Renderer.DescriptorSet,
                       Ghengin.Core.Renderer.Buffer,
                       Ghengin.Core.Renderer.Pipeline,
-                      Ghengin.Core.Renderer.RenderPass,
                       Ghengin.Core.Renderer.Texture,
                       Ghengin.Core.Renderer.Sampler,
                       Ghengin.Core.Renderer.Command
@@ -204,6 +203,7 @@ library backend-independent-bits
                       constraints,
                       ptrdiff,
                       generics-sop,
+                      finite-typelits,
 
                       -- CompatiblePixel
                       JuicyPixels,
@@ -223,7 +223,6 @@ library vulkan
                       Ghengin.Vulkan.Renderer.DescriptorSet,
                       Ghengin.Vulkan.Renderer.Buffer,
                       Ghengin.Vulkan.Renderer.Pipeline,
-                      Ghengin.Vulkan.Renderer.RenderPass,
                       Ghengin.Vulkan.Renderer.Texture,
 
                       Ghengin.Vulkan.Renderer,
@@ -267,6 +266,7 @@ library vulkan
                       ghengin-core:backend-independent-bits,
                       gl-block,
                       temporary,
+                      finite-typelits,
 
                       -- For textures
                       JuicyPixels,
@@ -285,6 +285,5 @@ library vulkan
     --                                                 , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
     --                                                 , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
     --                                                 , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
-    --                                                 , Ghengin.Core.Renderer.RenderPass as Ghengin.Vulkan.Renderer.RenderPass
     --                                                 )
 

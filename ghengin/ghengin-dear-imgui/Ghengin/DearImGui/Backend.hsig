@@ -17,12 +17,11 @@ import DearImGui -- for re-exporting im UI
 
 import Ghengin.Core.Renderer.Command
 import Ghengin.Core.Renderer.Kernel
-import Ghengin.Core.Renderer.RenderPass
 
 data ImCtx
 
 -- | Init ImGui (for some renderpass?)
-initImGui :: RenderPass %1 -> Renderer (RenderPass, ImCtx)
+initImGui :: Renderer ImCtx
 
 -- | Shutdown ImGui
 destroyImCtx :: ImCtx ⊸ Renderer ()

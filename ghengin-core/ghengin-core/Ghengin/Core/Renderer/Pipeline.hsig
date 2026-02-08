@@ -8,7 +8,6 @@ import Ghengin.Core.Shader.Pipeline
 
 -- other renderer details
 import Ghengin.Core.Renderer.Kernel
-import Ghengin.Core.Renderer.RenderPass
 import Ghengin.Core.Renderer.DescriptorSet
 
 data RendererPipeline (t :: PipelineType)
@@ -39,8 +38,7 @@ createGraphicsPipeline  :: ∀
                         => GraphicsPipelineSettings
                         -> ShaderPipeline info
                         -> DescriptorPool
-                         ⊸ RenderPass
-                         ⊸ Renderer (RenderPass, (RendererPipeline Graphics, DescriptorPool))
+                         ⊸ Renderer (RendererPipeline Graphics, DescriptorPool)
 
 destroyPipeline :: RendererPipeline a ⊸ Renderer ()
 

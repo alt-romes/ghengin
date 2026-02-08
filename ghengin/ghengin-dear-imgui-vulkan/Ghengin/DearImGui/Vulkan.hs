@@ -36,13 +36,12 @@ import Ghengin.Vulkan.Renderer.GLFW.Window
 import Ghengin.Vulkan.Renderer.Context.Swapchain
 import Ghengin.Vulkan.Renderer.Context.Device
 import Ghengin.Vulkan.Renderer.Kernel
-import Ghengin.Vulkan.Renderer.RenderPass
 
 data ImCtx = IMCtx Vk.DescriptorPool IM.Context (FunPtr (Vk.Result -> IO ()), Bool)
 
 -- | Init ImGui (for some renderpass?)
-initImGui :: RenderPass %1 -> Renderer (RenderPass, ImCtx)
-initImGui = Unsafe.toLinear \rp -> Linear.do -- rp is only used for the initialization
+initImGui :: Renderer (ImCtx)
+initImGui = Linear.do -- rp is only used for the initialization
   -- Quite big descriptors but is taken from example
   let poolSizes = [ Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_SAMPLER 1000
                   , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER 1000
@@ -85,7 +84,7 @@ initImGui = Unsafe.toLinear \rp -> Linear.do -- rp is only used for the initiali
                              , msaaSamples = Vk.SAMPLE_COUNT_1_BIT
                              , mbAllocator = Nothing
                              , checkResult = \x -> Base.when (x Prelude./= Vk.SUCCESS) (Base.fail $ show x)
-                             , rendering = Left rp._renderPass
+                             , rendering = Right _
                              }
   
   initRes <- liftSystemIO $ IM.vulkanInit initInfo
@@ -136,8 +135,8 @@ withNewFrame do_it = Linear.do
 -- | This needs to be called as part of a custom render pass to draw the data
 -- prepared by 'imguiRender'. See 'Ghengin.Core.renderWith'. An example usage
 -- is in @examples/dear-imgui@.
-renderDrawData :: MonadIO m => RenderPassCmd m
-renderDrawData = unsafeRenderPassCmd_ $ \b -> do
+renderDrawData :: MonadIO m => RenderCmd m
+renderDrawData = unsafeRenderCmd_ $ \b -> do
   dd <- IM.getDrawData
   IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
 

@@ -34,6 +34,7 @@ import qualified Unsafe.Linear as Unsafe
 import Ghengin.Core.Prelude as Linear
 import qualified Data.Functor.Linear as Data
 
+import Data.Finite
 import Data.IORef
 import Data.Bits
 import Data.Word
@@ -201,8 +202,6 @@ runRenderer dimensions r = Linear.do
 -- image has been presented yet
 --
 -- N is 'MAX_FRAMES_IN_FLIGHT'
---
--- TODO: Figure out mismatch between current image index and current image frame.
 withCurrentFramePresent :: ( Vk.CommandBuffer
                               ⊸ Int -- ^ Current image index
                              -> Renderer (a, Vk.CommandBuffer)
@@ -210,15 +209,9 @@ withCurrentFramePresent :: ( Vk.CommandBuffer
                          ⊸ Renderer a
 withCurrentFramePresent action = Linear.do
 
-  Ur frameCountRef <- Renderer $ asks (\(Ur env) -> Ur (env.frameCounter))
-  Ur frameCount <- liftSystemIOU (Data.IORef.readIORef frameCountRef)
-  liftSystemIO $ modifyIORef' frameCountRef (Prelude.+ 1)
-
-  -- This could in principle overflow... For now, good enough. It's
-  -- unlikely the frame count overflows with only 60 frames per second.
-  -- The game would have to run for years to overflow a 64 bit integer
-  -- let currentFrameIndex = frameCount `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
-
+  Ur frameIndexRef <- Renderer $ asks (\(Ur env) -> Ur env.frameIndexRef)
+  Ur frameIndex    <- liftSystemIOU (Data.IORef.readIORef frameIndexRef)
+  liftSystemIO $ modifyIORef' frameIndexRef (Prelude.+ 1)
 
   Ur unsafeCurrentFrame <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)
   -- These are all unsafe too

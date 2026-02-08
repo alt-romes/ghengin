@@ -39,8 +39,7 @@ data GhenginReader = GhenginReader
   }
 
 data RenderState = RenderState
-  { renderPass :: !(Alias RenderPass)
-  , renderQueue :: !(RenderQueue ())
+  { renderQueue :: !(RenderQueue ())
   -- ^ Evolve this, as necessary, into a cooler better render graph.
   }
 
@@ -53,10 +52,6 @@ runGhengin :: GhenginConf -> Ghengin a -> IO a
 runGhengin conf@GhenginConf{..} (Ghengin act) =
   Linear.withLinearIO $
     runRenderer (frameWidth, frameHeight) $ Linear.do
-
-      -- Figure out how to (and why) we can have more than a single default
-      -- render pass
-      rp <- createSimpleRenderPass
 
       -- Init imgui
       (rp, mimctx) <-

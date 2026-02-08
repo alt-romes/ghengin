@@ -6,7 +6,6 @@ import Data.Kind
 import GHC.TypeNats
 import qualified Prelude as Unrestricted
 import Prelude.Linear
-import Data.IORef
 import qualified Prelude
 import qualified System.IO.Linear
 import qualified Data.Functor.Linear as Data.Linear
@@ -26,6 +25,8 @@ import Ghengin.Core.Log
 
 import qualified Data.Linear.Alias as Alias
 import qualified Unsafe.Linear as Unsafe
+import Data.Finite
+import Data.Data
 
 type Alias = Alias.Alias Renderer
 
@@ -51,19 +52,19 @@ data RendererEnv (n :: Nat) =
 
     -- , immediateSubmit :: !ImmediateSubmitCtx
     }
-data RendererReaderEnv
-  = RREnv { _logger :: !Logger
-          -- ^ Logger and its cleanup action worry about performance later,
-          -- correctness first
-          , frameCounter :: !(IORef Int)
-          -- ^ Frame counter
-          }
+
+type RendererUrEnv :: Nat {-^ Number of frames-in-flight -} -> Type
+data RendererUrEnv (n :: Nat) where
+  RendererUrEnv ::
+    { logger     :: !Logger
+    , frameIndex :: !(Finite n)
+    } -> RendererUrEnv n
 
 type FramesInFlight :: Nat
 type FramesInFlight = 2
 
 newtype Renderer a = Renderer
-  { unRenderer :: Linear.ReaderT (Ur RendererReaderEnv) (Linear.StateT (RendererEnv FramesInFlight) System.IO.Linear.IO) a }
+  { unRenderer :: Linear.ReaderT (Ur (RendererUrEnv FramesInFlight)) (Linear.StateT (RendererEnv FramesInFlight) System.IO.Linear.IO) a }
 
 deriving instance Data.Linear.Functor Renderer
 deriving instance Data.Linear.Applicative Renderer
@@ -72,16 +73,17 @@ deriving instance Linear.Applicative Renderer
 deriving instance Linear.Monad Renderer
 
 instance Linear.MonadIO Renderer where
-  liftIO io = Renderer $ ReaderT \(Ur _) -> StateT \s -> (,s) <$> io
+  liftIO io = Renderer $ ReaderT \(Ur _) -> liftIO io
   {-# INLINE liftIO #-}
 
 instance Linear.MonadFail Renderer where
-  fail str = Renderer $ ReaderT \(Ur _) -> StateT \s -> (,s) <$> liftSystemIO (Prelude.fail str)
+  fail str = Renderer $ ReaderT \(Ur RendererUrEnv{}) -> liftSystemIO (Prelude.fail str)
 
 instance HasLogger Renderer where
-  getLogger = Renderer $ ReaderT \(Ur w) -> StateT \renv -> pure (Ur w._logger,renv)
+  getLogger = Renderer $ ReaderT \(Ur RendererUrEnv{logger}) -> pure (Ur logger)
   {-# INLINE getLogger #-}
-  withLevelUp (Renderer (ReaderT r)) = Renderer $ ReaderT \(Ur RREnv{_logger=Logger l d,..}) -> r (Ur RREnv{_logger=Logger l (d+1),..})
+  withLevelUp (Renderer (ReaderT r)) = Renderer $ ReaderT $
+    \(Ur RendererUrEnv{logger=Logger l d, ..}) -> r (Ur RendererUrEnv{logger=Logger l (d+1),..})
   {-# INLINE withLevelUp #-}
 
 -- | Make a renderer computation from a linear IO action that linearly uses a
@@ -90,9 +92,9 @@ renderer :: (RendererEnv FramesInFlight %1 -> System.IO.Linear.IO (a, RendererEn
 renderer f = Renderer $ ReaderT \(Ur _) -> StateT f
 
 runRenderer' :: Logger -> RendererEnv FramesInFlight ⊸ Renderer a ⊸ System.IO.Linear.IO (a, RendererEnv FramesInFlight)
-runRenderer' l renv (Renderer rend) = Linear.do
-  Ur r <- liftSystemIOU (newIORef 0)
-  runStateT (runReaderT rend (Ur (RREnv l r))) renv
+runRenderer' logger renv (Renderer rend) = Linear.do
+  let frameIndex = natToFinite (Proxy :: Proxy 0)
+  runStateT (runReaderT rend (Ur (RendererUrEnv{..}))) renv
 
 withVulkanContext :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (a, VulkanContext WithSwapchain)) %1 -> Renderer a
 withVulkanContext f = renderer $ \(RendererEnv{..}) -> f vkContext >>= \case
@@ -100,7 +102,7 @@ withVulkanContext f = renderer $ \(RendererEnv{..}) -> f vkContext >>= \case
 
 -- todo: use linear optics.
 withDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
-withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv.vkContext.device) >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
+withDevice f = renderer $ Unsafe.toLinear $ \renv -> f renv.vkContext.device >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
 
 -- | Unsafely run a Vulkan action on a linear MonadIO that requires a
 -- Vulkan.Device reference as a linear action on 'Renderer'.
@@ -110,13 +112,13 @@ withDevice f = renderer $ Unsafe.toLinear $ \renv -> f (renv.vkContext.device) >
 -- Note, this is quite unsafe really, but makes usage of non-linear vulkan much easier
 unsafeUseDevice :: (Vk.Device -> Unrestricted.IO b) -> Renderer b
 unsafeUseDevice f = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
-  b <- liftSystemIO $ f (vkContext.device)
-  pure $ (b, renv)
+  b <- liftSystemIO $ f vkContext.device
+  pure (b, renv)
 
 unsafeWithVulkanContext :: (VulkanContext WithSwapchain -> Unrestricted.IO b) -> Renderer b
 unsafeWithVulkanContext f = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
   b <- liftSystemIO $ f vkContext
-  pure $ (b, renv)
+  pure (b, renv)
 
 unsafeGetDevice :: Renderer (Ur Vk.Device)
 unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv.vkContext.device, renv)
@@ -153,5 +155,5 @@ clearRenderImages r g b a = Linear.do
           Vk.getSwapchainImagesKHR vkContext.device si.swapchain
     pure (Ur imgs, RendererEnv{..})
 
-  immediateSubmit $ consume <$> (Data.Linear.forM (Vector.toList imgs) (Unsafe.toLinear \img -> clearColorImage img r g b a))
+  immediateSubmit $ consume <$> Data.Linear.forM (Vector.toList imgs) (Unsafe.toLinear \img -> clearColorImage img r g b a)
 

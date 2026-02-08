@@ -53,7 +53,6 @@ import qualified Unsafe.Linear as Unsafe
 
 import Ghengin.Core.Shader.Pipeline
 import Ghengin.Vulkan.Renderer.Kernel
-import Ghengin.Vulkan.Renderer.RenderPass
 import Ghengin.Vulkan.Renderer.DescriptorSet (DescriptorPool(..))
 
 import FIR.Vulkan.Pipeline

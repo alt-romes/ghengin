@@ -20,7 +20,6 @@ import qualified Data.Functor.Linear as Data
 
 import Ghengin.Core.Render.Queue
 import Ghengin.Core.Renderer.Pipeline
-import Ghengin.Core.Renderer.RenderPass
 import Ghengin.Core.Renderer.Kernel
 import Ghengin.Core.Renderer
 import Ghengin.Core.Render.Pipeline
@@ -46,9 +45,8 @@ import qualified Unsafe.Linear as Unsafe
 -- | Renders a render queue under the given render pass.
 --
 -- For more fine-grained control of the render command to run see 'renderWith'
-render :: Alias RenderPass -- ^ The render pass under which all pipelines in the queue will be rendered (must be compatible with the pipelines declared renderpass!)
-        ⊸ RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
-        ⊸ Renderer (Alias RenderPass, RenderQueue ())
+render :: RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
+        ⊸ Renderer (RenderQueue ())
 render rp rq = do
 
   renderWith $ Linear.do
