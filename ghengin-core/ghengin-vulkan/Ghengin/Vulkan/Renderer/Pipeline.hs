@@ -122,9 +122,8 @@ createGraphicsPipeline  ::
                         => GraphicsPipelineSettings
                         -> ShaderPipeline info
                         -> DescriptorPool
-                         ⊸ RenderPass
-                         ⊸ Renderer (RenderPass, (RendererPipeline Graphics, DescriptorPool))
-createGraphicsPipeline gps (ShaderPipeline ppstages) = Unsafe.toLinearN @2 \dpool renderP -> enterD "createGraphicsPipeline" $ Linear.do
+                         ⊸ Renderer (RendererPipeline Graphics, DescriptorPool)
+createGraphicsPipeline gps (ShaderPipeline ppstages) = Unsafe.toLinear \dpool -> enterD "createGraphicsPipeline" $ Linear.do
   -- TODO: seems truly unsafe to alias the descriptor set layouts like this.
   -- we give an alias to the pipeline layout, and apparently forget about it...
   -- do we ever need the descriptor set layouts again outside of pipeline layout?
@@ -269,7 +268,7 @@ createGraphicsPipeline gps (ShaderPipeline ppstages) = Unsafe.toLinearN @2 \dpoo
                                                  , colorBlendState = Just (VkC.SomeStruct colorBlendingInfo)
                                                  , dynamicState = Just dynamicStateInfo
                                                  , layout = unsafePipelineLayout
-                                                 , renderPass = renderP._renderPass
+                                                 , renderPass = undefined -- renderP._renderPass
                                                  , subpass = 0 -- the index of the subpass in the render pass where this pipeline will be used.
                                                  , basePipelineHandle = Vk.NULL_HANDLE
                                                  , basePipelineIndex = -1
@@ -283,7 +282,7 @@ createGraphicsPipeline gps (ShaderPipeline ppstages) = Unsafe.toLinearN @2 \dpoo
   devs <- Data.Linear.traverse (liftIO . destroyShaderModule dev) shaderModules -- destroy shader modules after creating the pipeline
   Unsafe.toLinear (\_ -> pure ()) devs -- forget dev aliases
 
-  pure (renderP, (VulkanPipeline pipeline unsafePipelineLayout, dpool))
+  pure (VulkanPipeline pipeline unsafePipelineLayout, dpool)
 
 -- TODO: createComputePipeline
 

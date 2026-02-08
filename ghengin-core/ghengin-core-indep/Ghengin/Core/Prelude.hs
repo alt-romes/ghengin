@@ -1,6 +1,7 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE CPP                   #-}
 {-# LANGUAGE DuplicateRecordFields #-}
+{-# LANGUAGE UndecidableInstances  #-}
 {-# LANGUAGE QuantifiedConstraints #-}
 module Ghengin.Core.Prelude
   (
@@ -20,9 +21,12 @@ module Ghengin.Core.Prelude
 
   -- linear-base
   , UrT(..)
+  , withResource
   -- linear vectors
   , VL.V(..)
   , withSized
+  , genSizedM
+  , SomeV(..)
 
   -- containers
   , IM.IntMap, M.Map, S.Set
@@ -101,6 +105,14 @@ import System.IO.Linear
 import Unsafe.Linear qualified as Unsafe
 
 --------------------------------------------------------------------------------
+-- * Linear utilities
+--------------------------------------------------------------------------------
+
+-- | Thread a resource through a computation
+withResource :: res %1 -> (StateT res m a) %1 -> m (a, res)
+withResource res use = runStateT use res
+
+--------------------------------------------------------------------------------
 -- * Vec2, Vec3, Vec4 accessors
 --------------------------------------------------------------------------------
 
@@ -132,7 +144,7 @@ instance HasField "w" Vec4 Float where
   getField (WithVec4 _ _ _ w) = w
 
 --------------------------------------------------------------------------------
--- * Vector utils
+-- * Vector/V utils
 --------------------------------------------------------------------------------
 
 type SVector = SV.Vector
@@ -145,6 +157,25 @@ withSized :: forall a r. V.Vector a -> (forall n. KnownNat n => VL.V n a -> r) -
 withSized v f = case someNatVal (fromIntegral (V.length v)) of
   Just (SomeNat (Proxy :: Proxy n)) -> f (VL.V v :: VL.V n a)
   Nothing -> error "impossible: Vector has negative length"
+
+genSizedM
+  :: forall n m a.
+     (KnownNat n, Monad m)
+  => (Int -> m a)
+  -> m (VL.V n a)
+genSizedM mk =
+    go (VL.theLength @n)
+    >>= Unsafe.toLinear (\v -> return (VL.V (V.fromList v)))
+  where
+    go :: Int -> m [a]
+    go 0 = pure []
+    go i = Linear.do
+      as <- go (i-1)
+      a  <- mk (i-1{-0-indexed-})
+      pure (a:as)
+
+-- | Existential linear sized vectors
+data SomeV a = forall n. KnownNat n => SomeV (VL.V n a)
 
 --------------------------------------------------------------------------------
 

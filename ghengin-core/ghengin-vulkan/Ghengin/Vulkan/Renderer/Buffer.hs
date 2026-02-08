@@ -22,7 +22,7 @@ import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
 
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
-import Ghengin.Vulkan.Renderer.Context.Device
+import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Core.Mesh.Vertex
 
 import qualified Unsafe.Linear as Unsafe
@@ -152,7 +152,7 @@ createBuffer size usage properties = Linear.do
     let dev = ctx.device
     buffer          <- Vk.createBuffer dev bufferInfo Nothing
     memRequirements <- Vk.getBufferMemoryRequirements dev buffer
-    memTypeIndex    <- findMemoryType memRequirements.memoryTypeBits properties ctx.physicalDevice
+    memTypeIndex    <- undefined {-findMemoryType-} memRequirements.memoryTypeBits properties ctx.physicalDevice
     let allocInfo = Vk.MemoryAllocateInfo { next = ()
                                           , allocationSize = memRequirements.size
                                           , memoryTypeIndex = memTypeIndex

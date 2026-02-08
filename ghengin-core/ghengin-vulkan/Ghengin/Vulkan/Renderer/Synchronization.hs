@@ -8,7 +8,16 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# LANGUAGE LinearTypes #-}
-module Ghengin.Vulkan.Renderer.Synchronization where
+module Ghengin.Vulkan.Renderer.Synchronization
+  (
+    -- * Constructors
+    createSemaphore
+  , createFence
+
+    -- * Destructors
+  , destroySemaphore
+  , destroyFence
+  ) where
 
 import Prelude.Linear hiding (zero)
 import Control.Functor.Linear
@@ -32,8 +41,8 @@ createFence = Unsafe.toLinear $ \ctx isSignaled ->
   let fenceInfo = Vk.FenceCreateInfo { next = (), flags = if isSignaled then Vk.FENCE_CREATE_SIGNALED_BIT else zero }
    in (,ctx) <$> liftSystemIO (Vk.createFence ctx.device fenceInfo Nothing)
 
-destroySem :: MonadIO m => VulkanContext ctx ⊸ Vk.Semaphore ⊸ m (VulkanContext ctx)
-destroySem = Unsafe.toLinear2 $ \ctx sem -> ctx <$ liftSystemIO (Vk.destroySemaphore ctx.device sem Nothing)
+destroySemaphore :: MonadIO m => VulkanContext ctx ⊸ Vk.Semaphore ⊸ m (VulkanContext ctx)
+destroySemaphore = Unsafe.toLinear2 $ \ctx sem -> ctx <$ liftSystemIO (Vk.destroySemaphore ctx.device sem Nothing)
 
 destroyFence :: MonadIO m => VulkanContext ctx ⊸ Vk.Fence ⊸ m (VulkanContext ctx)
 destroyFence = Unsafe.toLinear2 $ \ctx fen -> ctx <$ liftSystemIO (Vk.destroyFence ctx.device fen Nothing)

@@ -231,7 +231,6 @@ library vulkan
                       Ghengin.Vulkan.Renderer.ImmediateSubmit,
                       Ghengin.Vulkan.Renderer.Image,
                       Ghengin.Vulkan.Renderer.Sampler,
-                      Ghengin.Vulkan.Renderer.Frame,
 
                       -- Should soon enough be part of the required pieces
                       Ghengin.Vulkan.Renderer.Command,

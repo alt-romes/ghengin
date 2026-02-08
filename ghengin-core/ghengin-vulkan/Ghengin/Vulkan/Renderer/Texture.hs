@@ -48,7 +48,7 @@ import qualified Ghengin.Core.Shader.Data as Shader
 
 type Texture2D :: ImageFormat Nat -> Type
 data Texture2D (fmt :: ImageFormat Nat)
-  = Texture2D { image   :: VulkanImage
+  = Texture2D { image   :: VulkanImage WithView
               , sampler :: Alias Sampler
               }
 
@@ -60,11 +60,9 @@ texture fp sampler = enterD "Creating a texture" Linear.do
     Ur (Right dimage) -> textureFromDynamicImage dimage sampler
 
 freeTexture :: Texture2D fmt ⊸ Renderer ()
-freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture" Linear.do
-  -- ROMES:tODO: fix Image.hs so that this definition doesn't need to be unsafe.
-  withDevice (\dev -> ((),) <$> (destroyImage dev img))
-  Alias.forget sampler
-
+freeTexture = undefined -- Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture" Linear.do
+  -- withVkContext (\ctx -> ((),) <$> (destroyImage ctx img))
+  -- Alias.forget sampler
 
 -- | Make a texture from a dynamic image by converting the image to RGBA8 first
 textureFromDynamicImage :: DynamicImage
@@ -78,44 +76,45 @@ newTexture :: (Pixel px, Typeable px, CompatiblePixel px fmt)
            => Codec.Picture.Image px
            -> Alias Sampler
             ⊸ Renderer (Alias (Texture2D fmt))
-newTexture img sampler' =
-   withStagingBuffer (img.imageData) $ \stagingBuffer _bufferSize -> enterD "textureFromImage" Linear.do
-
-    (VulkanImage image devMem imgView)
-        <- useVulkanDevice (\device ->
-                  createImage device
-                         (imagePixelFormat img)
-                         (imageExtent img)
-                         Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- Where to allocate the memory
-                         (Vk.IMAGE_USAGE_TRANSFER_DST_BIT .|. Vk.IMAGE_USAGE_SAMPLED_BIT) -- For the texture to be used in the shader, and to transfer data to it
-                         Vk.IMAGE_ASPECT_COLOR_BIT)
-
-    -- The image starts with an undefined layout:
-    --
-    -- (1) we change to layout to transfer optimal,
-    -- (2) we transfer from the staging buffer to the image
-    -- (3) we change the layout to shader read-only optimal
-
-    -- TODO: the use of unsafe to linear caused a segfault here. the staging
-    -- buffer was captured in one of the commands which were only used later in
-    -- "immediate submit".
-
-    (stagingBuffer, image) <- immediateSubmit $ Linear.do
-
-      -- (1) 
-      image <- transitionImageLayout image Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
-
-      -- (2)
-      (stagingBuffer, image) <- copyFullBufferToImage stagingBuffer image (imageExtent img)
-
-      -- (3)
-      (image) <- transitionImageLayout image Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-
-      pure (stagingBuffer, image)
-
-    destroyBuffer stagingBuffer
-
-    Alias.newAlias freeTexture (Texture2D (VulkanImage image devMem imgView) sampler')
+newTexture img {-sampler'-} = undefined
+   -- withStagingBuffer (img.imageData) $ \stagingBuffer _bufferSize -> enterD "textureFromImage" Linear.do
+   --
+   --  (VulkanImage image devMem imgView)
+   --      <- undefined {-useVulkanDevice-}
+   --        (\device ->
+   --          createImage device
+   --                 (imagePixelFormat img)
+   --                 (img.imageExtent)
+   --                 Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- Where to allocate the memory
+   --                 (Vk.IMAGE_USAGE_TRANSFER_DST_BIT .|. Vk.IMAGE_USAGE_SAMPLED_BIT) -- For the texture to be used in the shader, and to transfer data to it
+   --                 Vk.IMAGE_ASPECT_COLOR_BIT)
+   --
+   --  -- The image starts with an undefined layout:
+   --  --
+   --  -- (1) we change to layout to transfer optimal,
+   --  -- (2) we transfer from the staging buffer to the image
+   --  -- (3) we change the layout to shader read-only optimal
+   --
+   --  -- TODO: the use of unsafe to linear caused a segfault here. the staging
+   --  -- buffer was captured in one of the commands which were only used later in
+   --  -- "immediate submit".
+   --
+   --  (stagingBuffer, image) <- immediateSubmit $ Linear.do
+   --
+   --    -- (1) 
+   --    image <- transitionImageLayout image Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
+   --
+   --    -- (2)
+   --    (stagingBuffer, image) <- copyFullBufferToImage stagingBuffer image (img.imageExtent)
+   --
+   --    -- (3)
+   --    (image) <- transitionImageLayout image Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+   --
+   --    pure (stagingBuffer, image)
+   --
+   --  destroyBuffer stagingBuffer
+   --
+   --  Alias.newAlias freeTexture (Texture2D (VulkanImage image devMem imgView) sampler')
 
 
 -- Not needed :(

@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
+{-# LANGUAGE TypeAbstractions #-}
+{-# LANGUAGE RequiredTypeArguments #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE CPP #-}
@@ -22,17 +24,15 @@ module Ghengin.Vulkan.Renderer
   )
   where
 
--- For re-exports
+
 import Ghengin.Vulkan.Renderer.Texture
 import Ghengin.Vulkan.Renderer.Sampler
 
 import qualified Prelude
-import Prelude.Linear hiding (zero, IO)
 import qualified Unsafe.Linear as Unsafe
 
-import Control.Functor.Linear as Linear
-import qualified Data.Functor.Linear as Data.Linear
-import Control.Monad.IO.Class.Linear
+import Ghengin.Core.Prelude as Linear
+import qualified Data.Functor.Linear as Data
 
 import Data.IORef
 import Data.Bits
@@ -66,12 +66,16 @@ import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Vulkan.Renderer.Context.Instance
 import Ghengin.Vulkan.Renderer.Context.Device
 import Ghengin.Vulkan.Renderer.Context.Swapchain
+import Ghengin.Vulkan.Renderer.Image
+import Ghengin.Vulkan.Renderer.Synchronization
 import Ghengin.Vulkan.Renderer.Command
-import Ghengin.Vulkan.Renderer.Frame
 import Ghengin.Vulkan.Renderer.GLFW.Window as GLFW
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Kernel
 import qualified System.IO.Linear as Linear
+
+type FramesInFlight :: Nat
+type FramesInFlight = 2
 
 runRenderer :: (Int, Int)
             -- ^ Dimensions of the window to render on (width, height)
@@ -90,8 +94,8 @@ runRenderer dimensions r = Linear.do
     , windowName = appName
     }
 
-  vkContext <- initialiseContext @WithSwapchain appName RenderInfo
-    { queueType = Vk.QUEUE_GRAPHICS_BIT
+  vkContext <- initialiseContext @WithSwapchain (fromString appName) RenderInfo
+    { queueType = Ur Vk.QUEUE_GRAPHICS_BIT
     , surfaceInfo = SurfaceInfo
       { surfaceWindow   = window
       , preferredFormat = Ur $
@@ -101,13 +105,13 @@ runRenderer dimensions r = Linear.do
       , surfaceUsage = Ur $
           [ -- Needed for screenshots?
             -- Vk.IMAGE_USAGE_TRANSFER_SRC_BIT
-          , Vk.IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+            Vk.IMAGE_USAGE_COLOR_ATTACHMENT_BIT
           ]
       }
     }
 
   (Ur extent3D, vkContext) <- pure $
-    vkContextExtent3D vkContext
+    vkContextExtent vkContext
 
   -- todo: check which depth attachment supported format is best,
   -- see https://www.howtovulkan.com/#depth-attachment
@@ -119,39 +123,74 @@ runRenderer dimensions r = Linear.do
       (WithViewInfo Vk.IMAGE_VIEW_TYPE_2D Vk.IMAGE_ASPECT_DEPTH_BIT)
       Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- on GPU only
 
+  let genSizedWithCtx :: forall (s::Nat) a
+                       . VulkanContext WithSwapchain %1
+                      -> (VulkanContext WithSwapchain %1 -> IO (a, VulkanContext WithSwapchain))
+                      -> Linear.IO (V s a, VulkanContext WithSwapchain)
+      genSizedWithCtx c k = withResource c $
+        genSizedM @s $ const $ StateT k
+
+  (fences, vkContext) <-
+    genSizedWithCtx @FramesInFlight vkContext $
+      flip createFence True
+
+  (presentSemaphores, vkContext) <-
+    genSizedWithCtx @FramesInFlight vkContext createSemaphore
+
+  (SomeV @swpImgs renderSemaphores, vkContext) <- case vkContext of
+    VulkanContext{..} -> Linear.do
+      let mkRenderSemaphores :: forall swpImgs. KnownNat swpImgs
+                             => SwapchainInfo swpImgs %1
+                             -> Linear.IO (SomeV Vk.Semaphore, VulkanContext WithSwapchain)
+          mkRenderSemaphores swpInfo = Linear.do
+            let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
+            (semsv, ctx) <- genSizedWithCtx @swpImgs ctx createSemaphore
+            return (SomeV semsv, ctx)
+      withSwapchainInfo aSwapchainInfo mkRenderSemaphores
+
   -- (imsCtx, vkContext) <- createImmediateSubmitCtx vkContext
 
   -- (For now) we allocate just one command pool and one command buffer
-  (commandPool, device) <- createCommandPool device
-  (cmdBuffers, device, commandPool) <- createCommandBuffers @MAX_FRAMES_IN_FLIGHT_T device commandPool
+  -- (commandPool, device) <- createCommandPool device
+  -- (cmdBuffers, device, commandPool) <- createCommandBuffers @MAX_FRAMES_IN_FLIGHT_T device commandPool
 
-  (frames, device) <- runStateT (Data.Linear.mapM (StateT . initVulkanFrameData) cmdBuffers) device
+  -- (frames, device) <- runStateT (Data.Linear.mapM (StateT . initVulkanFrameData) cmdBuffers) device
 
-  (Ur logger, cleanupLogger) <-
-    newLogger (LogStdout defaultBufSize) -- or (LogFileNoRotate "log.ghengin.log" defaultBufSize)
+  -- (Ur logger, cleanupLogger) <-
+  --   newLogger (LogStdout defaultBufSize) -- or (LogFileNoRotate "log.ghengin.log" defaultBufSize)
 
   -- Run renderer
   ---------------
-  (a, REnv inst device win swapchain commandPool' frames' imsCtx)
-    <- runRenderer' logger (REnv inst device win swapchain commandPool frames imsCtx) r
+  (a, _) -- REnv inst device win swapchain commandPool' frames' imsCtx)
+    <- runRenderer' undefined undefined r -- logger (REnv inst device win swapchain commandPool frames imsCtx) r
 
   -- Terminate
   ------------
-  liftSystemIO $ logger._log "[Start] Vulkan clean up\n"
+  -- liftSystemIO $ logger._log "[Start] Vulkan clean up\n"
 
-  (vunit, device) <- runStateT (Data.Linear.mapM (\f -> StateT (fmap ((),) . destroyVulkanFrameData f)) frames') device
-  pure $ consumeUnits vunit
+  -- (vunit, device) <- runStateT (Data.Linear.mapM (\f -> StateT (fmap ((),) . destroyVulkanFrameData f)) frames') device
+  -- pure $ consumeUnits vunit
 
-  device <- destroyCommandPool device commandPool'
-  device <- destroyImmediateSubmitCtx device imsCtx
+  -- device <- destroyCommandPool device commandPool'
+  -- device <- destroyImmediateSubmitCtx device imsCtx
+
+  let destroyVs :: V n s %1
+                -> (VulkanContext c %1 -> s %1 -> m (VulkanContext c))
+                -> StateT (VulkanContext c) m ()
+      destroyVs v k = consume <$> Data.forM v (\x -> StateT $ \c' -> ((),) <$> k c' x)
+
+  ((), vkContext) <- withResource vkContext $ Linear.do
+    destroyVs fences destroyFence
+    destroyVs presentSemaphores destroySemaphore
+    destroyVs renderSemaphores destroySemaphore
 
   vkContext <- destroyImage vkContext depthImage
   destroyVulkanContext vkContext
   terminateGLFW glfwtoken
 
-  liftSystemIO $ logger._log "[Done] Vulkan clean up\n"
+  -- liftSystemIO $ logger._log "[Done] Vulkan clean up\n"
 
-  cleanupLogger
+  -- cleanupLogger
 
   pure a
 
@@ -182,13 +221,13 @@ withCurrentFramePresent :: ( Vk.CommandBuffer
 withCurrentFramePresent action = Linear.do
 
   Ur frameCountRef <- Renderer $ asks (\(Ur env) -> Ur (env.frameCounter))
-  Ur frameCount <- liftSystemIOU (readIORef frameCountRef)
+  Ur frameCount <- liftSystemIOU (Data.IORef.readIORef frameCountRef)
   liftSystemIO $ modifyIORef' frameCountRef (Prelude.+ 1)
 
   -- This could in principle overflow... For now, good enough. It's
   -- unlikely the frame count overflows with only 60 frames per second.
   -- The game would have to run for years to overflow a 64 bit integer
-  let currentFrameIndex = frameCount `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
+  -- let currentFrameIndex = frameCount `mod` (nat @MAX_FRAMES_IN_FLIGHT_T)
 
 
   Ur unsafeCurrentFrame <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)
@@ -263,7 +302,7 @@ presentPresentQueue = Unsafe.toLinear \sem imageIndex -> Linear.do
 
 shouldCloseWindow :: Renderer (Ur Bool)
 shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
-  b <- liftSystemIOU (GLFW.windowShouldClose _vulkanWindow._window)
+  b <- liftSystemIOU (GLFW.windowShouldClose undefined) --_vulkanWindow._window)
   pure $ (b, renv)
 
 pollWindowEvents :: Renderer ()
@@ -271,12 +310,13 @@ pollWindowEvents = liftSystemIO $ GLFW.pollEvents
 
 withWindow :: (GLFW.Window ⊸ Linear.IO GLFW.Window) -> Renderer ()
 withWindow f = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
-  w' <- f (_vulkanWindow._window)
-  pure ((), renv{_vulkanWindow = renv._vulkanWindow{_window = w'}})
+  undefined
+  -- w' <- f (_vulkanWindow._window)
+  -- pure ((), renv{_vulkanWindow = renv._vulkanWindow{_window = w'}})
 
 getMousePos :: Renderer (Ur (Double, Double))
 getMousePos = renderer $ Unsafe.toLinear $ \renv@(REnv{..}) -> Linear.do
-  p <- liftSystemIOU (GLFW.getCursorPos _vulkanWindow._window)
+  p <- liftSystemIOU (GLFW.getCursorPos undefined)--_vulkanWindow._window)
   pure (p, renv)
 
 --------------------------------------------------------------------------------

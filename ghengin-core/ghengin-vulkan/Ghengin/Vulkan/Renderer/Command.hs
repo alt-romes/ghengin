@@ -237,25 +237,25 @@ renderPassCmd :: Linear.MonadIO m
               => Vk.Extent2D
                ⊸ RenderPassCmdM m a
                ⊸ CommandM m a
-renderPassCmd renderAreaExtent
- = Unsafe.toLinear2 \(Unsafe.get -> VulkanRenderPass rpass (frameBuffers)) (RenderPassCmd (Command rpcmds)) ->
-   Command $ ReaderT \(CmdInfo buf currentImage) -> Linear.do
-    let
-      renderPassInfo = Vk.RenderPassBeginInfo {
-          next = ()
-        , renderPass  = rpass
-        , framebuffer = frameBuffers Vector.! currentImage
-        , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
-        , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 0 0]
-        }
-
-    Linear.liftSystemIO $ Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
-
-    a <- runReaderT rpcmds (CmdInfo buf currentImage)
-
-    Linear.liftSystemIO $ Vk.cmdEndRenderPass buf
-
-    return a
+renderPassCmd = undefined
+  -- Unsafe.toLinear2 \(Unsafe.get -> VulkanRenderPass rpass (frameBuffers)) (RenderPassCmd (Command rpcmds)) ->
+  --  Command $ ReaderT \(CmdInfo buf currentImage) -> Linear.do
+  --   let
+  --     renderPassInfo = Vk.RenderPassBeginInfo {
+  --         next = ()
+  --       , renderPass  = rpass
+  --       , framebuffer = frameBuffers Vector.! currentImage
+  --       , renderArea  = Vk.Rect2D (Vk.Offset2D 0 0) renderAreaExtent
+  --       , clearValues = [Vk.Color $ Vk.Float32 0 0 0 1, Vk.DepthStencil $ Vk.ClearDepthStencilValue 0 0]
+  --       }
+  --
+  --   Linear.liftSystemIO $ Vk.cmdBeginRenderPass buf renderPassInfo Vk.SUBPASS_CONTENTS_INLINE
+  --
+  --   a <- runReaderT rpcmds (CmdInfo buf currentImage)
+  --
+  --   Linear.liftSystemIO $ Vk.cmdEndRenderPass buf
+  --
+  --   return a
 {-# INLINEABLE renderPassCmd #-}
 
 bindGraphicsPipeline' :: Linear.MonadIO m => Vk.Pipeline ⊸ RenderPassCmdM m Vk.Pipeline

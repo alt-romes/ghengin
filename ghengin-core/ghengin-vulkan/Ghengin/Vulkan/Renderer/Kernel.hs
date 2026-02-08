@@ -18,7 +18,7 @@ import Ghengin.Vulkan.Renderer.Command (CommandM, copyFullBuffer, clearColorImag
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Vulkan.Renderer.Context.Swapchain
-import Ghengin.Vulkan.Renderer.Frame
+import Ghengin.Vulkan.Renderer.Image
 
 import qualified Vulkan as Vk
 import Ghengin.Core.Log
@@ -28,14 +28,14 @@ import qualified Unsafe.Linear as Unsafe
 
 type Alias = Alias.Alias Renderer
 
-data RendererEnv (n :: Nat {-^ Number of frames-in-flight -}) =
+data RendererEnv = -- (n :: Nat {-^ Number of frames-in-flight -}) =
   REnv { vulkanContext    :: !(VulkanContext WithSwapchain)
        , depthImage       :: !(VulkanImage WithView)
        -- ^ We only need a single depth image, even if we do double buffering in other
        -- places. That's because the depth image is only ever accessed by the GPU and
        -- the GPU can only ever write to a single depth image at a time.
-       , _commandPool     :: !Vk.CommandPool
-       , _frames          :: !(V.V n VulkanFrameData)
+       -- , _commandPool     :: !Vk.CommandPool
+       -- , _frames          :: forall n. (V.V n VulkanFrameData)
        -- , _immediateSubmit :: !ImmediateSubmitCtx
        }
 data RendererReaderEnv
@@ -107,8 +107,10 @@ unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv.vulkanCont
 -- submits it to the graphics queue
 immediateSubmit :: CommandM System.IO.Linear.IO a ⊸ Renderer a
 immediateSubmit cmd = renderer $ \(REnv{..}) -> Linear.do
-  ((dev', imsctx'), x) <- immediateSubmit' vulkanContext _immediateSubmit cmd
-  pure (x, REnv{vulkanContext=dev',_immediateSubmit=imsctx',..})
+  undefined cmd
+  pure (undefined, REnv{..})
+  -- ((dev', imsctx'), x) <- immediateSubmit' vulkanContext _immediateSubmit cmd
+  -- pure (x, REnv{vulkanContext=dev',_immediateSubmit=imsctx',..})
 
 -- | Run a one-shot command that copies the whole data between two buffers.
 -- Returns the two buffers, in the order they were passed to the function
@@ -134,8 +136,4 @@ clearRenderImages r g b a = Linear.do
     pure (Ur imgs, REnv{..})
 
   immediateSubmit $ consume <$> (Data.Linear.forM (Vector.toList imgs) (Unsafe.toLinear \img -> clearColorImage img r g b a))
-
--- Move to utils?
-consumeUnits :: V.V n () ⊸ ()
-consumeUnits = Unsafe.toLinear \_ -> ()
 

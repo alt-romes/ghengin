@@ -71,7 +71,7 @@ type family ContextSurfaceInfo ( ctx :: RenderingContext ) :: Type where
 
 data RenderInfo ( ctx :: RenderingContext ) where
   RenderInfo
-    :: { queueType   :: Vulkan.QueueFlags
+    :: { queueType   :: Ur Vulkan.QueueFlags
        , surfaceInfo :: ContextSurfaceInfo ctx
        }
     -> RenderInfo ctx
@@ -108,15 +108,15 @@ type VulkanSwapchainContext = VulkanContext WithSwapchain
 type VulkanHeadlessContext  = VulkanContext Headless
 
 withSwapchainInfo
-  :: ContextSwapchainInfo WithSwapchain
-  -> ( forall n. KnownNat n => SwapchainInfo n %1 -> r )
+  :: ContextSwapchainInfo WithSwapchain %1
+  -> ( forall n. KnownNat n => SwapchainInfo n %1 -> r ) %1
   -> r
 withSwapchainInfo ( ASwapchainInfo swapchain ) f = f swapchain
 
 initialiseContext
   :: forall ctx m. ( KnownRenderingContext ctx, HasLogger m )
-  => ByteString -> RenderInfo ctx -> m ( VulkanContext ctx )
-initialiseContext appName ( RenderInfo { queueType, surfaceInfo } ) = Linear.do
+  => ByteString -> RenderInfo ctx %1 -> m ( VulkanContext ctx )
+initialiseContext appName ( RenderInfo { queueType = Ur queueType, surfaceInfo } ) = Linear.do
 
   vkInstance <-
     logDebug "Creating Vulkan instance" >>
@@ -131,21 +131,23 @@ initialiseContext appName ( RenderInfo { queueType, surfaceInfo } ) = Linear.do
     findQueueFamilyIndex physicalDevice [queueType]
 
   (vkInstance, device, physicalDevice, aSwapchainInfo, window) <- case renderingContext @ctx of
-    SHeadless      -> Linear.do
-      ( device, physicalDevice ) <-
-        logDebug "Creating logical device" >>
-        createDevice physicalDevice queueFamilyIndex []
-      pure (vkInstance, device, physicalDevice, NoSwapchain, NoWindow)
+    SHeadless -> case surfaceInfo of
+      () -> Linear.do
+        ( device, physicalDevice ) <-
+          logDebug "Creating logical device" >>
+          createDevice physicalDevice queueFamilyIndex []
+        pure (vkInstance, device, physicalDevice, NoSwapchain, NoWindow)
     SWithSwapchain -> Linear.do
       ( device, physicalDevice ) <-
         logDebug "Creating logical device" >>
         createDevice physicalDevice queueFamilyIndex [ Vulkan.KHR_SWAPCHAIN_EXTENSION_NAME ]
 
-      let SurfaceInfo
+      let !SurfaceInfo
             { surfaceWindow
             , preferredFormat = Ur preferredFormat
             , surfaceUsage = Ur surfaceUsage
             } = surfaceInfo
+
       (surface, vkInstance, surfaceWindow) <-
         logDebug "Creating surface" >>
         createSurface vkInstance surfaceWindow
