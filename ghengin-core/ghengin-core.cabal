@@ -151,6 +151,7 @@ library
                       linear-utils,
                       ptrdiff,
                       constraints,
+                      finite-typelits,
 
                       -- we use this for now directly in some hacky bits...
                       GLFW-b,

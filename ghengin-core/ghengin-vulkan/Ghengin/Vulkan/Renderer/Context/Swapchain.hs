@@ -18,6 +18,7 @@ module Ghengin.Vulkan.Renderer.Context.Swapchain
 
 import Prelude hiding (($))
 import Prelude.Linear (($), Ur(..))
+import Data.Finite
 import Data.Ord
 import Data.Word
 import qualified Unsafe.Linear as Unsafe

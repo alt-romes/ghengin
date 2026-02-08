@@ -25,7 +25,8 @@ import Ghengin.Core.Log
 
 import qualified Data.Linear.Alias as Alias
 import qualified Unsafe.Linear as Unsafe
-import Data.Finite
+import Data.IORef
+import Data.Finite as Finite
 import Data.Data
 
 type Alias = Alias.Alias Renderer
@@ -42,6 +43,7 @@ data RendererEnv (n :: Nat) =
     , depthImage        :: !(VulkanImage WithView)
 
     -- Synchronization
+    -- TODO: Use Mutable vectors?
     , fences            :: !(V.V n Vk.Fence)
     , presentSemaphores :: !(V.V n Vk.Semaphore)
     , renderSemaphores  :: !(V.V swpcImgs Vk.Semaphore)
@@ -56,8 +58,8 @@ data RendererEnv (n :: Nat) =
 type RendererUrEnv :: Nat {-^ Number of frames-in-flight -} -> Type
 data RendererUrEnv (n :: Nat) where
   RendererUrEnv ::
-    { logger     :: !Logger
-    , frameIndex :: !(Finite n)
+    { logger        :: !Logger
+    , frameIndexRef :: !(IORef (Finite n))
     } -> RendererUrEnv n
 
 type FramesInFlight :: Nat
@@ -93,8 +95,16 @@ renderer f = Renderer $ ReaderT \(Ur _) -> StateT f
 
 runRenderer' :: Logger -> RendererEnv FramesInFlight ⊸ Renderer a ⊸ System.IO.Linear.IO (a, RendererEnv FramesInFlight)
 runRenderer' logger renv (Renderer rend) = Linear.do
-  let frameIndex = natToFinite (Proxy :: Proxy 0)
+  Ur frameIndexRef <- liftSystemIOU (newIORef (natToFinite (Proxy :: Proxy 0) :: Finite FramesInFlight))
   runStateT (runReaderT rend (Ur (RendererUrEnv{..}))) renv
+
+-- | Get the frame index for the next frame in flight
+nextFrameInFlight :: Renderer (Ur (Finite FramesInFlight))
+nextFrameInFlight = Linear.do
+  Ur frameIndexRef <- Renderer $ asks $ \(Ur env) -> Ur env.frameIndexRef
+  Ur frameIndex    <- liftSystemIOU (Data.IORef.readIORef frameIndexRef)
+  liftSystemIO $ modifyIORef' frameIndexRef (\currentFrame -> Finite.modulo (getFinite currentFrame Prelude.+ 1))
+  return (Ur frameIndex)
 
 withVulkanContext :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (a, VulkanContext WithSwapchain)) %1 -> Renderer a
 withVulkanContext f = renderer $ \(RendererEnv{..}) -> f vkContext >>= \case

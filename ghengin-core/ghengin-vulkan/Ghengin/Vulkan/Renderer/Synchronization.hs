@@ -17,8 +17,13 @@ module Ghengin.Vulkan.Renderer.Synchronization
     -- * Destructors
   , destroySemaphore
   , destroyFence
+
+    -- * Operations
+  , waitForFence
+  , resetFence
   ) where
 
+import qualified Data.Functor as Ur
 import Prelude.Linear hiding (zero)
 import Control.Functor.Linear
 import Control.Monad.IO.Class.Linear
@@ -46,4 +51,12 @@ destroySemaphore = Unsafe.toLinear2 $ \ctx sem -> ctx <$ liftSystemIO (Vk.destro
 
 destroyFence :: MonadIO m => VulkanContext ctx ⊸ Vk.Fence ⊸ m (VulkanContext ctx)
 destroyFence = Unsafe.toLinear2 $ \ctx fen -> ctx <$ liftSystemIO (Vk.destroyFence ctx.device fen Nothing)
+
+waitForFence :: MonadIO m => VulkanContext ctx ⊸ Vk.Fence ⊸ m (Vk.Fence, VulkanContext ctx)
+waitForFence = Unsafe.toLinear2 $ \ctx fen -> liftSystemIO $
+  (fen, ctx) Ur.<$ (Vk.waitForFences ctx.device [fen] True maxBound)
+
+resetFence :: MonadIO m => VulkanContext ctx ⊸ Vk.Fence ⊸ m (Vk.Fence, VulkanContext ctx)
+resetFence = Unsafe.toLinear2 $ \ctx fen -> liftSystemIO $
+  (fen, ctx) Ur.<$ Vk.resetFences ctx.device [fen]
 

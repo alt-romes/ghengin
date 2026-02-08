@@ -13,6 +13,7 @@ module Ghengin.Core.Prelude
   , module Control.Monad.IO.Class.Linear
   , module System.IO.Linear
   , module Prelude
+  , module Data.Finite
   -- , module Data.Unrestricted.Linear.Orphans
 
   -- base
@@ -27,6 +28,8 @@ module Ghengin.Core.Prelude
   , withSized
   , genSizedM
   , SomeV(..)
+  , focusV
+  , consumeV
 
   -- containers
   , IM.IntMap, M.Map, S.Set
@@ -61,6 +64,7 @@ import Control.Functor.Linear        hiding ( get, modify )
 import Control.Functor.Linear        qualified as Linear
 import Control.Monad.IO.Class.Linear
 
+import Data.Finite
 import Data.Bifunctor.Linear            ( bimap )
 import Data.Functor.Linear              qualified as Data.Linear
 import Data.Int
@@ -176,6 +180,17 @@ genSizedM mk =
 
 -- | Existential linear sized vectors
 data SomeV a = forall n. KnownNat n => SomeV (VL.V n a)
+
+-- | Focus on an element in the Vec and return an action that reconstructs the
+-- original vector with a potentially updated element at the same position.
+focusV :: KnownNat n => Finite n -> VL.V n a %1 -> (a, a %1 -> VL.V n a)
+focusV f = Unsafe.toLinear \(VL.V v) -> (v V.! i, Unsafe.toLinear \a -> VL.V (v `V.unsafeUpd` [(i, a)]))
+  where
+    i = fromIntegral (getFinite f)
+
+-- | Consume sized vector. The overloaded instance is ambiguous.
+consumeV :: KnownNat n => VL.V n () %1 -> ()
+consumeV (VL.V v) = consume (Unsafe.toLinear V.toList v)
 
 --------------------------------------------------------------------------------
 

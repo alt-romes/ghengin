@@ -10,6 +10,7 @@ module Ghengin.Core.Log
   , FastLogger, toLogStr, LogType'(..), defaultBufSize
   ) where
 
+import qualified Data.Functor.Linear as Data
 import Data.Bifunctor
 import Ghengin.Core.Prelude as G
 import System.Log.FastLogger
@@ -23,8 +24,8 @@ import qualified System.IO
 #endif
 
 data Logger
-  = Logger { log :: FastLogger
-           , depth :: Int }
+  = Logger { log   :: !FastLogger
+           , depth :: !Int }
 
 class MonadIO m => HasLogger m where
   -- | Get a logger. Don't forget to add an inline pragma!
@@ -36,6 +37,24 @@ instance (MonadIO m, HasLogger m) => HasLogger (StateT s m) where
   getLogger = lift getLogger
   {-# INLINE getLogger #-}
   withLevelUp (StateT m) = StateT $ \s -> withLevelUp (m s)
+
+--------------------------------------------------------------------------------
+newtype WithLogger m a = WithLogger { unWithLogger :: ReaderT (Ur Logger) m a }
+  deriving (Data.Functor, Data.Applicative, Functor, Applicative, Monad)
+
+instance MonadIO m => MonadIO (WithLogger m) where
+  liftIO io = WithLogger (ReaderT \(Ur _) -> (liftIO io))
+  {-# INLINE liftIO #-}
+
+instance MonadIO m => HasLogger (WithLogger m) where
+  getLogger = WithLogger $ ReaderT $ \r -> pure r
+  {-# INLINE getLogger #-}
+  withLevelUp (WithLogger (ReaderT r)) = WithLogger $ ReaderT $ \(Ur (Logger l d)) -> r (Ur (Logger l (d+1)))
+  {-# INLINE withLevelUp #-}
+
+runWithLogger :: Logger -> WithLogger m a %1 -> m a
+runWithLogger logger (WithLogger (ReaderT r)) = r (Ur logger)
+--------------------------------------------------------------------------------
 
 -- | Returns a new logger and an IO cleanup action
 newLogger :: MonadIO m => LogType -> m (Ur Logger, IO ())

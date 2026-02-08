@@ -46,8 +46,9 @@ import GHC.Ptr
 import Data.ByteString (ByteString)
 import Data.Vector (Vector)
 import qualified Data.Vector as V
-import qualified Data.V.Linear.Internal as VI
+import qualified Data.V.Linear.Internal as VL
 import qualified Data.List as L
+import qualified Data.Foldable as L
 
 import qualified Vulkan.Extensions
 import qualified Vulkan.CStruct.Extends as Vk
@@ -80,6 +81,9 @@ runRenderer :: (Int, Int)
             -> Renderer a ⊸ Linear.IO a
 runRenderer dimensions r = Linear.do
 
+  (Ur logger, cleanupLogger) <-
+    newLogger (LogStdout defaultBufSize) -- or (LogFileNoRotate "log.ghengin.log" defaultBufSize)
+
   -- Initialisation
   -----------------
   glfwtoken <- initGLFW
@@ -92,21 +96,22 @@ runRenderer dimensions r = Linear.do
     , windowName = appName
     }
 
-  vkContext <- initialiseContext @WithSwapchain (fromString appName) RenderInfo
-    { queueType = Ur Vk.QUEUE_GRAPHICS_BIT
-    , surfaceInfo = SurfaceInfo
-      { surfaceWindow   = window
-      , preferredFormat = Ur $
-          Vk.SurfaceFormatKHR
-            Vk.FORMAT_B8G8R8A8_SRGB
-            Vk.COLOR_SPACE_SRGB_NONLINEAR_KHR
-      , surfaceUsage = Ur $
-          [ -- Needed for screenshots?
-            -- Vk.IMAGE_USAGE_TRANSFER_SRC_BIT
-            Vk.IMAGE_USAGE_COLOR_ATTACHMENT_BIT
-          ]
+  vkContext <- runWithLogger logger $
+    initialiseContext @WithSwapchain (fromString appName) RenderInfo
+      { queueType = Ur Vk.QUEUE_GRAPHICS_BIT
+      , surfaceInfo = SurfaceInfo
+        { surfaceWindow   = window
+        , preferredFormat = Ur $
+            Vk.SurfaceFormatKHR
+              Vk.FORMAT_B8G8R8A8_SRGB
+              Vk.COLOR_SPACE_SRGB_NONLINEAR_KHR
+        , surfaceUsage = Ur $
+            [ -- Needed for screenshots?
+              -- Vk.IMAGE_USAGE_TRANSFER_SRC_BIT
+              Vk.IMAGE_USAGE_COLOR_ATTACHMENT_BIT
+            ]
+        }
       }
-    }
 
   (Ur extent3D, vkContext) <- pure $
     vkContextExtent vkContext
@@ -121,28 +126,21 @@ runRenderer dimensions r = Linear.do
       (WithViewInfo Vk.IMAGE_VIEW_TYPE_2D Vk.IMAGE_ASPECT_DEPTH_BIT)
       Vk.MEMORY_PROPERTY_DEVICE_LOCAL_BIT -- on GPU only
 
-  let genSizedWithCtx :: forall (s::Nat) a
-                       . VulkanContext WithSwapchain %1
-                      -> (VulkanContext WithSwapchain %1 -> IO (a, VulkanContext WithSwapchain))
-                      -> Linear.IO (V s a, VulkanContext WithSwapchain)
-      genSizedWithCtx c k = withResource c $
-        genSizedM @s $ const $ StateT k
+  ((fences, presentSemaphores), vkContext) <- withResource vkContext $ Linear.do
+    fences            <- genSizedWithCtx @FramesInFlight (`createFence` True)
+    presentSemaphores <- genSizedWithCtx @FramesInFlight createSemaphore
+    pure (fences, presentSemaphores)
 
-  (fences, vkContext) <-
-    genSizedWithCtx @FramesInFlight vkContext $
-      flip createFence True
-
-  (presentSemaphores, vkContext) <-
-    genSizedWithCtx @FramesInFlight vkContext createSemaphore
-
-  (SomeV @swpImgs renderSemaphores, vkContext) <- case vkContext of
+  (SomeV @_swpImgs renderSemaphores, vkContext) <- case vkContext of
     VulkanContext{..} -> Linear.do
-      let mkRenderSemaphores :: forall swpImgs. KnownNat swpImgs
-                             => SwapchainInfo swpImgs %1
-                             -> Linear.IO (SomeV Vk.Semaphore, VulkanContext WithSwapchain)
+      let mkRenderSemaphores
+            :: forall swpImgs. KnownNat swpImgs
+            => SwapchainInfo swpImgs %1
+            -> Linear.IO (SomeV Vk.Semaphore, VulkanContext WithSwapchain)
           mkRenderSemaphores swpInfo = Linear.do
             let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
-            (semsv, ctx) <- genSizedWithCtx @swpImgs ctx createSemaphore
+            (semsv, ctx) <- withResource ctx $
+              genSizedWithCtx @swpImgs createSemaphore
             return (SomeV semsv, ctx)
       withSwapchainInfo aSwapchainInfo mkRenderSemaphores
 
@@ -150,9 +148,6 @@ runRenderer dimensions r = Linear.do
   (commandBuffers, vkContext, commandPool) <- createCommandBuffers @FramesInFlight vkContext commandPool
 
   -- (imsCtx, vkContext) <- createImmediateSubmitCtx vkContext
-
-  (Ur logger, cleanupLogger) <-
-    newLogger (LogStdout defaultBufSize) -- or (LogFileNoRotate "log.ghengin.log" defaultBufSize)
 
   -- Run renderer
   ---------------
@@ -163,13 +158,7 @@ runRenderer dimensions r = Linear.do
 
   -- device <- destroyImmediateSubmitCtx device imsCtx
 
-  let destroyVs :: V n s %1
-                -> (res %1 -> s %1 -> m res)
-                -> StateT res m ()
-      destroyVs v k = consume <$> Data.forM v (\x -> StateT $ \c' -> ((),) <$> k c' x)
-
   (vkContext, commandPool) <- destroyCommandBuffers vkContext commandPool commandBuffers
-
   vkContext <- destroyCommandPool vkContext commandPool
 
   ((), vkContext) <- withResource vkContext $ Linear.do
@@ -184,75 +173,125 @@ runRenderer dimensions r = Linear.do
   cleanupLogger
 
   pure a
+  where
+    genSizedWithCtx
+      :: forall (s::Nat) a
+       . KnownNat s
+      => (VulkanContext WithSwapchain %1 -> IO (a, VulkanContext WithSwapchain))
+      -> StateT (VulkanContext WithSwapchain) IO (V s a)
+    genSizedWithCtx k = genSizedM @s $ const $ StateT k
 
--- | Run a 'Renderer' action that depends on a command buffer and the current
--- image index of the swapchain to typically by writing to the command buffer
--- the draw calls (to the renderpasse's framebuffer responsible for that
--- image).
+    destroyVs
+      :: forall (n :: Nat) s res
+       . KnownNat n
+      => V n s %1
+      -> (res %1 -> s %1 -> IO res)
+      -> StateT res IO ()
+    destroyVs v k = consumeV <$> Data.forM v (\x -> StateT $ \c' -> ((),) <$> k c' x)
+
+
+-- | Render loop: new frame
+newFrame
+  :: ( forall swpcImgs
+      . KnownNat swpcImgs
+      => Finite FramesInFlight
+      -> Finite swpcImgs
+      -> Renderer a ) %1
+  -> Renderer a
+newFrame action = Linear.do
+  Ur frameIndex <- nextFrameInFlight
+  (Ur (SomeWith imageIndex)) <- renderer $ \RendererEnv{..} -> Linear.do
+    let !(frameFence, reconFences) = focusV frameIndex fences
+    -- After waiting for this fence, it's safe to update resources for this
+    -- frame index (e.g. the descriptor sets, uniform data, and other things
+    -- defined by the given user action)
+    (frameFence, vkContext) <- waitForFence vkContext frameFence
+    (frameFence, vkContext) <- resetFence   vkContext frameFence
+
+    let !(framePresentSem, reconPresentSems) = focusV frameIndex presentSemaphores
+    (imageIndex, framePresentSem, vkContext) <- case vkContext of
+      VulkanContext{..} -> Linear.do
+        let acquireIt
+              :: forall swpImgs. KnownNat swpImgs
+              => SwapchainInfo swpImgs %1
+              -> Linear.IO (Ur (Finite `With` KnownNat), Vk.Semaphore, VulkanContext WithSwapchain)
+            acquireIt swpInfo = Linear.do
+              (Ur (fin :: Finite swpImgs), framePresentSem, swpInfo, device) <-
+                acquireNextImage device swpInfo framePresentSem
+              let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
+              return (Ur (SomeWith fin), framePresentSem, ctx)
+        withSwapchainInfo aSwapchainInfo acquireIt
+
+    pure (imageIndex, RendererEnv
+      { fences = reconFences frameFence
+      , presentSemaphores = reconPresentSems framePresentSem
+      , ..
+      })
+
+  -- The user action will call record command buffers (renderWith ...) and update resources.
+  a <- action frameIndex imageIndex
+
+  -- We submit this frame's command buffer and present the image afters
+
+  return a
+
+-- withCurrentFramePresent :: ( Vk.CommandBuffer
+--                               ⊸ Int -- ^ Current image index
+--                              -> Renderer (a, Vk.CommandBuffer)
+--                            )
+--                          ⊸ Renderer a
+-- withCurrentFramePresent action = Linear.do
 --
--- Afterwards, submits that command buffer to the graphics queue and then
--- presents the current image.
--- 
--- It handles all the synchronization necessary so that the command buffer
--- being written to is not written again before it is submitted, and so that we
--- wait for the GPU after having written N frames, where N = 2 means we're
--- doing double buffering, and N = 3 triple buffering.
+--   Ur frameIndexRef <- Renderer $ asks (\(Ur env) -> Ur env.frameIndexRef)
+--   Ur frameIndex    <- liftSystemIOU (Data.IORef.readIORef frameIndexRef)
+--   liftSystemIO $ modifyIORef' frameIndexRef (Prelude.+ 1)
 --
--- That is, this function will block the third time it's called if N = 2 but no
--- image has been presented yet
+--   Ur unsafeCurrentFrame <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)
+--   -- These are all unsafe too
+--   let
+--       cmdBuffer         = unsafeCurrentFrame._commandBuffer
+--       inFlightFence     = unsafeCurrentFrame._renderFence
+--       imageAvailableSem = unsafeCurrentFrame._renderSemaphore
+--       renderFinishedSem = unsafeCurrentFrame._presentSemaphore
 --
--- N is 'MAX_FRAMES_IN_FLIGHT'
-withCurrentFramePresent :: ( Vk.CommandBuffer
-                              ⊸ Int -- ^ Current image index
-                             -> Renderer (a, Vk.CommandBuffer)
-                           )
-                         ⊸ Renderer a
-withCurrentFramePresent action = Linear.do
+--   -- Wait for the previous frame to finish
+--   -- Acquire an image from the swap chain
+--   -- Record a command buffer which draws the scene onto that image
+--   -- Submit the recorded command buffer
+--   -- Present the swap chain image 
+--   unsafeUseDevice (\device -> do
+--     _ <- Vk.waitForFences device [inFlightFence] True maxBound
+--     Vk.resetFences device [inFlightFence]
+--                   )
+--
+--   (Ur i, imageAvailableSem') <- acquireNextSwapchainImage imageAvailableSem
+--
+--   liftSystemIO $ Vk.resetCommandBuffer cmdBuffer zero
+--
+--   (a, cmdBuffer') <- action cmdBuffer i
+--
+--   -- Finally, submit and present
+--   (cmdBuffer'',imageAvailableSem'', renderFinishedSem', inFlightFence')
+--     <- submitGraphicsQueue cmdBuffer' imageAvailableSem' renderFinishedSem inFlightFence
+--
+--   renderFinishedSem'' <- presentPresentQueue renderFinishedSem' i
+--
+--   -- Forget these as they're in the renderer environment still, remember we got them unsafely in the first place...
+--   Unsafe.toLinearN @4 (\_ _ _ _ -> pure ()) cmdBuffer'' imageAvailableSem'' renderFinishedSem'' inFlightFence'
+--
+--   pure a
 
-  Ur frameIndexRef <- Renderer $ asks (\(Ur env) -> Ur env.frameIndexRef)
-  Ur frameIndex    <- liftSystemIOU (Data.IORef.readIORef frameIndexRef)
-  liftSystemIO $ modifyIORef' frameIndexRef (Prelude.+ 1)
-
-  Ur unsafeCurrentFrame <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)
-  -- These are all unsafe too
-  let
-      cmdBuffer         = unsafeCurrentFrame._commandBuffer
-      inFlightFence     = unsafeCurrentFrame._renderFence
-      imageAvailableSem = unsafeCurrentFrame._renderSemaphore
-      renderFinishedSem = unsafeCurrentFrame._presentSemaphore
-
-  -- Wait for the previous frame to finish
-  -- Acquire an image from the swap chain
-  -- Record a command buffer which draws the scene onto that image
-  -- Submit the recorded command buffer
-  -- Present the swap chain image 
-  unsafeUseDevice (\device -> do
-    _ <- Vk.waitForFences device [inFlightFence] True maxBound
-    Vk.resetFences device [inFlightFence]
-                  )
-
-  (Ur i, imageAvailableSem') <- acquireNextImage imageAvailableSem
-
-  liftSystemIO $ Vk.resetCommandBuffer cmdBuffer zero
-
-  (a, cmdBuffer') <- action cmdBuffer i
-
-  -- Finally, submit and present
-  (cmdBuffer'',imageAvailableSem'', renderFinishedSem', inFlightFence')
-    <- submitGraphicsQueue cmdBuffer' imageAvailableSem' renderFinishedSem inFlightFence
-
-  renderFinishedSem'' <- presentPresentQueue renderFinishedSem' i
-
-  -- Forget these as they're in the renderer environment still, remember we got them unsafely in the first place...
-  Unsafe.toLinearN @4 (\_ _ _ _ -> pure ()) cmdBuffer'' imageAvailableSem'' renderFinishedSem'' inFlightFence'
-
-  pure a
-
-acquireNextImage :: Vk.Semaphore ⊸ Renderer (Ur Int, Vk.Semaphore)
-acquireNextImage = Unsafe.toLinear $ \sem -> Linear.do
-  Ur renv <- renderer (Unsafe.toLinear $ \renv -> pure (Ur renv, renv))
-  i <- liftSystemIOU $ Prelude.fromIntegral Prelude.. Prelude.snd Prelude.<$> Vk.acquireNextImageKHR renv._vulkanDevice._device renv._vulkanSwapChain._swapchain maxBound sem Vk.NULL_HANDLE
-  pure (i, sem)
+acquireNextImage
+  :: ( MonadIO m, KnownNat n )
+  => Vk.Device %1
+  -> SwapchainInfo n %1
+  -> Vk.Semaphore %1
+  -> m (Ur (Finite n), Vk.Semaphore, SwapchainInfo n, Vk.Device)
+acquireNextImage = Unsafe.toLinear3
+  \device (info@SwapchainInfo { swapchain }) signal -> Linear.liftSystemIO $ do
+    -- TODO: reconstruct swapchain on VK_ERROR_OUT_OF_DATE_KHR
+    (_TODO_RECON_SWPC, fin) <- Vk.acquireNextImageKHR device swapchain maxBound signal Vk.NULL_HANDLE
+    Prelude.return (Ur (fromIntegral fin), signal, info, device)
 
 submitGraphicsQueue :: Vk.CommandBuffer ⊸ Vk.Semaphore ⊸ Vk.Semaphore ⊸ Vk.Fence ⊸ Renderer (Vk.CommandBuffer, Vk.Semaphore, Vk.Semaphore, Vk.Fence)
 submitGraphicsQueue = Unsafe.toLinearN @4 \cb sem1 sem2 fence -> Linear.do
@@ -266,14 +305,14 @@ submitGraphicsQueue = Unsafe.toLinearN @4 \cb sem1 sem2 fence -> Linear.do
                                , commandBuffers = [ cb.commandBufferHandle ]
                                }
                -- this pattern should be used as unsafeAsk (make utils...)
-  Ur gqueue <- renderer (Unsafe.toLinear $ \renv -> pure (Ur renv._vulkanDevice._graphicsQueue, renv))
+  Ur gqueue <- renderer (Unsafe.toLinear $ \renv -> undefined) -- pure (Ur renv._vulkanDevice._graphicsQueue, renv))
   liftSystemIO $ Vk.queueSubmit gqueue [Vk.SomeStruct submitInfo] fence
   pure (cb, sem1, sem2, fence)
 
 
 presentPresentQueue :: Vk.Semaphore ⊸ Int -> Renderer Vk.Semaphore
 presentPresentQueue = Unsafe.toLinear \sem imageIndex -> Linear.do
-  (Ur swpc, Ur presentQueue) <- renderer (Unsafe.toLinear $ \renv -> pure ((Ur renv._vulkanSwapChain._swapchain, Ur renv._vulkanDevice._presentQueue), renv))
+  (Ur swpc, Ur presentQueue) <- renderer (Unsafe.toLinear $ \renv -> undefined) -- pure ((Ur renv._vulkanSwapChain._swapchain, Ur renv._vulkanDevice._presentQueue), renv))
   let presentInfo = Vk.PresentInfoKHR { next = ()
                                       , waitSemaphores = [sem]
                                       , swapchains = [swpc]

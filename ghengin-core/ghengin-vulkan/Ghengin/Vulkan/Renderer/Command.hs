@@ -96,13 +96,7 @@ module Ghengin.Vulkan.Renderer.Command
   , copyImageToBuffer
   , resolveImage
 
-  -- * Synchronization
-  , pipelineBarrier
-  , setEvent
-  , resetEvent
-  , waitEvents
-  , writeTimestamp
-  -- ** Synchronization2 (Vulkan 1.3)
+  -- ** Synchronization (Vulkan 1.3)
   , pipelineBarrier2
   , setEvent2
   , resetEvent2
@@ -812,68 +806,10 @@ resolveImage srcImage srcLayout dstImage dstLayout regions =
     Vk.cmdResolveImage buf src' srcLayout dst' dstLayout (Vector.fromList regions)
 {-# INLINE resolveImage #-}
 
--- :| Synchronization Commands |: --
-
--- | Insert a pipeline barrier
-pipelineBarrier :: Linear.MonadIO m
-                => Vk.PipelineStageFlags  -- ^ Source stage mask
-                -> Vk.PipelineStageFlags  -- ^ Destination stage mask
-                -> Vk.DependencyFlags
-                -> [Vk.MemoryBarrier]
-                -> [Vk.BufferMemoryBarrier '[]]
-                -> [Vk.ImageMemoryBarrier '[]]
-                -> Command m
-pipelineBarrier srcStageMask dstStageMask depFlags memBarriers bufBarriers imgBarriers =
-  unsafeCmd_ $ \buf ->
-    Vk.cmdPipelineBarrier buf srcStageMask dstStageMask depFlags
-      (Vector.fromList memBarriers)
-      (Vector.fromList $ fmap Vk.SomeStruct bufBarriers)
-      (Vector.fromList $ fmap Vk.SomeStruct imgBarriers)
-{-# INLINE pipelineBarrier #-}
-
 -- | Insert a pipeline barrier (Vulkan 1.3 synchronization2)
 pipelineBarrier2 :: Linear.MonadIO m => Vk.DependencyInfo -> Command m
 pipelineBarrier2 depInfo = unsafeCmd_ (\buf -> Vk.cmdPipelineBarrier2 buf depInfo)
 {-# INLINE pipelineBarrier2 #-}
-
--- | Set an event
-setEvent :: Linear.MonadIO m => Vk.Event -> Vk.PipelineStageFlags -> Command m
-setEvent event stageMask = unsafeCmd_ (\buf -> Vk.cmdSetEvent buf event stageMask)
-{-# INLINE setEvent #-}
-
--- | Reset an event
-resetEvent :: Linear.MonadIO m => Vk.Event -> Vk.PipelineStageFlags -> Command m
-resetEvent event stageMask = unsafeCmd_ (\buf -> Vk.cmdResetEvent buf event stageMask)
-{-# INLINE resetEvent #-}
-
--- | Wait for one or more events
-waitEvents :: Linear.MonadIO m
-           => [Vk.Event]
-           -> Vk.PipelineStageFlags  -- ^ Source stage mask
-           -> Vk.PipelineStageFlags  -- ^ Destination stage mask
-           -> [Vk.MemoryBarrier]
-           -> [Vk.BufferMemoryBarrier '[]]
-           -> [Vk.ImageMemoryBarrier '[]]
-           -> Command m
-waitEvents events srcStageMask dstStageMask memBarriers bufBarriers imgBarriers =
-  unsafeCmd_ $ \buf ->
-    Vk.cmdWaitEvents buf
-      (Vector.fromList events)
-      srcStageMask dstStageMask
-      (Vector.fromList memBarriers)
-      (Vector.fromList $ fmap Vk.SomeStruct bufBarriers)
-      (Vector.fromList $ fmap Vk.SomeStruct imgBarriers)
-{-# INLINE waitEvents #-}
-
--- | Write a device timestamp into a query pool (Vulkan 1.0)
-writeTimestamp :: Linear.MonadIO m
-               => Vk.PipelineStageFlagBits  -- ^ Pipeline stage
-               -> Vk.QueryPool
-               -> Word32                    -- ^ Query index
-               -> Command m
-writeTimestamp stage queryPool queryIndex =
-  unsafeCmd_ (\buf -> Vk.cmdWriteTimestamp buf stage queryPool queryIndex)
-{-# INLINE writeTimestamp #-}
 
 -- | Set an event with extended parameters (Vulkan 1.3 synchronization2)
 setEvent2 :: Linear.MonadIO m => Vk.Event -> Vk.DependencyInfo -> Command m
