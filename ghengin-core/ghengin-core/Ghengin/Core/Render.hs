@@ -4,7 +4,6 @@ module Ghengin.Core.Render
   , module Ghengin.Core.Renderer
   , module Ghengin.Core.Renderer.Kernel
   , module Ghengin.Core.Renderer.Pipeline
-  , module Ghengin.Core.Renderer.RenderPass
   )
   where
 

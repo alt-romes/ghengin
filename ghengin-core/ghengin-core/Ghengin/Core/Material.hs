@@ -102,7 +102,7 @@ instance HasProperties Material where
 material :: ∀ α π β. CompatibleMaterial α π
          => PropertyBindings α ⊸ RenderPipeline π β ⊸ Renderer (Material α, RenderPipeline π β)
 material props0 (RenderProperty pr rps) = material props0 rps >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-material props0 (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) = Linear.do
+material props0 (RenderPipeline gpip (rdset, rres, Ur bmap, dpool0) shaders uq) = Linear.do
 
   -- Make the unique identifier for this material
   Ur uniq <- liftSystemIOU newUnique
@@ -127,7 +127,7 @@ material props0 (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shad
   -- updated information.
   pure
     ( mkMat (Done (dset2, resources2, Ur uniq)) props1
-    , RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool3) shaders uq
+    , RenderPipeline gpip (rdset, rres, Ur bmap, dpool3) shaders uq
     )
   where
     mkMat :: ∀ b. Material '[] ⊸ PropertyBindings b ⊸ Material b

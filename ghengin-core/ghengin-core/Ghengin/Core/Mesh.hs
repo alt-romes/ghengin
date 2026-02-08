@@ -126,14 +126,14 @@ createMeshSV
   => RenderPipeline π bs ⊸ PropertyBindings props ⊸ SV.Vector (Vertex ts)
   -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMeshSV (RenderProperty pr rps) props0 vs = createMeshSV rps props0 vs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMeshSV (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 vs = enterD "createMesh" Linear.do
+createMeshSV (RenderPipeline gpip (rdset, rres, Ur bmap, dpool0) shaders uq) props0 vs = enterD "createMesh" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vs
 
   (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes bmap dpool0 props0
 
   pure ( mkMesh (SimpleMesh vertexBuffer (dset0, rmap0) uniq) props1
-       , RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool1) shaders uq
+       , RenderPipeline gpip (rdset, rres, Ur bmap, dpool1) shaders uq
        )
 
 -- | Like 'createMesh', but create the mesh using a vertex buffer created from
@@ -163,7 +163,7 @@ createMeshWithIxsSV
    ⊸ SV.Vector (Vertex ts) -> SV.Vector Int32
   -> Renderer (Mesh ts props, RenderPipeline π bs)
 createMeshWithIxsSV (RenderProperty pr rps) props0 vs ixs = createMeshWithIxsSV rps props0 vs ixs >>= \case (m, rp) -> pure (m, RenderProperty pr rp)
-createMeshWithIxsSV (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) shaders uq) props0 vertices ixs = enterD "createMeshWithIxs" Linear.do
+createMeshWithIxsSV (RenderPipeline gpip (rdset, rres, Ur bmap, dpool0) shaders uq) props0 vertices ixs = enterD "createMeshWithIxs" Linear.do
   Ur uniq      <- liftSystemIOU newUnique
   vertexBuffer <- createVertexBuffer vertices
   indexBuffer  <- createIndex32Buffer ixs
@@ -171,7 +171,7 @@ createMeshWithIxsSV (RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool0) 
   (dset0, rmap0, dpool1, props1) <- allocateDescriptorsForMeshes bmap dpool0 props0
 
   pure ( mkMesh (IndexedMesh vertexBuffer indexBuffer (dset0, rmap0) uniq) props1
-       , RenderPipeline gpip rpass (rdset, rres, (Ur bmap), dpool1) shaders uq
+       , RenderPipeline gpip (rdset, rres, Ur bmap, dpool1) shaders uq
        )
 
 mkMesh :: ∀ t b. Mesh t '[] ⊸ PropertyBindings b ⊸ Mesh t b

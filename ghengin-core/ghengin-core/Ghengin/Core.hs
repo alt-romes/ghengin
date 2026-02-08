@@ -47,25 +47,21 @@ import qualified Unsafe.Linear as Unsafe
 -- For more fine-grained control of the render command to run see 'renderWith'
 render :: RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
         ⊸ Renderer (RenderQueue ())
-render rp rq = do
+render rq = do
 
   renderWith $ Linear.do
-
-    (rp1, rp2) <- lift (Alias.share rp)
 
     Ur extent <- lift getRenderExtent
     let viewport = viewport' extent
         scissor  = scissor' extent
     
-    renderPassCmd extent rp1 $ Linear.do
+    undefined {-renderPassCmd-} extent $ Linear.do
 
       -- this can be changed dynamically...
       setViewport viewport
       setScissor  scissor
 
-      rq <- renderQueueCmd rq
-
-      return (rp2, rq)
+      renderQueueCmd rq
 
 
 -- | Render a frame with the given command
@@ -303,6 +299,6 @@ renderMesh = \case
   MeshProperty p xs -> MeshProperty p <$> renderMesh xs
 
 getGraphicsPipeline :: ∀ α info. RenderPipeline info α ⊸ (RendererPipeline Graphics, RendererPipeline Graphics ⊸ RenderPipeline info α)
-getGraphicsPipeline (RenderPipeline rpg a b c d) = (rpg, \rg -> RenderPipeline rg a b c d)
+getGraphicsPipeline (RenderPipeline rpg a b c) = (rpg, \rg -> RenderPipeline rg a b c)
 getGraphicsPipeline (RenderProperty p rp) = case getGraphicsPipeline rp of (rg, rpf) -> (rg, \rg' -> RenderProperty p (rpf rg'))
 
