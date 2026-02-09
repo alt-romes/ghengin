@@ -196,7 +196,7 @@ type Command m = CommandM m ()
 -- === Example
 --
 -- @
--- rpc :: RenderCmd
+-- rpc :: RenderCmd m
 -- rpc = do
 --    bindGraphicsPipeline eng.vkPipeline
 --    setViewport viewport
@@ -213,12 +213,8 @@ newtype RenderCmdM m a = RenderCmd (CommandM m a)
 
 data CmdInfo = CmdInfo
       { buf :: Vk.CommandBuffer
-
-      -- | Because we have multiple frames in flight in our swapchain, we need
-      -- to index the corresponding auxiliary structures on the right frame
-      -- index. For instance, we need this Ix to pick the right framebuffer to
-      -- use in the renderpass command.
-      , _currentImageIx :: Int
+        -- ^ TODO: Use type-state abstraction from Command.Buffer
+        -- See https://docs.vulkan.org/spec/latest/chapters/cmdbuffers.html#commandbuffers-lifecycle
       }
 
 -- This interface is safe because the only ways to record the command
@@ -259,8 +255,8 @@ instance HasLogger m => HasLogger (CommandM m) where
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
-recordCommand :: Linear.MonadIO m => Int {-^ Current frame index -} -> Vk.CommandBuffer ⊸ CommandM m a ⊸ m (a, Vk.CommandBuffer)
-recordCommand ix = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
+recordCommand :: Linear.MonadIO m => Vk.CommandBuffer ⊸ CommandM m a ⊸ m (a, Vk.CommandBuffer)
+recordCommand = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.zero
                                             , inheritanceInfo = Nothing }
 
@@ -268,7 +264,7 @@ recordCommand ix = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
   Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
 
   -- Record commands
-  a <- runReaderT cmds (CmdInfo buf ix)
+  a <- runReaderT cmds (CmdInfo buf)
 
   -- Finish recording
   Linear.liftSystemIO $ Vk.endCommandBuffer buf
@@ -280,7 +276,7 @@ recordCommandOneShot :: Linear.MonadIO m => Vk.CommandBuffer ⊸ CommandM m a �
 recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
   let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, inheritanceInfo = Nothing }
   Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
-  x <- runReaderT cmds (CmdInfo buf (error "one shot command tried to begin render pass but no frame is selected?"))
+  x <- runReaderT cmds (CmdInfo buf)
   Linear.liftSystemIO $ Vk.endCommandBuffer buf
   Linear.pure (buf, x)
 {-# INLINE recordCommandOneShot #-}
@@ -895,14 +891,18 @@ executeCommands cmdBuffers = unsafeCmd_ $ \buf ->
 
 unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> CommandM m a
 unsafeCmd = Unsafe.toLinear \a f -> (Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf a))
+{-# INLINE unsafeCmd #-}
 
 unsafeCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> Command m
 unsafeCmd_ = Unsafe.toLinear \f -> (Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf))
+{-# INLINE unsafeCmd_ #-}
 
 -- | Unsafe for lots of reasons
 unsafeRenderCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> RenderCmdM m a
 unsafeRenderCmd = Unsafe.toLinear \a f -> (RenderCmd $ Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf a))
+{-# INLINE unsafeRenderCmd #-}
 
 unsafeRenderCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> RenderCmd m
 unsafeRenderCmd_ = Unsafe.toLinear \f -> (RenderCmd $ Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf))
+{-# INLINE unsafeRenderCmd_ #-}
 

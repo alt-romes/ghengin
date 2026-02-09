@@ -34,6 +34,7 @@ import qualified Unsafe.Linear as Unsafe
 import Ghengin.Core.Prelude as Linear
 import qualified Data.Functor.Linear as Data
 
+import Type.Reflection
 import Data.Finite
 import Data.IORef
 import Data.Bits
@@ -132,17 +133,17 @@ runRenderer dimensions r = Linear.do
     pure (fences, presentSemaphores)
 
   (SomeV @_swpImgs renderSemaphores, vkContext) <- case vkContext of
-    VulkanContext{..} -> Linear.do
-      let mkRenderSemaphores
-            :: forall swpImgs. KnownNat swpImgs
-            => SwapchainInfo swpImgs %1
-            -> Linear.IO (SomeV Vk.Semaphore, VulkanContext WithSwapchain)
-          mkRenderSemaphores swpInfo = Linear.do
-            let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
-            (semsv, ctx) <- withResource ctx $
-              genSizedWithCtx @swpImgs createSemaphore
-            return (SomeV semsv, ctx)
-      withSwapchainInfo aSwapchainInfo mkRenderSemaphores
+    VulkanContext{..} -> withSwapchainInfo aSwapchainInfo mkRenderSemaphores
+      where
+        mkRenderSemaphores
+          :: ∀ swpImgs. KnownNat swpImgs
+          => SwapchainInfo swpImgs %1
+          -> Linear.IO (SomeV Vk.Semaphore, VulkanContext WithSwapchain)
+        mkRenderSemaphores swpInfo = Linear.do
+          let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
+          (semsv, ctx) <- withResource ctx $
+            genSizedWithCtx @swpImgs createSemaphore
+          return (SomeV semsv, ctx)
 
   (commandPool, vkContext) <- createCommandPool vkContext
   (commandBuffers, vkContext, commandPool) <- createCommandBuffers @FramesInFlight vkContext commandPool
@@ -175,15 +176,13 @@ runRenderer dimensions r = Linear.do
   pure a
   where
     genSizedWithCtx
-      :: forall (s::Nat) a
-       . KnownNat s
+      :: ∀ s a. KnownNat s
       => (VulkanContext WithSwapchain %1 -> IO (a, VulkanContext WithSwapchain))
       -> StateT (VulkanContext WithSwapchain) IO (V s a)
     genSizedWithCtx k = genSizedM @s $ const $ StateT k
 
     destroyVs
-      :: forall (n :: Nat) s res
-       . KnownNat n
+      :: KnownNat n
       => V n s %1
       -> (res %1 -> s %1 -> IO res)
       -> StateT res IO ()
@@ -200,7 +199,7 @@ newFrame
   -> Renderer a
 newFrame action = Linear.do
   Ur frameIndex <- nextFrameInFlight
-  (Ur (SomeWith imageIndex)) <- renderer $ \RendererEnv{..} -> Linear.do
+  (Ur (SomeWith (imageIndex :: Finite swpcImgs))) <- renderer $ \RendererEnv{..} -> Linear.do
     let !(frameFence, reconFences) = focusV frameIndex fences
     -- After waiting for this fence, it's safe to update resources for this
     -- frame index (e.g. the descriptor sets, uniform data, and other things
@@ -210,63 +209,52 @@ newFrame action = Linear.do
 
     let !(framePresentSem, reconPresentSems) = focusV frameIndex presentSemaphores
     (imageIndex, framePresentSem, vkContext) <- case vkContext of
-      VulkanContext{..} -> Linear.do
-        let acquireIt
-              :: forall swpImgs. KnownNat swpImgs
-              => SwapchainInfo swpImgs %1
-              -> Linear.IO (Ur (Finite `With` KnownNat), Vk.Semaphore, VulkanContext WithSwapchain)
-            acquireIt swpInfo = Linear.do
-              (Ur (fin :: Finite swpImgs), framePresentSem, swpInfo, device) <-
-                acquireNextImage device swpInfo framePresentSem
-              let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
-              return (Ur (SomeWith fin), framePresentSem, ctx)
-        withSwapchainInfo aSwapchainInfo acquireIt
+      VulkanContext{..} -> withSwapchainInfo aSwapchainInfo acquireIt
+        where
+          acquireIt
+            :: KnownNat swpImgs
+            => SwapchainInfo swpImgs %1
+            -> Linear.IO (Ur (Finite `With` KnownNat), Vk.Semaphore, VulkanContext WithSwapchain)
+          acquireIt swpInfo = Linear.do
+            (Ur (fin :: Finite swpImgs), framePresentSem, swpInfo, device) <-
+              acquireNextImage device swpInfo framePresentSem
+            let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
+            return (Ur (SomeWith fin), framePresentSem, ctx)
+        
 
     pure (imageIndex, RendererEnv
       { fences = reconFences frameFence
       , presentSemaphores = reconPresentSems framePresentSem
-      , ..
-      })
+      , .. })
 
-  -- The user action will call record command buffers (renderWith ...) and update resources.
+  -- The user action will call record command buffers (renderWith ...), submit them, and update resources.
   a <- action frameIndex imageIndex
 
-  -- We submit this frame's command buffer and present the image afters
+  -- We present the image afterwards.
+  renderer $ \RendererEnv{renderSemaphores=(renderSemaphores::V swpImgs' Vk.Semaphore), ..} -> case vkContext of
+    VulkanContext{..} -> withSwapchainInfo aSwapchainInfo useInfo
+      where
+        useInfo
+          :: ∀ swpImgs. KnownNat swpImgs
+          => SwapchainInfo swpImgs %1
+          -> Linear.IO ((), RendererEnv FramesInFlight)
+        useInfo swpInfo =
+          case (sameNat (Proxy @swpImgs') (Proxy @swpImgs), sameNat (Proxy @swpcImgs) (Proxy @swpImgs)) of
+            -- Witness that the number of swapchain images is the same as the
+            -- number of render semaphores is the same as the Finite index for
+            -- imageIndex (all were created from same SwapchainInfo)
+            (Just Refl, Just Refl) -> Linear.do
+              (renderSemaphores, swpInfo, queue) <-
+                presentPresentQueue queue swpInfo (renderSemaphores :: V swpImgs Vk.Semaphore) imageIndex
+              let vkContext = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
+              return ((), RendererEnv { vkContext, .. })
+
+            _ -> error "impossible, but I don't know how to prove it"
+              RendererEnv{vkContext = VulkanContext{aSwapchainInfo = ASwapchainInfo swpInfo, ..}, .. }
 
   return a
 
--- withCurrentFramePresent :: ( Vk.CommandBuffer
---                               ⊸ Int -- ^ Current image index
---                              -> Renderer (a, Vk.CommandBuffer)
---                            )
---                          ⊸ Renderer a
--- withCurrentFramePresent action = Linear.do
---
---   Ur frameIndexRef <- Renderer $ asks (\(Ur env) -> Ur env.frameIndexRef)
---   Ur frameIndex    <- liftSystemIOU (Data.IORef.readIORef frameIndexRef)
---   liftSystemIO $ modifyIORef' frameIndexRef (Prelude.+ 1)
---
---   Ur unsafeCurrentFrame <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur (case renv._frames of (VI.V vec) -> vec V.! currentFrameIndex),renv)
---   -- These are all unsafe too
---   let
---       cmdBuffer         = unsafeCurrentFrame._commandBuffer
---       inFlightFence     = unsafeCurrentFrame._renderFence
---       imageAvailableSem = unsafeCurrentFrame._renderSemaphore
---       renderFinishedSem = unsafeCurrentFrame._presentSemaphore
---
---   -- Wait for the previous frame to finish
---   -- Acquire an image from the swap chain
---   -- Record a command buffer which draws the scene onto that image
---   -- Submit the recorded command buffer
---   -- Present the swap chain image 
---   unsafeUseDevice (\device -> do
---     _ <- Vk.waitForFences device [inFlightFence] True maxBound
---     Vk.resetFences device [inFlightFence]
---                   )
---
---   (Ur i, imageAvailableSem') <- acquireNextSwapchainImage imageAvailableSem
---
---   liftSystemIO $ Vk.resetCommandBuffer cmdBuffer zero
+--   Vk.resetCommandBuffer cmdBuffer zero
 --
 --   (a, cmdBuffer') <- action cmdBuffer i
 --
@@ -275,11 +263,7 @@ newFrame action = Linear.do
 --     <- submitGraphicsQueue cmdBuffer' imageAvailableSem' renderFinishedSem inFlightFence
 --
 --   renderFinishedSem'' <- presentPresentQueue renderFinishedSem' i
---
---   -- Forget these as they're in the renderer environment still, remember we got them unsafely in the first place...
---   Unsafe.toLinearN @4 (\_ _ _ _ -> pure ()) cmdBuffer'' imageAvailableSem'' renderFinishedSem'' inFlightFence'
---
---   pure a
+
 
 acquireNextImage
   :: ( MonadIO m, KnownNat n )
@@ -309,37 +293,50 @@ submitGraphicsQueue = Unsafe.toLinearN @4 \cb sem1 sem2 fence -> Linear.do
   liftSystemIO $ Vk.queueSubmit gqueue [Vk.SomeStruct submitInfo] fence
   pure (cb, sem1, sem2, fence)
 
-
-presentPresentQueue :: Vk.Semaphore ⊸ Int -> Renderer Vk.Semaphore
-presentPresentQueue = Unsafe.toLinear \sem imageIndex -> Linear.do
-  (Ur swpc, Ur presentQueue) <- renderer (Unsafe.toLinear $ \renv -> undefined) -- pure ((Ur renv._vulkanSwapChain._swapchain, Ur renv._vulkanDevice._presentQueue), renv))
-  let presentInfo = Vk.PresentInfoKHR { next = ()
-                                      , waitSemaphores = [sem]
-                                      , swapchains = [swpc]
-                                      , imageIndices = [fromIntegral imageIndex]
-                                      , results = nullPtr
-                                      }
-  Ur _ <- liftSystemIOU $ Vk.queuePresentKHR presentQueue presentInfo
-  pure sem
+presentPresentQueue
+  :: ( MonadIO m, KnownNat swpImgs )
+  => Vk.Queue               %1
+  -> SwapchainInfo swpImgs  %1
+  -> V swpImgs Vk.Semaphore %1
+  -> Finite swpImgs
+  -> m (V swpImgs Vk.Semaphore, SwapchainInfo swpImgs, Vk.Queue)
+presentPresentQueue = Unsafe.toLinear3 \presentQueue swpc renderSemaphores imageIndex -> Linear.do
+  let !(renderSemaphore, _) = focusV imageIndex renderSemaphores
+  let presentInfo = Vk.PresentInfoKHR
+        { next = ()
+        , waitSemaphores = [renderSemaphore]
+        , swapchains = [swpc.swapchain]
+        , imageIndices = [fromIntegral (getFinite imageIndex)]
+        , results = nullPtr
+        }
+  Ur _TODO_REBUILD_SWPCHAIN_IF_OUTDATED <- liftSystemIOU $
+    Vk.queuePresentKHR presentQueue presentInfo
+  pure (renderSemaphores{-they weren't modified-}, swpc, presentQueue)
 
 shouldCloseWindow :: Renderer (Ur Bool)
-shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
-  b <- liftSystemIOU (GLFW.windowShouldClose undefined) --_vulkanWindow._window)
+shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv -> Linear.do
+  let !(ContextWindow window) = renv.vkContext.window
+  b <- liftSystemIOU (GLFW.windowShouldClose window)
   pure $ (b, renv)
 
 pollWindowEvents :: Renderer ()
 pollWindowEvents = liftSystemIO $ GLFW.pollEvents
 
-withWindow :: (GLFW.Window ⊸ Linear.IO GLFW.Window) -> Renderer ()
-withWindow f = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
-  undefined
-  -- w' <- f (_vulkanWindow._window)
-  -- pure ((), renv{_vulkanWindow = renv._vulkanWindow{_window = w'}})
 
 getMousePos :: Renderer (Ur (Double, Double))
-getMousePos = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..}) -> Linear.do
-  p <- liftSystemIOU (GLFW.getCursorPos undefined)--_vulkanWindow._window)
+getMousePos = renderer $ Unsafe.toLinear $ \renv -> Linear.do
+  let !(ContextWindow window) = renv.vkContext.window
+  p <- liftSystemIOU (GLFW.getCursorPos window)
   pure (p, renv)
+
+withWindow :: (GLFW.Window ⊸ Linear.IO GLFW.Window) -> Renderer ()
+withWindow f = withWindow' (\w -> f w >>= \w -> pure ((), w))
+
+withWindow' :: (GLFW.Window ⊸ Linear.IO (a, GLFW.Window)) -> Renderer a
+withWindow' f = renderer $ Unsafe.toLinear $ \renv -> Linear.do
+  let !(ContextWindow window) = renv.vkContext.window
+  (x, window) <- f window
+  pure (x, renv{vkContext = renv.vkContext{window = ContextWindow window}})
 
 --------------------------------------------------------------------------------
 -- * Utils
