@@ -43,7 +43,7 @@ data RendererEnv (n :: Nat) =
     , depthImage        :: !(VulkanImage WithView)
 
     -- Synchronization
-    -- TODO: Use Mutable vectors?
+    -- TODO: Use Mutable vectors? Since we're linear!
     , fences            :: !(V.V n Vk.Fence)
     , presentSemaphores :: !(V.V n Vk.Semaphore)
     , renderSemaphores  :: !(V.V swpcImgs Vk.Semaphore)

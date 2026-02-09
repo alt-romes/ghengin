@@ -13,10 +13,13 @@ import qualified Data.Linear.Alias as Alias
 
 import qualified Vulkan as Vk -- Remove occurrences by duplicating vulkan types into standalone ones.
 
-data RendererEnv
-data RendererReaderEnv
+data RendererEnv (n :: Nat)
+data RendererUrEnv (n :: Nat)
 newtype Renderer a
-  = Renderer { unRenderer :: Linear.ReaderT (Ur RendererReaderEnv) (Linear.StateT RendererEnv System.IO.Linear.IO) a }
+  = Renderer { unRenderer :: Linear.ReaderT (Ur (RendererUrEnv FramesInFlight)) (Linear.StateT (RendererEnv FramesInFlight) System.IO.Linear.IO) a }
+
+type FramesInFlight :: Nat
+type FramesInFlight = 2
 
 type Alias = Alias.Alias Renderer
 
@@ -31,12 +34,7 @@ instance Linear.MonadFail Renderer
 
 instance HasLogger Renderer
 
--- Not export this from hsig?
-type MAX_FRAMES_IN_FLIGHT_T :: Nat
-type MAX_FRAMES_IN_FLIGHT_T = 2
-
-renderer :: (RendererEnv ⊸ System.IO.Linear.IO (a, RendererEnv)) ⊸ Renderer a
-
 getRenderExtent :: Renderer (Ur Vk.Extent2D)
 
-clearRenderImages :: Float -> Float -> Float -> Float -> Renderer ()
+-- renderer :: (RendererEnv ⊸ System.IO.Linear.IO (a, RendererEnv)) ⊸ Renderer a
+-- clearRenderImages :: Float -> Float -> Float -> Float -> Renderer ()
