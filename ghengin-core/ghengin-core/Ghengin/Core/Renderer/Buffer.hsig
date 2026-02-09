@@ -5,7 +5,6 @@ import Data.Word (Word, Word32)
 import Data.Int (Int32)
 import qualified Data.Vector.Storable as SV
 -- TODO:Exchange Vk specific types to renderer agnostic enumerations
-import qualified Vulkan as Vk (BufferUsageFlags)
 
 import Foreign.Ptr (Ptr)
 import Foreign.Ptr.Diff (Diff)
@@ -69,9 +68,9 @@ createVertexBuffer :: ∀ αs. SV.Storable (Vertex αs)
 
 -------- Device-local buffer -----------
 
-data DeviceLocalBuffer
+data BufferUsage = VertexBuffer | IndexBuffer | UniformBuffer | StorageBuffer | TransferSrc | TransferDst
 
-createDeviceLocalBuffer :: ∀ α. SV.Storable α => Vk.BufferUsageFlags -> SV.Vector α -> Renderer DeviceLocalBuffer
+createDeviceLocalBuffer :: ∀ α. SV.Storable α => [BufferUsage] -> SV.Vector α -> Renderer DeviceLocalBuffer
 
 destroyDeviceLocalBuffer :: DeviceLocalBuffer ⊸ Renderer ()
 
