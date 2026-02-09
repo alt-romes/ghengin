@@ -1,30 +1,33 @@
 signature Ghengin.Core.Renderer.Command where
 
+import Data.Word (Word32)
+
 import Ghengin.Core.Prelude
 import Ghengin.Core.Log
-import qualified Data.Functor.Linear as Data
-import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Core.Renderer.Pipeline
 import Ghengin.Core.Renderer.Buffer
 import Ghengin.Core.Renderer.DescriptorSet
 
+import qualified Data.Functor.Linear as Data
 import qualified Control.Functor.Linear as Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
-import qualified Vulkan as Vk
 
-type RenderPassCmd m = RenderPassCmdM m ()
 type Command m = CommandM m ()
-
-type role RenderPassCmdM representational nominal
-type RenderPassCmdM :: (Type -> Type) -> Type -> Type
-data RenderPassCmdM m a
+type RenderCmd m = RenderCmdM m ()
 
 type role CommandM representational nominal
 type CommandM :: (Type -> Type) -> Type -> Type
 data CommandM m a
 
+type role RenderCmdM representational nominal
+type RenderCmdM :: (Type -> Type) -> Type -> Type
+data RenderCmdM m a
+
+-- Abstract backend-provided types.
 data CommandBuffer
+data Viewport
+data Rect2D
 
 instance Linear.Functor m     => Linear.Functor (CommandM m)
 instance Data.Functor m       => Data.Functor (CommandM m)
@@ -35,35 +38,32 @@ instance Linear.MonadIO m     => Linear.MonadIO (CommandM m)
 instance HasLogger m          => HasLogger (CommandM m)
 instance Linear.MonadTrans CommandM
 
-instance Linear.Functor m     => Linear.Functor (RenderPassCmdM m)
-instance Data.Functor m       => Data.Functor (RenderPassCmdM m)
-instance Linear.Applicative m => Linear.Applicative (RenderPassCmdM m)
-instance Data.Applicative m   => Data.Applicative (RenderPassCmdM m)
-instance Linear.Monad m       => Linear.Monad (RenderPassCmdM m)
-instance Linear.MonadIO m     => Linear.MonadIO (RenderPassCmdM m)
-instance HasLogger m          => HasLogger (RenderPassCmdM m)
-instance Linear.MonadTrans RenderPassCmdM
+instance Linear.Functor m     => Linear.Functor (RenderCmdM m)
+instance Data.Functor m       => Data.Functor (RenderCmdM m)
+instance Linear.Applicative m => Linear.Applicative (RenderCmdM m)
+instance Data.Applicative m   => Data.Applicative (RenderCmdM m)
+instance Linear.Monad m       => Linear.Monad (RenderCmdM m)
+instance Linear.MonadIO m     => Linear.MonadIO (RenderCmdM m)
+instance HasLogger m          => HasLogger (RenderCmdM m)
+instance Linear.MonadTrans RenderCmdM
 
--- the command buffer comes from the leaky
-recordCommand :: Linear.MonadIO m => Int {-^ Current frame index -} -> CommandBuffer ⊸ CommandM m a ⊸ m (a, CommandBuffer)
+-- Recording
+recordCommand :: Linear.MonadIO m => CommandBuffer ⊸ CommandM m a ⊸ m (a, CommandBuffer)
+recordCommandOneShot :: Linear.MonadIO m => CommandBuffer ⊸ CommandM m a ⊸ m (CommandBuffer, a)
 
--- renderPassCmd :: Linear.MonadIO m => Vk.Extent2D -> Alias.Alias m RenderPass ⊸ RenderPassCmdM m a ⊸ CommandM m a
-
--- TODO: Cleanup the API
-
-drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderPassCmdM m VertexBuffer
-drawVertexBufferIndexed :: Linear.MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderPassCmdM m (VertexBuffer, Index32Buffer)
-draw :: Linear.MonadIO m => Word32 -> RenderPassCmd m
-drawIndexed :: Linear.MonadIO m => Word32 -> RenderPassCmd m
-
-bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ RenderPassCmdM m (RendererPipeline Graphics)
-
+-- Pipeline Binding
+bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ RenderCmdM m (RendererPipeline Graphics)
 bindGraphicsDescriptorSet :: Linear.MonadIO m
                           => RendererPipeline Graphics
                           ⊸ Word32 -- ^ Set index at which to bind the descriptor set
-                          -> DescriptorSet ⊸ RenderPassCmdM m (DescriptorSet, RendererPipeline Graphics)
+                          -> DescriptorSet ⊸ RenderCmdM m (DescriptorSet, RendererPipeline Graphics)
 
--- leaky, fixme.
-setViewport :: Linear.MonadIO m => Vk.Viewport -> RenderPassCmd m
-setScissor :: Linear.MonadIO m => Vk.Rect2D -> RenderPassCmd m
+-- Dynamic State
+setViewport :: Linear.MonadIO m => Viewport -> RenderCmd m
+setScissor :: Linear.MonadIO m => Rect2D -> RenderCmd m
 
+-- Drawing Commands
+draw :: Linear.MonadIO m => Word32 -> RenderCmd m
+drawIndexed :: Linear.MonadIO m => Word32 -> RenderCmd m
+drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderCmdM m VertexBuffer
+drawVertexBufferIndexed :: Linear.MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderCmdM m (VertexBuffer, Index32Buffer)
