@@ -56,7 +56,7 @@ withNewFrame :: MonadIO n => Prelude.IO () -> n ()
 -- | This needs to be called as part of a custom render pass to draw the data
 -- prepared by 'imguiRender'. See 'Ghengin.Core.renderWith'. An example usage
 -- is in @examples/dear-imgui@.
-renderDrawData :: MonadIO m => RenderPassCmd m
+renderDrawData :: MonadIO m => RenderCmd m
 
 --------------------------------------------------------------------------------
 -- * Internals that may eventually be useful
