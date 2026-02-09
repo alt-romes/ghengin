@@ -55,7 +55,7 @@ render rq = do
     let viewport = viewport' extent
         scissor  = scissor' extent
     
-    undefined {-renderPassCmd-} extent $ Linear.do
+    beginRendering extent $ Linear.do
 
       -- this can be changed dynamically...
       setViewport viewport
@@ -90,7 +90,7 @@ renderWith command = enterD "render" $ Linear.do
 
   withCurrentFramePresent $ \cmdBuffer currentImage -> enterD "withCurrentFramePresent" $ Linear.do
 
-    recordCommand currentImage cmdBuffer command
+    recordCommand cmdBuffer command
 
 
 {- |
@@ -131,7 +131,7 @@ passed to `render`.
 renderQueueCmd :: RenderQueue ()
                -- ^ The unit type parameter is data attached to each item in the
                -- render queue, we could eventually use it for something relevant...
-                ⊸ RenderPassCmdM Renderer (RenderQueue ())
+                ⊸ RenderCmdM Renderer (RenderQueue ())
 renderQueueCmd (RenderQueue renderQueue) = RenderQueue Linear.<$> Linear.do
 
   -- Render the renderable entities from the render queue in the given order.
@@ -183,7 +183,7 @@ renderQueueCmd (RenderQueue renderQueue) = RenderQueue Linear.<$> Linear.do
     ) renderQueue
 
 handleMaterial :: (Some Material, MeshMap ())
-                ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) (Some Material, MeshMap ())
+                ⊸ StateT (RendererPipeline Graphics) (RenderCmdM Renderer) (Some Material, MeshMap ())
 handleMaterial (Some @Material @_ms material, meshes) = StateT $ \graphicsPipeline -> enterD "Material changed" Linear.do
 
   lift (descriptors material) >>= \case
@@ -209,7 +209,7 @@ handleMaterial (Some @Material @_ms material, meshes) = StateT $ \graphicsPipeli
 
     return ((Some material'', meshes'), graphicsPipeline)
 
-handleMeshes :: [(Some2 Mesh, ())] ⊸ StateT (RendererPipeline Graphics) (RenderPassCmdM Renderer) [(Some2 Mesh, ())]
+handleMeshes :: [(Some2 Mesh, ())] ⊸ StateT (RendererPipeline Graphics) (RenderCmdM Renderer) [(Some2 Mesh, ())]
 handleMeshes meshes = flip Data.traverse meshes $ \(Some2 @Mesh @_ts mesh0, ()) -> StateT $ \graphicsPipeline -> enterD "Mesh changed" Linear.do
 
   logT "Drawing mesh"
@@ -288,7 +288,7 @@ writePropertiesToResources rmap' fi
         (rmap''', bs) <- go rmap'' (n+1) as
         pure (rmap''', binding':##bs)
 
-renderMesh :: (Functor m, MonadIO m) => Mesh vs a ⊸ RenderPassCmdM m (Mesh vs a)
+renderMesh :: (Functor m, MonadIO m) => Mesh vs a ⊸ RenderCmdM m (Mesh vs a)
 renderMesh = \case
   SimpleMesh vb ds uq -> Linear.do
     vb' <- drawVertexBuffer vb
