@@ -138,9 +138,6 @@ library
     build-depends:    base >= 4.20, ghc >= 9.10,
                       fir,
 
-                      -- TODO: NOT DEPEND ON VULKAN IN CORE.
-                      -- EVEN THOUGH WE NO LONGER USE BACKPACK, WE STILL WANT CLEAN SEPARATION OF CONCERNS.
-                      vulkan >= 3.26.2,
                       linear-base >= 0.4.0,
                       reference-counting >= 0.2.0.0,
                       os-string,
@@ -197,8 +194,6 @@ library backend-independent-bits
 
     build-depends:    base,
                       fir,
-                      -- TODO: NOT DEPEND ON VULKAN IN CORE INDEP
-                      vulkan,
                       linear-base,
                       reference-counting >= 0.2.0.0,
 
@@ -268,7 +263,7 @@ library vulkan
 
     build-depends:    base,
                       fir,
-                      vulkan,
+                      vulkan >= 3.26.2,
                       text-short,
                       GLFW-b,
                       linear-base,
