@@ -130,7 +130,11 @@ library
 
     build-depends:    base >= 4.20, ghc >= 9.10,
                       fir,
-                      -- TODO: NOT DEPEND ON VULKAN IN CORE
+                      -- TODO: NOT DEPEND ON VULKAN IN CORE.
+                      -- EVEN THOUGH WE NO LONGER USE BACKPACK, WE STILL WANT CLEAN SEPARATION OF CONCERNS.
+                      -- ghengin-core:vulkan should give everything that's
+                      -- necessary to work with it without needing to import
+                      -- vulkan.
                       vulkan >= 3.26.2,
                       linear-base >= 0.4.0,
                       reference-counting >= 0.2.0.0,
