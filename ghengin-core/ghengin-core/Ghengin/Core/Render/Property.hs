@@ -18,8 +18,8 @@ import Data.Proxy
 import GHC.TypeError
 import Ghengin.Core.Log
 import Ghengin.Core.Prelude as Linear
-import Ghengin.Core.Renderer.Kernel
-import Ghengin.Core.Renderer
+import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer
 import Ghengin.Core.Render
 import Ghengin.Core.Type.Utils
 import qualified Data.Linear.Alias as Alias

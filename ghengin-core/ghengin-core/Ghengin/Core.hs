@@ -19,9 +19,9 @@ import Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data
 
 import Ghengin.Core.Render.Queue
-import Ghengin.Core.Renderer.Pipeline
-import Ghengin.Core.Renderer.Kernel
-import Ghengin.Core.Renderer
+import Ghengin.Vulkan.Renderer.Pipeline
+import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render
 

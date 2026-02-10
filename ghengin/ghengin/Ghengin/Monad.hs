@@ -10,7 +10,7 @@ import qualified Data.Linear.Alias as Alias
 
 -- ghengin-core
 import qualified Ghengin.Core.Prelude as Linear
-import Ghengin.Core.Renderer
+import Ghengin.Vulkan.Renderer
 import Ghengin.Core.Render
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property

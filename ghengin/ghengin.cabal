@@ -129,14 +129,16 @@ library geometry
 library dear-imgui
     import:           common-flags
     visibility: public
-    signatures:       Ghengin.DearImGui.Backend
+    reexported-modules: Ghengin.DearImGui.Vulkan
     exposed-modules:  Ghengin.DearImGui.UI
     build-depends:    base >=4.19.0.0, ghengin-core:backend-independent-bits,
                       vector, containers, geomancy >= 0.3,
                       linear-base, reference-counting, dear-imgui,
-                      ghengin-core, generics-sop, text, data-default
+                      ghengin-core, generics-sop, text, data-default,
+                      ghengin:dear-imgui-vulkan
     hs-source-dirs:   ghengin-dear-imgui
     default-language: GHC2021
+    -- signatures:       Ghengin.DearImGui.Backend
 
 library dear-imgui-vulkan
     import:           common-flags
@@ -148,16 +150,6 @@ library dear-imgui-vulkan
                       ghengin-core, generics-sop, text, data-default
     hs-source-dirs:   ghengin-dear-imgui-vulkan
     default-language: GHC2021
-    mixins:           ghengin-core
-                        requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
-                                 , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
-                                 , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
-                                 , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
-                                 , Ghengin.Core.Renderer.Texture as Ghengin.Vulkan.Renderer.Texture
-                                 , Ghengin.Core.Renderer.Sampler as Ghengin.Vulkan.Renderer.Sampler
-                                 , Ghengin.Core.Renderer.Command as Ghengin.Vulkan.Renderer.Command
-                                 , Ghengin.Core.Renderer as Ghengin.Vulkan.Renderer
-                                 )
 --------------------------------------------------------------------------------
 -- Testsuite
 --------------------------------------------------------------------------------

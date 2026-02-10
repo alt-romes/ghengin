@@ -17,7 +17,7 @@ import Codec.Wavefront
 import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
-import Ghengin.Core.Renderer
+import Ghengin.Vulkan.Renderer
 import Ghengin.Core.Mesh
 import qualified Data.Linear.Alias as Alias
 

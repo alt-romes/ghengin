@@ -11,7 +11,7 @@ import Control.Monad
 import Geomancy.Vec3
 
 import Ghengin.Core.Type.Compatible
-import Ghengin.Core.Renderer
+import Ghengin.Vulkan.Renderer
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Mesh
 

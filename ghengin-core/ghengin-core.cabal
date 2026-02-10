@@ -96,20 +96,27 @@ library
                       Ghengin.Core.Render.Queue,
                       Ghengin.Core.Render
 
-    signatures:       Ghengin.Core.Renderer,
-                      Ghengin.Core.Renderer.Kernel,
-                      Ghengin.Core.Renderer.DescriptorSet,
-                      Ghengin.Core.Renderer.Buffer,
-                      Ghengin.Core.Renderer.Pipeline,
-                      Ghengin.Core.Renderer.Texture,
-                      Ghengin.Core.Renderer.Sampler,
-                      Ghengin.Core.Renderer.Command
-
     -- FIR re-exports, so people can import FIR without depending on fir (it's
     -- already a transitive dependency, we simply make it easier to access)
     reexported-modules: FIR, Math.Linear, Math.Quaternion,
                         -- generics-sop, for deriving generically
                         Generics.SOP
+
+    -- Re-export vulkan renderer backend
+    -- These used to be backpack signatures, but we killed backpack...
+    -- The vulkan backend is kept in a separate package and should be independent.
+    -- Ideally, ghengin-core wouldn't have to ever depend on vulkan directly
+    -- since the renderer should be a complete abstraction.
+    --
+    -- The re-exports make it possible to manipulate renderer data etc
+    reexported-modules: Ghengin.Vulkan.Renderer,
+                        Ghengin.Vulkan.Renderer.Kernel,
+                        Ghengin.Vulkan.Renderer.DescriptorSet,
+                        Ghengin.Vulkan.Renderer.Buffer,
+                        Ghengin.Vulkan.Renderer.Pipeline,
+                        Ghengin.Vulkan.Renderer.Texture,
+                        Ghengin.Vulkan.Renderer.Sampler,
+                        Ghengin.Vulkan.Renderer.Command
 
     -- Re-export modules that are part of ghengin-core-indep (see also #23322)
     -- Keep these modules in sync with the exported modules from ghengin-core-indep!
@@ -130,11 +137,9 @@ library
 
     build-depends:    base >= 4.20, ghc >= 9.10,
                       fir,
+
                       -- TODO: NOT DEPEND ON VULKAN IN CORE.
                       -- EVEN THOUGH WE NO LONGER USE BACKPACK, WE STILL WANT CLEAN SEPARATION OF CONCERNS.
-                      -- ghengin-core:vulkan should give everything that's
-                      -- necessary to work with it without needing to import
-                      -- vulkan.
                       vulkan >= 3.26.2,
                       linear-base >= 0.4.0,
                       reference-counting >= 0.2.0.0,
@@ -151,6 +156,10 @@ library
 
                       gl-block,
 
+                      -- ghengin-core:vulkan should give everything that's
+                      -- necessary to work with the renderer without having to
+                      -- import vulkan directly.
+                      ghengin-core:vulkan,
                       ghengin-core:backend-independent-bits,
                       linear-utils,
                       ptrdiff,
@@ -166,9 +175,6 @@ library
                       -- force this indirect dependency's version
                       ghc-tcplugins-extra >= 0.4.6
 
--- A temporary sublibrary since you can't atm import modules from the package
--- you are instantiating even if it is not an indefinite module?
--- Workaround until #23322 is fixed
 library backend-independent-bits
     import:           common-flags
 
@@ -267,7 +273,6 @@ library vulkan
                       GLFW-b,
                       linear-base,
                       reference-counting >= 0.2.0.0,
-                      -- ghengin-core MISTAKE!(#23322, could we depend on ghengin-core for non-indefinite modules only?)
                       ghengin-core:backend-independent-bits,
                       gl-block,
                       temporary,
@@ -283,12 +288,3 @@ library vulkan
                       vector,
                       linear-utils,
                       ptrdiff
-
-    -- Until #23322 is fixed?
-    -- Nope, also doesn't work. Perhaps we could support this sort of cyclic dependencies.
-    -- mixins:           ghengin:ghengin-core requires ( Ghengin.Core.Renderer.Kernel as Ghengin.Vulkan.Renderer.Kernel
-    --                                                 , Ghengin.Core.Renderer.DescriptorSet as Ghengin.Vulkan.Renderer.DescriptorSet
-    --                                                 , Ghengin.Core.Renderer.Buffer as Ghengin.Vulkan.Renderer.Buffer
-    --                                                 , Ghengin.Core.Renderer.Pipeline as Ghengin.Vulkan.Renderer.Pipeline
-    --                                                 )
-

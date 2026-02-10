@@ -42,7 +42,7 @@ import qualified Data.Map.Linear as ML
 import qualified FIR.Pipeline
 import Data.Kind
 
-import Ghengin.Core.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Type.Compatible
 import Ghengin.Core.Mesh

@@ -30,9 +30,9 @@ import Ghengin.Core.Render.Property
 import Ghengin.Core.Type.Compatible ( CompatibleVertex, CompatibleMesh )
 import Ghengin.Core.Render.Pipeline ( RenderPipeline(..) )
 
-import Ghengin.Core.Renderer.Kernel
-import Ghengin.Core.Renderer.Buffer
-import Ghengin.Core.Renderer.DescriptorSet
+import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Buffer
+import Ghengin.Vulkan.Renderer.DescriptorSet
 
 import Ghengin.Core.Log
 

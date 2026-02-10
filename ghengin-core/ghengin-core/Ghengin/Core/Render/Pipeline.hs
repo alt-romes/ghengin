@@ -23,9 +23,9 @@ import Ghengin.Core.Render.Property
 import Ghengin.Core.Shader.Pipeline ( ShaderPipeline )
 import Data.Unique
 
-import Ghengin.Core.Renderer.Kernel
-import Ghengin.Core.Renderer.Pipeline
-import Ghengin.Core.Renderer.DescriptorSet
+import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Pipeline
+import Ghengin.Vulkan.Renderer.DescriptorSet
 import Ghengin.Core.Log
 
 

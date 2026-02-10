@@ -1,9 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Ghengin.Core.Render
   ( module Ghengin.Core.Render
-  , module Ghengin.Core.Renderer
-  , module Ghengin.Core.Renderer.Kernel
-  , module Ghengin.Core.Renderer.Pipeline
+  , module Ghengin.Vulkan.Renderer
+  , module Ghengin.Vulkan.Renderer.Kernel
+  , module Ghengin.Vulkan.Renderer.Pipeline
   )
   where
 
@@ -13,10 +13,10 @@ import Prelude.Linear
 
 import Control.Functor.Linear as Linear
 
-import Ghengin.Core.Renderer.Buffer
-import Ghengin.Core.Renderer.Kernel
-import Ghengin.Core.Renderer.Pipeline
-import Ghengin.Core.Renderer
+import Ghengin.Vulkan.Renderer.Buffer
+import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Pipeline
+import Ghengin.Vulkan.Renderer
 
 import qualified Data.Linear.Alias as Alias
 
