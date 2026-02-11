@@ -53,7 +53,7 @@ render rq = do
     let viewport = viewportFromExtent extent
         scissor  = scissorFromExtent extent
     
-    beginRendering extent $ Linear.do
+    beginRendering undefined {-extent-} $ Linear.do
 
       -- this can be changed dynamically...
       setViewport viewport
@@ -62,7 +62,7 @@ render rq = do
       renderQueueCmd rq
 
 
--- | Render a frame with the given command
+-- | Record a command buffer for a frame and submit it to the graphics queue
 --
 -- === __Example__
 --
@@ -86,9 +86,7 @@ render rq = do
 renderWith :: CommandM Renderer a ⊸ Renderer a
 renderWith command = enterD "render" $ Linear.do
 
-  withCurrentFramePresent $ \cmdBuffer currentImage -> enterD "withCurrentFramePresent" $ Linear.do
-
-    recordCommand cmdBuffer command
+  recordCommand cmdBuffer command
 
 
 {- |

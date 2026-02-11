@@ -15,6 +15,7 @@ import qualified Data.V.Linear as V
 import qualified Data.Vector as Vector
 
 import Ghengin.Vulkan.Renderer.Command (CommandM, copyFullBuffer, clearColorImage)
+import Ghengin.Vulkan.Renderer.Command.Buffer
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Vulkan.Renderer.Context.Swapchain
@@ -22,6 +23,7 @@ import Ghengin.Vulkan.Renderer.Image
 
 import qualified Vulkan as Vk
 import Ghengin.Core.Log
+import Ghengin.Core.Type.Utils
 
 import qualified Data.Linear.Alias as Alias
 import qualified Unsafe.Linear as Unsafe
@@ -50,7 +52,7 @@ data RendererEnv (n :: Nat) =
 
     -- Command buffers
     , commandPool       :: !Vk.CommandPool
-    , commandBuffers    :: !(V.V n Vk.CommandBuffer)
+    , commandBuffers    :: !(V.V n (Some CommandBuffer))
 
     -- , immediateSubmit :: !ImmediateSubmitCtx
     }

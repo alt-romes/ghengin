@@ -16,11 +16,10 @@
 {-# LANGUAGE QualifiedDo #-}
 -- | Better imported qualified as Cmd.
 module Ghengin.Vulkan.Renderer.Command
-  ( Command
-  , RenderCmd
-  , CommandM
-  , RenderCmdM
-  , Vk.CommandBuffer -- for backpack, re-export Vulkan's definition
+  ( CommandM, Command
+  , RenderCmdM, RenderCmd
+  , CommandBuffer
+  , CommandBufferState(..)
   , recordCommand
   , recordCommandOneShot
 
@@ -127,8 +126,6 @@ module Ghengin.Vulkan.Renderer.Command
   , unsafeRenderCmd_
   ) where
 
-import GHC.TypeLits
-
 import Prelude hiding (($), pure, return)
 import Prelude.Linear (($))
 import qualified Prelude.Linear as Linear ((.))
@@ -150,16 +147,12 @@ import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
+import Ghengin.Core.Log
+import Ghengin.Vulkan.Renderer.Command.Buffer
 import Ghengin.Vulkan.Renderer.Context
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Pipeline
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Buffer
-
-import Ghengin.Core.Type.Utils (w32)
-import Ghengin.Core.Log
-
-import qualified Data.Linear.Alias as Alias
-import qualified Data.Linear.Alias.Unsafe as Unsafe
 
 import qualified Unsafe.Linear as Unsafe
 
@@ -192,6 +185,8 @@ A Command is an action run in an environment in which a command buffer is availa
 --    draw 3
 -- @
 type Command m = CommandM m ()
+newtype CommandM m a = Command (ReaderT CmdInfo m a)
+  deriving (Data.Linear.Functor, Linear.Functor)
 
 -- | A rendering command description: a language to describe the subset of commands to record between beginRendering and endRendering
 --
@@ -206,18 +201,14 @@ type Command m = CommandM m ()
 --    draw 3
 -- @
 type RenderCmd m = RenderCmdM m ()
-
-newtype CommandM m a = Command (ReaderT CmdInfo m a)
-  deriving (Data.Linear.Functor, Linear.Functor)
-
 newtype RenderCmdM m a = RenderCmd (CommandM m a)
   deriving (Data.Linear.Functor, Linear.Functor, Data.Linear.Applicative, Linear.Applicative, Linear.Monad, Linear.MonadTrans, Linear.MonadIO, HasLogger)
 
-data CmdInfo = CmdInfo
-      { buf :: Vk.CommandBuffer
-        -- ^ TODO: Use type-state abstraction from Command.Buffer
-        -- See https://docs.vulkan.org/spec/latest/chapters/cmdbuffers.html#commandbuffers-lifecycle
-      }
+newtype CmdInfo = CmdInfo
+  { buf :: CommandBuffer 'Recording
+    -- ^ See lifecycle in
+    -- https://docs.vulkan.org/spec/latest/chapters/cmdbuffers.html#commandbuffers-lifecycle
+  }
 
 -- This interface is safe because the only ways to record the command
 -- (recordCommand, recordCommandOneShot) guarantee the command buffer is
@@ -257,30 +248,27 @@ instance HasLogger m => HasLogger (CommandM m) where
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
-recordCommand :: Linear.MonadIO m => Vk.CommandBuffer ⊸ CommandM m a ⊸ m (a, Vk.CommandBuffer)
-recordCommand = Unsafe.toLinear2 $ \buf (Command cmds) -> Linear.do
-  let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.zero
-                                            , inheritanceInfo = Nothing }
-
+recordCommand :: Linear.MonadIO m => CommandBuffer Initial ⊸ CommandM m a ⊸ m (a, CommandBuffer Executable)
+recordCommand buf_ini = Unsafe.toLinear \(Command cmds) -> Linear.do
   -- Begin recording
-  Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
+  beginCommandBuffer buf_ini Vk.zero Linear.>>= Unsafe.toLinear \buf_rec -> Linear.do
 
-  -- Record commands
-  a <- runReaderT cmds (CmdInfo buf)
+    -- Record commands
+    a <- runReaderT cmds (CmdInfo buf_rec)
 
-  -- Finish recording
-  Linear.liftSystemIO $ Vk.endCommandBuffer buf
+    -- Finish recording
+    buf_exe <- endCommandBuffer buf_rec
 
-  Linear.pure (a, buf)
+    Linear.pure (a, buf_exe)
 {-# INLINE recordCommand #-}
 
-recordCommandOneShot :: Linear.MonadIO m => Vk.CommandBuffer ⊸ CommandM m a ⊸ m (Vk.CommandBuffer, a)
-recordCommandOneShot = Unsafe.toLinear2 \buf (Command cmds) -> Linear.do
-  let beginInfo = Vk.CommandBufferBeginInfo { next = (), flags = Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT, inheritanceInfo = Nothing }
-  Linear.liftSystemIO $ Vk.beginCommandBuffer buf beginInfo
-  x <- runReaderT cmds (CmdInfo buf)
-  Linear.liftSystemIO $ Vk.endCommandBuffer buf
-  Linear.pure (buf, x)
+recordCommandOneShot :: Linear.MonadIO m => CommandBuffer Initial ⊸ CommandM m a ⊸ m (CommandBuffer Executable, a)
+recordCommandOneShot buf_ini = Unsafe.toLinear \(Command cmds) -> Linear.do
+  beginCommandBuffer buf_ini Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
+    Linear.>>= Unsafe.toLinear \buf_rec -> Linear.do
+      x <- runReaderT cmds (CmdInfo buf_rec)
+      buf_exe <- endCommandBuffer buf_rec
+      Linear.pure (buf_exe, x)
 {-# INLINE recordCommandOneShot #-}
 
 bindGraphicsPipeline' :: Linear.MonadIO m => Vk.Pipeline ⊸ RenderCmdM m Vk.Pipeline
@@ -542,9 +530,9 @@ dispatchIndirect buffer offset =
 -- | Begin dynamic rendering (Vulkan 1.3)
 beginRendering :: Linear.MonadIO m => Vk.RenderingInfo '[] -> RenderCmdM m a ⊸ CommandM m a
 beginRendering renderingInfo = Unsafe.toLinear $ \(RenderCmd (Command rpcmds)) -> Command $ ReaderT $ \info -> Linear.do
-  Linear.liftSystemIO $ Vk.cmdBeginRendering (info.buf) renderingInfo
+  Linear.liftSystemIO $ Vk.cmdBeginRendering (info.buf.unsafeGetCommandBuffer) renderingInfo
   a <- runReaderT rpcmds info
-  Linear.liftSystemIO $ Vk.cmdEndRendering (info.buf)
+  Linear.liftSystemIO $ Vk.cmdEndRendering (info.buf.unsafeGetCommandBuffer)
   Linear.pure a
 {-# INLINE beginRendering #-}
 
@@ -606,20 +594,6 @@ createCommandPool = Unsafe.toLinear $ \vkCtx ->
 
 destroyCommandPool :: forall ctx m. Linear.MonadIO m => VulkanContext ctx ⊸ Vk.CommandPool ⊸ m (VulkanContext ctx)
 destroyCommandPool = Unsafe.toLinear2 $ \dev pool -> dev Linear.<$ Linear.liftSystemIO (Vk.destroyCommandPool dev.device pool Nothing)
-
-
-createCommandBuffers :: forall n ctx m. (KnownNat n, Linear.MonadIO m) => VulkanContext ctx ⊸ Vk.CommandPool ⊸ m (V.V n Vk.CommandBuffer, VulkanContext ctx, Vk.CommandPool)
-createCommandBuffers = Unsafe.toLinear2 \dev cpool ->
-  let allocInfo = Vk.CommandBufferAllocateInfo
-        { commandPool = cpool
-        , level = Vk.COMMAND_BUFFER_LEVEL_PRIMARY
-        , commandBufferCount = w32 @n }
-   in (,dev,cpool) Linear.. VI.V @n @Vk.CommandBuffer Linear.<$>
-    Linear.liftSystemIO (Vk.allocateCommandBuffers dev.device allocInfo)
-
-destroyCommandBuffers :: forall n ctx m. Linear.MonadIO m => VulkanContext ctx ⊸ Vk.CommandPool ⊸ V.V n Vk.CommandBuffer ⊸ m (VulkanContext ctx, Vk.CommandPool)
-destroyCommandBuffers = Unsafe.toLinear3 \dev pool (VI.V bufs) -> (dev,pool) Linear.<$ Linear.liftSystemIO (Vk.freeCommandBuffers dev.device pool bufs)
-
 
 -- :| Images |: --
 
@@ -692,15 +666,6 @@ transitionImageLayout img srcLayout dstLayout =
                             [] -- Buffer barriers
                             [Vk.SomeStruct layoutChangeUndefTransfer]
                             ) -- Image memory barriers
-
-
------ More for the .hsig interface -------
-
--- While I don't know the best place to keep this, I keep it here:
---
--- Ultimately, I think it will be about a good abstraction for issuing/batching
--- draw call.
-
 
 drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderCmdM m VertexBuffer
 drawVertexBuffer (VertexBuffer (DeviceLocalBuffer buf mem) nverts) = Linear.do
@@ -901,24 +866,25 @@ executeCommands cmdBuffers = unsafeCmd_ $ \buf ->
   Vk.cmdExecuteCommands buf (Vector.fromList cmdBuffers)
 {-# INLINE executeCommands #-}
 
------ Linear Unsafe Utils
-
+--------------------------------------------------------------------------------
+-- Linear Unsafe Utils
+--------------------------------------------------------------------------------
 -- Note how `a` is used unrestrictedly in the function `f`. This is because
 -- often this function will be a Vulkan function which isn't linear.
 
 unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> CommandM m a
-unsafeCmd = Unsafe.toLinear \a f -> (Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf a))
+unsafeCmd = Unsafe.toLinear \a f -> (Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf.unsafeGetCommandBuffer a))
 {-# INLINE unsafeCmd #-}
 
 unsafeCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> Command m
-unsafeCmd_ = Unsafe.toLinear \f -> (Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf))
+unsafeCmd_ = Unsafe.toLinear \f -> (Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf.unsafeGetCommandBuffer))
 {-# INLINE unsafeCmd_ #-}
 
 -- | Unsafe for lots of reasons
 unsafeRenderCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> RenderCmdM m a
-unsafeRenderCmd = Unsafe.toLinear \a f -> (RenderCmd $ Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf a))
+unsafeRenderCmd = Unsafe.toLinear \a f -> (RenderCmd $ Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf.unsafeGetCommandBuffer a))
 {-# INLINE unsafeRenderCmd #-}
 
 unsafeRenderCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> RenderCmd m
-unsafeRenderCmd_ = Unsafe.toLinear \f -> (RenderCmd $ Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf))
+unsafeRenderCmd_ = Unsafe.toLinear \f -> (RenderCmd $ Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf.unsafeGetCommandBuffer))
 {-# INLINE unsafeRenderCmd_ #-}

@@ -152,7 +152,8 @@ runRenderer dimensions r = Linear.do
 
   -- Run renderer
   ---------------
-  (a, RendererEnv{..}) <- runRenderer' logger RendererEnv{..} r
+  (a, RendererEnv{..}) <- runRenderer' logger
+    RendererEnv{commandBuffers = VL.map Some commandBuffers, ..} r
 
   -- Terminate
   ------------
@@ -220,7 +221,6 @@ newFrame action = Linear.do
               acquireNextImage device swpInfo framePresentSem
             let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
             return (Ur (SomeWith fin), framePresentSem, ctx)
-        
 
     pure (imageIndex, RendererEnv
       { fences = reconFences frameFence
@@ -252,18 +252,9 @@ newFrame action = Linear.do
             _ -> error "impossible, but I don't know how to prove it"
               RendererEnv{vkContext = VulkanContext{aSwapchainInfo = ASwapchainInfo swpInfo, ..}, .. }
 
+  -- TODO: Reconstruct swapchain here if it changed.
+
   return a
-
---   Vk.resetCommandBuffer cmdBuffer zero
---
---   (a, cmdBuffer') <- action cmdBuffer i
---
---   -- Finally, submit and present
---   (cmdBuffer'',imageAvailableSem'', renderFinishedSem', inFlightFence')
---     <- submitGraphicsQueue cmdBuffer' imageAvailableSem' renderFinishedSem inFlightFence
---
---   renderFinishedSem'' <- presentPresentQueue renderFinishedSem' i
-
 
 acquireNextImage
   :: ( MonadIO m, KnownNat n )

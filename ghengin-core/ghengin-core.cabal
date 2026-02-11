@@ -115,7 +115,8 @@ library
                         Ghengin.Vulkan.Renderer.Pipeline,
                         Ghengin.Vulkan.Renderer.Texture,
                         Ghengin.Vulkan.Renderer.Sampler,
-                        Ghengin.Vulkan.Renderer.Command
+                        Ghengin.Vulkan.Renderer.Command,
+                        Ghengin.Vulkan.Renderer.Command.Buffer
 
     -- Re-export modules that are part of ghengin-core-indep (see also #23322)
     -- Keep these modules in sync with the exported modules from ghengin-core-indep!
@@ -236,9 +237,9 @@ library vulkan
                       Ghengin.Vulkan.Renderer.Image,
                       Ghengin.Vulkan.Renderer.Sampler,
 
-                      -- Should soon enough be part of the required pieces
                       Ghengin.Vulkan.Renderer.Command,
-                      -- Modules that don't instance signatures
+                      Ghengin.Vulkan.Renderer.Command.Buffer,
+
                       Ghengin.Vulkan.Renderer.GLFW.Window,
                       Ghengin.Vulkan.Renderer.Synchronization,
 
