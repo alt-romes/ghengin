@@ -92,7 +92,6 @@ library
 
                       Ghengin.Core.Render.Pipeline,
                       Ghengin.Core.Render.Property,
-                      Ghengin.Core.Render.Packet,
                       Ghengin.Core.Render.Queue,
                       Ghengin.Core.Render
 

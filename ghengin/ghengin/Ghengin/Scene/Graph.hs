@@ -126,7 +126,6 @@ import qualified Apecs as Apecs
 import {-# SOURCE #-} Ghengin.World
 import {-# SOURCE #-} Ghengin (Ghengin)
 
-import Ghengin.Core.Render.Packet
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Component.Transform
 import Ghengin.Component.Camera

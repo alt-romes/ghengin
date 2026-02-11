@@ -24,7 +24,6 @@ import Ghengin.Core.Mesh.Vertex
 import Ghengin.Core.Material
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Render
-import Ghengin.Core.Render.Packet
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Queue
