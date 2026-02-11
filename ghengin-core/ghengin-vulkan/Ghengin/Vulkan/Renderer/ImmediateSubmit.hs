@@ -59,7 +59,7 @@ immediateSubmit' :: MonadIO m
 immediateSubmit' ctx0 (ImmediateSubmitCtx fence pool (Some buffer0)) cmd = Linear.do
 
   buffer <- Cmd.resetCommandBuffer buffer0
-  (buffer', x) <- Cmd.recordCommandOneShot buffer cmd
+  (x, buffer') <- Cmd.recordCommand buffer cmd
   r <- Unsafe.toLinear liftSystemIO $ (Unsafe.toLinearN @4 \ctx fence' pool' (buffer'' :: CommandBuffer Executable) -> do
 
     Vk.queueSubmit ctx.queue [Vk.SomeStruct $ Vk.SubmitInfo () [] [] [buffer''.unsafeGetCommandBuffer.commandBufferHandle] []] fence'

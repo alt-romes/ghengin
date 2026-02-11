@@ -18,10 +18,10 @@
 module Ghengin.Vulkan.Renderer.Command
   ( CommandM, Command
   , RenderCmdM, RenderCmd
+  , recordCommand
+  , resetCommandBuffer
   , CommandBuffer
   , CommandBufferState(..)
-  , recordCommand
-  , recordCommandOneShot
 
   -- * Pipeline Binding
   , bindGraphicsPipeline
@@ -211,9 +211,8 @@ newtype CmdInfo = CmdInfo
   }
 
 -- This interface is safe because the only ways to record the command
--- (recordCommand, recordCommandOneShot) guarantee the command buffer is
--- returned, and command actions otherwise don't expose the command buffer,
--- making it impossible to free it.
+-- recordCommand guarantee the command buffer is returned, and command actions
+-- otherwise don't expose the command buffer, making it impossible to free it.
 --
 -- Therefore, we can instance linear Applicative and Monad for them
 instance Linear.Applicative m => Linear.Applicative (CommandM m) where
@@ -248,10 +247,13 @@ instance HasLogger m => HasLogger (CommandM m) where
 
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
+--
+-- This command buffer is assumed to be executed only once as it's recorded with
+-- VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 recordCommand :: Linear.MonadIO m => CommandBuffer Initial ⊸ CommandM m a ⊸ m (a, CommandBuffer Executable)
 recordCommand buf_ini = Unsafe.toLinear \(Command cmds) -> Linear.do
   -- Begin recording
-  beginCommandBuffer buf_ini Vk.zero Linear.>>= Unsafe.toLinear \buf_rec -> Linear.do
+  beginCommandBuffer buf_ini Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT Linear.>>= Unsafe.toLinear \buf_rec -> Linear.do
 
     -- Record commands
     a <- runReaderT cmds (CmdInfo buf_rec)
@@ -261,15 +263,6 @@ recordCommand buf_ini = Unsafe.toLinear \(Command cmds) -> Linear.do
 
     Linear.pure (a, buf_exe)
 {-# INLINE recordCommand #-}
-
-recordCommandOneShot :: Linear.MonadIO m => CommandBuffer Initial ⊸ CommandM m a ⊸ m (CommandBuffer Executable, a)
-recordCommandOneShot buf_ini = Unsafe.toLinear \(Command cmds) -> Linear.do
-  beginCommandBuffer buf_ini Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-    Linear.>>= Unsafe.toLinear \buf_rec -> Linear.do
-      x <- runReaderT cmds (CmdInfo buf_rec)
-      buf_exe <- endCommandBuffer buf_rec
-      Linear.pure (buf_exe, x)
-{-# INLINE recordCommandOneShot #-}
 
 bindGraphicsPipeline' :: Linear.MonadIO m => Vk.Pipeline ⊸ RenderCmdM m Vk.Pipeline
 bindGraphicsPipeline' pp = unsafeRenderCmd pp (\buf -> Vk.cmdBindPipeline buf Vk.PIPELINE_BIND_POINT_GRAPHICS)

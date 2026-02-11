@@ -43,11 +43,12 @@ import qualified Unsafe.Linear as Unsafe
 -- | Renders a render queue under the given render pass.
 --
 -- For more fine-grained control of the render command to run see 'renderWith'
-render :: RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
+render :: Finite FramesInFlight
+       -> RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
         ⊸ Renderer (RenderQueue ())
-render rq = do
+render frameIndex rq = do
 
-  renderWith $ Linear.do
+  renderWith frameIndex $ Linear.do
 
     Ur extent <- lift getRenderExtent
     let viewport = viewportFromExtent extent
@@ -62,7 +63,7 @@ render rq = do
       renderQueueCmd rq
 
 
--- | Record a command buffer for a frame and submit it to the graphics queue
+-- | Record the given command buffer for a frame and submit it to the graphics queue
 --
 -- === __Example__
 --
@@ -83,10 +84,16 @@ render rq = do
 -- render queue has no meshes, but we still want to draw the pipelines that
 -- command will bind. It uses gl_VertexIndex in the vertex shader.
 -- See https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/ for instance.
-renderWith :: CommandM Renderer a ⊸ Renderer a
-renderWith command = enterD "render" $ Linear.do
+renderWith :: Finite FramesInFlight -> CommandM Renderer a ⊸ Renderer a
+renderWith frameIndex command = enterD "renderWith" $ ReaderT \(Ur _) -> StateT $ \RendererEnv{..} -> Linear.do
 
-  recordCommand cmdBuffer command
+  let !(Some buf, recon_buffers) = focusV frameIndex commandBuffers
+
+  buf_ini <- resetCommandBuffer buf
+
+  (buf_exe, a) <- recordCommand buf_ini command
+
+  return a
 
 
 {- |
