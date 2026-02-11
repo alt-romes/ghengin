@@ -31,6 +31,8 @@ module Ghengin.Vulkan.Renderer.Command
   , bindGraphicsDescriptorSet
 
   -- * Dynamic State (Vulkan 1.0)
+  , viewportFromExtent
+  , scissorFromExtent
   , setViewport
   , setScissor
   , setLineWidth
@@ -300,6 +302,21 @@ setViewport viewport = unsafeRenderCmd_ (\buf -> Vk.cmdSetViewport buf 0 [viewpo
 setScissor :: Linear.MonadIO m => Vk.Rect2D -> RenderCmd m
 setScissor scissor = unsafeRenderCmd_ (\buf -> Vk.cmdSetScissor buf 0 [scissor])
 {-# INLINE setScissor #-}
+
+viewportFromExtent :: Vk.Extent2D -> Vk.Viewport
+viewportFromExtent extent = Vk.Viewport
+  { x = 0.0
+  , y = 0.0
+  , width = fromIntegral extent.width
+  , height = fromIntegral extent.height
+  , minDepth = 0
+  , maxDepth = 1
+  }
+{-# INLINE viewportFromExtent #-}
+
+scissorFromExtent :: Vk.Extent2D -> Vk.Rect2D
+scissorFromExtent extent = Vk.Rect2D (Vk.Offset2D 0 0) extent
+{-# INLINE scissorFromExtent #-}
 
 -- | Set line width dynamically
 setLineWidth :: Linear.MonadIO m => Float -> RenderCmd m
@@ -905,4 +922,3 @@ unsafeRenderCmd = Unsafe.toLinear \a f -> (RenderCmd $ Command $ ReaderT \CmdInf
 unsafeRenderCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> RenderCmd m
 unsafeRenderCmd_ = Unsafe.toLinear \f -> (RenderCmd $ Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf))
 {-# INLINE unsafeRenderCmd_ #-}
-

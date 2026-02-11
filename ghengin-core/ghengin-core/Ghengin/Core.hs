@@ -35,8 +35,6 @@ import qualified Data.Linear.Alias as Alias
 
 import SPIRV.Image
 
-import qualified Vulkan as Vk
-
 import qualified Unsafe.Linear as Unsafe
 
 -- ROMES:TODO: Eventually, the base configuration of the Renderer should be passed in a record "RenderConfig"
@@ -52,8 +50,8 @@ render rq = do
   renderWith $ Linear.do
 
     Ur extent <- lift getRenderExtent
-    let viewport = viewport' extent
-        scissor  = scissor' extent
+    let viewport = viewportFromExtent extent
+        scissor  = scissorFromExtent extent
     
     beginRendering extent $ Linear.do
 
@@ -239,23 +237,6 @@ handleMeshes meshes = flip Data.traverse meshes $ \(Some2 @Mesh @_ts mesh0, ()) 
     return ((Some2 mesh3, ()), graphicsPipeline)
 
 
--- The region of the framebuffer that the output will be rendered to. We
--- render from (0,0) to (width, height) i.e. the whole framebuffer
--- Defines a transformation from image to framebuffer
-viewport' :: Vk.Extent2D -> Vk.Viewport
-viewport' extent = Vk.Viewport { x = 0.0
-                       , y = 0.0
-                       , width  = fromIntegral $ extent.width
-                       , height = fromIntegral $ extent.height
-                       , minDepth = 0
-                       , maxDepth = 1
-                       }
-
--- Defines the region in which pixels will actually be stored. Any pixels
--- outside of the scissor will be discarded. We keep it as the whole viewport
-scissor' :: Vk.Extent2D -> Vk.Rect2D
-scissor' extent = Vk.Rect2D (Vk.Offset2D 0 0) extent
-
 -- | Write a property value to its corresponding resource.
 --
 -- (1) For each property binding, update the property
@@ -301,4 +282,3 @@ renderMesh = \case
 getGraphicsPipeline :: ∀ α info. RenderPipeline info α ⊸ (RendererPipeline Graphics, RendererPipeline Graphics ⊸ RenderPipeline info α)
 getGraphicsPipeline (RenderPipeline rpg a b c) = (rpg, \rg -> RenderPipeline rg a b c)
 getGraphicsPipeline (RenderProperty p rp) = case getGraphicsPipeline rp of (rg, rpf) -> (rg, \rg' -> RenderProperty p (rpf rg'))
-

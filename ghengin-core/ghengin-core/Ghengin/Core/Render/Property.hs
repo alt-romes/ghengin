@@ -24,9 +24,6 @@ import Ghengin.Core.Render
 import Ghengin.Core.Type.Utils
 import qualified Data.Linear.Alias as Alias
 import qualified Data.IntMap.Linear as IM
-import Vulkan.Linear ()
-
-import qualified Vulkan as Vk -- TODO: Core shouldn't depend on any specific renderer implementation external to Core
 
 -- |
 --
@@ -135,18 +132,16 @@ makeResources bm = enterD "makeResources" . go_build 0 bm
       (rmap, pbs') <- go_build (i+1) bmap pbs
       pure (IM.insert i dres rmap, pb' :## pbs')
 
-    bufferType :: Vk.DescriptorType -> BufferType
-    bufferType Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER = Uniform
-    bufferType Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER = Storage
-    bufferType t = error $ "Invalid descriptor buffer type: " ++ show t
+    bufferType :: DescriptorBindingInfo -> BufferType
+    bufferType b = fromMaybe (error $ "Invalid descriptor buffer type: " ++ show b) (bindingBufferType b)
 
     dRes :: BufferType -> Alias MappedBuffer ⊸ DescriptorResource
     dRes Uniform mb = UniformResource mb
     dRes Storage mb = StorageResource mb
 
-    go :: ∀ β. (Vk.DescriptorType, Vk.ShaderStageFlags) -> PropertyBinding β ⊸ Renderer (DescriptorResource, PropertyBinding β)
-    go (dt, _stage) pb =
-      let bt = bufferType dt
+    go :: ∀ β. DescriptorBindingInfo -> PropertyBinding β ⊸ Renderer (DescriptorResource, PropertyBinding β)
+    go b pb =
+      let bt = bufferType b
       in case pb of
         DynamicBinding (Ur x) -> Linear.do
 
@@ -436,4 +431,3 @@ editProperty prop update i dset resmap0 = Linear.do
             [Texture2DResource tex] -> Alias.forget tex
             x -> Alias.forget x >> error "updateTextureBinding: not expecting any resource other than a single texture2d resource here."
           pure dset'')
-

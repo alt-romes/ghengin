@@ -76,6 +76,7 @@ import qualified Data.Linear.Alias as Alias
 -- e.g. a mapped buffer resource can be bound by a descriptor such that using
 -- that descriptor in the shader will read the buffer resource
 
+type DescriptorBindingInfo = (Vk.DescriptorType, Vk.ShaderStageFlags)
 type ResourceMap = IntMap DescriptorResource
 
 data DescriptorResource where
@@ -97,7 +98,7 @@ instance Shareable m DescriptorResource where
 
 -- | Mapping from each binding to corresponding binding type, shader stage
 -- We have a maybe word because not every binding has a layout in memory (images don't)
-type BindingsMap = IntMap (Vk.DescriptorType, Vk.ShaderStageFlags)
+type BindingsMap = IntMap DescriptorBindingInfo
 
 instance Consumable BindingsMap where
   consume = Unsafe.toLinear \_bm -> () -- rnf bm
@@ -108,6 +109,13 @@ instance Movable BindingsMap where
 
 -- | Mapping from each descriptor set ix to its bindings map
 type DescriptorSetMap = IntMap BindingsMap
+
+-- | Convert descriptor binding info to buffer kind when applicable.
+-- Texture descriptors have no mapped buffer and return Nothing.
+bindingBufferType :: DescriptorBindingInfo -> Maybe BufferType
+bindingBufferType (Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER, _) = Just Uniform
+bindingBufferType (Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER, _) = Just Storage
+bindingBufferType _ = Nothing
 
 -- :| From Shaders |:
 
@@ -429,4 +437,3 @@ freeResourceMap = enterD "Freeing resource map!" . Alias.forget
 -- (A DescriptorResource wraps a Reference Counted value)
 freeDescriptorResource :: DescriptorResource ⊸ Renderer ()
 freeDescriptorResource = enterD "Freeing descriptor resource!" . Alias.forget
-
