@@ -3,7 +3,7 @@ with pkgs;
 mkShell ({
   name = "ghengin";
   packages = [
-    haskell.compiler.ghc912
+    haskell.compiler.ghc914
     haskell.packages.ghc912.cabal-install
     pkg-config
     zlib
