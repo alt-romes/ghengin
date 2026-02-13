@@ -55,6 +55,7 @@ common common-flags
                       PolyKinds,
                       GADTs,
                       ViewPatterns,
+                      TypeAbstractions,
                       TypeApplications,
                       TypeFamilies,
                       ExplicitNamespaces,

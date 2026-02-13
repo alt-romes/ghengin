@@ -49,6 +49,7 @@ common common-flags
                       PolyKinds,
                       GADTs,
                       ViewPatterns,
+                      TypeAbstractions,
                       TypeApplications,
                       TypeFamilies,
                       ExplicitNamespaces,
@@ -85,7 +86,7 @@ library
                       linear-base >= 0.4,
                       vulkan,
                       reference-counting >= 0.2,
-                      containers,
+                      containers >= 0.8,
                       vector,
                       constraints,
                       bytestring

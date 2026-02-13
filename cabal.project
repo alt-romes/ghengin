@@ -65,6 +65,7 @@ source-repository-package
 source-repository-package
   type:     git
   location: https://gitlab.com/rodrigo.m.mesquita/fir.git
+  tag: bba6cbec065d5493bc915d5e810c1f649d46300f
   -- location: https://gitlab.com/sheaf/fir.git
 
 -----------------------------

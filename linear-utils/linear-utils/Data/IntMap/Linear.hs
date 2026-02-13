@@ -20,6 +20,7 @@ import qualified Data.Functor.Linear as Data.Linear
 import Control.Monad.IO.Class.Linear
 import Data.IntMap.Internal (IntMap(..))
 import qualified Data.IntMap.Internal as IM
+import Data.IntSet.Internal.IntTreeCommons (signBranch, Prefix(..))
 
 import Data.IntSet.Internal (Key)
 
@@ -79,9 +80,9 @@ traverseWithKey f = toLinear go
   where
     go Nil = pure Nil
     go (Tip k v) = Tip k <$> f k v
-    go (Bin p m l r)
-      | m < 0     = liftA2 (flip (Bin p m)) (go r) (go l)
-      | otherwise = liftA2 (Bin p m) (go l) (go r)
+    go (Bin p l r)
+      | signBranch p = liftA2 (flip (Bin p)) (go r) (go l)
+      | otherwise = liftA2 (Bin p) (go l) (go r)
 {-# INLINE traverseWithKey #-}
 
 size :: IntMap a ⊸ (Ur Int, IntMap a)
@@ -89,7 +90,7 @@ size = toLinear \im -> (Ur $ IM.size im, im)
 
 instance {-# OVERLAPPABLE #-} Consumable a => Consumable (IntMap a) where
   consume = \case
-    Bin p m im1 im2 -> consume (p,m,im1,im2)
+    Bin p im1 im2 -> consume (toLinear unPrefix p,im1,im2)
     Tip k a -> consume (k,a)
     Nil -> ()
 
@@ -106,10 +107,10 @@ instance Data.Linear.Traversable IntMap where
       go :: IntMap a %1 -> t (IntMap b)
       go IM.Nil = Data.Linear.pure IM.Nil
       go (IM.Tip k v) = toLinear (\k' -> IM.Tip k' Data.Linear.<$> f v) k
-      go bin = toLinear (\(IM.Bin p m l r) ->
-          if m < 0
-             then Data.Linear.liftA2 (flip (IM.Bin p m)) (go r) (go l)
-             else Data.Linear.liftA2 (IM.Bin p m) (go l) (go r)
+      go bin = toLinear (\(IM.Bin p l r) ->
+          if signBranch p
+             then Data.Linear.liftA2 (flip (IM.Bin p)) (go r) (go l)
+             else Data.Linear.liftA2 (IM.Bin p) (go l) (go r)
         ) bin
   {-# INLINE traverse #-}
 
