@@ -27,6 +27,9 @@ package fir
 
 constraints:
     linear-generics>0.2.2,
+    ghc-tcplugins-extra>=0.5,
+    ghc-typelits-natnormalise>=0.9.3,
+    ghc-typelits-knownnat>=0.8.2,
     QuickCheck>=2.15
 
 allow-newer:
@@ -35,6 +38,8 @@ allow-newer:
     time,
     template-haskell,
     filepath,
+    text,
+    ghc-tcplugins-extra:*,
     fir:*,
     linear-base:*,
     dear-imgui:*,
@@ -42,6 +47,16 @@ allow-newer:
     wavefront:base,
     linear-apecs:*,
     typelits-witnesses:*
+
+source-repository-package
+    type: git
+    location: https://github.com/sheaf/ghc-tcplugins-extra
+    tag: 6842eb467dde87cf6249828011f4c9d717f7f2b0
+
+source-repository-package
+    type: git
+    location: https://github.com/sheaf/ghc-tcplugins-extra
+    tag: 6842eb467dde87cf6249828011f4c9d717f7f2b0
 
 source-repository-package
   type:     git
