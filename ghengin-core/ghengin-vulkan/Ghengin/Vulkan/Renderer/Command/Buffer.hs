@@ -54,19 +54,19 @@ data CommandBufferState
 -- | Create a command buffer in the 'Initial' state.
 createCommandBuffers
   :: forall n ctx m. (KnownNat n, Linear.MonadIO m)
-  => VulkanContext ctx ⊸ Vk.CommandPool ⊸ m (V.V n (CommandBuffer 'Initial), VulkanContext ctx, Vk.CommandPool)
+  => VulkanContext ctx ⊸ Vk.CommandPool ⊸ m ((V.V n (CommandBuffer 'Initial), VulkanContext ctx), Vk.CommandPool)
 createCommandBuffers = Unsafe.toLinear2 \dev cpool ->
   let allocInfo = Vk.CommandBufferAllocateInfo
         { commandPool = cpool
         , level = Vk.COMMAND_BUFFER_LEVEL_PRIMARY
         , commandBufferCount = w32 @n }
-   in (,dev,cpool) Linear.. Data.Linear.fmap (CommandBuffer @Initial) Linear.. VI.V @n @Vk.CommandBuffer Linear.<$>
+   in (,cpool) Linear.. (,dev) Linear.. Data.Linear.fmap (CommandBuffer @Initial) Linear.. VI.V @n @Vk.CommandBuffer Linear.<$>
     Linear.liftSystemIO (Vk.allocateCommandBuffers dev.device allocInfo)
 
 destroyCommandBuffers
   :: forall n ctx m. Linear.MonadIO m
-  => VulkanContext ctx ⊸ Vk.CommandPool ⊸ V.V n (Some CommandBuffer) ⊸ m (VulkanContext ctx, Vk.CommandPool)
-destroyCommandBuffers = Unsafe.toLinear3 \dev pool (VI.V bufs) -> (dev,pool) Linear.<$ Linear.liftSystemIO
+  => VulkanContext ctx ⊸ Vk.CommandPool ⊸ V.V n (Some CommandBuffer) ⊸ m (Vk.CommandPool, VulkanContext ctx)
+destroyCommandBuffers = Unsafe.toLinear3 \dev pool (VI.V bufs) -> (pool, dev) Linear.<$ Linear.liftSystemIO
   (Vk.freeCommandBuffers dev.device pool (Vector.map (\(Some b) -> b.unsafeGetCommandBuffer) bufs))
 
 -- | Begin recording a command buffer.

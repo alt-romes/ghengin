@@ -52,7 +52,7 @@ data RendererEnv (n :: Nat) =
 
     -- Command buffers
     , commandPool       :: !Vk.CommandPool
-    , commandBuffers    :: !(V.V n (Some CommandBuffer))
+    , commandBuffers    :: !(V.V n (Alias.Alias (WithVkContext System.IO.Linear.IO) (Some CommandBuffer)))
 
     -- , immediateSubmit :: !ImmediateSubmitCtx
     }
@@ -95,6 +95,26 @@ instance HasLogger Renderer where
 renderer :: (RendererEnv FramesInFlight %1 -> System.IO.Linear.IO (a, RendererEnv FramesInFlight)) %1 -> Renderer a
 renderer f = Renderer $ ReaderT \(Ur _) -> StateT f
 
+withVkContext :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (a, VulkanContext WithSwapchain)) %1 -> Renderer a
+withVkContext f = renderer $ \(RendererEnv{..}) -> f vkContext >>= \case
+  (a, d') -> pure (a, RendererEnv{vkContext=d',..})
+
+withVkContext_ :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (VulkanContext WithSwapchain)) %1 -> Renderer ()
+withVkContext_ f = withVkContext (fmap ((),) . f)
+
+type WithVkContext m = StateT (VulkanContext WithSwapchain) m
+
+withCtxRdr :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (a, VulkanContext WithSwapchain)) %1 -> WithVkContext System.IO.Linear.IO a
+withCtxRdr f = StateT f
+
+withCtxRdr_ :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (VulkanContext WithSwapchain)) %1 -> WithVkContext System.IO.Linear.IO ()
+withCtxRdr_ f = StateT (fmap ((),) . f)
+
+runCtxRdr :: Monad m => VulkanContext WithSwapchain %1 -> WithVkContext m () %1 -> m (VulkanContext WithSwapchain)
+runCtxRdr ctx (StateT f) = Linear.do
+  ((), ctx') <- f ctx
+  return ctx'
+
 runRenderer' :: Logger -> RendererEnv FramesInFlight ⊸ Renderer a ⊸ System.IO.Linear.IO (a, RendererEnv FramesInFlight)
 runRenderer' logger renv (Renderer rend) = Linear.do
   Ur frameIndexRef <- liftSystemIOU (newIORef (natToFinite (Proxy :: Proxy 0) :: Finite FramesInFlight))
@@ -107,10 +127,6 @@ nextFrameInFlight = Linear.do
   Ur frameIndex    <- liftSystemIOU (Data.IORef.readIORef frameIndexRef)
   liftSystemIO $ modifyIORef' frameIndexRef (\currentFrame -> Finite.modulo (getFinite currentFrame Prelude.+ 1))
   return (Ur frameIndex)
-
-withVulkanContext :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (a, VulkanContext WithSwapchain)) %1 -> Renderer a
-withVulkanContext f = renderer $ \(RendererEnv{..}) -> f vkContext >>= \case
-  (a, d') -> pure (a, RendererEnv{vkContext=d',..})
 
 -- todo: use linear optics.
 withDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a

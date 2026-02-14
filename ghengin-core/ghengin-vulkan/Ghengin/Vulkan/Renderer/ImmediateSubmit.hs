@@ -38,15 +38,15 @@ createImmediateSubmitCtx :: MonadIO m
 createImmediateSubmitCtx ctx = Linear.do
   (fence, ctx) <- createFence ctx False
   (cpool0, ctx) <- createCommandPool ctx
-  (bs, device3, cpool1) <- createCommandBuffers @1 ctx cpool0
+  ((bs, device3), cpool1) <- createCommandBuffers @1 ctx cpool0
   let elim' :: (CommandBuffer Initial ⊸ ImmediateSubmitCtx) ⊸ V.V 1 (CommandBuffer Initial) ⊸ ImmediateSubmitCtx = V.elim @1
   pure (elim' (\b -> ImmediateSubmitCtx fence cpool1 (Some b)) bs, device3)
 
 destroyImmediateSubmitCtx :: MonadIO m => VulkanContext ctx ⊸ ImmediateSubmitCtx ⊸ m (VulkanContext ctx)
 destroyImmediateSubmitCtx ctx (ImmediateSubmitCtx fence pool0 buffer) = Linear.do
   ctx <- destroyFence ctx fence
-  (ctx, pool1) <- destroyCommandBuffers ctx pool0 (V.make @1 buffer)
-  destroyCommandPool ctx pool1
+  (pool1, ctx) <- destroyCommandBuffers ctx pool0 (V.make @1 buffer)
+  destroyCommandPool pool1 ctx
 
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
