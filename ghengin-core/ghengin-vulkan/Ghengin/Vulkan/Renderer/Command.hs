@@ -585,8 +585,8 @@ createCommandPool = Unsafe.toLinear $ \vkCtx ->
    in (,vkCtx) Linear.<$> (Linear.liftSystemIO $ Vk.createCommandPool vkCtx.device poolInfo Nothing)
 
 
-destroyCommandPool :: forall ctx m. Linear.MonadIO m => Vk.CommandPool ⊸ VulkanContext ctx ⊸ m (VulkanContext ctx)
-destroyCommandPool = Unsafe.toLinear2 $ \pool dev -> dev Linear.<$ Linear.liftSystemIO (Vk.destroyCommandPool dev.device pool Nothing)
+destroyCommandPool :: forall ctx m. Linear.MonadIO m => VulkanContext ctx ⊸ Vk.CommandPool ⊸ m (VulkanContext ctx)
+destroyCommandPool = Unsafe.toLinear2 $ \dev pool -> dev Linear.<$ Linear.liftSystemIO (Vk.destroyCommandPool dev.device pool Nothing)
 
 -- :| Images |: --
 

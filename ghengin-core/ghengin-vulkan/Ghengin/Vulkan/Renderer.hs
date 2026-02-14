@@ -76,7 +76,6 @@ import Ghengin.Vulkan.Renderer.GLFW.Window as GLFW
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Kernel
 import qualified System.IO.Linear as Linear
-import qualified Data.Linear.Alias as Alias
 
 runRenderer :: (Int, Int)
             -- ^ Dimensions of the window to render on (width, height)
@@ -147,37 +146,22 @@ runRenderer dimensions r = Linear.do
           return (SomeV semsv, ctx)
 
   (commandPool, vkContext) <- createCommandPool vkContext
-  poolAlias <- Alias.newAlias (withCtxRdr_ . destroyCommandPool) commandPool
-  (pool1, pool2) <- Alias.share poolAlias
-  (commandPoolAlias, (commandBuffers, vkContext)) <- Alias.useM pool1 $ \pool1 -> Linear.do
-    ((buffers, vkContext), pool1) <- createCommandBuffers @FramesInFlight vkContext pool1
-    return (pool1, (VL.map Some buffers, vkContext))
-  (commandBuffers, pool2) <- (`runStateT` pool2) $
-    Data.forM commandBuffers $ \buf -> StateT $ \pool2 -> Linear.do
-      (pool3, pool4) <- Alias.share pool2
-      bufAl <- (`Alias.newAlias` buf) $ \c -> withCtxRdr_ $ \ctx -> Linear.do
-        (pool, free_pool) <- Alias.get pool4
-        (pool, vkContext) <- destroyCommandBuffers ctx pool (VL.make @1 c)
-        runCtxRdr vkContext (free_pool pool)
-      return (bufAl, pool3)
-  vkContext <- runCtxRdr vkContext (Alias.forget pool2)
-  (commandPool, free_pool) <- Alias.get commandPoolAlias
+  (commandBuffers, vkContext, commandPool) <- createCommandBuffers @FramesInFlight vkContext commandPool
 
   -- (imsCtx, vkContext) <- createImmediateSubmitCtx vkContext
 
   -- Run renderer
   ---------------
   (a, RendererEnv{..}) <- runRenderer' logger
-    RendererEnv{commandBuffers = commandBuffers, ..} r
+    RendererEnv{commandBuffers = VL.map Some commandBuffers, ..} r
 
   -- Terminate
   ------------
 
   -- device <- destroyImmediateSubmitCtx device imsCtx
 
-  vkContext <- runCtxRdr vkContext $ Linear.do
-    consumeV <$> Data.mapM Alias.forget commandBuffers
-    free_pool commandPool
+  (vkContext, commandPool) <- destroyCommandBuffers vkContext commandPool commandBuffers
+  vkContext <- destroyCommandPool vkContext commandPool
 
   ((), vkContext) <- withResource vkContext $ Linear.do
     destroyVs fences destroyFence
