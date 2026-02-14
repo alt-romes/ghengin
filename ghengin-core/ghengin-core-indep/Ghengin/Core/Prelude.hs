@@ -56,7 +56,7 @@ module Ghengin.Core.Prelude
   , vzipWith
 
   , assertM
-  , expectLeft
+  , expectJust
   , unsafeUse
   )
   where
@@ -205,9 +205,9 @@ consumeV (VL.V v) = consume (Unsafe.toLinear V.toList v)
 {-# INLINE (<$$>) #-}
 (<$$>) = (Prelude.<$>)
 
-expectLeft :: HasCallStack => String -> Either a b %1 -> a
-expectLeft _ (Left a)  = a
-expectLeft s (Right r) = error s r
+expectJust :: HasCallStack => String -> Maybe a %1 -> a
+expectJust _ (Just a) = a
+expectJust s Nothing  = error s
 
 --------------------------------------------------------------------------------
 -- * Generic HList (aka "Product"), but this one is linear!

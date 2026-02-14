@@ -89,22 +89,24 @@ renderWith frameIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur ur
 
   let !(buf', recon_buffers) = focusV frameIndex commandBuffers
   Some buf <- case buf' of
-    Left buf -> pure buf
-    Right () -> error "renderWith: No command buffer available for this frame in flight!"
+    Just buf -> pure buf
+    Nothing  -> error "renderWith: No command buffer available for this frame in flight!"
 
   buf_ini <- resetCommandBuffer buf
 
   ((a, buf_exe), RendererEnv{..}) <-
     runStateT
       (runReaderT (case recordCommand buf_ini command of Renderer r -> r) (Ur urEnv))
-      RendererEnv{commandBuffers=recon_buffers (Right ()), ..}
+      RendererEnv{commandBuffers=recon_buffers Nothing, ..}
 
   let !(buf', recon_buffers) = focusV frameIndex commandBuffers
   case buf' of
-    Left buf -> error "renderWith: how is this possible! we had put a box here" buf
-    Right () -> pure ()
+    Just buf -> error "renderWith: how is this possible! we had put a box here" buf
+    Nothing -> pure ()
 
-  return (a, RendererEnv{commandBuffers=recon_buffers (Left (Some buf_exe)), ..})
+  -- TODO: Submit executable buffer and submit graphics queue!
+
+  return (a, RendererEnv{commandBuffers=recon_buffers (Just (Some buf_exe)), ..})
 
 
 {- |
