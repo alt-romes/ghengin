@@ -85,25 +85,15 @@ render frameIndex rq = do
 -- command will bind. It uses gl_VertexIndex in the vertex shader.
 -- See https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/ for instance.
 renderWith :: Finite FramesInFlight -> CommandM Renderer a ⊸ Renderer a
-renderWith frameIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur urEnv) -> StateT $ \RendererEnv{..} -> Linear.do
+renderWith frameIndex command = enterD "renderWith" $ ReaderT \(Ur _) -> StateT $ \RendererEnv{..} -> Linear.do
 
-  let !(bufAlias, recon_buffers) = focusV frameIndex commandBuffers
-  (buf1, buf2) <- Alias.share bufAlias
-  (buf1, (a, remakeEnv)) <- Alias.useM buf1 $ \(Some buf) -> Linear.do
+  let !(Some buf, recon_buffers) = focusV frameIndex commandBuffers
 
-    buf_ini <- resetCommandBuffer buf
+  buf_ini <- resetCommandBuffer buf
 
-    ((a, buf_exe), RendererEnv{..}) <-
-      Linear.runStateT
-        (Linear.runReaderT (case recordCommand buf_ini command of Renderer r -> r) (Ur urEnv))
-        RendererEnv{commandBuffers=recon_buffers buf2, ..}
+  (buf_exe, a) <- recordCommand buf_ini command
 
-    let !(buf_alias2, recon_buffers_2) = focusV frameIndex commandBuffers
-    vkContext <- runCtxRdr vkContext (Alias.forget buf_alias2)
-
-    return (Some buf_exe, (a, \final_buf -> RendererEnv{commandBuffers=recon_buffers_2 final_buf, ..}))
-
-  return (a, remakeEnv buf1)
+  return a
 
 
 {- |
