@@ -153,14 +153,14 @@ runRenderer dimensions r = Linear.do
   -- Run renderer
   ---------------
   (a, RendererEnv{..}) <- runRenderer' logger
-    RendererEnv{commandBuffers = VL.map Some commandBuffers, ..} r
+    RendererEnv{commandBuffers = VL.map (Left . Some) commandBuffers, ..} r
 
   -- Terminate
   ------------
 
   -- device <- destroyImmediateSubmitCtx device imsCtx
 
-  (vkContext, commandPool) <- destroyCommandBuffers vkContext commandPool commandBuffers
+  (vkContext, commandPool) <- destroyCommandBuffers vkContext commandPool (VL.map (expectLeft "All command buffers should be back in the vector when exiting") commandBuffers)
   vkContext <- destroyCommandPool vkContext commandPool
 
   ((), vkContext) <- withResource vkContext $ Linear.do

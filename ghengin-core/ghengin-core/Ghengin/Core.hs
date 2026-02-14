@@ -85,15 +85,26 @@ render frameIndex rq = do
 -- command will bind. It uses gl_VertexIndex in the vertex shader.
 -- See https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/ for instance.
 renderWith :: Finite FramesInFlight -> CommandM Renderer a ⊸ Renderer a
-renderWith frameIndex command = enterD "renderWith" $ ReaderT \(Ur _) -> StateT $ \RendererEnv{..} -> Linear.do
+renderWith frameIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur urEnv) -> StateT $ \RendererEnv{..} -> Linear.do
 
-  let !(Some buf, recon_buffers) = focusV frameIndex commandBuffers
+  let !(buf', recon_buffers) = focusV frameIndex commandBuffers
+  Some buf <- case buf' of
+    Left buf -> pure buf
+    Right () -> error "renderWith: No command buffer available for this frame in flight!"
 
   buf_ini <- resetCommandBuffer buf
 
-  (buf_exe, a) <- recordCommand buf_ini command
+  ((a, buf_exe), RendererEnv{..}) <-
+    runStateT
+      (runReaderT (case recordCommand buf_ini command of Renderer r -> r) (Ur urEnv))
+      RendererEnv{commandBuffers=recon_buffers (Right ()), ..}
 
-  return a
+  let !(buf', recon_buffers) = focusV frameIndex commandBuffers
+  case buf' of
+    Left buf -> error "renderWith: how is this possible! we had put a box here" buf
+    Right () -> pure ()
+
+  return (a, RendererEnv{commandBuffers=recon_buffers (Left (Some buf_exe)), ..})
 
 
 {- |

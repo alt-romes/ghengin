@@ -52,7 +52,7 @@ data RendererEnv (n :: Nat) =
 
     -- Command buffers
     , commandPool       :: !Vk.CommandPool
-    , commandBuffers    :: !(V.V n (Some CommandBuffer))
+    , commandBuffers    :: !(V.V n (Either (Some CommandBuffer) ()))
 
     -- , immediateSubmit :: !ImmediateSubmitCtx
     }

@@ -56,10 +56,12 @@ module Ghengin.Core.Prelude
   , vzipWith
 
   , assertM
+  , expectLeft
   , unsafeUse
   )
   where
 
+import GHC.Stack
 import Control.Functor.Linear        hiding ( get, modify )
 import Control.Functor.Linear        qualified as Linear
 import Control.Monad.IO.Class.Linear
@@ -202,6 +204,10 @@ consumeV (VL.V v) = consume (Unsafe.toLinear V.toList v)
 (<$$>) :: Prelude.Functor f => (a -> b) -> f a -> f b
 {-# INLINE (<$$>) #-}
 (<$$>) = (Prelude.<$>)
+
+expectLeft :: HasCallStack => String -> Either a b %1 -> a
+expectLeft _ (Left a)  = a
+expectLeft s (Right r) = error s r
 
 --------------------------------------------------------------------------------
 -- * Generic HList (aka "Product"), but this one is linear!
