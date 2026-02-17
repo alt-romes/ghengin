@@ -71,11 +71,11 @@ data UrGameData π = GameData
   }
 
 gameLoop :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
-         => UrGameData π -> Alias RenderPass ⊸ RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop GameData{..} rp rq = Linear.do
+         => UrGameData π -> RenderQueue () ⊸ Renderer (RenderQueue ())
+gameLoop GameData{..} rq = Linear.do
  logT "New frame" 
  Ur should_close <- (shouldCloseWindow)
- if should_close then (Alias.forget rp) >> return rq else Linear.do
+ if should_close then return rq else Linear.do
   (pollWindowEvents)
 
   -- Update planet mesh according to UI
@@ -131,22 +131,25 @@ gameLoop GameData{..} rp rq = Linear.do
     _ -> return ()
 
   -- Render!
-  (rp, rq) <- renderWith $ Linear.do
-
-    (rp1, rp2) <- lift (Alias.share rp)
+  Ur frameIndex <- nextFrameInFlight
+  rq <- renderWith frameIndex $ Linear.do
     Ur extent <- lift getRenderExtent
-    
-    renderPassCmd extent rp1 $ Linear.do
+    let viewport = viewportFromExtent extent
+        scissor = scissorFromExtent extent
+
+    beginRendering undefined $ Linear.do
+      setViewport viewport
+      setScissor scissor
 
       rq <- renderQueueCmd rq
 
       -- Render Imgui data!
       ImGui.renderDrawData
 
-      return (rp2, rq)
+      return rq
 
   -- Loop!
-  gameLoop GameData{planet=newPlanet,..} rp rq
+  gameLoop GameData{planet=newPlanet,..} rq
 
 dimensions :: Num a => (a, a)
 dimensions = (1920, 1080)
@@ -163,12 +166,10 @@ main = do
     -- What planet?
     let planet = defaultPlanet
 
-    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
-
     -- Init imgui
-    (rp1, imctx) <- Alias.useM rp1 ImGui.initImGui
+    imctx <- ImGui.initImGui
 
-    pipeline   <- makeRenderPipeline rp1 shaders (StaticBinding (Ur camera) :## GHNil)
+    pipeline   <- makeRenderPipeline shaders (StaticBinding (Ur camera) :## GHNil)
     ( (pmesh, pipeline),
       Ur minmax )    <- newPlanetMesh pipeline planet
     (pmat, pipeline) <- newPlanetMaterial minmax pipeline planet
@@ -178,7 +179,7 @@ main = do
     (rq, Ur mkey)    <- pure (insertMaterial pkey pmat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey pmesh rq)
 
-    rq <- gameLoop GameData{planet, planetMeshKey=mshkey, ..} rp2 rq
+    rq <- gameLoop GameData{planet, planetMeshKey=mshkey, ..} rq
 
     freeRenderQueue rq
     ImGui.destroyImCtx imctx
@@ -409,4 +410,3 @@ pinkPlanet = Planet
   where
     mkColors = P.map $ \(bnd, WithVec3 rn gn bn) ->
       (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255)))
-
