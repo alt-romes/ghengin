@@ -133,11 +133,11 @@ import qualified Prelude.Linear as Linear ((.))
 import qualified Data.V.Linear as V
 import qualified Data.V.Linear.Internal as VI
 
-import Control.Monad.Reader
-import Control.Functor.Linear (pure, return)
+import Control.Functor.Linear (pure, return, StateT(..), runStateT)
 import qualified Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data.Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
+import Data.Bits ((.|.))
 import Data.Word
 import Foreign.Storable
 import Foreign.Marshal.Alloc
@@ -154,6 +154,7 @@ import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Pipeline
 import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Buffer
 
+import qualified Data.Linear.Alias as Alias
 import qualified Unsafe.Linear as Unsafe
 
 {-
@@ -185,8 +186,8 @@ A Command is an action run in an environment in which a command buffer is availa
 --    draw 3
 -- @
 type Command m = CommandM m ()
-newtype CommandM m a = Command (ReaderT CmdInfo m a)
-  deriving (Data.Linear.Functor, Linear.Functor)
+newtype CommandM m a = Command (StateT (CmdInfo m) m a)
+  deriving (Data.Linear.Functor, Linear.Functor, Data.Linear.Applicative, Linear.Applicative, Linear.Monad, Linear.MonadIO, HasLogger)
 
 -- | A rendering command description: a language to describe the subset of commands to record between beginRendering and endRendering
 --
@@ -204,59 +205,43 @@ type RenderCmd m = RenderCmdM m ()
 newtype RenderCmdM m a = RenderCmd (CommandM m a)
   deriving (Data.Linear.Functor, Linear.Functor, Data.Linear.Applicative, Linear.Applicative, Linear.Monad, Linear.MonadTrans, Linear.MonadIO, HasLogger)
 
-newtype CmdInfo = CmdInfo
+data CmdInfo m = CmdInfo
   { buf :: CommandBuffer 'Recording
     -- ^ See lifecycle in
     -- https://docs.vulkan.org/spec/latest/chapters/cmdbuffers.html#commandbuffers-lifecycle
+  , freeAliases :: m ()
+    -- ^ As we construct the command buffer, we accumulate the actions to
+    -- forget the aliases that were captured in the command buffer.
+    -- This action is returned when the command is finished recording.
+    -- It should only be called when we are sure the command buffer won't be
+    -- used again (e.g. after reset, or when we know we won't use it again before resetting)
   }
+
+instance Linear.MonadTrans CommandM where
+  lift x = Command $ StateT $ Unsafe.toLinear \s -> (\a -> (a, s)) Linear.<$> x
+  {-# INLINE lift #-}
 
 -- This interface is safe because the only ways to record the command
 -- recordCommand guarantee the command buffer is returned, and command actions
 -- otherwise don't expose the command buffer, making it impossible to free it.
 --
--- Therefore, we can instance linear Applicative and Monad for them
-instance Linear.Applicative m => Linear.Applicative (CommandM m) where
-  pure x = Command $ ReaderT $ Unsafe.toLinear \_ -> Linear.pure x
-  Command (ReaderT fff) <*> Command (ReaderT ffa) = Command $ ReaderT $ Unsafe.toLinear \r -> fff r Linear.<*> ffa r
-  {-# INLINE pure #-}
-  {-# INLINE (<*>) #-}
-
-instance Data.Linear.Applicative m => Data.Linear.Applicative (CommandM m) where
-  pure x = Command $ ReaderT $ Unsafe.toLinear \_ -> Data.Linear.pure x
-  Command (ReaderT fff) <*> Command (ReaderT ffa) = Command $ ReaderT $ Unsafe.toLinear \r -> fff r Data.Linear.<*> ffa r
-  {-# INLINE pure #-}
-  {-# INLINE (<*>) #-}
-
-instance Linear.Monad m => Linear.Monad (CommandM m) where
-  Command (ReaderT fma) >>= f = Command $ ReaderT $ Unsafe.toLinear \r -> fma r Linear.>>= (\case (Command (ReaderT m)) -> m r) Linear.. f
-  {-# INLINE (>>=) #-}
-
-instance Linear.MonadTrans CommandM where
-  lift x = Command $ ReaderT $ Unsafe.toLinear $ \_ -> x
-  {-# INLINE lift #-}
-
-instance Linear.MonadIO m => Linear.MonadIO (CommandM m) where
-  liftIO x = Command $ ReaderT $ Unsafe.toLinear $ \_ -> Linear.liftIO x
-  {-# INLINE liftIO #-}
-
-instance HasLogger m => HasLogger (CommandM m) where
-  getLogger = Command $ ReaderT $ Unsafe.toLinear $ \_ -> getLogger
-  withLevelUp (Command (ReaderT fma)) = Command $ ReaderT \r -> withLevelUp (fma r)
-  {-# INLINE getLogger #-}
-  {-# INLINE withLevelUp #-}
-
 -- | Given a 'Vk.CommandBuffer' and the 'Command' to record in this buffer,
 -- record the command in the buffer.
 --
 -- This command buffer is assumed to be executed only once as it's recorded with
 -- VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
-recordCommand :: Linear.MonadIO m => CommandBuffer Initial ⊸ CommandM m a ⊸ m (a, CommandBuffer Executable)
+recordCommand
+  :: Linear.MonadIO m
+  => CommandBuffer Initial %1
+  -> CommandM m a %1
+  -> m (a, CommandBuffer Executable)
 recordCommand buf_ini = Unsafe.toLinear \(Command cmds) -> Linear.do
   -- Begin recording
   beginCommandBuffer buf_ini Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT Linear.>>= Unsafe.toLinear \buf_rec -> Linear.do
 
     -- Record commands
-    a <- runReaderT cmds (CmdInfo buf_rec)
+    a <- runStateT cmds (CmdInfo buf_rec (Linear.pure ()))
+          Linear.>>= Unsafe.toLinear (\(x, _) -> Linear.pure x)
 
     -- Finish recording
     buf_exe <- endCommandBuffer buf_rec
@@ -522,11 +507,11 @@ dispatchIndirect buffer offset =
 
 -- | Begin dynamic rendering (Vulkan 1.3)
 beginRendering :: Linear.MonadIO m => Vk.RenderingInfo '[] -> RenderCmdM m a ⊸ CommandM m a
-beginRendering renderingInfo = Unsafe.toLinear $ \(RenderCmd (Command rpcmds)) -> Command $ ReaderT $ \info -> Linear.do
+beginRendering renderingInfo = Unsafe.toLinear $ \(RenderCmd (Command rpcmds)) -> Command $ StateT $ Unsafe.toLinear \info -> Linear.do
   Linear.liftSystemIO $ Vk.cmdBeginRendering (info.buf.unsafeGetCommandBuffer) renderingInfo
-  a <- runReaderT rpcmds info
+  (a, info') <- runStateT rpcmds info
   Linear.liftSystemIO $ Vk.cmdEndRendering (info.buf.unsafeGetCommandBuffer)
-  Linear.pure a
+  Linear.pure (a, info')
 {-# INLINE beginRendering #-}
 
 -- :| Buffer Data Commands |: --
@@ -560,10 +545,10 @@ copyFullBuffer src dst size =
 {-# INLINE copyFullBuffer #-}
 
 pushConstants :: ∀ a m. (Linear.MonadIO m, Storable a) => Vk.PipelineLayout ⊸ Vk.ShaderStageFlags -> a -> RenderCmdM m Vk.PipelineLayout
-pushConstants pipelineLayout stageFlags values = unsafeRenderCmd pipelineLayout $ \buf piplayout -> do
-    liftIO $ alloca @a $ \ptr -> do
-      poke ptr values
-      Vk.cmdPushConstants buf piplayout stageFlags 0 (fromIntegral $ sizeOf values) (castPtr ptr)
+pushConstants pipelineLayout stageFlags values = unsafeRenderCmd pipelineLayout $ \buf piplayout ->
+  alloca @a $ \ptr -> do
+    poke ptr values
+    Vk.cmdPushConstants buf piplayout stageFlags 0 (fromIntegral $ sizeOf values) (castPtr ptr)
 {-# INLINE pushConstants #-}
 
 bindGraphicsDescriptorSet' :: Linear.MonadIO m
@@ -614,6 +599,50 @@ copyFullBufferToImage buf img extent =
    in unsafeCmd (buf,img) $ \cmdbuf (buf', img') ->
         Vk.cmdCopyBufferToImage cmdbuf buf' img' Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
 
+layoutDepthImage :: Linear.MonadIO m
+                 => Alias.Alias m Vk.Image %1
+                 -> CommandM m ()
+layoutDepthImage depthImageA =
+  Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
+      Alias.get depthImageA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
+        let
+          subresourceRange = Vk.ImageSubresourceRange
+            { aspectMask = Vk.IMAGE_ASPECT_DEPTH_BIT .|. Vk.IMAGE_ASPECT_STENCIL_BIT
+            , baseMipLevel = 0
+            , levelCount = 1
+            , baseArrayLayer = 0
+            , layerCount = 1
+            }
+
+          layoutChange = Vk.SomeStruct Vk.ImageMemoryBarrier2
+            { next = ()
+            , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+            , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+            , srcStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
+            , srcAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+            , dstStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
+            , dstAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+            , oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
+            , newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+            , image = img
+            , subresourceRange = subresourceRange
+            }
+
+          barrierDep = Vk.DependencyInfo
+            { imageMemoryBarriers = [layoutChange]
+            }
+        Linear.liftSystemIO $
+          Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep
+        Linear.return ((), CmdInfo
+          { buf = i.buf
+          , freeAliases =  i.freeAliases Linear.>> free_img img
+          })
+
+-- todo: fix the rest of methods which currently unsafe use a vulkan data type
+-- but should instead use an Alias/reference whose freed action gets added to freeAliases
+-- which is returned by the recording action and must be used exactly once
+-- *after* the command is executed.
+
 transitionImageLayout :: forall μ
                        . Linear.MonadIO μ
                       => Vk.Image
@@ -632,24 +661,25 @@ transitionImageLayout img srcLayout dstLayout =
           _ -> error $ "Unknown transition " <> show (srcLayout, dstLayout)
 
 
-      subresourceRange = Vk.ImageSubresourceRange { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
-                                                  , baseMipLevel = 0
-                                                  , levelCount = 1
-                                                  , baseArrayLayer = 0
-                                                  , layerCount = 1
-                                                  }
-                                                  -- Currently ^ this matches createImageView by chance and other uses of subresourceRange
+      subresourceRange = Vk.ImageSubresourceRange
+        { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
+        , baseMipLevel = 0
+        , levelCount = 1
+        , baseArrayLayer = 0
+        , layerCount = 1
+        }
 
-      layoutChangeUndefTransfer = Vk.ImageMemoryBarrier { next = ()
-                                                        , srcAccessMask = srcAccess
-                                                        , dstAccessMask = dstAccess
-                                                        , oldLayout = srcLayout
-                                                        , newLayout = dstLayout
-                                                        , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-                                                        , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-                                                        , image = img'
-                                                        , subresourceRange = subresourceRange
-                                                        }
+      layoutChangeUndefTransfer = Vk.ImageMemoryBarrier
+        { next = ()
+        , srcAccessMask = srcAccess
+        , dstAccessMask = dstAccess
+        , oldLayout = srcLayout
+        , newLayout = dstLayout
+        , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+        , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+        , image = img'
+        , subresourceRange = subresourceRange
+        }
       -- Possible synchronization in pipeline barriers table: ?
       -- https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap7.html#synchronization-access-types-supported
      in Vk.cmdPipelineBarrier buf
@@ -865,19 +895,29 @@ executeCommands cmdBuffers = unsafeCmd_ $ \buf ->
 -- Note how `a` is used unrestrictedly in the function `f`. This is because
 -- often this function will be a Vulkan function which isn't linear.
 
+unsafeCmd2 :: Linear.MonadIO m => a %1 -> (Vk.CommandBuffer -> a -> IO (m ())) -> CommandM m a
+unsafeCmd2 = Unsafe.toLinear \a f -> Command $ StateT $ Unsafe.toLinear \i -> Linear.do
+  more <- Linear.liftSystemIO (f i.buf.unsafeGetCommandBuffer a)
+  Linear.pure (a, CmdInfo{buf = i.buf, freeAliases = i.freeAliases Linear.>> more})
+{-# INLINE unsafeCmd2 #-}
+
 unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> CommandM m a
-unsafeCmd = Unsafe.toLinear \a f -> (Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf.unsafeGetCommandBuffer a))
+unsafeCmd = Unsafe.toLinear \a f -> Command $ StateT $ Unsafe.toLinear \i@CmdInfo{buf} ->
+  (a, i) Linear.<$ Linear.liftSystemIO (f buf.unsafeGetCommandBuffer a)
 {-# INLINE unsafeCmd #-}
 
 unsafeCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> Command m
-unsafeCmd_ = Unsafe.toLinear \f -> (Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf.unsafeGetCommandBuffer))
+unsafeCmd_ = Unsafe.toLinear \f -> (Command $ StateT $ Unsafe.toLinear \i@CmdInfo{buf} ->
+  ((), i) Linear.<$ Linear.liftSystemIO (f buf.unsafeGetCommandBuffer))
 {-# INLINE unsafeCmd_ #-}
 
 -- | Unsafe for lots of reasons
 unsafeRenderCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> RenderCmdM m a
-unsafeRenderCmd = Unsafe.toLinear \a f -> (RenderCmd $ Command $ ReaderT \CmdInfo{buf} -> a Linear.<$ Linear.liftSystemIO (f buf.unsafeGetCommandBuffer a))
+unsafeRenderCmd = Unsafe.toLinear \a f -> (RenderCmd $ Command $ StateT $ Unsafe.toLinear \i@CmdInfo{buf} ->
+  (a, i) Linear.<$ Linear.liftSystemIO (f buf.unsafeGetCommandBuffer a))
 {-# INLINE unsafeRenderCmd #-}
 
 unsafeRenderCmd_ :: Linear.MonadIO m => (Vk.CommandBuffer -> IO ()) -> RenderCmd m
-unsafeRenderCmd_ = Unsafe.toLinear \f -> (RenderCmd $ Command $ ReaderT \CmdInfo{buf} -> Linear.liftSystemIO (f buf.unsafeGetCommandBuffer))
+unsafeRenderCmd_ = Unsafe.toLinear \f -> (RenderCmd $ Command $ StateT $ Unsafe.toLinear \i@CmdInfo{buf} ->
+  ((), i) Linear.<$ Linear.liftSystemIO (f buf.unsafeGetCommandBuffer))
 {-# INLINE unsafeRenderCmd_ #-}

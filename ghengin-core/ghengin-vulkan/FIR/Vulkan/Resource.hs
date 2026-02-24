@@ -19,7 +19,7 @@
 {-# LANGUAGE TypeOperators          #-}
 {-# LANGUAGE UndecidableInstances   #-}
 
-module Vulkan.Resource
+module FIR.Vulkan.Resource
   ( ResourceStatus(..)
   , ResourceInfo(..), Pre, Post
   , ResourceUsage(..)

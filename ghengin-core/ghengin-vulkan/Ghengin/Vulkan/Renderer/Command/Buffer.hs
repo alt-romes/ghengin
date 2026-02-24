@@ -30,6 +30,7 @@ import qualified Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data.Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
 
+import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 
@@ -95,20 +96,36 @@ resetCommandBuffer = Unsafe.toLinear \cb -> Linear.do
   Linear.liftSystemIO $ Vk.resetCommandBuffer (unsafeGetCommandBuffer cb) Vk.zero
   Linear.pure (CommandBuffer (unsafeGetCommandBuffer cb))
 
--- -- | Submit a command buffer to a queue.
--- --
--- -- The command buffer must be in the 'Executable' state.
--- queueSubmit :: Linear.MonadIO m 
---             => Vk.Queue 
---             -> CommandBuffer 'Executable ⊸ Vk.Semaphore ⊸ Vk.PipelineStageFlags ⊸ Vk.Semaphore ⊸ Vk.Fence 
---             ⊸ m (CommandBuffer 'Executable, Vk.Semaphore, Vk.Semaphore, Vk.Fence)
--- queueSubmit queue cb waitSem waitStage signalSem fence = Unsafe.toLinear4 \cb' waitSem' signalSem' fence' -> Linear.do
---   let submitInfo = Vk.SubmitInfo { next = ()
---                                  , waitSemaphores = [waitSem']
---                                  , waitDstStageMask = [waitStage]
---                                  , signalSemaphores = [signalSem']
---                                  , commandBuffers = [unsafeGetCommandBuffer cb']
---                                  }
---   Linear.liftSystemIO $ Vk.queueSubmit queue [Vk.SomeStruct submitInfo] fence'
---   Linear.pure (cb', waitSem', signalSem', fence')
+-- | Submit a command buffer to a queue.
+--
+-- The command buffer must be in the 'Executable' state.
+-- queueSubmit
+--   :: Linear.MonadIO m 
+--   => Vk.PipelineStageFlags
+--   -- ^ The pipeline stage in waitDstStageMask will make that wait happen at
+--   -- the color attachment output stage of the pipeline, so (in theory) the GPU
+--   -- might already start doing work on parts of the pipeline that come before
+--   -- this, e.g. fetching vertices.
+--   -> Vk.Queue %1
+--   -> CommandBuffer 'Executable %1
+--   -> Vk.Semaphore %1
+--   -- ^ Wait semaphore. Makes sure the submitted command buffer(s)
+--   -- won't start execution before the presentation of the current
+--   -- frame has finished.
+--   -> Vk.Semaphore %1
+--   -- ^ The signal semaphore in signalSemaphores on the other hand is a
+--   -- semaphore that's signalled by the GPU once command buffer execution has
+--   -- completed.
+--   -> Vk.Fence %1
+--   -> m (Vk.Queue, CommandBuffer 'Executable, Vk.Semaphore, Vk.Semaphore, Vk.Fence)
+-- queueSubmit waitStage = Unsafe.toLinearN @5 \queue cb waitSem signalSem fence -> Linear.do
+--   let submitInfo = Vk.SubmitInfo
+--         { next = ()
+--         , waitSemaphores = [waitSem]
+--         , waitDstStageMask = [waitStage]
+--         , signalSemaphores = [signalSem]
+--         , commandBuffers = Vector.singleton (unsafeGetCommandBuffer cb)
+--         }
+--   Linear.liftSystemIO $ Vk.queueSubmit queue [Vk.SomeStruct submitInfo] fence
+--   Linear.pure (queue, cb, waitSem, signalSem, fence)
 --

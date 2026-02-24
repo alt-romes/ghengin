@@ -94,9 +94,12 @@ renderWith frameIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur ur
 
   buf_ini <- resetCommandBuffer buf
 
+  let finalCommand = Linear.do
+        command
+
   ((a, buf_exe), RendererEnv{..}) <-
     runStateT
-      (runReaderT (case recordCommand buf_ini command of Renderer r -> r) (Ur urEnv))
+      (runReaderT (case recordCommand buf_ini finalCommand of Renderer r -> r) (Ur urEnv))
       RendererEnv{commandBuffers=recon_buffers Nothing, ..}
 
   let !(buf', recon_buffers) = focusV frameIndex commandBuffers

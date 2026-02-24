@@ -72,4 +72,3 @@ immediateSubmit' ctx0 (ImmediateSubmitCtx fence pool (Some buffer0)) cmd = Linea
     Prelude.pure (ctx, ImmediateSubmitCtx fence' pool' (Some buffer''))) ctx0 fence pool buffer'
 
   pure (r, x)
-
