@@ -4,7 +4,8 @@ mkShell ({
   name = "ghengin";
   packages = [
     haskell.compiler.ghc914
-    haskell.packages.ghc912.cabal-install
+    cabal-install
+    haskell-language-server
     pkg-config
     zlib
     glfw
