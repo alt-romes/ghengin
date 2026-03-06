@@ -94,7 +94,22 @@ renderWith frameIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur ur
 
   buf_ini <- resetCommandBuffer buf
 
+  Alias.newAlias
+  withSwapchainInfo aSwapchainInfo acquireIt
+    where
+      swpcImg
+        :: KnownNat swpImgs
+        => SwapchainInfo swpImgs %1
+        -> Linear.IO (Alias Vk.Image)
+      swpcImg swpInfo = Linear.do
+        (Ur (fin :: Finite swpImgs), framePresentSem, swpInfo, device) <-
+          acquireNextImage device swpInfo framePresentSem
+        let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
+        return (Ur (SomeWith fin), framePresentSem, ctx)
+
   let finalCommand = Linear.do
+        layoutDepthImage _
+        layoutSwapchainImage _
         command
 
   ((a, buf_exe), RendererEnv{..}) <-

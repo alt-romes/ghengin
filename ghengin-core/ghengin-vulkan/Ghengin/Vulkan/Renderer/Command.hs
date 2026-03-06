@@ -599,9 +599,10 @@ copyFullBufferToImage buf img extent =
    in unsafeCmd (buf,img) $ \cmdbuf (buf', img') ->
         Vk.cmdCopyBufferToImage cmdbuf buf' img' Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
 
-layoutDepthImage :: Linear.MonadIO m
-                 => Alias.Alias m Vk.Image %1
-                 -> CommandM m ()
+layoutDepthImage
+  :: Linear.MonadIO m
+  => Alias.Alias m Vk.Image %1
+  -> CommandM m ()
 layoutDepthImage depthImageA =
   Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
       Alias.get depthImageA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
@@ -622,6 +623,46 @@ layoutDepthImage depthImageA =
             , srcAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
             , dstStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
             , dstAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+            , oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
+            , newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+            , image = img
+            , subresourceRange = subresourceRange
+            }
+
+          barrierDep = Vk.DependencyInfo
+            { imageMemoryBarriers = [layoutChange]
+            }
+        Linear.liftSystemIO $
+          Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep
+        Linear.return ((), CmdInfo
+          { buf = i.buf
+          , freeAliases =  i.freeAliases Linear.>> free_img img
+          })
+
+layoutSwapchainImage
+  :: Linear.MonadIO m
+  => Alias.Alias m Vk.Image %1
+  -> CommandM m ()
+layoutSwapchainImage imageA =
+  Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
+      Alias.get imageA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
+        let
+          subresourceRange = Vk.ImageSubresourceRange
+            { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
+            , baseMipLevel = 0
+            , levelCount = 1
+            , baseArrayLayer = 0
+            , layerCount = 1
+            }
+
+          layoutChange = Vk.SomeStruct Vk.ImageMemoryBarrier2
+            { next = ()
+            , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+            , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+            , srcStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+            , srcAccessMask = Vk.zero
+            , dstStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+            , dstAccessMask = Vk.ACCESS_2_COLOR_ATTACHMENT_READ_BIT .|. Vk.ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT
             , oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
             , newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
             , image = img
