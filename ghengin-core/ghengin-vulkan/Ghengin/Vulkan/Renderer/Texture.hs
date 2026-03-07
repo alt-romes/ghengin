@@ -59,9 +59,9 @@ texture fp sampler = enterD "Creating a texture" Linear.do
     Ur (Right dimage) -> textureFromDynamicImage dimage sampler
 
 freeTexture :: Texture2D fmt ⊸ Renderer ()
-freeTexture = undefined -- Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture" Linear.do
-  -- withVkContext (\ctx -> ((),) <$> (destroyImage ctx img))
-  -- Alias.forget sampler
+freeTexture (Texture2D img sampler) = Linear.do
+  withVulkanContext $ \ctx -> withResource ctx $ destroyImage img
+  Alias.forget sampler
 
 -- | Make a texture from a dynamic image by converting the image to RGBA8 first
 textureFromDynamicImage :: DynamicImage

@@ -272,17 +272,18 @@ acquireNextImage = Unsafe.toLinear3
 submitGraphicsQueue :: Vk.CommandBuffer ⊸ Vk.Semaphore ⊸ Vk.Semaphore ⊸ Vk.Fence ⊸ Renderer (Vk.CommandBuffer, Vk.Semaphore, Vk.Semaphore, Vk.Fence)
 submitGraphicsQueue = Unsafe.toLinearN @4 \cb sem1 sem2 fence -> Linear.do
   let
-    submitInfo = Vk.SubmitInfo { next = ()
-                                -- We want to wait with writing colors to the image until it's available
-                               , waitSemaphores = [sem1]
-                               , waitDstStageMask = [Vk.PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
-                                -- Semaphores to signal when we are done
-                               , signalSemaphores = [sem2]
-                               , commandBuffers = [ cb.commandBufferHandle ]
-                               }
-               -- this pattern should be used as unsafeAsk (make utils...)
-  Ur gqueue <- renderer (Unsafe.toLinear $ \renv -> undefined) -- pure (Ur renv._vulkanDevice._graphicsQueue, renv))
-  liftSystemIO $ Vk.queueSubmit gqueue [Vk.SomeStruct submitInfo] fence
+    submitInfo = Vk.SubmitInfo
+      { next = ()
+       -- We want to wait with writing colors to the image until it's available
+      , waitSemaphores = [sem1]
+      , waitDstStageMask = [Vk.PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
+       -- Semaphores to signal when we are done
+      , signalSemaphores = [sem2]
+      , commandBuffers = [ cb.commandBufferHandle ]
+      }
+  withVulkanContext $ Unsafe.toLinear \vkCtx@VulkanContext{queue} -> Linear.do
+    liftSystemIO $ Vk.queueSubmit queue [Vk.SomeStruct submitInfo] fence
+    pure ((), vkCtx)
   pure (cb, sem1, sem2, fence)
 
 presentPresentQueue

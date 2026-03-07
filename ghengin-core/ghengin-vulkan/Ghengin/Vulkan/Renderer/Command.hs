@@ -614,7 +614,7 @@ layoutDepthImage depthImageA =
     Alias.get depthImageA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
       let
         subresourceRange = Vk.ImageSubresourceRange
-          { aspectMask = Vk.IMAGE_ASPECT_DEPTH_BIT .|. Vk.IMAGE_ASPECT_STENCIL_BIT
+          { aspectMask = Vk.IMAGE_ASPECT_DEPTH_BIT -- .|. Vk.IMAGE_ASPECT_STENCIL_BIT
           , baseMipLevel = 0
           , levelCount = 1
           , baseArrayLayer = 0

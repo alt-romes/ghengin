@@ -198,24 +198,25 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> en
                , texelBufferView = []
                }
 
-        Texture2DResource talias -> undefined
-          -- case Unsafe.Alias.get talias of
-          --   (Texture2D vkimage sampler) ->
-          --     let imageInfo = Vk.DescriptorImageInfo { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-          --                                            , imageView = vkimage._imageView
-          --                                            , sampler   = (Unsafe.Alias.get sampler).sampler
-          --                                            }
-          --      in pure $ Vk.SomeStruct Vk.WriteDescriptorSet
-          --           { next = ()
-          --           , dstSet = dset -- the descriptor set to update with this write
-          --           , dstBinding = fromIntegral i
-          --           , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
-          --           , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
-          --           , descriptorCount = 1 -- Only one buffer in the array of buffers to update
-          --           , bufferInfo = [] -- The one buffer info
-          --           , imageInfo = [imageInfo]
-          --           , texelBufferView = []
-          --           }
+        Texture2DResource talias ->
+          case Unsafe.Alias.get talias of
+            (Texture2D vkimage sampler) ->
+              let imageInfo = Vk.DescriptorImageInfo
+                   { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
+                   , imageView = case vkimage.imageView of ImageView iv -> iv
+                   , sampler   = (Unsafe.Alias.get sampler).sampler
+                   }
+               in pure $ Vk.SomeStruct Vk.WriteDescriptorSet
+                    { next = ()
+                    , dstSet = dset -- the descriptor set to update with this write
+                    , dstBinding = fromIntegral i
+                    , dstArrayElement = 0 -- Descriptors could be arrays. We just use 0
+                    , descriptorType = Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER -- The type of buffer
+                    , descriptorCount = 1 -- Only one buffer in the array of buffers to update
+                    , bufferInfo = [] -- The one buffer info
+                    , imageInfo = [imageInfo]
+                    , texelBufferView = []
+                    }
 
 
   -- The difficulty in making this linear is that we can't traverse and update
