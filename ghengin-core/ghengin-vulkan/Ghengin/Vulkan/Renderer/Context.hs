@@ -49,8 +49,17 @@ import qualified Unsafe.Linear as Unsafe
 
 class HasVulkanContext m where
   withVulkanContext
-    :: ( VulkanContext WithSwapchain %1 -> Linear.IO (r, VulkanContext WithSwapchain) ) %1
+    :: ( VulkanContext WithSwapchain %1 -> IO (r, VulkanContext WithSwapchain) ) %1
     -> m r
+
+type VulkanContextM = StateT (VulkanContext WithSwapchain) IO
+instance HasVulkanContext VulkanContextM where
+  withVulkanContext = StateT
+
+-- todo: use linear optics.
+withDevice :: HasVulkanContext m => (Vulkan.Device %1 -> IO (a, Vulkan.Device)) %1 -> m a
+withDevice f = withVulkanContext $ \VulkanContext{..} -> f device >>= \case
+  (a, device) -> pure (a, VulkanContext{..})
 
 ----------------------------------------------------------------------------
 -- Two different rendering contexts: with or without a swapchain.

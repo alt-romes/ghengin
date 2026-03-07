@@ -20,12 +20,35 @@ import Foreign.Marshal.Utils
 import Data.Bits
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
+import qualified Data.V.Linear as V
 
-import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Core.Mesh.Vertex
+import Ghengin.Vulkan.Renderer.Command
 
 import qualified Unsafe.Linear as Unsafe
+
+--------------------------------------------------------------------------------
+-- * Commands
+--------------------------------------------------------------------------------
+
+drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderCmdM m VertexBuffer
+drawVertexBuffer (VertexBuffer (DeviceLocalBuffer buf mem) nverts) = Linear.do
+  let offsets = V.make 0
+  buffers' <- bindVertexBuffers 0 (V.make buf :: V.V 1 Vk.Buffer) offsets
+  draw nverts 1
+  pure (VertexBuffer (DeviceLocalBuffer (V.elim (\x -> x) buffers') mem) nverts)
+
+drawVertexBufferIndexed :: Linear.MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderCmdM m (VertexBuffer, Index32Buffer)
+drawVertexBufferIndexed (VertexBuffer (DeviceLocalBuffer vbuf mem) nverts) (Index32Buffer (DeviceLocalBuffer ibuf imem) nixs) = Linear.do
+  let offsets = V.make 0
+  buffers' <- bindVertexBuffers 0 (V.make vbuf) offsets
+  ibuf'    <- bindIndex32Buffer ibuf 0
+  drawIndexed nixs 1
+  pure ( VertexBuffer (DeviceLocalBuffer (V.elim (\x -> x) buffers') mem) nverts
+       , Index32Buffer (DeviceLocalBuffer ibuf' imem) nixs
+       )
 
 -------- Specific buffers --------------
 

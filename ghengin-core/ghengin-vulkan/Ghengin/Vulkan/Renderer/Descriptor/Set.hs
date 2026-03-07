@@ -17,43 +17,35 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 {-# LANGUAGE QualifiedDo #-}
 {-# OPTIONS_GHC -Wno-orphans #-} -- BindingsMap/IntMap
-module Ghengin.Vulkan.Renderer.DescriptorSet where
+module Ghengin.Vulkan.Renderer.Descriptor.Set
+  ( module Ghengin.Vulkan.Renderer.Descriptor.Set
+  , module Ghengin.Vulkan.Renderer.Descriptor.Pool
+  , module Ghengin.Vulkan.Renderer.Descriptor
+  ) where
 
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Log
-import qualified Data.Functor.Linear as Data.Linear
-import qualified Prelude
 
 import Data.Linear.Alias.Unsafe as Unsafe.Alias
 import qualified Unsafe.Linear as Unsafe
 
-import Data.Bits
-
-import qualified Data.List.NonEmpty as NonEmpty
-import qualified Data.List as L
-import qualified Data.Set as S
-import qualified Data.Map.Strict as M
-import qualified Data.IntMap.Strict as IM
 import qualified Data.IntMap.Linear as IML
-import qualified Data.Vector as V
 import qualified Data.V.Linear as VL
 
 import qualified Vulkan.CStruct.Extends as Vk
-import qualified Vulkan.Zero as Vk
 import qualified Vulkan.Linear as Vk
-
-import qualified FIR hiding (ShaderPipeline, (:>->))
-import qualified FIR.Definition as FIR
-import qualified SPIRV.Decoration as SPIRV
-import qualified SPIRV.PrimTy as SPIRV
-import qualified SPIRV.Storage
 
 import Ghengin.Vulkan.Renderer.Buffer
 import Ghengin.Vulkan.Renderer.Image
 import Ghengin.Vulkan.Renderer.Sampler
+import Ghengin.Vulkan.Renderer.Pipeline
 import Ghengin.Vulkan.Renderer.Kernel
+import Ghengin.Vulkan.Renderer.Context
+import Ghengin.Vulkan.Renderer.Command as Command
 
 import Ghengin.Vulkan.Renderer.Texture
+import Ghengin.Vulkan.Renderer.Descriptor
+import Ghengin.Vulkan.Renderer.Descriptor.Pool
 
 import Ghengin.Core.Shader.Pipeline
 
@@ -61,196 +53,22 @@ import FIR.Vulkan.Pipeline
 
 import qualified Data.Linear.Alias as Alias
 
--- The descriptor set number 0 will be used for engine-global resources, and bound
--- once per frame. The descriptor set number 1 will be used for per-pass
--- resources, and bound once per pass. The descriptor set number 2 will be used
--- for material resources, and the number 3 will be used for per-object resources.
---   This way, the inner render loops will only be binding descriptor sets 2 and
---   3, and performance will be high.
+--------------------------------------------------------------------------------
+-- * Commands
+--------------------------------------------------------------------------------
 
--------- Resources ----------------
--- (INLINED from hsig file)
--- Resources are a part of the descriptor set module since these resources are
--- used to manipulate the descriptors of the descriptor set.
---
--- e.g. a mapped buffer resource can be bound by a descriptor such that using
--- that descriptor in the shader will read the buffer resource
+bindGraphicsDescriptorSet :: Linear.MonadIO m
+                          => RendererPipeline Graphics
+                          ⊸ Word32 -- ^ Set index at which to bind the descriptor set
+                          -> DescriptorSet ⊸ RenderCmdM m (DescriptorSet, RendererPipeline Graphics)
+bindGraphicsDescriptorSet (VulkanPipeline pipelay layout) ix (DescriptorSet dix dset) = Linear.do
+  (layout', dset') <- Command.bindGraphicsDescriptorSet' layout ix dset
+  return (DescriptorSet dix dset', VulkanPipeline pipelay layout')
+{-# INLINE bindGraphicsDescriptorSet #-}
 
-type DescriptorBindingInfo = (Vk.DescriptorType, Vk.ShaderStageFlags)
-type ResourceMap = IntMap DescriptorResource
-
-data DescriptorResource where
-  UniformResource   :: Alias MappedBuffer ⊸ DescriptorResource
-  StorageResource   :: Alias MappedBuffer ⊸ DescriptorResource
-  Texture2DResource :: Alias (Texture2D fmt) ⊸ DescriptorResource
-
-instance Forgettable Renderer DescriptorResource where
-  forget = \case
-    UniformResource u -> Alias.forget u
-    StorageResource u -> Alias.forget u
-    Texture2DResource t -> Alias.forget t
-
-instance Shareable m DescriptorResource where
-  share = \case
-    UniformResource u -> bimap UniformResource UniformResource <$> Alias.share u
-    StorageResource u -> bimap StorageResource StorageResource <$> Alias.share u
-    Texture2DResource t -> bimap Texture2DResource Texture2DResource <$> Alias.share t
-
--- | Mapping from each binding to corresponding binding type, shader stage
--- We have a maybe word because not every binding has a layout in memory (images don't)
-type BindingsMap = IntMap DescriptorBindingInfo
-
-instance Consumable BindingsMap where
-  consume = Unsafe.toLinear \_bm -> () -- rnf bm
-instance Dupable BindingsMap where
-  dup2 = Unsafe.toLinear \bm -> (bm,bm)
-instance Movable BindingsMap where
-  move = Unsafe.toLinear \bm -> Ur bm
-
--- | Mapping from each descriptor set ix to its bindings map
-type DescriptorSetMap = IntMap BindingsMap
-
--- | Convert descriptor binding info to buffer kind when applicable.
--- Texture descriptors have no mapped buffer and return Nothing.
-bindingBufferType :: DescriptorBindingInfo -> Maybe BufferType
-bindingBufferType (Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER, _) = Just Uniform
-bindingBufferType (Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER, _) = Just Storage
-bindingBufferType _ = Nothing
-
--- :| From Shaders |:
-
--- | Creates a mapping from descriptor set indexes to a list of their bindings
--- (corresponding binding type, size, shader stage flags) solely from the shader
--- pipeline definition.
-createDescriptorSetBindingsMap :: ShaderPipeline info -> Ur DescriptorSetMap
-createDescriptorSetBindingsMap ppstages = Ur $ makeDescriptorSetMap (go Prelude.mempty ppstages)
-                                            -- If any of the descriptor sets is
-                                            -- unused, we default to an empty bindings map
-                                            <> IM.fromList [(0, mempty), (1, mempty), (2, mempty)]
-  where
-    go :: Map FIR.Shader [(SPIRV.PointerTy,SPIRV.Decorations)]
-       -> ShaderPipeline info
-       -> Map FIR.Shader [(SPIRV.PointerTy,SPIRV.Decorations)]
-       -- ^ For each shader, the sets, corresponding decorations, and corresponding storable data types
-    go acc (ShaderPipeline FIR.VertexInput) = acc
-    go acc (pipe :>-> (FIR.ShaderModule _ :: FIR.ShaderModule name stage defs endState)) =
-      go (M.insertWith (Prelude.<>) (FIR.knownValue @stage) (M.elems $ FIR.globalAnnotations $ FIR.annotations @defs) acc) pipe
-
-    makeDescriptorSetMap :: Map FIR.Shader [(SPIRV.PointerTy, SPIRV.Decorations)]
-                         -> DescriptorSetMap -- ^ Mapping from descriptor set indexes to a list of their bindings (corresponding binding type, shader stage)
-    makeDescriptorSetMap =
-      M.foldrWithKey (\shader ls acc' -> 
-        Prelude.foldr (\(pt,S.toList -> decs) acc ->
-          case decs of
-            [SPIRV.Binding (fromIntegral -> bindingIx), SPIRV.DescriptorSet (fromIntegral -> descriptorSetIx)] ->
-               IM.insertWith mergeSameDS descriptorSetIx
-                            (IM.singleton bindingIx (descriptorType pt, stageFlag shader))
-                            acc
-            _ -> acc -- we keep folding. currently we don't validate anything futher
-          ) acc' ls
-        ) Prelude.mempty
-
-    mergeSameDS :: BindingsMap
-                -> BindingsMap
-                -> BindingsMap
-    mergeSameDS = IM.mergeWithKey (\_ (dt,sf) (dt',sf') ->
-      if dt Prelude.== dt'
-        then Just (dt, sf .|. sf')
-      else error $ "Incompatible descriptor type: " <> show dt <> " and " <> show dt') id id
-
-descriptorType :: SPIRV.PointerTy -> Vk.DescriptorType
-descriptorType = \case
-  SPIRV.PointerTy SPIRV.Storage.Uniform _ -> Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER
-  SPIRV.PointerTy SPIRV.Storage.StorageBuffer _ -> Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER
-  -- SPIRV.PointerTy SPIRV.Storage.UniformConstant SPIRV.Sampler -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-  SPIRV.PointerTy SPIRV.Storage.UniformConstant (SPIRV.SampledImage _) -> Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER
-  x -> error $ "Unexpected/unsupported descriptor set #1 descriptor type: " <> show x
-
----------------------
---- : | Pools | : ---
----------------------
-
-{-
-
-Note [Pools]
-~~~~~~~~~~~~
-
-A pool has a limited amount of resources that can be allocated from it. We
-have at least a pool for each shader pipeline, and the number of resources
-are in proportion to the amount of required by each descriptor set in the shaders.
-
-We have 1 of each resource required by the descriptor set #0, 1000 of each
-descriptor required by the descriptor set #1, and a 10000 of each descriptor
-required by the set #2 -- allowing at most one descriptor set #0 per pipeline,
-1000 materials per pipeline, and 10000 entities per pipeline.
-
-The descriptor pool stores this pipeline-specific information to make it
-possible to allocate entire descriptor sets by index (as specified in the
-shader) from the pool, rather than specifying each descriptor.
-
--}
-
-
--- | See Note [Pools]
-data DescriptorPool =
-  DescriptorPool { dpool :: Vk.DescriptorPool
-                 , set_bindings :: IntMap Vk.DescriptorSetLayout
-                 }
-
--- Creates a pool as described in Note [Pools].
---
--- TODO: Right amount of descriptors. For now we simply multiply 1000 by the
--- number of all total descriptors across sets
-createDescriptorPool :: DescriptorSetMap -> Renderer DescriptorPool
-createDescriptorPool dsetmap = enterD "createDescriptorPool" $ Linear.do
-  layouts <- Data.Linear.traverse (\bm -> case move bm of Ur bm1 -> createDescriptorSetLayout bm1) dsetmap
-
-  let 
-    descriptorsAmounts :: [(Vk.DescriptorType, Int)] -- ^ For each type, its amount
-    descriptorsAmounts = Prelude.map (\(t :| ls) -> (t, 1000 * (Prelude.length ls + 1))) Prelude.. NonEmpty.group Prelude.. L.sort $ Prelude.foldMap (Prelude.foldr (\(ty,_) -> (ty:)) Prelude.mempty) dsetmap
-    poolsSizes = Prelude.map (\(t,fromIntegral -> a) -> Vk.DescriptorPoolSize {descriptorCount = a, type' = t}) descriptorsAmounts
-
-    setsAmount = fromIntegral $ Prelude.length dsetmap
-    poolInfo = Vk.DescriptorPoolCreateInfo { poolSizes = V.fromList poolsSizes
-                                            , maxSets = 1000 Prelude.* setsAmount
-                                            , flags = Vk.zero
-                                            , next = ()
-                                            }
-
-  descriptorPool <- withDevice (Vk.createDescriptorPool poolInfo Nothing)
-  pure (DescriptorPool descriptorPool layouts)
-
-destroyDescriptorPool :: DescriptorPool ⊸ Renderer ()
-destroyDescriptorPool DescriptorPool{..} = enterD "destroyDescriptorPool" $ Linear.do
-  withDevice (Vk.destroyDescriptorPool Nothing dpool)
-  consume <$> Data.Linear.traverse (withDevice . Vk.destroyDescriptorSetLayout Nothing) set_bindings
-
--- | Create a DescriptorSetLayout for a group of bindings (that represent a set) and their properties.
---
--- DescriptorSetLayouts are created and stored by 'DescriptorPool's.
-createDescriptorSetLayout :: BindingsMap -- ^ Binding, type and stage flags for each descriptor in the set to create
-                          -> Renderer Vk.DescriptorSetLayout
-createDescriptorSetLayout bindingsMap = enterD "createDescriptorSetLayout" $
-  let
-      makeBinding bindingIx (descriptorType',sflags) =
-        Vk.DescriptorSetLayoutBinding { binding = fromIntegral bindingIx
-                                      , descriptorType = descriptorType'
-                                      , descriptorCount = 1 -- if this binding was an array of multiple items this number would be larger
-                                      , stageFlags = sflags
-                                      , immutableSamplers = []
-                                      }
-
-      layoutInfo = Vk.DescriptorSetLayoutCreateInfo { bindings = V.fromList $ IM.elems $ IM.mapWithKey makeBinding bindingsMap
-                                                    , next = ()
-                                                    , flags = Vk.zero
-                                                    }
-
-   in withDevice (Vk.createDescriptorSetLayout Nothing layoutInfo)
-
--------------------------------
+--------------------------------------------------------------------------------
 --- : | Descriptor Sets | : ---
--------------------------------
-
+--------------------------------------------------------------------------------
 
 data DescriptorSet
   = DescriptorSet { _ix :: Int

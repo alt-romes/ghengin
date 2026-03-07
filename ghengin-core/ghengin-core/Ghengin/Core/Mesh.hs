@@ -32,7 +32,7 @@ import Ghengin.Core.Render.Pipeline ( RenderPipeline(..) )
 
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.Buffer
-import Ghengin.Vulkan.Renderer.DescriptorSet
+import Ghengin.Vulkan.Renderer.Descriptor.Set
 
 import Ghengin.Core.Log
 

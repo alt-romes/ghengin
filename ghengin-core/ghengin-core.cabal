@@ -109,7 +109,9 @@ library
     -- The re-exports make it possible to manipulate renderer data etc
     reexported-modules: Ghengin.Vulkan.Renderer,
                         Ghengin.Vulkan.Renderer.Kernel,
-                        Ghengin.Vulkan.Renderer.DescriptorSet,
+                        Ghengin.Vulkan.Renderer.Descriptor,
+                        Ghengin.Vulkan.Renderer.Descriptor.Set,
+                        Ghengin.Vulkan.Renderer.Descriptor.Pool,
                         Ghengin.Vulkan.Renderer.Buffer,
                         Ghengin.Vulkan.Renderer.Pipeline,
                         Ghengin.Vulkan.Renderer.Texture,
@@ -225,7 +227,9 @@ library vulkan
     visibility:       public
 
     exposed-modules:  Ghengin.Vulkan.Renderer.Kernel,
-                      Ghengin.Vulkan.Renderer.DescriptorSet,
+                      Ghengin.Vulkan.Renderer.Descriptor,
+                      Ghengin.Vulkan.Renderer.Descriptor.Set,
+                      Ghengin.Vulkan.Renderer.Descriptor.Pool,
                       Ghengin.Vulkan.Renderer.Buffer,
                       Ghengin.Vulkan.Renderer.Pipeline,
                       Ghengin.Vulkan.Renderer.Texture,

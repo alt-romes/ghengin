@@ -123,9 +123,6 @@ import Apecs (Entity, Set, Get, EntityCounter, Storage, Has, Component, Map, set
 import Apecs.Core (ExplSet)
 import qualified Apecs as Apecs
 
-import {-# SOURCE #-} Ghengin.World
-import {-# SOURCE #-} Ghengin (Ghengin)
-
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Component.Transform
 import Ghengin.Component.Camera

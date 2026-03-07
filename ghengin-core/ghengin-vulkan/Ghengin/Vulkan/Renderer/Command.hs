@@ -24,10 +24,9 @@ module Ghengin.Vulkan.Renderer.Command
   , CommandBufferState(..)
 
   -- * Pipeline Binding
-  , bindGraphicsPipeline
+  , bindGraphicsPipeline'
   , bindComputePipeline
   , bindRayTracingPipeline
-  , bindGraphicsDescriptorSet
 
   -- * Dynamic State (Vulkan 1.0)
   , viewportFromExtent
@@ -66,8 +65,6 @@ module Ghengin.Vulkan.Renderer.Command
   -- * Drawing Commands
   , draw
   , drawIndexed
-  , drawVertexBuffer
-  , drawVertexBufferIndexed
   , drawIndirect
   , drawIndexedIndirect
   , drawIndirectCount
@@ -76,6 +73,9 @@ module Ghengin.Vulkan.Renderer.Command
   -- * Compute Dispatch
   , dispatch
   , dispatchIndirect
+
+  -- * Other?
+  , bindGraphicsDescriptorSet'
 
   -- * Data Transfer
   , copyFullBuffer
@@ -88,6 +88,8 @@ module Ghengin.Vulkan.Renderer.Command
 
   -- * Images
   , copyFullBufferToImage
+  , layoutDepthImage
+  , layoutSwapchainImage
   , transitionImageLayout
   , clearColorImage
   , clearDepthStencilImage
@@ -128,12 +130,11 @@ module Ghengin.Vulkan.Renderer.Command
 
 import Prelude hiding (($), pure, return)
 import Prelude.Linear (($))
-import qualified Prelude.Linear as Linear ((.))
 
 import qualified Data.V.Linear as V
 import qualified Data.V.Linear.Internal as VI
 
-import Control.Functor.Linear (pure, return, StateT(..), runStateT)
+import Control.Functor.Linear (StateT(..), runStateT)
 import qualified Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data.Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
@@ -150,9 +151,6 @@ import qualified Vulkan      as Vk
 import Ghengin.Core.Log
 import Ghengin.Vulkan.Renderer.Command.Buffer
 import Ghengin.Vulkan.Renderer.Context
-import {-# SOURCE #-} Ghengin.Vulkan.Renderer.DescriptorSet
-import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Pipeline
-import {-# SOURCE #-} Ghengin.Vulkan.Renderer.Buffer
 
 import qualified Data.Linear.Alias as Alias
 import qualified Unsafe.Linear as Unsafe
@@ -731,38 +729,6 @@ transitionImageLayout img srcLayout dstLayout =
                             [Vk.SomeStruct layoutChangeUndefTransfer]
                             ) -- Image memory barriers
 
-drawVertexBuffer :: Linear.MonadIO m => VertexBuffer ⊸ RenderCmdM m VertexBuffer
-drawVertexBuffer (VertexBuffer (DeviceLocalBuffer buf mem) nverts) = Linear.do
-  let offsets = V.make 0
-  buffers' <- bindVertexBuffers 0 (V.make buf :: V.V 1 Vk.Buffer) offsets
-  draw nverts 1
-  pure (VertexBuffer (DeviceLocalBuffer (V.elim (\x -> x) buffers') mem) nverts)
-
-drawVertexBufferIndexed :: Linear.MonadIO m => VertexBuffer ⊸ Index32Buffer ⊸ RenderCmdM m (VertexBuffer, Index32Buffer)
-drawVertexBufferIndexed (VertexBuffer (DeviceLocalBuffer vbuf mem) nverts) (Index32Buffer (DeviceLocalBuffer ibuf imem) nixs) = Linear.do
-  let offsets = V.make 0
-  buffers' <- bindVertexBuffers 0 (V.make vbuf) offsets
-  ibuf'    <- bindIndex32Buffer ibuf 0
-  drawIndexed nixs 1
-  pure ( VertexBuffer (DeviceLocalBuffer (V.elim (\x -> x) buffers') mem) nverts
-       , Index32Buffer (DeviceLocalBuffer ibuf' imem) nixs
-       )
-
-bindGraphicsPipeline :: Linear.MonadIO m => RendererPipeline Graphics ⊸ RenderCmdM m (RendererPipeline Graphics)
-bindGraphicsPipeline (VulkanPipeline pipeline layout) = Linear.do
-  pipeline' <- bindGraphicsPipeline' pipeline
-  return (VulkanPipeline pipeline' layout)
-{-# INLINE bindGraphicsPipeline #-}
-
-bindGraphicsDescriptorSet :: Linear.MonadIO m
-                          => RendererPipeline Graphics
-                          ⊸ Word32 -- ^ Set index at which to bind the descriptor set
-                          -> DescriptorSet ⊸ RenderCmdM m (DescriptorSet, RendererPipeline Graphics)
-bindGraphicsDescriptorSet (VulkanPipeline pipelay layout) ix (DescriptorSet dix dset) = Linear.do
-  (layout', dset') <- bindGraphicsDescriptorSet' layout ix dset
-  return (DescriptorSet dix dset', VulkanPipeline pipelay layout')
-{-# INLINE bindGraphicsDescriptorSet #-}
-
 clearColorImage :: Linear.MonadIO m => Vk.Image -> Float -> Float -> Float -> Float -> Command m
 clearColorImage img r g b a = unsafeCmd_ $ \buf ->
     Vk.cmdClearColorImage buf img
@@ -935,12 +901,6 @@ executeCommands cmdBuffers = unsafeCmd_ $ \buf ->
 --------------------------------------------------------------------------------
 -- Note how `a` is used unrestrictedly in the function `f`. This is because
 -- often this function will be a Vulkan function which isn't linear.
-
-unsafeCmd2 :: Linear.MonadIO m => a %1 -> (Vk.CommandBuffer -> a -> IO (m ())) -> CommandM m a
-unsafeCmd2 = Unsafe.toLinear \a f -> Command $ StateT $ Unsafe.toLinear \i -> Linear.do
-  more <- Linear.liftSystemIO (f i.buf.unsafeGetCommandBuffer a)
-  Linear.pure (a, CmdInfo{buf = i.buf, freeAliases = i.freeAliases Linear.>> more})
-{-# INLINE unsafeCmd2 #-}
 
 unsafeCmd :: Linear.MonadIO m => a ⊸ (Vk.CommandBuffer -> a -> IO ()) -> CommandM m a
 unsafeCmd = Unsafe.toLinear \a f -> Command $ StateT $ Unsafe.toLinear \i@CmdInfo{buf} ->

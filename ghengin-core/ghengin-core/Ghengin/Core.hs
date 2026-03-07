@@ -94,7 +94,9 @@ renderWith frameIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur ur
 
   buf_ini <- resetCommandBuffer buf
 
-  Alias.newAlias
+  ((depthImage, depthImage'), vkContext) <-
+    withResource vkContext $ Alias.share depthImage
+
   withSwapchainInfo aSwapchainInfo acquireIt
     -- where
     --   swpcImg
@@ -108,8 +110,8 @@ renderWith frameIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur ur
     --     return (Ur (SomeWith fin), framePresentSem, ctx)
 
   let finalCommand = Linear.do
-        layoutDepthImage _
-        layoutSwapchainImage _
+        layoutDepthImage depthImage'
+        layoutSwapchainImage swpcImage'
         command
 
   ((a, buf_exe), RendererEnv{..}) <-
@@ -201,16 +203,6 @@ renderQueueCmd (RenderQueue renderQueue) = RenderQueue Linear.<$> Linear.do
 
           -- For every material...
           (materials', graphicsPipeline) <- runStateT (Data.traverse handleMaterial materials) graphicsPipeline
-
-          {-
-            We'll likely want to do some post-processing of user-defined
-             render passes, but let's keep it simple and working for now. We'll
-             get back to a clean dear-imgui add-on to ghengin-core later.
-             (For each pipeline)
-          -}
-
-          -- Draw UI (TODO: Special render pass...?)
-          -- liftSystemIO IM.getDrawData >>= IM.renderDrawData
 
           return (Some2 $ rebuildPipeline graphicsPipeline, materials')
 

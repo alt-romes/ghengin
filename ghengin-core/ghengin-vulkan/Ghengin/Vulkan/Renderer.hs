@@ -14,7 +14,9 @@
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE QualifiedDo #-}
 module Ghengin.Vulkan.Renderer
-  ( module Ghengin.Vulkan.Renderer.DescriptorSet
+  ( module Ghengin.Vulkan.Renderer.Descriptor
+  , module Ghengin.Vulkan.Renderer.Descriptor.Set
+  , module Ghengin.Vulkan.Renderer.Descriptor.Pool
   , module Ghengin.Vulkan.Renderer.Buffer
   , module Ghengin.Vulkan.Renderer.Command
   , module Ghengin.Vulkan.Renderer.Kernel
@@ -62,7 +64,9 @@ import Ghengin.Core.Type.Utils
 import qualified Graphics.UI.GLFW as GLFW
 
 -- reexport
-import Ghengin.Vulkan.Renderer.DescriptorSet
+import Ghengin.Vulkan.Renderer.Descriptor
+import Ghengin.Vulkan.Renderer.Descriptor.Pool
+import Ghengin.Vulkan.Renderer.Descriptor.Set
 import Ghengin.Vulkan.Renderer.Buffer
 
 import Ghengin.Vulkan.Renderer.Context
@@ -168,7 +172,7 @@ runRenderer dimensions r = Linear.do
     destroyVs presentSemaphores destroySemaphore
     destroyVs renderSemaphores destroySemaphore
 
-  vkContext <- destroyImage vkContext depthImage
+  ((), vkContext) <- withResource vkContext $ destroyImage depthImage
   destroyVulkanContext vkContext
   terminateGLFW glfwtoken
 

@@ -30,7 +30,6 @@ import qualified Control.Functor.Linear as Linear
 import qualified Data.Functor.Linear as Data.Linear
 import qualified Control.Monad.IO.Class.Linear as Linear
 
-import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
 import qualified Vulkan      as Vk
 

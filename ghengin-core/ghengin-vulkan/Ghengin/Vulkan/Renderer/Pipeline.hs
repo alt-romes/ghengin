@@ -53,7 +53,8 @@ import qualified Unsafe.Linear as Unsafe
 
 import Ghengin.Core.Shader.Pipeline
 import Ghengin.Vulkan.Renderer.Kernel
-import Ghengin.Vulkan.Renderer.DescriptorSet (DescriptorPool(..))
+import Ghengin.Vulkan.Renderer.Descriptor.Pool
+import Ghengin.Vulkan.Renderer.Command as Command
 
 import FIR.Vulkan.Pipeline
 
@@ -61,6 +62,18 @@ import FIR.Vulkan.Pipeline
 import System.IO.Temp (writeSystemTempFile)
 import Data.Text.Lazy.Encoding (decodeUtf8, unpack)
 #endif
+
+--------------------------------------------------------------------------------
+-- * Commands
+--------------------------------------------------------------------------------
+
+bindGraphicsPipeline :: MonadIO m => RendererPipeline Graphics ⊸ RenderCmdM m (RendererPipeline Graphics)
+bindGraphicsPipeline (VulkanPipeline pipeline layout) = Linear.do
+  pipeline' <- Command.bindGraphicsPipeline' pipeline
+  return (VulkanPipeline pipeline' layout)
+{-# INLINE bindGraphicsPipeline #-}
+
+--------------------------------------------------------------------------------
 
 data RendererPipeline (t :: PipelineType)
   = VulkanPipeline { _pipeline :: Vk.Pipeline

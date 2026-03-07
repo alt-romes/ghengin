@@ -108,12 +108,8 @@ nextFrameInFlight = Linear.do
   return (Ur frameIndex)
 
 instance HasVulkanContext Renderer where
-  withVulkanContext f = renderer $ \(RendererEnv{..}) -> f vkContext >>= \case
+  withVulkanContext f = renderer $ \RendererEnv{..} -> f vkContext >>= \case
     (a, d') -> pure (a, RendererEnv{vkContext=d',..})
-
--- todo: use linear optics.
-withDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a
-withDevice f = renderer $ Unsafe.toLinear $ \renv -> f renv.vkContext.device >>= \case (a, _d) -> Unsafe.toLinear (\_ -> pure (a, renv)) _d
 
 -- | Unsafely run a Vulkan action on a linear MonadIO that requires a
 -- Vulkan.Device reference as a linear action on 'Renderer'.

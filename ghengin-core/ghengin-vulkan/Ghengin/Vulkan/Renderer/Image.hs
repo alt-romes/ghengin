@@ -5,7 +5,6 @@
 module Ghengin.Vulkan.Renderer.Image where
 
 import Data.Word
-import GHC.Generics
 import qualified Prelude as Ur
 import qualified Data.Vector as V
 import qualified Vulkan as Vk
@@ -70,7 +69,7 @@ data ImageViewInfo ( ctx :: ImageViewContext ) where
 --------------------------------------------------------------------------------
 
 data VulkanImage (viewCtx :: ImageViewContext) = VulkanImage
-  { image     :: forall m. HasVulkanContext m => Alias.Alias m Vk.Image
+  { image     :: Alias.Alias VulkanContextM Vk.Image
   , devMem    :: Vk.DeviceMemory
   , imageView :: ImageView viewCtx
   }
@@ -100,63 +99,76 @@ createImage = Unsafe.toLinear \vkContext ImageInfo{ .. } viewInfo reqs ->
           , queueFamilyIndices = V.empty
           , initialLayout      = imageLayout
           }
-  in liftSystemIO $ do
-    image   <- Alias.newAlias () =<< Vk.createImage vkContext.device imgCreateInfo Nothing
-    memReqs <- Vk.getImageMemoryRequirements vkContext.device image
+  in Linear.do
+    (vk_img, devMem, imageView, vkContext) <- liftSystemIO $ do
+      image   <- Vk.createImage vkContext.device imgCreateInfo Nothing
+      memReqs <- Vk.getImageMemoryRequirements vkContext.device image
 
-    -- TODO: When we want to bind memory to an image, we needn't create a new
-    -- memory object each time. It would be more optimal to create a small number of
-    -- larger memory objects and bind parts of them by providing a proper offset
-    -- value.
-    ( devMem, physicalDevice, device ) <- Linear.withLinearIO $ fmap (Unsafe.toLinear Ur) $
-      allocateMemory vkContext.physicalDevice vkContext.device memReqs reqs Vk.zero
-    Vk.bindImageMemory vkContext.device image devMem 0
+      -- TODO: When we want to bind memory to an image, we needn't create a new
+      -- memory object each time. It would be more optimal to create a small number of
+      -- larger memory objects and bind parts of them by providing a proper offset
+      -- value.
+      ( devMem, physicalDevice, device ) <- Linear.withLinearIO $ fmap (Unsafe.toLinear Ur) $
+        allocateMemory vkContext.physicalDevice vkContext.device memReqs reqs Vk.zero
+      Vk.bindImageMemory vkContext.device image devMem 0
+      let vkContext' = vkContext { physicalDevice, device }
 
-    vkImage <- case viewInfo of
-      NoViewInfo ->
-        Ur.pure VulkanImage{image, devMem, imageView = NoImageView}
-      WithViewInfo viewType aspect -> do
-        let
-          components :: Vk.ComponentMapping
-          components =
-            Vk.ComponentMapping
-              { Vk.r = Vk.COMPONENT_SWIZZLE_IDENTITY
-              , Vk.g = Vk.COMPONENT_SWIZZLE_IDENTITY
-              , Vk.b = Vk.COMPONENT_SWIZZLE_IDENTITY
-              , Vk.a = Vk.COMPONENT_SWIZZLE_IDENTITY
-              }
+      case viewInfo of
+        NoViewInfo -> do
+          Ur.pure (image, devMem, NoImageView, vkContext')
+        WithViewInfo viewType aspect -> do
+          let
+            components :: Vk.ComponentMapping
+            components =
+              Vk.ComponentMapping
+                { Vk.r = Vk.COMPONENT_SWIZZLE_IDENTITY
+                , Vk.g = Vk.COMPONENT_SWIZZLE_IDENTITY
+                , Vk.b = Vk.COMPONENT_SWIZZLE_IDENTITY
+                , Vk.a = Vk.COMPONENT_SWIZZLE_IDENTITY
+                }
 
-          subResourceRange :: Vk.ImageSubresourceRange
-          subResourceRange =
-            Vk.ImageSubresourceRange
-              { Vk.aspectMask     = aspect
-              , Vk.baseMipLevel   = 0
-              , Vk.levelCount     = 1
-              , Vk.baseArrayLayer = 0
-              , Vk.layerCount     = 1
-              }
+            subResourceRange :: Vk.ImageSubresourceRange
+            subResourceRange =
+              Vk.ImageSubresourceRange
+                { Vk.aspectMask     = aspect
+                , Vk.baseMipLevel   = 0
+                , Vk.levelCount     = 1
+                , Vk.baseArrayLayer = 0
+                , Vk.layerCount     = 1
+                }
 
-          viewCreateInfo :: Vk.ImageViewCreateInfo '[]
-          viewCreateInfo =
-            Vk.ImageViewCreateInfo
-              { Vk.next             = ()
-              , Vk.flags            = Vk.zero
-              , Vk.image            = image
-              , Vk.viewType         = viewType
-              , Vk.format           = imageFormat
-              , Vk.components       = components
-              , Vk.subresourceRange = subResourceRange
-              }
-        imageView <- Vk.createImageView vkContext.device viewCreateInfo Nothing
-        Ur.pure VulkanImage{image, devMem, imageView = ImageView imageView}
-    Ur.pure (vkImage, vkContext { physicalDevice, device })
+            viewCreateInfo :: Vk.ImageViewCreateInfo '[]
+            viewCreateInfo =
+              Vk.ImageViewCreateInfo
+                { Vk.next             = ()
+                , Vk.flags            = Vk.zero
+                , Vk.image            = image
+                , Vk.viewType         = viewType
+                , Vk.format           = imageFormat
+                , Vk.components       = components
+                , Vk.subresourceRange = subResourceRange
+                }
+          imageView <- Vk.createImageView vkContext.device viewCreateInfo Nothing
+          Ur.pure (image, devMem, ImageView imageView, vkContext')
+    image <- Alias.newAlias destroy_vk_img vk_img
+    pure (VulkanImage{..}, vkContext)
 
-destroyImage :: Linear.MonadIO m => VulkanContext vkCtx ⊸ VulkanImage viewCtx ⊸ m (VulkanContext vkCtx)
-destroyImage = Unsafe.toLinear2 $ \ctx VulkanImage{..} -> liftSystemIO $ do
-  Vk.destroyImage ctx.device image Nothing
-  Vk.freeMemory ctx.device devMem Nothing
-  case imageView of
-    NoImageView -> Ur.pure ()
-    ImageView vkImgView ->
-      Vk.destroyImageView ctx.device vkImgView Nothing
-  Ur.pure ctx
+destroyImage :: VulkanImage viewCtx ⊸ VulkanContextM ()
+destroyImage = Unsafe.toLinear $ \VulkanImage{..} -> Linear.do
+  Alias.forget image
+  withVulkanContext $ Unsafe.toLinear \ctx -> liftSystemIO $ do
+    Vk.freeMemory ctx.device devMem Nothing
+    case imageView of
+      NoImageView -> Ur.pure ()
+      ImageView vkImgView ->
+        Vk.destroyImageView ctx.device vkImgView Nothing
+    Ur.pure ((), ctx)
+
+--------------------------------------------------------------------------------
+-- * Internal
+--------------------------------------------------------------------------------
+
+destroy_vk_img :: HasVulkanContext m => Vk.Image ⊸ m ()
+destroy_vk_img = Unsafe.toLinear $ \img -> withDevice $ Unsafe.toLinear \dev -> liftSystemIO $ do
+  Vk.destroyImage dev img Nothing
+  Ur.pure ((), dev)

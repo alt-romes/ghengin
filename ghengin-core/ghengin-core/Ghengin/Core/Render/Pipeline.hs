@@ -25,7 +25,9 @@ import Data.Unique
 
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.Pipeline
-import Ghengin.Vulkan.Renderer.DescriptorSet
+import Ghengin.Vulkan.Renderer.Descriptor
+import Ghengin.Vulkan.Renderer.Descriptor.Pool
+import Ghengin.Vulkan.Renderer.Descriptor.Set
 import Ghengin.Core.Log
 
 

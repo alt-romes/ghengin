@@ -11,7 +11,7 @@ import Ghengin.Core.Type.Compatible ( CompatibleMaterial )
 import Ghengin.Core.Render.Pipeline ( RenderPipeline(..) )
 
 import Ghengin.Vulkan.Renderer.Kernel
-import Ghengin.Vulkan.Renderer.DescriptorSet
+import Ghengin.Vulkan.Renderer.Descriptor.Set
 
 import qualified Data.IntMap.Strict as IM
 
