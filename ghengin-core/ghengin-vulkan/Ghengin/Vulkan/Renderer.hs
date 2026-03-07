@@ -149,7 +149,7 @@ runRenderer dimensions r = Linear.do
   (commandPool, vkContext) <- createCommandPool vkContext
   (commandBuffers, vkContext, commandPool) <- createCommandBuffers @FramesInFlight vkContext commandPool
 
-  -- (imsCtx, vkContext) <- createImmediateSubmitCtx vkContext
+  (immediateCmdCtx, vkContext) <- createImmediateSubmitCtx vkContext
 
   -- Run renderer
   ---------------
@@ -159,7 +159,7 @@ runRenderer dimensions r = Linear.do
   -- Terminate
   ------------
 
-  -- device <- destroyImmediateSubmitCtx device imsCtx
+  vkContext <- destroyImmediateSubmitCtx vkContext immediateCmdCtx
 
   (vkContext, commandPool) <- destroyCommandBuffers vkContext commandPool (VL.map (expectJust "All command buffers should be back in the vector when exiting") commandBuffers)
   vkContext <- destroyCommandPool vkContext commandPool

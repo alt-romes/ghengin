@@ -25,6 +25,7 @@ import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Vulkan.Renderer.Command as Cmd
 import Ghengin.Vulkan.Renderer.Command.Buffer as Cmd
 import Ghengin.Vulkan.Renderer.Synchronization
+import Ghengin.Core.Prelude (withResource)
 
 data ImmediateSubmitCtx = ImmediateSubmitCtx
   { uploadFence   :: !Vk.Fence
@@ -49,26 +50,30 @@ destroyImmediateSubmitCtx ctx (ImmediateSubmitCtx fence pool0 buffer) = Linear.d
   destroyCommandPool ctx pool1
 
 -- | Submit a command to the immediate submit command buffer that synchronously
--- submits it to the graphics queue
-immediateSubmit' :: MonadIO m
-                => VulkanContext ctx
-                 ⊸ ImmediateSubmitCtx
-                 ⊸ CommandM m a
-                 ⊸ m ((VulkanContext ctx, ImmediateSubmitCtx), a)
+-- submits it to the graphics queue. That is, this function synchronously waits
+-- for the command to be executed.
+immediateSubmitSync
+  :: MonadIO m
+  => VulkanContext WithSwapchain
+  {- TODO: This doesn't need to be fixed to 'WithSwapchain'. Use generic context. Will need to update few things wrt recording command buffers which also don't need to be fixed, and update VulkanContextM to take a ctx param -}
+   ⊸ ImmediateSubmitCtx
+   ⊸ CommandM m a
+   ⊸ m ((VulkanContext WithSwapchain, ImmediateSubmitCtx), a)
 -- Submit a command on a newly created buffer to the Graphics Queue
-immediateSubmit' ctx0 (ImmediateSubmitCtx fence pool (Some buffer0)) cmd = Linear.do
+immediateSubmitSync = Unsafe.toLinear2 \ctx (ImmediateSubmitCtx fence pool (Some buffer0)) cmd -> Linear.do
 
   buffer <- Cmd.resetCommandBuffer buffer0
-  (x, buffer') <- Cmd.recordCommand buffer cmd
-  r <- Unsafe.toLinear liftSystemIO $ (Unsafe.toLinearN @4 \ctx fence' pool' (buffer'' :: CommandBuffer Executable) -> do
+  (x, freeAliases, buffer') <- Cmd.recordCommand buffer cmd
+  r <- Unsafe.toLinear (\buffer'' -> liftSystemIO $ do
 
-    Vk.queueSubmit ctx.queue [Vk.SomeStruct $ Vk.SubmitInfo () [] [] [buffer''.unsafeGetCommandBuffer.commandBufferHandle] []] fence'
-    _ <- Vk.waitForFences ctx.device [fence'] True maxBound
-    Vk.resetFences ctx.device [fence']
+    Vk.queueSubmit ctx.queue [Vk.SomeStruct $ Vk.SubmitInfo () [] [] [buffer''.unsafeGetCommandBuffer.commandBufferHandle] []] fence
+    _ <- Vk.waitForFences ctx.device [fence] True maxBound
+    Vk.resetFences ctx.device [fence]
 
+    Vk.resetCommandPool ctx.device pool Vk.zero
 
-    Vk.resetCommandPool ctx.device pool' Vk.zero
+    Prelude.pure ((Some buffer''))) buffer'
 
-    Prelude.pure (ctx, ImmediateSubmitCtx fence' pool' (Some buffer''))) ctx0 fence pool buffer'
+  ((), ctx) <- liftIO $ withResource ctx freeAliases
 
-  pure (r, x)
+  pure ((ctx, ImmediateSubmitCtx fence pool r), x)

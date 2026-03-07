@@ -243,5 +243,6 @@ freeMemory :: Vk.DeviceMemory ⊸ Renderer ()
 freeMemory = Unsafe.toLinear $ \mem -> enterD "freeMemory" $ unsafeUseDevice $ \device -> Vk.freeMemory device mem Nothing 
 
 -- | Destroy a Vk.Buffer
-destroyBuffer :: Vk.Buffer ⊸ Renderer ()
-destroyBuffer = Unsafe.toLinear $ \buffer -> enterDA "destroyBuffer" buffer $ unsafeUseDevice $ \device -> Vk.destroyBuffer device buffer Nothing 
+destroyBuffer :: HasVulkanContext m => Vk.Buffer ⊸ m ()
+destroyBuffer = Unsafe.toLinear $ \buffer -> withDevice $ Unsafe.toLinear \device ->
+  ((), device) <$ liftSystemIO (Vk.destroyBuffer device buffer Nothing)

@@ -232,19 +232,18 @@ recordCommand
   :: Linear.MonadIO m
   => CommandBuffer Initial %1
   -> CommandM m a %1
-  -> m (a, CommandBuffer Executable)
-recordCommand buf_ini = Unsafe.toLinear \(Command cmds) -> Linear.do
+  -> m (a, VulkanContextM (), CommandBuffer Executable)
+recordCommand buf_ini (Command cmds) = Linear.do
   -- Begin recording
-  beginCommandBuffer buf_ini Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT Linear.>>= Unsafe.toLinear \buf_rec -> Linear.do
+  buf_rec <- beginCommandBuffer buf_ini Vk.COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT
 
-    -- Record commands
-    a <- runStateT cmds (CmdInfo buf_rec (Linear.pure ()))
-          Linear.>>= Unsafe.toLinear (\(x, _) -> Linear.pure x)
+  -- Record commands
+  (a, CmdInfo{..}) <- runStateT cmds (CmdInfo buf_rec (Linear.pure ()))
 
-    -- Finish recording
-    buf_exe <- endCommandBuffer buf_rec
+  -- Finish recording
+  buf_exe <- endCommandBuffer buf
 
-    Linear.pure (a, buf_exe)
+  Linear.pure (a, freeAliases, buf_exe)
 {-# INLINE recordCommand #-}
 
 bindGraphicsPipeline' :: Linear.MonadIO m => Vk.Pipeline ⊸ RenderCmdM m Vk.Pipeline
@@ -575,27 +574,36 @@ destroyCommandPool = Unsafe.toLinear2 $ \dev pool -> dev Linear.<$ Linear.liftSy
 
 -- | Assumes the layout of the image is Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL!
 copyFullBufferToImage :: Linear.MonadIO μ
-                      => Vk.Buffer -- ^ From
-                       ⊸ Vk.Image  -- ^ To
-                       ⊸ Vk.Extent3D
-                      -> CommandM μ (Vk.Buffer, Vk.Image)
-copyFullBufferToImage buf img extent =
-  let
-      subresourceRange = Vk.ImageSubresourceLayers { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
-                                                   , mipLevel = 0
-                                                   , baseArrayLayer = 0
-                                                   , layerCount = 1
-                                                   }
-                                                  -- Currently ^ this matches createImageView by chance and other uses of subresourceRange
-      region = Vk.BufferImageCopy { bufferOffset = 0
-                                  , bufferRowLength = 0 -- Data is tighly packed according to image size, so 0 is good here
-                                  , bufferImageHeight = 0 -- ^ As above
-                                  , imageSubresource = subresourceRange
-                                  , imageOffset = Vk.Offset3D 0 0 0
-                                  , imageExtent = extent
-                                  }
-   in unsafeCmd (buf,img) $ \cmdbuf (buf', img') ->
-        Vk.cmdCopyBufferToImage cmdbuf buf' img' Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
+                      => Vk.Extent3D
+                      -> Alias.Alias VulkanContextM Vk.Buffer %1 -- ^ From
+                      -> Alias.Alias VulkanContextM Vk.Image %1 -- ^ To
+                      -> CommandM μ ()
+copyFullBufferToImage extent = Unsafe.toLinear \bufA imgA ->
+  Command $ StateT $ Unsafe.toLinear $ \i ->
+    Alias.get bufA Linear.>>= Unsafe.toLinear \(buf, free_buf) ->
+    Alias.get imgA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
+      let
+        subresourceRange = Vk.ImageSubresourceLayers
+          { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
+          , mipLevel = 0
+          , baseArrayLayer = 0
+          , layerCount = 1
+          }
+          -- Currently ^ this matches createImageView by chance and other uses of subresourceRange
+        region = Vk.BufferImageCopy
+          { bufferOffset = 0
+          , bufferRowLength = 0 -- Data is tighly packed according to image size, so 0 is good here
+          , bufferImageHeight = 0 -- ^ As above
+          , imageSubresource = subresourceRange
+          , imageOffset = Vk.Offset3D 0 0 0
+          , imageExtent = extent
+          }
+      Linear.liftSystemIO $
+        Vk.cmdCopyBufferToImage i.buf.unsafeGetCommandBuffer buf img Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL [region]
+      Linear.return ((), CmdInfo
+        { buf = i.buf
+        , freeAliases = i.freeAliases Linear.>> free_img img Linear.>> free_buf buf
+        })
 
 layoutDepthImage
   :: Linear.MonadIO m
@@ -603,39 +611,39 @@ layoutDepthImage
   -> CommandM m ()
 layoutDepthImage depthImageA =
   Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
-      Alias.get depthImageA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
-        let
-          subresourceRange = Vk.ImageSubresourceRange
-            { aspectMask = Vk.IMAGE_ASPECT_DEPTH_BIT .|. Vk.IMAGE_ASPECT_STENCIL_BIT
-            , baseMipLevel = 0
-            , levelCount = 1
-            , baseArrayLayer = 0
-            , layerCount = 1
-            }
+    Alias.get depthImageA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
+      let
+        subresourceRange = Vk.ImageSubresourceRange
+          { aspectMask = Vk.IMAGE_ASPECT_DEPTH_BIT .|. Vk.IMAGE_ASPECT_STENCIL_BIT
+          , baseMipLevel = 0
+          , levelCount = 1
+          , baseArrayLayer = 0
+          , layerCount = 1
+          }
 
-          layoutChange = Vk.SomeStruct Vk.ImageMemoryBarrier2
-            { next = ()
-            , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-            , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-            , srcStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
-            , srcAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-            , dstStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
-            , dstAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-            , oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
-            , newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
-            , image = img
-            , subresourceRange = subresourceRange
-            }
+        layoutChange = Vk.SomeStruct Vk.ImageMemoryBarrier2
+          { next = ()
+          , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+          , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+          , srcStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
+          , srcAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+          , dstStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
+          , dstAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+          , oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
+          , newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+          , image = img
+          , subresourceRange = subresourceRange
+          }
 
-          barrierDep = Vk.zero
-            { Vk.imageMemoryBarriers = [layoutChange]
-            }
-        Linear.liftSystemIO $
-          Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep
-        Linear.return ((), CmdInfo
-          { buf = i.buf
-          , freeAliases = i.freeAliases Linear.>> free_img img
-          })
+        barrierDep = Vk.zero
+          { Vk.imageMemoryBarriers = [layoutChange]
+          }
+      Linear.liftSystemIO $
+        Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep
+      Linear.return ((), CmdInfo
+        { buf = i.buf
+        , freeAliases = i.freeAliases Linear.>> free_img img
+        })
 
 layoutSwapchainImage
   :: Linear.MonadIO m
@@ -683,50 +691,56 @@ layoutSwapchainImage img =
 
 transitionImageLayout :: forall μ
                        . Linear.MonadIO μ
-                      => Vk.Image
+                      => Alias.Alias VulkanContextM Vk.Image
                        ⊸ Vk.ImageLayout -- ^ Src layout
                       -> Vk.ImageLayout -- ^ Dst layout
-                      -> CommandM μ Vk.Image
-transitionImageLayout img srcLayout dstLayout =
-  unsafeCmd img (\buf img' ->
-    let
+                      -> CommandM μ ()
+transitionImageLayout imgA srcLayout dstLayout =
+  Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
+    Alias.get imgA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
+      let
 
-      -- Barrier stages and access flags
-      (srcAccess, dstAccess, stageFrom, stageTo) =
-        case (srcLayout, dstLayout) of
-          (Vk.IMAGE_LAYOUT_UNDEFINED, Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) -> (Vk.zero, Vk.ACCESS_TRANSFER_WRITE_BIT, Vk.PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vk.PIPELINE_STAGE_TRANSFER_BIT)
-          (Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) -> (Vk.ACCESS_TRANSFER_WRITE_BIT, Vk.ACCESS_SHADER_READ_BIT, Vk.PIPELINE_STAGE_TRANSFER_BIT, Vk.PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
-          _ -> error $ "Unknown transition " <> show (srcLayout, dstLayout)
+        -- Barrier stages and access flags
+        (srcAccess, dstAccess, stageFrom, stageTo) =
+          case (srcLayout, dstLayout) of
+            (Vk.IMAGE_LAYOUT_UNDEFINED, Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL) -> (Vk.zero, Vk.ACCESS_TRANSFER_WRITE_BIT, Vk.PIPELINE_STAGE_TOP_OF_PIPE_BIT, Vk.PIPELINE_STAGE_TRANSFER_BIT)
+            (Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL) -> (Vk.ACCESS_TRANSFER_WRITE_BIT, Vk.ACCESS_SHADER_READ_BIT, Vk.PIPELINE_STAGE_TRANSFER_BIT, Vk.PIPELINE_STAGE_FRAGMENT_SHADER_BIT)
+            _ -> error $ "Unknown transition " <> show (srcLayout, dstLayout)
 
+        subresourceRange = Vk.ImageSubresourceRange
+          { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
+          , baseMipLevel = 0
+          , levelCount = 1
+          , baseArrayLayer = 0
+          , layerCount = 1
+          }
 
-      subresourceRange = Vk.ImageSubresourceRange
-        { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
-        , baseMipLevel = 0
-        , levelCount = 1
-        , baseArrayLayer = 0
-        , layerCount = 1
-        }
+        layoutChangeUndefTransfer = Vk.ImageMemoryBarrier
+          { next = ()
+          , srcAccessMask = srcAccess
+          , dstAccessMask = dstAccess
+          , oldLayout = srcLayout
+          , newLayout = dstLayout
+          , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+          , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+          , image = img
+          , subresourceRange = subresourceRange
+          }
 
-      layoutChangeUndefTransfer = Vk.ImageMemoryBarrier
-        { next = ()
-        , srcAccessMask = srcAccess
-        , dstAccessMask = dstAccess
-        , oldLayout = srcLayout
-        , newLayout = dstLayout
-        , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-        , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-        , image = img'
-        , subresourceRange = subresourceRange
-        }
-      -- Possible synchronization in pipeline barriers table: ?
-      -- https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap7.html#synchronization-access-types-supported
-     in Vk.cmdPipelineBarrier buf
-                            stageFrom stageTo
-                            Vk.zero -- Dependency flags
-                            [] -- Memory barriers
-                            [] -- Buffer barriers
-                            [Vk.SomeStruct layoutChangeUndefTransfer]
-                            ) -- Image memory barriers
+      Linear.liftSystemIO $
+        -- Possible synchronization in pipeline barriers table: ?
+        -- https://registry.khronos.org/vulkan/specs/1.3-extensions/html/chap7.html#synchronization-access-types-supported
+        Vk.cmdPipelineBarrier i.buf.unsafeGetCommandBuffer
+          stageFrom stageTo
+          Vk.zero -- Dependency flags
+          [] -- Memory barriers
+          [] -- Buffer barriers
+          [Vk.SomeStruct layoutChangeUndefTransfer]
+          -- Image memory barriers
+      Linear.return ((), CmdInfo
+        { buf = i.buf
+        , freeAliases = i.freeAliases Linear.>> free_img img
+        })
 
 clearColorImage :: Linear.MonadIO m => Vk.Image -> Float -> Float -> Float -> Float -> Command m
 clearColorImage img r g b a = unsafeCmd_ $ \buf ->

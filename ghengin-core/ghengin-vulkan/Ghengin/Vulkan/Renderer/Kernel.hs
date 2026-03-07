@@ -29,6 +29,7 @@ import qualified Unsafe.Linear as Unsafe
 import Data.IORef
 import Data.Finite as Finite
 import Data.Data
+import Ghengin.Vulkan.Renderer.ImmediateSubmit
 
 type Alias = Alias.Alias Renderer
 
@@ -44,7 +45,6 @@ data RendererEnv (n :: Nat) =
     , depthImage        :: !(VulkanImage WithView)
 
     -- Synchronization
-    -- TODO: Use Mutable vectors? Since we're linear!
     , fences            :: !(V.V n Vk.Fence)
     , presentSemaphores :: !(V.V n Vk.Semaphore)
     , renderSemaphores  :: !(V.V swpcImgs Vk.Semaphore)
@@ -53,7 +53,12 @@ data RendererEnv (n :: Nat) =
     , commandPool       :: !Vk.CommandPool
     , commandBuffers    :: !(V.V n (Maybe (Some CommandBuffer)))
 
-    -- , immediateSubmit :: !ImmediateSubmitCtx
+    , immediateCmdCtx   :: !ImmediateSubmitCtx
+    -- ^ An immediate submit command buffer.
+    -- Note: It can be shared across frames in flight because the API only
+    -- supports synchronous submission (we always wait for the result of
+    -- executing the command). If we also had an async immediate submit API it
+    -- would make sense to have one per frame in flight.
     }
 
 type RendererUrEnv :: Nat {-^ Number of frames-in-flight -} -> Type
@@ -139,10 +144,8 @@ unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv.vkContext.
 -- submits it to the graphics queue
 immediateSubmit :: CommandM System.IO.Linear.IO a ⊸ Renderer a
 immediateSubmit cmd = renderer $ \(RendererEnv{..}) -> Linear.do
-  undefined cmd
-  pure (undefined, RendererEnv{..})
-  -- ((dev', imsctx'), x) <- immediateSubmit' vkContext _immediateSubmit cmd
-  -- pure (x, RendererEnv{vkContext=dev',_immediateSubmit=imsctx',..})
+  ((dev', imsctx'), x) <- immediateSubmitSync vkContext immediateCmdCtx cmd
+  pure (x, RendererEnv{vkContext=dev',immediateCmdCtx=imsctx',..})
 
 -- | Run a one-shot command that copies the whole data between two buffers.
 -- Returns the two buffers, in the order they were passed to the function

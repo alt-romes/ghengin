@@ -135,7 +135,7 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
         layoutSwapchainImage swp_vk_img
         command
 
-  ((a, buf_exe), RendererEnv{..}) <-
+  ((a, freeAliases, buf_exe), RendererEnv{..}) <-
     runStateT
       (runReaderT (case recordCommand buf_ini finalCommand of Renderer r -> r) (Ur urEnv))
       RendererEnv{commandBuffers=recon_buffers Nothing, ..}
@@ -146,6 +146,10 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
     Nothing -> pure ()
 
   -- TODO: Submit executable buffer and submit graphics queue!
+
+  -- Free the resources captured by the command buffer after executing it
+  -- (this doesn't match exactly right with when execution finishes, but whatever for now.
+  ((), vkContext) <- withResource vkContext freeAliases
 
   return (a, RendererEnv{commandBuffers=recon_buffers (Just (Some buf_exe)), ..})
 
