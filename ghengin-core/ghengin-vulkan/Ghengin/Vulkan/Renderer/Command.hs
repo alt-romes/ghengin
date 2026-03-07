@@ -184,7 +184,7 @@ A Command is an action run in an environment in which a command buffer is availa
 --    draw 3
 -- @
 type Command m = CommandM m ()
-newtype CommandM m a = Command (StateT (CmdInfo m) m a)
+newtype CommandM m a = Command (StateT CmdInfo m a)
   deriving (Data.Linear.Functor, Linear.Functor, Data.Linear.Applicative, Linear.Applicative, Linear.Monad, Linear.MonadIO, HasLogger)
 
 -- | A rendering command description: a language to describe the subset of commands to record between beginRendering and endRendering
@@ -203,11 +203,11 @@ type RenderCmd m = RenderCmdM m ()
 newtype RenderCmdM m a = RenderCmd (CommandM m a)
   deriving (Data.Linear.Functor, Linear.Functor, Data.Linear.Applicative, Linear.Applicative, Linear.Monad, Linear.MonadTrans, Linear.MonadIO, HasLogger)
 
-data CmdInfo m = CmdInfo
+data CmdInfo = CmdInfo
   { buf :: CommandBuffer 'Recording
     -- ^ See lifecycle in
     -- https://docs.vulkan.org/spec/latest/chapters/cmdbuffers.html#commandbuffers-lifecycle
-  , freeAliases :: m ()
+  , freeAliases :: VulkanContextM ()
     -- ^ As we construct the command buffer, we accumulate the actions to
     -- forget the aliases that were captured in the command buffer.
     -- This action is returned when the command is finished recording.
@@ -599,7 +599,7 @@ copyFullBufferToImage buf img extent =
 
 layoutDepthImage
   :: Linear.MonadIO m
-  => Alias.Alias m Vk.Image %1
+  => Alias.Alias VulkanContextM Vk.Image %1
   -> CommandM m ()
 layoutDepthImage depthImageA =
   Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
@@ -634,48 +634,47 @@ layoutDepthImage depthImageA =
           Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep
         Linear.return ((), CmdInfo
           { buf = i.buf
-          , freeAliases =  i.freeAliases Linear.>> free_img img
+          , freeAliases = i.freeAliases Linear.>> free_img img
           })
 
 layoutSwapchainImage
   :: Linear.MonadIO m
-  => Alias.Alias m Vk.Image %1
+  => Vk.Image -- ^ Note: Unrestricted image. Swapchain images are unrestricted because they are managed by Vulkan.
   -> CommandM m ()
-layoutSwapchainImage imageA =
+layoutSwapchainImage img =
   Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
-      Alias.get imageA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
-        let
-          subresourceRange = Vk.ImageSubresourceRange
-            { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
-            , baseMipLevel = 0
-            , levelCount = 1
-            , baseArrayLayer = 0
-            , layerCount = 1
-            }
+    let
+      subresourceRange = Vk.ImageSubresourceRange
+        { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
+        , baseMipLevel = 0
+        , levelCount = 1
+        , baseArrayLayer = 0
+        , layerCount = 1
+        }
 
-          layoutChange = Vk.SomeStruct Vk.ImageMemoryBarrier2
-            { next = ()
-            , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-            , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-            , srcStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
-            , srcAccessMask = Vk.zero
-            , dstStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
-            , dstAccessMask = Vk.ACCESS_2_COLOR_ATTACHMENT_READ_BIT .|. Vk.ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT
-            , oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
-            , newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
-            , image = img
-            , subresourceRange = subresourceRange
-            }
+      layoutChange = Vk.SomeStruct Vk.ImageMemoryBarrier2
+        { next = ()
+        , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+        , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
+        , srcStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+        , srcAccessMask = Vk.zero
+        , dstStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+        , dstAccessMask = Vk.ACCESS_2_COLOR_ATTACHMENT_READ_BIT .|. Vk.ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT
+        , oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
+        , newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+        , image = img
+        , subresourceRange = subresourceRange
+        }
 
-          barrierDep = Vk.zero
-            { Vk.imageMemoryBarriers = [layoutChange]
-            }
-        Linear.liftSystemIO $
-          Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep
-        Linear.return ((), CmdInfo
-          { buf = i.buf
-          , freeAliases =  i.freeAliases Linear.>> free_img img
-          })
+      barrierDep = Vk.zero
+        { Vk.imageMemoryBarriers = [layoutChange]
+        }
+    Linear.liftSystemIO $
+      Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep
+    Linear.return ((), CmdInfo
+      { buf = i.buf
+      , freeAliases = i.freeAliases
+      })
 
 -- todo: fix the rest of methods which currently unsafe use a vulkan data type
 -- but should instead use an Alias/reference whose freed action gets added to freeAliases

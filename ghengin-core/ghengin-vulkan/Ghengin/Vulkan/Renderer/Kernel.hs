@@ -100,6 +100,11 @@ runRenderer' logger renv (Renderer rend) = Linear.do
   runStateT (runReaderT rend (Ur (RendererUrEnv{..}))) renv
 
 -- | Get the frame index for the next frame in flight
+--
+-- ::WARNING::
+--
+-- YOU SHOULD PROBABLY NEVER EVER CALL THIS DIRECTLY.
+-- Use 'newFrame'.
 nextFrameInFlight :: Renderer (Ur (Finite FramesInFlight))
 nextFrameInFlight = Linear.do
   Ur frameIndexRef <- Renderer $ asks $ \(Ur env) -> Ur env.frameIndexRef

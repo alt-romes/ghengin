@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE TypeAbstractions #-}
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedRecordDot #-}
@@ -14,6 +15,8 @@ module Ghengin.DearImGui.Vulkan
   ) where
 
 import qualified Prelude
+import Data.Proxy
+import GHC.TypeLits
 import Prelude.Linear
 import Control.Functor.Linear as Linear
 import Control.Monad.IO.Class.Linear
@@ -32,66 +35,80 @@ import qualified DearImGui.GLFW   as IM
 import qualified DearImGui.GLFW.Vulkan as IM
 
 import Ghengin.Vulkan.Renderer.Command
-import Ghengin.Vulkan.Renderer.GLFW.Window
+import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Vulkan.Renderer.Context.Swapchain
-import Ghengin.Vulkan.Renderer.Context.Device
 import Ghengin.Vulkan.Renderer.Kernel
 
 data ImCtx = IMCtx Vk.DescriptorPool IM.Context (FunPtr (Vk.Result -> IO ()), Bool)
 
 -- | Init ImGui (for some renderpass?)
-initImGui :: Renderer (ImCtx)
-initImGui = Linear.do -- rp is only used for the initialization
-  -- Quite big descriptors but is taken from example
-  let poolSizes = [ Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_SAMPLER 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_SAMPLED_IMAGE 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_STORAGE_IMAGE 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC 1000
-                  , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_INPUT_ATTACHMENT 1000
-                  ]
+initImGui :: Renderer ImCtx
+initImGui =
+  withVulkanContext $ Unsafe.toLinear \vkCtx -> liftSystemIO $ do
+    imCtx <- withSwapchainInfo vkCtx.aSwapchainInfo (kont vkCtx)
+    Prelude.pure (imCtx, vkCtx)
+      where
+        -- Quite big descriptors but is taken from example
+        poolSizes =
+          [ Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_SAMPLER 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_SAMPLED_IMAGE 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_STORAGE_IMAGE 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC 1000
+          , Vk.DescriptorPoolSize Vk.DESCRIPTOR_TYPE_INPUT_ATTACHMENT 1000
+          ]
 
-      poolInfo = Vk.DescriptorPoolCreateInfo { flags = Vk.DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
-                                             , maxSets = 1000
-                                             , poolSizes = poolSizes
-                                             , next = ()
-                                             }
+        poolInfo = Vk.DescriptorPoolCreateInfo
+          { flags = Vk.DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT
+          , maxSets = 1000
+          , poolSizes = poolSizes
+          , next = ()
+          }
 
-  -- Create descriptor pool
-  Ur imGuiDPool <- unsafeUseDevice (\device -> Ur Prelude.<$> Vk.createDescriptorPool device poolInfo Nothing)
+        kont :: ∀ swpImgs. KnownNat swpImgs => VulkanContext WithSwapchain %1 -> SwapchainInfo swpImgs %1 -> IO ImCtx
+        kont = Unsafe.toLinear2 \VulkanContext{..} _ -> do
 
-  -- Setup imgui context
-  imCtx <- liftSystemIO IM.createContext
+          -- Create descriptor pool
+          imGuiDPool <- Vk.createDescriptorPool device poolInfo Nothing
 
-  -- Setup platform/renderer backends (glfw+vulkan)
-  Ur renv <- renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv, renv)
-  Ur _booj <- liftSystemIOU $ IM.glfwInitForVulkan renv._vulkanWindow._window True
-  let initInfo = IM.InitInfo { instance' = renv._instance
-                             , physicalDevice = renv._vulkanDevice._physicalDevice
-                             , device = renv._vulkanDevice._device
-                             , queueFamily = renv._vulkanDevice._graphicsQueueFamily
-                             , queue = renv._vulkanDevice._graphicsQueue
-                             , pipelineCache = Vk.zero
-                             , descriptorPool = imGuiDPool
-                             , subpass = 0
-                             , minImageCount = fromIntegral $ Prelude.length renv._vulkanSwapChain._imageViews
-                             , imageCount    = fromIntegral $ Prelude.length renv._vulkanSwapChain._imageViews
-                             , msaaSamples = Vk.SAMPLE_COUNT_1_BIT
-                             , mbAllocator = Nothing
-                             , checkResult = \x -> Base.when (x Prelude./= Vk.SUCCESS) (Base.fail $ show x)
-                             , rendering = Right _
-                             }
-  
-  initRes <- liftSystemIO $ IM.vulkanInit initInfo
+          -- Setup imgui context
+          imCtx <- IM.createContext
 
-  Ur _ok  <- liftSystemIOU $ IM.vulkanCreateFontsTexture
+          -- Setup platform/renderer backends (glfw+vulkan)
+          _ <- IM.glfwInitForVulkan (case window of ContextWindow w -> w) True
+          let initInfo = IM.InitInfo
+                { instance' = vkInstance
+                , physicalDevice = physicalDevice
+                , device = device
+                , queueFamily = fromIntegral queueFamilyIndex
+                , queue = queue
+                , pipelineCache = Vk.zero
+                , descriptorPool = imGuiDPool
+                , subpass = 0
+                , minImageCount = fromIntegral $ natVal (Proxy @swpImgs)
+                , imageCount    = fromIntegral $ natVal (Proxy @swpImgs)
+                , msaaSamples = Vk.SAMPLE_COUNT_1_BIT
+                , mbAllocator = Nothing
+                , checkResult = \x -> Base.when (x Prelude./= Vk.SUCCESS) (Base.fail $ show x)
 
-  pure (rp, IMCtx imGuiDPool imCtx initRes)
+                , rendering = Right Vk.PipelineRenderingCreateInfo
+                    { colorAttachmentFormats = [ Vk.FORMAT_B8G8R8A8_UNORM ]
+                    , depthAttachmentFormat = Vk.zero
+                    , stencilAttachmentFormat = Vk.zero
+                    , viewMask = Vk.zero
+                    }
+                }
+
+          initRes <- IM.vulkanInit initInfo
+
+          _ok     <- IM.vulkanCreateFontsTexture
+
+          Prelude.pure (IMCtx imGuiDPool imCtx initRes)
 
 -- | Shutdown ImGui
 destroyImCtx :: ImCtx ⊸ Renderer ()

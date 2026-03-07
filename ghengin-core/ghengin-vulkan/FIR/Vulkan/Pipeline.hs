@@ -121,7 +121,7 @@ topologyAndVertexInputStateInfo =
     vertexAttributeDescriptions :: [ Vulkan.VertexInputAttributeDescription ]
     vertexAttributeDescriptions =
       attributes <&> \ ( location :-> ( binding, offset, format ) ) ->
-        Vulkan.VertexInputAttributeDescription 
+        Vulkan.VertexInputAttributeDescription
           { Vulkan.location = location
           , Vulkan.binding  = binding
           , Vulkan.format   = computeVulkanFormat format

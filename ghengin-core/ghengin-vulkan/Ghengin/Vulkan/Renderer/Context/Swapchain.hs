@@ -44,9 +44,20 @@ import GHC.TypeNats
 data SwapchainInfo (n :: Nat)
   = SwapchainInfo
       { swapchain        :: Vk.SwapchainKHR
-      , swapchainImages  :: VL.V n Vk.Image
+      , swapchainImages  :: Ur (VL.V n Vk.Image)
         -- ^ These images are managed by the swapchain, and should never be
         -- freed directly. See 'destroySwapchain'.
+        --
+        -- Pragmatically, let's just say these images are unrestricted because it's
+        -- a resource managed externally that we don't have to ensure we free
+        -- exactly once.
+        --
+        -- This does allow in theory for the swapchain images to be used
+        -- *after* the 'swapchain' is freed, but using linear types doesn't
+        -- prevent that either! You'd need something stronger (in line with
+        -- ordered types) to guarantee swapchain images are provably never used
+        -- after freeing the swapchain.
+        --
         -- Note: the N frames here do not necessarily match the number of
         -- frames-in-flight.
       , swapchainSurface :: Vk.SurfaceKHR
@@ -108,6 +119,8 @@ createSwapchain = Unsafe.toLinear3 \physicalDevice device surface surfaceFormat 
     let swapchainInfo = SwapchainInfo
           { swapchain
           , swapchainImages
+              {- see haddocks of `swapchainImages` for justification-}
+              = Unsafe.toLinear Ur swapchainImages
           , swapchainSurface = surface
           , swapchainExtent  = Ur currentExtent
           , surfaceFormat    = Ur surfaceFormat
@@ -122,7 +135,7 @@ destroySwapchain :: Linear.MonadIO m
 destroySwapchain = Unsafe.toLinear3 \inst device
   SwapchainInfo
     { swapchain
-    , swapchainImages = _ {- managed by swapchain, not us! -}
+    , swapchainImages = Ur _ {- managed by swapchain, not us! -}
     , swapchainSurface
     , swapchainExtent = Ur _
     , surfaceFormat = Ur _

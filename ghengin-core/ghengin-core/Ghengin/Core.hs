@@ -1,3 +1,4 @@
+{-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 
@@ -36,6 +37,10 @@ import qualified Data.Linear.Alias as Alias
 import SPIRV.Image
 
 import qualified Unsafe.Linear as Unsafe
+import Ghengin.Vulkan.Renderer.Context
+import Ghengin.Vulkan.Renderer.Image
+import Ghengin.Vulkan.Renderer.Context.Swapchain
+import Type.Reflection
 
 -- ROMES:TODO: Eventually, the base configuration of the Renderer should be passed in a record "RenderConfig"
 -- For which there should be command line arguments automatically created.
@@ -43,12 +48,14 @@ import qualified Unsafe.Linear as Unsafe
 -- | Renders a render queue under the given render pass.
 --
 -- For more fine-grained control of the render command to run see 'renderWith'
-render :: Finite FramesInFlight
+render :: KnownNat swpImgs
+       => Finite FramesInFlight
+       -> Finite swpImgs {- swapchain image index -}
        -> RenderQueue () -- this queue is currently being drawn with "renderQueueCmd" in the single renderpass associated with the top-level renderer state. Ultimately we'd allow arbitrary Commands (and renderPasses within them) to be kept by the user and used here
         ⊸ Renderer (RenderQueue ())
-render frameIndex rq = do
+render frameIndex imageIndex rq = do
 
-  renderWith frameIndex $ Linear.do
+  renderWith frameIndex imageIndex $ Linear.do
 
     Ur extent <- lift getRenderExtent
     let viewport = viewportFromExtent extent
@@ -84,8 +91,11 @@ render frameIndex rq = do
 -- render queue has no meshes, but we still want to draw the pipelines that
 -- command will bind. It uses gl_VertexIndex in the vertex shader.
 -- See https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/ for instance.
-renderWith :: Finite FramesInFlight -> CommandM Renderer a ⊸ Renderer a
-renderWith frameIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur urEnv) -> StateT $ \RendererEnv{..} -> Linear.do
+renderWith :: ∀ swpImgs a. KnownNat swpImgs
+           => Finite FramesInFlight
+           -> Finite swpImgs {- swapchain image index -}
+           -> CommandM Renderer a ⊸ Renderer a
+renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur urEnv) -> StateT $ \RendererEnv{..} -> Linear.do
 
   let !(buf', recon_buffers) = focusV frameIndex commandBuffers
   Some buf <- case buf' of
@@ -94,24 +104,35 @@ renderWith frameIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur ur
 
   buf_ini <- resetCommandBuffer buf
 
-  ((depthImage, depthImage'), vkContext) <-
-    withResource vkContext $ Alias.share depthImage
+  ((depthImage, depth_vk_img), vkContext) <- withResource vkContext $ case depthImage of
+    VulkanImage{..} -> Linear.do
+      (image, img) <- Alias.share image
+      return (VulkanImage { image, .. }, img)
 
-  withSwapchainInfo aSwapchainInfo acquireIt
-    -- where
-    --   swpcImg
-    --     :: KnownNat swpImgs
-    --     => SwapchainInfo swpImgs %1
-    --     -> Linear.IO (Alias Vk.Image)
-    --   swpcImg swpInfo = Linear.do
-    --     (Ur (fin :: Finite swpImgs), framePresentSem, swpInfo, device) <-
-    --       acquireNextImage device swpInfo framePresentSem
-    --     let ctx = VulkanContext{aSwapchainInfo=ASwapchainInfo swpInfo, ..}
-    --     return (Ur (SomeWith fin), framePresentSem, ctx)
+  (Ur swp_vk_img, vkContext) <- case vkContext of
+    VulkanContext{..} -> withSwapchainInfo aSwapchainInfo shareSwpImg
+      where
+        shareSwpImg
+          :: ∀ swpcImgs. KnownNat swpcImgs
+          => SwapchainInfo swpcImgs %1
+          -> IO (_, VulkanContext WithSwapchain)
+        shareSwpImg swpInfo = Linear.do
+          case sameNat (Proxy @swpcImgs) (Proxy @swpImgs) of
+            -- Witness that the number of swapchain images is the same as the
+            -- number of render semaphores is the same as the Finite index for
+            -- imageIndex (all were created from same SwapchainInfo)
+            Just Refl -> case swpInfo of
+              SwapchainInfo{swapchainImages = Ur swp_imgs, ..} -> Linear.do
+                let !(img_at_ix, recon_imgs) = focusV imageIndex swp_imgs
+                let swapchainImages = Ur (recon_imgs img_at_ix)
+                return (Ur img_at_ix, VulkanContext{aSwapchainInfo=ASwapchainInfo SwapchainInfo{..}, ..})
+
+            _ -> error "impossible, but I don't know how to prove it"
+              VulkanContext{aSwapchainInfo = ASwapchainInfo swpInfo, ..}
 
   let finalCommand = Linear.do
-        layoutDepthImage depthImage'
-        layoutSwapchainImage swpcImage'
+        layoutDepthImage depth_vk_img
+        layoutSwapchainImage swp_vk_img
         command
 
   ((a, buf_exe), RendererEnv{..}) <-

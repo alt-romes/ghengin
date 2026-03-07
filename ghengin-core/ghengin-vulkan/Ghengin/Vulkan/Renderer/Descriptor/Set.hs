@@ -227,7 +227,7 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> en
   withDevice (Unsafe.toLinear Vk.updateDescriptorSets (l2vec $ IML.elems writeInfos) [])
   pure (DescriptorSet uix dset, resources)
 
--- | Destroy a descriptor set 
+-- | Destroy a descriptor set
 --
 -- I think this comment is outdated:
 -- We must be careful here not to free resources shared across materials

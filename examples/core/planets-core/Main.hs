@@ -72,7 +72,7 @@ data UrGameData π = GameData
 
 gameLoop :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
          => UrGameData π -> RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop GameData{..} rq = Linear.do
+gameLoop GameData{..} rq = newFrame \frameIndex imageIndex -> Linear.do
  logT "New frame" 
  Ur should_close <- (shouldCloseWindow)
  if should_close then return rq else Linear.do
@@ -131,8 +131,7 @@ gameLoop GameData{..} rq = Linear.do
     _ -> return ()
 
   -- Render!
-  Ur frameIndex <- nextFrameInFlight
-  rq <- renderWith frameIndex $ Linear.do
+  rq <- renderWith frameIndex imageIndex $ Linear.do
     Ur extent <- lift getRenderExtent
     let viewport = viewportFromExtent extent
         scissor = scissorFromExtent extent

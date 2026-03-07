@@ -101,7 +101,7 @@ newTexture img {-sampler'-} = undefined
    --
    --  (stagingBuffer, image) <- immediateSubmit $ Linear.do
    --
-   --    -- (1) 
+   --    -- (1)
    --    image <- transitionImageLayout image Vk.IMAGE_LAYOUT_UNDEFINED Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL
    --
    --    -- (2)
