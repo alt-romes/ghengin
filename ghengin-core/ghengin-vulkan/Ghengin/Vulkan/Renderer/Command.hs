@@ -629,8 +629,8 @@ layoutDepthImage depthImageA =
             , subresourceRange = subresourceRange
             }
 
-          barrierDep = Vk.DependencyInfo
-            { imageMemoryBarriers = [layoutChange]
+          barrierDep = Vk.zero
+            { Vk.imageMemoryBarriers = [layoutChange]
             }
         Linear.liftSystemIO $
           Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep
@@ -669,8 +669,8 @@ layoutSwapchainImage imageA =
             , subresourceRange = subresourceRange
             }
 
-          barrierDep = Vk.DependencyInfo
-            { imageMemoryBarriers = [layoutChange]
+          barrierDep = Vk.zero
+            { Vk.imageMemoryBarriers = [layoutChange]
             }
         Linear.liftSystemIO $
           Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep

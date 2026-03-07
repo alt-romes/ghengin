@@ -19,6 +19,8 @@ packages:
 -- package *
 --     profiling-detail: late
 
+multi-repl: True
+
 package dear-imgui
   flags: +glfw +vulkan -sdl -opengl3
 

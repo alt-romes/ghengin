@@ -4,12 +4,10 @@ name:               ghengin-core
 version:            0.1.0.0
 tested-with:        GHC ==9.10.1
 license:            BSD-3-Clause
-license-file:       ../LICENSE
 author:             romes
 maintainer:         rodrigo.m.mesquita@gmail.com
 category:           Graphics
 build-type:         Simple
-extra-doc-files:    ../CHANGELOG.md
 
 flag dev
   default: True

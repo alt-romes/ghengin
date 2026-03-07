@@ -46,6 +46,13 @@ import Ghengin.Vulkan.Renderer.Context.Device.Physical
 import qualified Unsafe.Linear as Unsafe
 
 ----------------------------------------------------------------------------
+
+class HasVulkanContext m where
+  withVulkanContext
+    :: ( VulkanContext WithSwapchain %1 -> Linear.IO (r, VulkanContext WithSwapchain) ) %1
+    -> m r
+
+----------------------------------------------------------------------------
 -- Two different rendering contexts: with or without a swapchain.
 
 data RenderingContext

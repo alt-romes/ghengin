@@ -48,6 +48,10 @@ mkShell ({
   # Validation layers
   VK_LAYER_PATH = "${vulkan-validation-layers}/share/vulkan/explicit_layer.d";
 
+  shellHook = ''
+    export PATH=/Users/romes/.local/bin:$PATH
+  '';
+
 } // pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
 
   # To find vulkan at load time on linux

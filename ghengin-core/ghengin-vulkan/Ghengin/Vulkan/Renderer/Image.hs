@@ -14,6 +14,7 @@ import qualified Vulkan.Zero as Vk
 import Ghengin.Core.Prelude as Linear
 import Ghengin.Vulkan.Renderer.Context
 import FIR.Vulkan.Memory
+import Data.Linear.Alias as Alias
 
 import qualified Unsafe.Linear as Unsafe
 
@@ -69,10 +70,10 @@ data ImageViewInfo ( ctx :: ImageViewContext ) where
 --------------------------------------------------------------------------------
 
 data VulkanImage (viewCtx :: ImageViewContext) = VulkanImage
-  { image     :: Vk.Image
+  { image     :: forall m. HasVulkanContext m => Alias.Alias m Vk.Image
   , devMem    :: Vk.DeviceMemory
   , imageView :: ImageView viewCtx
-  } deriving Generic
+  }
 
 createImage
   :: Linear.MonadIO m
@@ -100,7 +101,7 @@ createImage = Unsafe.toLinear \vkContext ImageInfo{ .. } viewInfo reqs ->
           , initialLayout      = imageLayout
           }
   in liftSystemIO $ do
-    image   <- Vk.createImage vkContext.device imgCreateInfo Nothing
+    image   <- Alias.newAlias () =<< Vk.createImage vkContext.device imgCreateInfo Nothing
     memReqs <- Vk.getImageMemoryRequirements vkContext.device image
 
     -- TODO: When we want to bind memory to an image, we needn't create a new

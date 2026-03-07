@@ -16,7 +16,6 @@ import qualified Data.Vector as Vector
 
 import Ghengin.Vulkan.Renderer.Command (CommandM, copyFullBuffer, clearColorImage)
 import Ghengin.Vulkan.Renderer.Command.Buffer
-import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Vulkan.Renderer.Context.Swapchain
 import Ghengin.Vulkan.Renderer.Image
@@ -108,9 +107,9 @@ nextFrameInFlight = Linear.do
   liftSystemIO $ modifyIORef' frameIndexRef (\currentFrame -> Finite.modulo (getFinite currentFrame Prelude.+ 1))
   return (Ur frameIndex)
 
-withVulkanContext :: (VulkanContext WithSwapchain %1 -> System.IO.Linear.IO (a, VulkanContext WithSwapchain)) %1 -> Renderer a
-withVulkanContext f = renderer $ \(RendererEnv{..}) -> f vkContext >>= \case
-  (a, d') -> pure (a, RendererEnv{vkContext=d',..})
+instance HasVulkanContext Renderer where
+  withVulkanContext f = renderer $ \(RendererEnv{..}) -> f vkContext >>= \case
+    (a, d') -> pure (a, RendererEnv{vkContext=d',..})
 
 -- todo: use linear optics.
 withDevice :: (Vk.Device %1 -> System.IO.Linear.IO (a, Vk.Device)) %1 -> Renderer a

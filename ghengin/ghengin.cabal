@@ -9,13 +9,11 @@ tested-with:        GHC ==9.12.2
 -- synopsis:
 -- description:
 license:            BSD-3-Clause
-license-file:       ../LICENSE
 author:             romes
 maintainer:         rodrigo.m.mesquita@gmail.com
 -- copyright:
 category:           Graphics
 build-type:         Simple
-extra-doc-files:    ../CHANGELOG.md
 -- extra-source-files:
 --     cbits/imgui_extensions/*.cpp
 --     cbits/imgui_extensions/*.hpp
