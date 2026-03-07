@@ -100,7 +100,7 @@ createImage = Unsafe.toLinear \vkContext ImageInfo{ .. } viewInfo reqs ->
           , initialLayout      = imageLayout
           }
   in Linear.do
-    (vk_img, devMem, imageView, vkContext) <- liftSystemIO $ do
+    (vk_img, devMem, imageView) <- liftSystemIO $ do
       image   <- Vk.createImage vkContext.device imgCreateInfo Nothing
       memReqs <- Vk.getImageMemoryRequirements vkContext.device image
 
@@ -108,14 +108,12 @@ createImage = Unsafe.toLinear \vkContext ImageInfo{ .. } viewInfo reqs ->
       -- memory object each time. It would be more optimal to create a small number of
       -- larger memory objects and bind parts of them by providing a proper offset
       -- value.
-      ( devMem, physicalDevice, device ) <- Linear.withLinearIO $ fmap (Unsafe.toLinear Ur) $
-        allocateMemory vkContext.physicalDevice vkContext.device memReqs reqs Vk.zero
+      devMem  <- allocateMemory vkContext.physicalDevice vkContext.device memReqs reqs Vk.zero
       Vk.bindImageMemory vkContext.device image devMem 0
-      let vkContext' = vkContext { physicalDevice, device }
 
       case viewInfo of
         NoViewInfo -> do
-          Ur.pure (image, devMem, NoImageView, vkContext')
+          Ur.pure (image, devMem, NoImageView)
         WithViewInfo viewType aspect -> do
           let
             components :: Vk.ComponentMapping
@@ -149,7 +147,7 @@ createImage = Unsafe.toLinear \vkContext ImageInfo{ .. } viewInfo reqs ->
                 , Vk.subresourceRange = subResourceRange
                 }
           imageView <- Vk.createImageView vkContext.device viewCreateInfo Nothing
-          Ur.pure (image, devMem, ImageView imageView, vkContext')
+          Ur.pure (image, devMem, ImageView imageView)
     image <- Alias.newAlias destroy_vk_img vk_img
     pure (VulkanImage{..}, vkContext)
 

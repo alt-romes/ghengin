@@ -20,8 +20,10 @@ import Foreign.Marshal.Utils
 import Data.Bits
 import Vulkan.Zero (zero)
 import qualified Vulkan as Vk
+import qualified Vulkan.Zero as Vk
 import qualified Data.V.Linear as V
 
+import FIR.Vulkan.Memory
 import Ghengin.Vulkan.Renderer.Kernel
 import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Core.Mesh.Vertex
@@ -164,28 +166,23 @@ writeMappedBuffer writeIt refcbuf x = enterD "writeMappedBuffer" Linear.do
 
 createBuffer :: Vk.DeviceSize -> Vk.BufferUsageFlags -> Vk.MemoryPropertyFlags -> Renderer (Vk.Buffer, Vk.DeviceMemory)
 createBuffer size usage properties = Linear.do
-  let bufferInfo = Vk.BufferCreateInfo { next = ()
-                                       , flags = zero
-                                       , size  = size
-                                       , usage = usage
-                                       , sharingMode = Vk.SHARING_MODE_EXCLUSIVE
-                                       , queueFamilyIndices = []
-                                       }
-  unsafeWithVulkanContext (\ctx -> do
-    let dev = ctx.device
-    buffer          <- Vk.createBuffer dev bufferInfo Nothing
-    memRequirements <- Vk.getBufferMemoryRequirements dev buffer
-    memTypeIndex    <- undefined {-findMemoryType-} memRequirements.memoryTypeBits properties ctx.physicalDevice
-    let allocInfo = Vk.MemoryAllocateInfo { next = ()
-                                          , allocationSize = memRequirements.size
-                                          , memoryTypeIndex = memTypeIndex
-                                          }
-    devMem          <- Vk.allocateMemory dev allocInfo Nothing
+  let bufferInfo = Vk.BufferCreateInfo
+        { next = ()
+        , flags = zero
+        , size  = size
+        , usage = usage
+        , sharingMode = Vk.SHARING_MODE_EXCLUSIVE
+        , queueFamilyIndices = []
+        }
+  unsafeWithVulkanContext $ \vkContext -> do
+    let dev = vkContext.device
+    buffer  <- Vk.createBuffer dev bufferInfo Nothing
+    memReqs <- Vk.getBufferMemoryRequirements dev buffer
+    devMem  <- allocateMemory vkContext.physicalDevice dev memReqs properties Vk.zero
 
     -- Bind buffer to the memory we allocated (or is it the other way around?)
     Vk.bindBufferMemory dev buffer devMem 0
     Prelude.pure (buffer, devMem)
-                     )
 
 -- | Fills a staging buffer with data, uses it with the given function that
 -- typically copies the buffer data from the staging buffer to another one

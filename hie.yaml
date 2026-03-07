@@ -1,28 +1,28 @@
 cradle:
   cabal:
     - path: "./ghengin-core/ghengin-core/"
-      component: "lib:ghengin-core"
+      component: "ghengin-core"
 
     - path: "./ghengin-core/ghengin-vulkan/"
-      component: "lib:ghengin-core:vulkan"
+      component: "ghengin-core:vulkan"
 
     - path: "./ghengin-core/ghengin-core-indep/"
-      component: "lib:ghengin-core:backend-independent-bits"
+      component: "ghengin-core:backend-independent-bits"
 
     - path: "./ghengin/"
-      component: "lib:ghengin"
+      component: "ghengin"
 
     - path: "./ghengin/ghengin-camera/"
-      component: "lib:ghengin:camera"
+      component: "ghengin:camera"
 
     - path: "./ghengin/ghengin-geometry/"
-      component: "lib:ghengin:geometry"
+      component: "ghengin:geometry"
 
     - path: "./ghengin/ghengin-dear-imgui/"
-      component: "lib:ghengin:dear-imgui"
+      component: "ghengin:dear-imgui"
 
     - path: "./ghengin/ghengin-dear-imgui-vulkan/"
-      component: "lib:ghengin:dear-imgui-vulkan"
+      component: "ghengin:dear-imgui-vulkan"
 
     - path: "./examples/core/planets-core/"
       component: "exe:planets-core"

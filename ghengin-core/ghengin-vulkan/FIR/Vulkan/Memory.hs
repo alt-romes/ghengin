@@ -35,24 +35,16 @@ import qualified Vulkan
 import qualified Vulkan as Vulkan.Memory
   ( MemoryRequirements(..) )
 
--- ghengin-core-indep
-import qualified Ghengin.Core.Prelude as Linear
-
-import qualified Unsafe.Linear as Unsafe
-
 -----------------------------------------------------------------------------------------------------
 
 allocateMemory
-  :: Linear.MonadIO m
-  => Vulkan.PhysicalDevice %1
-  -> Vulkan.Device %1
+  :: Vulkan.PhysicalDevice
+  -> Vulkan.Device
   -> Vulkan.MemoryRequirements
   -> Vulkan.MemoryPropertyFlags
   -> Vulkan.MemoryAllocateFlags
-  -> m ( Vulkan.DeviceMemory, Vulkan.PhysicalDevice, Vulkan.Device )
-allocateMemory = Unsafe.toLinear2 \physicalDevice device memReqs memFlags allocateFlags -> Linear.do
-
-  devMem <- Linear.liftSystemIO $ do
+  -> IO Vulkan.DeviceMemory
+allocateMemory physicalDevice device memReqs memFlags allocateFlags = do
 
     Vulkan.PhysicalDeviceMemoryProperties
       { Vulkan.memoryTypes
@@ -100,5 +92,3 @@ allocateMemory = Unsafe.toLinear2 \physicalDevice device memReqs memFlags alloca
           }
 
     Vulkan.allocateMemory device allocateInfo Nothing
-
-  Linear.return (devMem, physicalDevice, device)

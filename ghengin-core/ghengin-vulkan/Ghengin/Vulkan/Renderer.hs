@@ -68,7 +68,7 @@ import Ghengin.Vulkan.Renderer.Descriptor
 import Ghengin.Vulkan.Renderer.Descriptor.Pool
 import Ghengin.Vulkan.Renderer.Descriptor.Set
 import Ghengin.Vulkan.Renderer.Buffer
-
+import Ghengin.Vulkan.Renderer.Pipeline
 import Ghengin.Vulkan.Renderer.Context
 import Ghengin.Vulkan.Renderer.Context.Instance
 import Ghengin.Vulkan.Renderer.Context.Device
@@ -121,9 +121,6 @@ runRenderer dimensions r = Linear.do
   (Ur extent3D, vkContext) <- pure $
     vkContextExtent vkContext
 
-  -- todo: check which depth attachment supported format is best,
-  -- see https://www.howtovulkan.com/#depth-attachment
-  let depthFmt = Vk.FORMAT_D32_SFLOAT
   (depthImage, vkContext) <-
     createImage vkContext
       (Default2DImageInfo extent3D depthFmt
