@@ -127,13 +127,17 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
                 let swapchainImages = Ur (recon_imgs img_at_ix)
                 return (Ur img_at_ix, VulkanContext{aSwapchainInfo=ASwapchainInfo SwapchainInfo{..}, ..})
 
-            _ -> error "impossible, but I don't know how to prove it"
+            _ -> error "Oh no! The upper bound of the image index (Finite swpImgs) doesn't match the actual size of swapchaing images!\
+                       \ Did you use 'newFrame' to acquire frame's imageIndex?"
               VulkanContext{aSwapchainInfo = ASwapchainInfo swpInfo, ..}
 
-  let finalCommand = Linear.do
-        layoutDepthImage depth_vk_img
-        layoutSwapchainImage swp_vk_img
-        command
+  let
+    finalCommand = Linear.do
+      layoutOptimalDepthImage depth_vk_img
+      layoutOptimalSwapchainImage swp_vk_img
+      a <- command
+      layoutPresentSwapchainImage swp_vk_img
+      return a
 
   ((a, freeAliases, buf_exe), RendererEnv{..}) <-
     runStateT

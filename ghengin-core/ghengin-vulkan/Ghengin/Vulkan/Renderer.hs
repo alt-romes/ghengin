@@ -252,7 +252,6 @@ newFrame action = Linear.do
 
             _ -> error "impossible, but I don't know how to prove it"
               RendererEnv{vkContext = VulkanContext{aSwapchainInfo = ASwapchainInfo swpInfo, ..}, .. }
-
   -- TODO: Reconstruct swapchain here if it changed.
 
   return a

@@ -88,8 +88,9 @@ module Ghengin.Vulkan.Renderer.Command
 
   -- * Images
   , copyFullBufferToImage
-  , layoutDepthImage
-  , layoutSwapchainImage
+  , layoutOptimalDepthImage
+  , layoutOptimalSwapchainImage
+  , layoutPresentSwapchainImage
   , transitionImageLayout
   , clearColorImage
   , clearDepthStencilImage
@@ -502,6 +503,33 @@ dispatchIndirect buffer offset =
 
 -- :| Dynamic Rendering (Vulkan 1.3) |: --
 
+mkSimpleRenderingInfo :: Vk.Rect2D -> Vk.Image -> Alias.Alias VulkanContextM Vk.Image -> Vk.RenderingInfo '[]
+mkSimpleRenderingInfo renderArea image imgA = Vk.RenderingInfo
+  { next = ()
+  , renderArea = renderArea
+  , flags = Vk.zero
+  , layerCount = 1
+  , viewMask = 0
+  , colorAttachments =
+    [ Vk.RenderingAttachmentInfo
+      { imageView = Vk.ImageView image
+      , imageLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+      , resolveMode = Nothing
+      , resolveImageView = Nothing
+      , resolveImageLayout = Nothing
+      }
+    ]
+  , depthAttachment = Just Vk.RenderingAttachmentInfo
+      { imageView = Vk.ImageView image
+      , imageLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+      , resolveMode = Nothing
+      , resolveImageView = Nothing
+      , resolveImageLayout = Nothing
+      }
+  , stencilAttachment = Nothing
+  }
+{-# INLINE mkSimpleRenderingInfo #-}
+
 -- | Begin dynamic rendering (Vulkan 1.3)
 beginRendering :: Linear.MonadIO m => Vk.RenderingInfo '[] -> RenderCmdM m a ⊸ CommandM m a
 beginRendering renderingInfo = Unsafe.toLinear $ \(RenderCmd (Command rpcmds)) -> Command $ StateT $ Unsafe.toLinear \info -> Linear.do
@@ -605,11 +633,15 @@ copyFullBufferToImage extent = Unsafe.toLinear \bufA imgA ->
         , freeAliases = i.freeAliases Linear.>> free_img img Linear.>> free_buf buf
         })
 
-layoutDepthImage
+-- TODO: There's too much duplication between layoutOptimalDepthImage,
+-- layoutOptimalSwapchainImage, layoutPresentSwapchainImage and
+-- transitionImageLayout
+
+layoutOptimalDepthImage
   :: Linear.MonadIO m
   => Alias.Alias VulkanContextM Vk.Image %1
   -> CommandM m ()
-layoutDepthImage depthImageA =
+layoutOptimalDepthImage depthImageA =
   Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
     Alias.get depthImageA Linear.>>= Unsafe.toLinear \(img, free_img) -> Linear.do
       let
@@ -621,18 +653,15 @@ layoutDepthImage depthImageA =
           , layerCount = 1
           }
 
-        layoutChange = Vk.SomeStruct Vk.ImageMemoryBarrier2
-          { next = ()
-          , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-          , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-          , srcStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
-          , srcAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-          , dstStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
-          , dstAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
-          , oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
-          , newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
-          , image = img
-          , subresourceRange = subresourceRange
+        layoutChange = Vk.SomeStruct Vk.zero
+          { Vk.srcStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
+          , Vk.srcAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+          , Vk.dstStageMask = Vk.PIPELINE_STAGE_2_EARLY_FRAGMENT_TESTS_BIT .|. Vk.PIPELINE_STAGE_2_LATE_FRAGMENT_TESTS_BIT
+          , Vk.dstAccessMask = Vk.ACCESS_2_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT
+          , Vk.oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
+          , Vk.newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+          , Vk.image = img
+          , Vk.subresourceRange = subresourceRange
           }
 
         barrierDep = Vk.zero
@@ -645,11 +674,11 @@ layoutDepthImage depthImageA =
         , freeAliases = i.freeAliases Linear.>> free_img img
         })
 
-layoutSwapchainImage
+layoutOptimalSwapchainImage
   :: Linear.MonadIO m
   => Vk.Image -- ^ Note: Unrestricted image. Swapchain images are unrestricted because they are managed by Vulkan.
   -> CommandM m ()
-layoutSwapchainImage img =
+layoutOptimalSwapchainImage img =
   Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
     let
       subresourceRange = Vk.ImageSubresourceRange
@@ -660,18 +689,51 @@ layoutSwapchainImage img =
         , layerCount = 1
         }
 
-      layoutChange = Vk.SomeStruct Vk.ImageMemoryBarrier2
-        { next = ()
-        , srcQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-        , dstQueueFamilyIndex = Vk.QUEUE_FAMILY_IGNORED
-        , srcStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
-        , srcAccessMask = Vk.zero
-        , dstStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
-        , dstAccessMask = Vk.ACCESS_2_COLOR_ATTACHMENT_READ_BIT .|. Vk.ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT
-        , oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
-        , newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
-        , image = img
-        , subresourceRange = subresourceRange
+      layoutChange = Vk.SomeStruct Vk.zero
+        { Vk.srcStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+        , Vk.srcAccessMask = Vk.zero
+        , Vk.dstStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+        , Vk.dstAccessMask = Vk.ACCESS_2_COLOR_ATTACHMENT_READ_BIT .|. Vk.ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT
+        , Vk.oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
+        , Vk.newLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+        , Vk.image = img
+        , Vk.subresourceRange = subresourceRange
+        }
+
+      barrierDep = Vk.zero
+        { Vk.imageMemoryBarriers = [layoutChange]
+        }
+    Linear.liftSystemIO $
+      Vk.cmdPipelineBarrier2 i.buf.unsafeGetCommandBuffer barrierDep
+    Linear.return ((), CmdInfo
+      { buf = i.buf
+      , freeAliases = i.freeAliases
+      })
+
+layoutPresentSwapchainImage
+  :: Linear.MonadIO m
+  => Vk.Image -- ^ Note: Unrestricted image. Swapchain images are unrestricted because they are managed by Vulkan.
+  -> CommandM m ()
+layoutPresentSwapchainImage img =
+  Command $ StateT $ Unsafe.toLinear $ \i -> Linear.do
+    let
+      subresourceRange = Vk.ImageSubresourceRange
+        { aspectMask = Vk.IMAGE_ASPECT_COLOR_BIT
+        , baseMipLevel = 0
+        , levelCount = 1
+        , baseArrayLayer = 0
+        , layerCount = 1
+        }
+
+      layoutChange = Vk.SomeStruct Vk.zero
+        { Vk.srcStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+        , Vk.srcAccessMask = Vk.ACCESS_2_COLOR_ATTACHMENT_WRITE_BIT
+        , Vk.dstStageMask = Vk.PIPELINE_STAGE_2_COLOR_ATTACHMENT_OUTPUT_BIT
+        , Vk.dstAccessMask = Vk.zero
+        , Vk.oldLayout = Vk.IMAGE_LAYOUT_UNDEFINED
+        , Vk.newLayout = Vk.IMAGE_LAYOUT_PRESENT_SRC_KHR
+        , Vk.image = img
+        , Vk.subresourceRange = subresourceRange
         }
 
       barrierDep = Vk.zero
@@ -691,8 +753,8 @@ layoutSwapchainImage img =
 
 transitionImageLayout :: forall μ
                        . Linear.MonadIO μ
-                      => Alias.Alias VulkanContextM Vk.Image
-                       ⊸ Vk.ImageLayout -- ^ Src layout
+                      => Alias.Alias VulkanContextM Vk.Image %1
+                      -> Vk.ImageLayout -- ^ Src layout
                       -> Vk.ImageLayout -- ^ Dst layout
                       -> CommandM μ ()
 transitionImageLayout imgA srcLayout dstLayout =
