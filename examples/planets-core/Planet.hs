@@ -137,7 +137,7 @@ newPlanetMesh rp Planet{..} = Linear.do
 -- * Material
 --------------------------------------------------------------------------------
 
-type PlanetMaterialAttrs = '[MinMax, Texture2D (RGBA8 UNorm)]
+type PlanetMaterialAttrs = '[MinMax, Texture2D (RGBA8 UNorm) FloatingPointCoordinates Float]
 type PlanetMaterial = Material PlanetMaterialAttrs
 
 data PlanetColor = PlanetColor
@@ -171,7 +171,7 @@ data PlanetBiome = PlanetBiome
   deriving anyclass Default
 
 newPlanetMaterial :: forall π p
-                   . CompatibleMaterial '[MinMax, Texture2D (RGBA8 UNorm)] π
+                   . CompatibleMaterial '[MinMax, Texture2D (RGBA8 UNorm) FloatingPointCoordinates Float] π
                   => MinMax
                   -> RenderPipeline π p
                    ⊸ Planet
@@ -181,7 +181,7 @@ newPlanetMaterial mm pl planet = Linear.do
   material @_ @π (StaticBinding (Ur mm) :## Texture2DBinding tex :## GHNil) pl
 
 -- | Make a Texture from the planet color
-planetTexture :: PlanetColor -> Renderer (Alias (Texture2D (RGBA8 UNorm)))
+planetTexture :: PlanetColor -> Renderer (Alias (Texture2D (RGBA8 UNorm) FloatingPointCoordinates Float))
 planetTexture PlanetColor{planetBiomes, planetColorsInterpolate} = Linear.do
   sampler <- createSampler FILTER_LINEAR{-FILTER_NEAREST-} SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
 

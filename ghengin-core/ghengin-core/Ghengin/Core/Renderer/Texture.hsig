@@ -1,7 +1,7 @@
 signature Ghengin.Core.Renderer.Texture where
 
 import Data.Typeable
-import Prelude (FilePath)
+import Prelude (FilePath, Float)
 
 import Ghengin.Core.Renderer.Sampler
 import Ghengin.Core.Renderer.Kernel
@@ -10,18 +10,19 @@ import Data.Kind
 import GHC.TypeNats
 import SPIRV.Image
 import Codec.Picture
+import FIR.Prim.Image (ImageCoordinateKind(FloatingPointCoordinates))
 
 import Ghengin.Core.Type.Compatible.Pixel
 
-type Texture2D :: ImageFormat Nat -> Type
-data Texture2D (fmt :: ImageFormat Nat)
+type Texture2D :: ImageFormat Nat -> ImageCoordinateKind -> Type -> Type
+data Texture2D (fmt :: ImageFormat Nat) coordTy texelTy
 
 
-texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
+texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm) FloatingPointCoordinates Float))
 
-textureFromDynamicImage :: DynamicImage -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
+textureFromDynamicImage :: DynamicImage -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm) FloatingPointCoordinates Float))
 
 newTexture :: (Pixel px, Typeable px, CompatiblePixel px fmt)
-           => Codec.Picture.Image px -> Alias Sampler %1 -> Renderer (Alias (Texture2D fmt))
+           => Codec.Picture.Image px -> Alias Sampler %1 -> Renderer (Alias (Texture2D fmt coordTy texelTy))
 
-freeTexture :: Texture2D fmt ⊸ Renderer ()
+freeTexture :: Texture2D fmt coordTy texelTy ⊸ Renderer ()

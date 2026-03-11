@@ -29,6 +29,7 @@ import qualified Vulkan as Vk
 
 import qualified FIR
 import qualified FIR.Prim.Image
+import FIR.Prim.Image (ImageCoordinateKind(..))
 import SPIRV.Image
 
 -- import System.Mem.Weak
@@ -48,20 +49,20 @@ import qualified Ghengin.Core.Shader.Data as Shader
 
 -- TODO: More generally, we could have 1D and 3D textures too. There's also Images...
 -- See FIR.Syntax.Synonyms
-type Texture2D :: ImageFormat Nat -> Type
-data Texture2D (fmt :: ImageFormat Nat)
+type Texture2D :: ImageFormat Nat -> ImageCoordinateKind -> Type -> Type
+data Texture2D (fmt :: ImageFormat Nat) (coordTy :: ImageCoordinateKind) texelTy
   = Texture2D { image   :: VulkanImage
               , sampler :: Alias Sampler
               }
 
 -- | Load a texture from a file directly and convert it to a texture using 'textureFromDynamicImage'.
-texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
+texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm) FloatingPointCoordinates Float))
 texture fp sampler = enterD "Creating a texture" Linear.do
   liftSystemIOU (readImage fp) >>= \case
     Ur (Left e      ) -> Alias.forget sampler >> liftSystemIO (Prelude.fail e)
     Ur (Right dimage) -> textureFromDynamicImage dimage sampler
 
-freeTexture :: Texture2D fmt ⊸ Renderer ()
+freeTexture :: Texture2D fmt coordTy texelTy ⊸ Renderer ()
 freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture" Linear.do
   -- ROMES:tODO: fix Image.hs so that this definition doesn't need to be unsafe.
   withDevice (\dev -> ((),) <$> (destroyImage dev img))
@@ -71,7 +72,7 @@ freeTexture = Unsafe.toLinear $ \(Texture2D img sampler) -> enterD "freeTexture"
 -- | Make a texture from a dynamic image by converting the image to RGBA8 first
 textureFromDynamicImage :: DynamicImage
                         -> Alias Sampler
-                         ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
+                         ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm) FloatingPointCoordinates Float))
 textureFromDynamicImage dimage = newTexture (convertRGBA8 dimage)
 
 -- | Make a new texture from an 'Image', provided the Image's pixel's are
@@ -79,7 +80,7 @@ textureFromDynamicImage dimage = newTexture (convertRGBA8 dimage)
 newTexture :: (Pixel px, Typeable px, CompatiblePixel px fmt)
            => Codec.Picture.Image px
            -> Alias Sampler
-            ⊸ Renderer (Alias (Texture2D fmt))
+            ⊸ Renderer (Alias (Texture2D fmt coordTy texelTy))
 newTexture img sampler' =
    withStagingBuffer (img.imageData) $ \stagingBuffer _bufferSize -> enterD "textureFromImage" Linear.do
 
@@ -171,7 +172,7 @@ imageExtent img = Vk.Extent3D { width = Prelude.fromIntegral img.imageWidth
 -- * Shader Data
 --------------------------------------------------------------------------------
 
-instance Shader.ShaderData (Texture2D fmt) where
-  type FirType (Texture2D fmt) =
-        FIR.Image (FIR.Properties FIR.Prim.Image.FloatingPointCoordinates Float FIR.TwoD (Just FIR.NotDepthImage) FIR.NonArrayed FIR.SingleSampled FIR.Sampled (Just fmt))
+instance Shader.ShaderData (Texture2D fmt coordTy texelTy) where
+  type FirType (Texture2D fmt coordTy texelTy) =
+        FIR.Image (FIR.Properties coordTy texelTy FIR.TwoD (Just FIR.NotDepthImage) FIR.NonArrayed FIR.SingleSampled FIR.Sampled (Just fmt))
 
