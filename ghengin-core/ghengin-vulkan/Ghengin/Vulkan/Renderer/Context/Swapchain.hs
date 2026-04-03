@@ -27,6 +27,7 @@ import qualified Control.Monad.IO.Class.Linear as Linear
 
 import qualified Data.Vector as V
 import qualified Data.V.Linear as VL
+import qualified Data.V.Linear.Internal as VI
 import qualified Data.List as L
 
 import qualified Vulkan as Vk
@@ -60,6 +61,8 @@ data SwapchainInfo (n :: Nat)
         --
         -- Note: the N frames here do not necessarily match the number of
         -- frames-in-flight.
+      , swapchainImageViews :: VL.V n Vk.ImageView
+        -- ^ These views are created and destroyed by us (not by the swapchain).
       , swapchainSurface :: Vk.SurfaceKHR
       , swapchainExtent  :: Ur Vk.Extent2D
       , surfaceFormat    :: Ur Vk.SurfaceFormatKHR
@@ -115,17 +118,50 @@ createSwapchain = Unsafe.toLinear3 \physicalDevice device surface surfaceFormat 
 
   swapchain              <- Vk.createSwapchainKHR device swapchainCreateInfo Nothing
   (_, swapchainImageVec) <- Vk.getSwapchainImagesKHR device swapchain
-  withSized swapchainImageVec \ swapchainImages -> Linear.do
-    let swapchainInfo = SwapchainInfo
-          { swapchain
-          , swapchainImages
-              {- see haddocks of `swapchainImages` for justification-}
-              = Unsafe.toLinear Ur swapchainImages
-          , swapchainSurface = surface
-          , swapchainExtent  = Ur currentExtent
-          , surfaceFormat    = Ur surfaceFormat
-          }
-    pure (SomeWith swapchainInfo, physicalDevice, device)
+  withSized swapchainImageVec \ swapchainImages -> do
+      swapchainImageViews <- V.forM swapchainImageVec \image -> do
+        let
+          components =
+            Vk.ComponentMapping
+              { Vk.r = Vk.COMPONENT_SWIZZLE_IDENTITY
+              , Vk.g = Vk.COMPONENT_SWIZZLE_IDENTITY
+              , Vk.b = Vk.COMPONENT_SWIZZLE_IDENTITY
+              , Vk.a = Vk.COMPONENT_SWIZZLE_IDENTITY
+              }
+
+          subResourceRange :: Vk.ImageSubresourceRange
+          subResourceRange =
+            Vk.ImageSubresourceRange
+              { Vk.aspectMask     = Vk.IMAGE_ASPECT_COLOR_BIT
+              , Vk.baseMipLevel   = 0
+              , Vk.levelCount     = 1
+              , Vk.baseArrayLayer = 0
+              , Vk.layerCount     = 1
+              }
+
+          viewCreateInfo :: Vk.ImageViewCreateInfo '[]
+          viewCreateInfo =
+            Vk.ImageViewCreateInfo
+              { Vk.next             = ()
+              , Vk.flags            = Vk.zero
+              , Vk.image            = image
+              , Vk.viewType         = Vk.IMAGE_VIEW_TYPE_2D
+              , Vk.format           = Vk.Surface.format surfaceFormat
+              , Vk.components       = components
+              , Vk.subresourceRange = subResourceRange
+              }
+        Vk.createImageView device viewCreateInfo Nothing
+      let swapchainInfo = SwapchainInfo
+            { swapchain
+            , swapchainImages
+                {- see haddocks of `swapchainImages` for justification-}
+                = Unsafe.toLinear Ur swapchainImages
+            , swapchainImageViews = Unsafe.toLinear VI.V swapchainImageViews
+            , swapchainSurface = surface
+            , swapchainExtent  = Ur currentExtent
+            , surfaceFormat    = Ur surfaceFormat
+            }
+      pure (SomeWith swapchainInfo, physicalDevice, device)
 
 destroySwapchain :: Linear.MonadIO m
                  => Vk.Instance %1
@@ -136,10 +172,13 @@ destroySwapchain = Unsafe.toLinear3 \inst device
   SwapchainInfo
     { swapchain
     , swapchainImages = Ur _ {- managed by swapchain, not us! -}
+    , swapchainImageViews
     , swapchainSurface
     , swapchainExtent = Ur _
     , surfaceFormat = Ur _
     } -> Linear.do
+      let imageViews = Unsafe.toLinear (\(VI.V v) -> v) swapchainImageViews
+      Linear.liftSystemIO $ V.forM_ imageViews (\imageView -> Vk.destroyImageView device imageView Nothing)
       Linear.liftSystemIO $ Vk.destroySwapchainKHR device swapchain Nothing
       inst <- destroySurface inst swapchainSurface
       Linear.pure (inst, device)
