@@ -29,10 +29,10 @@ import qualified FIR
 --------------------------------------------------------------------------------
 
 gameLoop :: CharStream -> PipelineKey a '[ Sides, InStruct "t" Float ]
-         -> Alias RenderPass ⊸ RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop cs pkey rp rq = Linear.do
+         -> RenderQueue () ⊸ Renderer (RenderQueue ())
+gameLoop cs pkey rq = newFrame \frameIndex imageIndex -> Linear.do
  Ur should_close <- shouldCloseWindow
- if should_close then Alias.forget rp >> return rq else Linear.do
+ if should_close then return rq else Linear.do
   pollWindowEvents
 
   Ur mci <- readCharInput cs
@@ -51,21 +51,22 @@ gameLoop cs pkey rp rq = Linear.do
   rq <- editPipeline pkey rq $ propertyAt @1 @(InStruct "t" Float) $ \(Ur (InStruct time)) ->
       pure (Ur (InStruct (time+0.016)))
 
-  (rp, rq) <- renderWith $ Linear.do
-
-    (rp1, rp2) <- lift (Alias.share rp)
-
+  rq <- renderWith frameIndex imageIndex $ Linear.do
     Ur extent <- lift getRenderExtent
-    
-    renderPassCmd extent rp1 $ Linear.do
+    let viewport = viewportFromExtent extent
+        scissor  = scissorFromExtent extent
+
+    beginRendering undefined $ Linear.do
+      setViewport viewport
+      setScissor scissor
 
       rq <- renderQueueCmd rq
 
-      draw 3
+      draw 3 1
 
-      return (rp2, rq)
+      return rq
 
-  gameLoop cs pkey rp rq
+  gameLoop cs pkey rq
 
 main :: Prelude.IO ()
 main = do
@@ -73,15 +74,13 @@ main = do
   runRenderer (720, 720) Linear.do
     Ur cs <- registerCharStream
 
-    (rp1, rp2) <- Alias.share =<< createRenderPassFromSettings RenderPassSettings{keepColor=True}
-
     let sides = Sides {s=2, off_x=(-1), off_y=(-1)}
         time = 0
 
-    pipeline      <- makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullBack} rp1 shaderPipelineSimple (DynamicBinding (Ur sides) :## DynamicBinding (Ur (InStruct time)) :## GHNil)
+    pipeline      <- makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullBack} shaderPipelineSimple (DynamicBinding (Ur sides) :## DynamicBinding (Ur (InStruct time)) :## GHNil)
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
-    rq <- gameLoop cs pkey rp2 rq
+    rq <- gameLoop cs pkey rq
 
     freeRenderQueue rq
 

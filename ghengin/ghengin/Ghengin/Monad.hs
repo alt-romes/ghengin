@@ -17,7 +17,7 @@ import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Queue
 
 -- ghengin:dear-imgui
-import qualified Ghengin.DearImGui.Backend as ImGui
+import qualified Ghengin.DearImGui.Vulkan as ImGui
 import qualified Ghengin.DearImGui.UI as ImGui
 
 import Ghengin.Prelude
@@ -54,22 +54,18 @@ runGhengin conf@GhenginConf{..} (Ghengin act) =
     runRenderer (frameWidth, frameHeight) $ Linear.do
 
       -- Init imgui
-      (rp, mimctx) <-
+      mimctx <-
         if enableImGui
-          then Alias.useM rp $ \rp -> Linear.do
-               (rp, imctx) <- ImGui.initImGui rp
-               Linear.pure (rp, Just imctx)
-          else Linear.pure (rp, Nothing)
+          then Just Linear.<$> ImGui.initImGui
+          else Linear.pure Nothing
 
       (x, RenderState{..}) <-
         Linear.runStateT
           (runUrT (runReaderT act (newGhenginReader conf)))
           RenderState
-            { renderPass = rp
-            , renderQueue = emptyRenderQueue
+            { renderQueue = emptyRenderQueue
             }
 
-      Alias.forget renderPass
       freeRenderQueue renderQueue
 
       case mimctx of

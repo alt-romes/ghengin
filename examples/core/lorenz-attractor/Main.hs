@@ -47,12 +47,11 @@ gameLoop :: PipelineKey _ '[Camera "view_matrix" "proj_matrix"] -- ^ rq key to c
          -> MaterialKey _ _ _ -- ^ rq key to material
          -> MeshKey _ _ _ _ _ -- ^ rq key to mesh
          -> Vec3 -- ^ last position
-         -> Alias RenderPass
-          ⊸ RenderQueue ()
+         -> RenderQueue ()
           ⊸ Renderer (RenderQueue ())
-gameLoop ckey matkey mkey last rp rq = Linear.do
+gameLoop ckey matkey mkey last rq = newFrame \frameIndex imageIndex -> Linear.do
  Ur should_close <- shouldCloseWindow
- if should_close then Alias.forget rp >> return rq else Linear.do
+ if should_close then return rq else Linear.do
   pollWindowEvents
 
   let
@@ -60,9 +59,9 @@ gameLoop ckey matkey mkey last rp rq = Linear.do
       WithVec3 x y z = last
       next_pos = vec3 x' y' z'
 
-  (rp, rq) <- render rp rq
+  rq <- render frameIndex imageIndex rq
 
-  gameLoop ckey matkey mkey next_pos rp rq
+  gameLoop ckey matkey mkey next_pos rq
 
 main :: Prelude.IO ()
 main = do
@@ -74,10 +73,8 @@ main = do
 
     clearRenderImages 0 0 0 1
 
-    (rp1, rp2) <- Alias.share =<< createRenderPassFromSettings RenderPassSettings{keepColor=True}
-
     pipeline <- makeRenderPipelineWith defaultGraphicsPipelineSettings{blendMode=BlendAdd}
-                   rp1 shaderPipeline (StaticBinding (Ur myCamera) :## GHNil)
+                   shaderPipeline (StaticBinding (Ur myCamera) :## GHNil)
     (emptyMat, pipeline) <- material GHNil pipeline
 
     (mesh :: Points, pipeline) <-
@@ -87,7 +84,7 @@ main = do
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-    rq <- gameLoop pkey mkey mshkey (vec3 0 1 0) rp2 rq
+    rq <- gameLoop pkey mkey mshkey (vec3 0 1 0) rq
 
     freeRenderQueue rq
 

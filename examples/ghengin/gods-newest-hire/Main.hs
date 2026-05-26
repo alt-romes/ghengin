@@ -107,19 +107,21 @@ gameLoop GameData{..} = newFrame $ \should_close ->
     _ -> return ()
 
   -- Render!
-  (rp, rq) <- renderWith $ Linear.do
-
-    (rp1, rp2) <- lift (Alias.share rp)
+  rq <- renderWith frameIndex imageIndex $ Linear.do
     Ur extent <- lift getRenderExtent
+    let viewport = viewportFromExtent extent
+        scissor  = scissorFromExtent extent
 
-    renderPassCmd extent rp1 $ Linear.do
+    beginRendering undefined $ Linear.do
+      setViewport viewport
+      setScissor scissor
 
       rq <- renderQueueCmd rq
 
       -- Render Imgui data!
       ImGui.renderDrawData
 
-      return (rp2, rq)
+      return rq
 
   -- Loop!
   gameLoop GameData{planet=newPlanet,..}
@@ -140,9 +142,7 @@ main = do
 
     mshKey <- renderState $ \RenderState{..} -> Linear.do
 
-      (renderPass, renderPass') <- Alias.share renderPass
-
-      pipeline         <- makeRenderPipeline renderPass' shaders $
+      pipeline         <- makeRenderPipeline shaders $
                             StaticBinding (Ur camera) :## GHNil
       ( (pmesh, pipeline),
         Ur minmax )    <- newPlanetMesh pipeline planet
@@ -152,7 +152,7 @@ main = do
       (rq, Ur mkey)    <- pure (insertMaterial pkey pmat rq)
       (rq, Ur mshkey)  <- pure (insertMesh mkey pmesh rq)
 
-      Linear.return (Ur mshkey, RenderState{renderQueue=rq,..})
+      Linear.return (Ur mshkey, RenderState{renderQueue=rq})
 
     gameLoop GameData{planet, planetMeshKey=mshkey, ..}
 

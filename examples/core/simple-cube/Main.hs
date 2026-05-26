@@ -87,20 +87,20 @@ cubeVertices = [
     blue = vec3 0.1 0.1 0.8
     green = vec3 0.1 0.8 0.1
 
-gameLoop :: MeshKey _ _ _ _ '[Transform] -> Float -> Alias RenderPass ⊸ RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop mkey rot rp rq = Linear.do
+gameLoop :: MeshKey _ _ _ _ '[Transform] -> Float -> RenderQueue () ⊸ Renderer (RenderQueue ())
+gameLoop mkey rot rq = newFrame \frameIndex imageIndex -> Linear.do
  Ur should_close <- shouldCloseWindow
- if should_close then Alias.forget rp >> return rq else Linear.do
+ if should_close then return rq else Linear.do
   pollWindowEvents
 
-  (rp, rq) <- render rp rq
+  rq <- render frameIndex imageIndex rq
   rq <- editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
     -- We're not using any projection of sorts, so we need to make the cube fit
     -- in the xyz vulkan space, where x and y go from -1 to 1 but z goes from 0
     -- to 1
     translate 0 0 0.5 <> rotateY rot <> rotateX (-rot) <> scale 0.5 ))
 
-  gameLoop mkey (rot+0.01) rp rq
+  gameLoop mkey (rot+0.01) rq
 
 -- non-compositional instance for "Transform", just for demo
 instance ShaderData Transform where
@@ -110,9 +110,7 @@ main :: Prelude.IO ()
 main = do
  withLinearIO $
   runRenderer (640, 640) Linear.do
-    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
-
-    pipeline <- makeRenderPipeline rp1 shaderPipeline GHNil
+    pipeline <- makeRenderPipeline shaderPipeline GHNil
 
     (emptyMat, pipeline) <- material GHNil pipeline
 
@@ -123,7 +121,7 @@ main = do
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-    rq <- gameLoop mshkey 0 rp2 rq
+    rq <- gameLoop mshkey 0 rq
 
     freeRenderQueue rq
 

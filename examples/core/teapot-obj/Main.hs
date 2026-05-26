@@ -32,9 +32,7 @@ main = do
  withLinearIO $
   runRenderer (640, 480) Linear.do
 
-    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
-
-    pipeline <- makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullFront, polygonMode=PolygonFill} rp1 shaderPipeline (StaticBinding (Ur camera) :## GHNil)
+    pipeline <- makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullFront, polygonMode=PolygonFill} shaderPipeline (StaticBinding (Ur camera) :## GHNil)
     (emptyMat, pipeline) <- material GHNil pipeline
     (mesh, pipeline) <- loadObjMesh "examples/teapot-obj/assets/teapot.obj" pipeline
     -- (mesh, pipeline) <- (loadObjMesh "examples/teapot-obj/assets/building-tower.obj" pipeline
@@ -44,25 +42,24 @@ main = do
     (rq, Ur mkey)    <- pure (insertMaterial pkey emptyMat rq)
     (rq, Ur mshkey)  <- pure (insertMesh mkey mesh rq)
 
-    rq <- gameLoop mshkey rp2 rq
+    rq <- gameLoop mshkey rq
 
     (freeRenderQueue rq)
 
     return (Ur ())
 
 gameLoop :: MeshKey _ _ _ _ '[Transform] -- ^ rq key to cube mesh
-         -> Alias RenderPass
-          ⊸ RenderQueue ()
+         -> RenderQueue ()
           ⊸ Renderer (RenderQueue ())
-gameLoop mkey rp rq = Linear.do
+gameLoop mkey rq = newFrame \frameIndex imageIndex -> Linear.do
  Ur should_close <- shouldCloseWindow
- if should_close then Alias.forget rp >> return rq else Linear.do
+ if should_close then return rq else Linear.do
   pollWindowEvents
 
-  (rp, rq) <- render rp rq
+  rq <- render frameIndex imageIndex rq
   rq <- editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $ rotateY 0.01 <> tr))
 
-  gameLoop mkey rp rq
+  gameLoop mkey rq
 
 camera :: Camera "view_matrix" "proj_matrix"
 camera = cameraLookAt (vec3 0 (-5) (-5){- move camera up and back-}) (vec3 0 0 0) (1280, 720)

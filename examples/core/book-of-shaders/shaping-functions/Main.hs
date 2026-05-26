@@ -23,39 +23,38 @@ import Shaders
 --  https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 --------------------------------------------------------------------------------
 
-gameLoop :: Alias RenderPass ⊸ RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop rp rq = Linear.do
+gameLoop :: RenderQueue () ⊸ Renderer (RenderQueue ())
+gameLoop rq = newFrame \frameIndex imageIndex -> Linear.do
  Ur should_close <- shouldCloseWindow
- if should_close then Alias.forget rp >> return rq else Linear.do
+ if should_close then return rq else Linear.do
   pollWindowEvents
 
-  (rp, rq) <- renderWith $ Linear.do
-
-    (rp1, rp2) <- lift (Alias.share rp)
-
+  rq <- renderWith frameIndex imageIndex $ Linear.do
     Ur extent <- lift getRenderExtent
-    
-    renderPassCmd extent rp1 $ Linear.do
+    let viewport = viewportFromExtent extent
+        scissor  = scissorFromExtent extent
+
+    beginRendering undefined $ Linear.do
+      setViewport viewport
+      setScissor scissor
 
       rq <- renderQueueCmd rq
 
-      draw 3
+      draw 3 1
 
-      return (rp2, rq)
+      return rq
 
-  gameLoop rp rq
+  gameLoop rq
 
 main :: Prelude.IO ()
 main = do
  withLinearIO $
   runRenderer (width, height) Linear.do
 
-    (rp1, rp2) <- Alias.share =<< createSimpleRenderPass
-
-    pipeline      <- makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullBack} rp1 shaderPipelineSimple GHNil
+    pipeline      <- makeRenderPipelineWith defaultGraphicsPipelineSettings{cullMode=CullBack} shaderPipelineSimple GHNil
     (rq, Ur pkey) <- pure (insertPipeline pipeline LMon.mempty)
 
-    rq <- gameLoop rp2 rq
+    rq <- gameLoop rq
 
     freeRenderQueue rq
 
