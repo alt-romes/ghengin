@@ -503,32 +503,34 @@ dispatchIndirect buffer offset =
 
 -- :| Dynamic Rendering (Vulkan 1.3) |: --
 
-mkSimpleRenderingInfo :: Vk.Rect2D -> Vk.Image -> Alias.Alias VulkanContextM Vk.Image -> Vk.RenderingInfo '[]
-mkSimpleRenderingInfo renderArea image imgA = Vk.RenderingInfo
+mkSimpleRenderingInfo :: Vk.Rect2D
+                      -> Vk.ImageView -- ^ Color attachment view (swapchainImageViews[imageIndex])
+                      -> Vk.ImageView -- ^ Depth attachment view (depthImageView)
+                      -> Vk.RenderingInfo '[]
+mkSimpleRenderingInfo renderArea colorView depthView = Vk.RenderingInfo
   { next = ()
   , renderArea = renderArea
   , flags = Vk.zero
   , layerCount = 1
   , viewMask = 0
   , colorAttachments =
-    [ Vk.RenderingAttachmentInfo
-      { imageView = Vk.ImageView image
-      , imageLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
-      , resolveMode = Nothing
-      , resolveImageView = Nothing
-      , resolveImageLayout = Nothing
+    [ Vk.zero
+      { Vk.imageView = colorView
+      , Vk.imageLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+      , Vk.loadOp = Vk.ATTACHMENT_LOAD_OP_CLEAR
+      , Vk.storeOp = Vk.ATTACHMENT_STORE_OP_STORE
+      , Vk.clearValue = Vk.Color (Vk.Float32 0 0 0 1)
       }
     ]
-  , depthAttachment = Just Vk.RenderingAttachmentInfo
-      { imageView = Vk.ImageView image
-      , imageLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
-      , resolveMode = Nothing
-      , resolveImageView = Nothing
-      , resolveImageLayout = Nothing
+  , depthAttachment = Just Vk.zero
+      { Vk.imageView = depthView
+      , Vk.imageLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
+      , Vk.loadOp = Vk.ATTACHMENT_LOAD_OP_CLEAR
+      , Vk.storeOp = Vk.ATTACHMENT_STORE_OP_DONT_CARE
+      , Vk.clearValue = Vk.DepthStencil (Vk.ClearDepthStencilValue 1.0 0)
       }
   , stencilAttachment = Nothing
   }
-{-# INLINE mkSimpleRenderingInfo #-}
 
 -- | Begin dynamic rendering (Vulkan 1.3)
 beginRendering :: Linear.MonadIO m => Vk.RenderingInfo '[] -> RenderCmdM m a ⊸ CommandM m a

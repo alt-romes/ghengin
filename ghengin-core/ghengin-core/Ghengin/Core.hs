@@ -157,7 +157,6 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
 
   return (a, RendererEnv{commandBuffers=recon_buffers (Just (Some buf_exe)), ..})
 
-
 {- |
 Here's a rundown of the draw function for each frame in flight:
 
