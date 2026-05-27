@@ -94,7 +94,8 @@ render frameIndex imageIndex rq = do
 renderWith :: ∀ swpImgs a. KnownNat swpImgs
            => Finite FramesInFlight
            -> Finite swpImgs {- swapchain image index -}
-           -> CommandM Renderer a ⊸ Renderer a
+           -> (Vk.RenderingInfo '[] -> CommandM Renderer a)
+            ⊸ Renderer a
 renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur urEnv) -> StateT $ \RendererEnv{..} -> Linear.do
 
   let !(buf', recon_buffers) = focusV frameIndex commandBuffers
@@ -109,7 +110,7 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
       (image, img) <- Alias.share image
       return (VulkanImage { image, .. }, img)
 
-  (Ur swp_vk_img, vkContext) <- case vkContext of
+  (Ur swp_vk_img, render_info, vkContext) <- case vkContext of
     VulkanContext{..} -> withSwapchainInfo aSwapchainInfo shareSwpImg
       where
         shareSwpImg
@@ -135,7 +136,7 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
     finalCommand = Linear.do
       layoutOptimalDepthImage depth_vk_img
       layoutOptimalSwapchainImage swp_vk_img
-      a <- command
+      a <- command render_info -- TODO: TOMORROW: construct the render info alias with free = const, because we know they will be freed elsewhere and won't really be freed "last" by the rendering command. So we construct a fake alias and keep the original references in the swapchain and such. then, update beginRendering to take the command input from renderWith
       layoutPresentSwapchainImage swp_vk_img
       return a
 

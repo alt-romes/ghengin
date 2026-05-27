@@ -85,6 +85,8 @@ module Ghengin.Vulkan.Renderer.Command
 
   -- * Dynamic Rendering (Vulkan 1.3)
   , beginRendering
+  , RenderingInfo(..)
+  , mkSimpleRenderingInfo
 
   -- * Images
   , copyFullBufferToImage
@@ -130,7 +132,7 @@ module Ghengin.Vulkan.Renderer.Command
   ) where
 
 import Prelude hiding (($), pure, return)
-import Prelude.Linear (($))
+import Prelude.Linear (($), Ur (..))
 
 import qualified Data.V.Linear as V
 import qualified Data.V.Linear.Internal as VI
@@ -532,14 +534,20 @@ mkSimpleRenderingInfo renderArea colorView depthView = Vk.RenderingInfo
   , stencilAttachment = Nothing
   }
 
+newtype RenderingInfo = RenderingInfo (Alias.Alias VulkanContextM (Vk.RenderingInfo '[]))
+
 -- | Begin dynamic rendering (Vulkan 1.3)
-beginRendering :: Linear.MonadIO m => Vk.RenderingInfo '[] -> RenderCmdM m a ⊸ CommandM m a
-beginRendering renderingInfo = Unsafe.toLinear $ \(RenderCmd (Command rpcmds)) -> Command $ StateT $ Unsafe.toLinear \info -> Linear.do
-  Linear.liftSystemIO $ Vk.cmdBeginRendering (info.buf.unsafeGetCommandBuffer) renderingInfo
-  (a, info') <- runStateT rpcmds info
+beginRendering :: Linear.MonadIO m => RenderingInfo ⊸ RenderCmdM m a ⊸ CommandM m a
+beginRendering (RenderingInfo renderingInfo) = Unsafe.toLinear $ \(RenderCmd (Command rpcmds)) -> Command $ StateT $ Unsafe.toLinear \info -> Linear.do
+  ri_pair <- Alias.get renderingInfo
+  let !(Ur (rinfo, free_rinfo)) = Unsafe.toLinear Ur ri_pair
+  Linear.liftSystemIO $ Vk.cmdBeginRendering info.buf.unsafeGetCommandBuffer rinfo
+  (a, CmdInfo{buf, freeAliases}) <- runStateT rpcmds info
   Linear.liftSystemIO $ Vk.cmdEndRendering (info.buf.unsafeGetCommandBuffer)
-  Linear.pure (a, info')
-{-# INLINE beginRendering #-}
+  Linear.pure (a, CmdInfo
+      { buf = buf
+      , freeAliases = freeAliases Linear.>> free_rinfo rinfo
+      })
 
 -- :| Buffer Data Commands |: --
 
