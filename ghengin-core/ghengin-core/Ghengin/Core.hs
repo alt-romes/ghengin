@@ -55,13 +55,13 @@ render :: KnownNat swpImgs
         ⊸ Renderer (RenderQueue ())
 render frameIndex imageIndex rq = do
 
-  renderWith frameIndex imageIndex $ Linear.do
+  renderWith frameIndex imageIndex $ \rinfo -> Linear.do
 
     Ur extent <- lift getRenderExtent
     let viewport = viewportFromExtent extent
         scissor  = scissorFromExtent extent
     
-    beginRendering undefined {-extent-} $ Linear.do
+    beginRendering rinfo $ Linear.do
 
       -- this can be changed dynamically...
       setViewport viewport
@@ -94,7 +94,7 @@ render frameIndex imageIndex rq = do
 renderWith :: ∀ swpImgs a. KnownNat swpImgs
            => Finite FramesInFlight
            -> Finite swpImgs {- swapchain image index -}
-           -> (Vk.RenderingInfo '[] -> CommandM Renderer a)
+           -> (RenderingInfo ⊸ CommandM Renderer a)
             ⊸ Renderer a
 renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ ReaderT \(Ur urEnv) -> StateT $ \RendererEnv{..} -> Linear.do
 
@@ -105,12 +105,13 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
 
   buf_ini <- resetCommandBuffer buf
 
-  ((depthImage, depth_vk_img), vkContext) <- withResource vkContext $ case depthImage of
-    VulkanImage{..} -> Linear.do
+  ((depthImage, depth_vk_img, depth_vk_img_view), vkContext) <- withResource vkContext $ case depthImage of
+    VulkanImage{imageView = ImageView view,..} -> Linear.do
       (image, img) <- Alias.share image
-      return (VulkanImage { image, .. }, img)
+      (view, vw) <- Alias.share view
+      return (VulkanImage { image, imageView = ImageView view, .. }, img, vw)
 
-  (Ur swp_vk_img, render_info, vkContext) <- case vkContext of
+  ((Ur swp_vk_img, render_info), vkContext) <- case vkContext of
     VulkanContext{..} -> withSwapchainInfo aSwapchainInfo shareSwpImg
       where
         shareSwpImg
@@ -123,20 +124,31 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
             -- number of render semaphores is the same as the Finite index for
             -- imageIndex (all were created from same SwapchainInfo)
             Just Refl -> case swpInfo of
-              SwapchainInfo{swapchainImages = Ur swp_imgs, ..} -> Linear.do
-                let !(img_at_ix, recon_imgs) = focusV imageIndex swp_imgs
+              SwapchainInfo{swapchainImages = Ur swp_imgs, swapchainImageViews = swp_views, swapchainExtent = Ur extent, ..} -> Linear.do
+                let !(img_at_ix, recon_imgs)   = focusV imageIndex swp_imgs
+                let !(view_at_ix, recon_views) = focusV imageIndex swp_views
+                let !(Ur unsafeColorView) = Unsafe.toLinear Ur view_at_ix -- swapchain is owner, pass it unsafely, see haddocks
                 let swapchainImages = Ur (recon_imgs img_at_ix)
-                return (Ur img_at_ix, VulkanContext{aSwapchainInfo=ASwapchainInfo SwapchainInfo{..}, ..})
+                let swapchainImageViews = recon_views unsafeColorView
+                return
+                  ( ( Ur img_at_ix, SimpleRenderingInfo
+                        { renderingDepthImgView = depth_vk_img_view
+                        , renderingColorImgView = Ur unsafeColorView
+                        , renderingRect = Ur extent
+                        }
+                    )
+                  , VulkanContext{aSwapchainInfo=ASwapchainInfo SwapchainInfo{swapchainExtent = Ur extent, ..}, ..}
+                  )
 
             _ -> error "Oh no! The upper bound of the image index (Finite swpImgs) doesn't match the actual size of swapchaing images!\
                        \ Did you use 'newFrame' to acquire frame's imageIndex?"
-              VulkanContext{aSwapchainInfo = ASwapchainInfo swpInfo, ..}
+              VulkanContext{aSwapchainInfo = ASwapchainInfo swpInfo, ..} depth_vk_img_view
 
   let
     finalCommand = Linear.do
       layoutOptimalDepthImage depth_vk_img
       layoutOptimalSwapchainImage swp_vk_img
-      a <- command render_info -- TODO: TOMORROW: construct the render info alias with free = const, because we know they will be freed elsewhere and won't really be freed "last" by the rendering command. So we construct a fake alias and keep the original references in the swapchain and such. then, update beginRendering to take the command input from renderWith
+      a <- command render_info
       layoutPresentSwapchainImage swp_vk_img
       return a
 
@@ -151,6 +163,7 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
     Nothing -> pure ()
 
   -- TODO: Submit executable buffer and submit graphics queue!
+  -- NEXT UP!
 
   -- Free the resources captured by the command buffer after executing it
   -- (this doesn't match exactly right with when execution finishes, but whatever for now.

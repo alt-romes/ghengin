@@ -203,7 +203,7 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> en
             (Texture2D vkimage sampler) ->
               let imageInfo = Vk.DescriptorImageInfo
                    { imageLayout = Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
-                   , imageView = case vkimage.imageView of ImageView iv -> iv
+                   , imageView = case vkimage.imageView of ImageView iv -> (Unsafe.Alias.get iv)
                    , sampler   = (Unsafe.Alias.get sampler).sampler
                    }
                in pure $ Vk.SomeStruct Vk.WriteDescriptorSet

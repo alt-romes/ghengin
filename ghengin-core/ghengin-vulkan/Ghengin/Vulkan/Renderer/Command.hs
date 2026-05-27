@@ -534,20 +534,34 @@ mkSimpleRenderingInfo renderArea colorView depthView = Vk.RenderingInfo
   , stencilAttachment = Nothing
   }
 
-newtype RenderingInfo = RenderingInfo (Alias.Alias VulkanContextM (Vk.RenderingInfo '[]))
+data RenderingInfo = SimpleRenderingInfo
+  { renderingDepthImgView :: Alias.Alias VulkanContextM Vk.ImageView
+  , renderingColorImgView :: Ur Vk.ImageView
+    -- This `Ur ImageView` "is unsafe". It comes from the Swapchain's Image
+    -- Views which are only freed when the swapchain is freed, which should
+    -- only happen after the renderinginfo has been used. We unsafely share it
+    -- in this field. TODO: Somehow make the swapchainImageViews be safe,
+    -- probably by making them an Alias.
+  , renderingRect :: Ur Vk.Extent2D
+  }
 
 -- | Begin dynamic rendering (Vulkan 1.3)
 beginRendering :: Linear.MonadIO m => RenderingInfo ⊸ RenderCmdM m a ⊸ CommandM m a
-beginRendering (RenderingInfo renderingInfo) = Unsafe.toLinear $ \(RenderCmd (Command rpcmds)) -> Command $ StateT $ Unsafe.toLinear \info -> Linear.do
-  ri_pair <- Alias.get renderingInfo
-  let !(Ur (rinfo, free_rinfo)) = Unsafe.toLinear Ur ri_pair
-  Linear.liftSystemIO $ Vk.cmdBeginRendering info.buf.unsafeGetCommandBuffer rinfo
-  (a, CmdInfo{buf, freeAliases}) <- runStateT rpcmds info
-  Linear.liftSystemIO $ Vk.cmdEndRendering (info.buf.unsafeGetCommandBuffer)
-  Linear.pure (a, CmdInfo
-      { buf = buf
-      , freeAliases = freeAliases Linear.>> free_rinfo rinfo
-      })
+beginRendering SimpleRenderingInfo{renderingColorImgView=Ur unsafeColorView, renderingRect=Ur rrect, ..}
+  = Unsafe.toLinear $ \(RenderCmd (Command rpcmds)) -> Command $ StateT $ Unsafe.toLinear \info -> Linear.do
+    (dview, free_dv) <- Alias.get renderingDepthImgView
+    let !(Ur dview') = Unsafe.toLinear Ur dview
+    Linear.liftSystemIO $ Vk.cmdBeginRendering info.buf.unsafeGetCommandBuffer
+      (mkSimpleRenderingInfo (Vk.Rect2D (Vk.Offset2D 0 0) rrect) unsafeColorView dview')
+      -- unsafeColorView is dropped here, but not freed.
+      -- it will be freed when the swapchain is freed. that's why this is type for it is unsafe.
+      -- TODO: Make swapchainImageViews aliases or safe somehow else.
+    (a, CmdInfo{buf, freeAliases}) <- runStateT rpcmds info
+    Linear.liftSystemIO $ Vk.cmdEndRendering (info.buf.unsafeGetCommandBuffer)
+    Linear.pure (a, CmdInfo
+        { buf = buf
+        , freeAliases = freeAliases Linear.>> free_dv dview'
+        })
 
 -- :| Buffer Data Commands |: --
 

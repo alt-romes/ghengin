@@ -14,7 +14,7 @@ import qualified Data.Functor.Linear as Data
 import Data.Bifunctor
 import Ghengin.Core.Prelude as G
 import System.Log.FastLogger
-import qualified Prelude (take, cycle)
+import qualified Prelude (take, cycle, return)
 
 
 #ifdef THINGS_ARE_GOING_THAT_BAD
