@@ -69,7 +69,8 @@ data RendererUrEnv (n :: Nat) where
     } -> RendererUrEnv n
 
 type FramesInFlight :: Nat
-type FramesInFlight = 2
+type FramesInFlight = 1 -- TODO: Use 2 frames in flight; requires that we allocate resource buffers and descriptors one per frame in flight.
+                         -- Also, descriptor sets can be unrestricted because they are freed when the pool is freed.
 
 newtype Renderer a = Renderer
   { unRenderer :: Linear.ReaderT (Ur (RendererUrEnv FramesInFlight)) (Linear.StateT (RendererEnv FramesInFlight) System.IO.Linear.IO) a }
