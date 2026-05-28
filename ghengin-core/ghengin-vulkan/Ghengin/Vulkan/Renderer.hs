@@ -80,6 +80,7 @@ import Ghengin.Vulkan.Renderer.GLFW.Window as GLFW
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Kernel
 import qualified System.IO.Linear as Linear
+import Ghengin.Vulkan.Renderer.Command.Buffer (CommandBuffer(..))
 
 runRenderer :: (Int, Int)
             -- ^ Dimensions of the window to render on (width, height)
@@ -268,8 +269,14 @@ acquireNextImage = Unsafe.toLinear3
     (_TODO_RECON_SWPC, fin) <- Vk.acquireNextImageKHR device swapchain maxBound signal Vk.NULL_HANDLE
     Prelude.return (Ur (fromIntegral fin), signal, info, device)
 
-submitGraphicsQueue :: Vk.CommandBuffer ⊸ Vk.Semaphore ⊸ Vk.Semaphore ⊸ Vk.Fence ⊸ Renderer (Vk.CommandBuffer, Vk.Semaphore, Vk.Semaphore, Vk.Fence)
-submitGraphicsQueue = Unsafe.toLinearN @4 \cb sem1 sem2 fence -> Linear.do
+submitGraphicsQueue :: MonadIO m
+                    => Vk.Queue
+                     ⊸ CommandBuffer Executable
+                     ⊸ Vk.Semaphore -- ^ Wait sem
+                     ⊸ Vk.Semaphore -- ^ Signal sem
+                     ⊸ Vk.Fence     -- ^ subFence
+                     ⊸ m (Vk.Queue, CommandBuffer Executable, Vk.Semaphore, Vk.Semaphore, Vk.Fence)
+submitGraphicsQueue = Unsafe.toLinearN @5 \queue cb sem1 sem2 fence -> Linear.do
   let
     submitInfo = Vk.SubmitInfo
       { next = ()
@@ -278,12 +285,10 @@ submitGraphicsQueue = Unsafe.toLinearN @4 \cb sem1 sem2 fence -> Linear.do
       , waitDstStageMask = [Vk.PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT]
        -- Semaphores to signal when we are done
       , signalSemaphores = [sem2]
-      , commandBuffers = [ cb.commandBufferHandle ]
+      , commandBuffers = [ cb.unsafeGetCommandBuffer.commandBufferHandle ]
       }
-  withVulkanContext $ Unsafe.toLinear \vkCtx@VulkanContext{queue} -> Linear.do
-    liftSystemIO $ Vk.queueSubmit queue [Vk.SomeStruct submitInfo] fence
-    pure ((), vkCtx)
-  pure (cb, sem1, sem2, fence)
+  liftSystemIO $ Vk.queueSubmit queue [Vk.SomeStruct submitInfo] fence
+  pure (queue, cb, sem1, sem2, fence)
 
 presentPresentQueue
   :: ( MonadIO m, KnownNat swpImgs )

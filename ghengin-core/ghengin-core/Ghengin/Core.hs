@@ -152,24 +152,35 @@ renderWith frameIndex imageIndex command = enterD "renderWith" $ Renderer $ Read
       layoutPresentSwapchainImage swp_vk_img
       return a
 
-  ((a, freeAliases, buf_exe), RendererEnv{..}) <-
+  ((a, freeAliases, buf_exe), RendererEnv{renderSemaphores=(renderSemaphores::V swpcImgs _),vkContext=VulkanContext{..},..}) <-
     runStateT
       (runReaderT (case recordCommand buf_ini finalCommand of Renderer r -> r) (Ur urEnv))
       RendererEnv{commandBuffers=recon_buffers Nothing, ..}
 
-  let !(buf', recon_buffers) = focusV frameIndex commandBuffers
-  case buf' of
-    Just buf -> error "renderWith: how is this possible! we had put a box here" buf
-    Nothing -> pure ()
+  case sameNat (Proxy @swpcImgs) (Proxy @swpImgs) of -- witness again
+    Just Refl -> Linear.do
+      let !(buf', recon_buffers) = focusV frameIndex commandBuffers
+      case buf' of
+        Just buf -> error "renderWith: how is this possible! we had put a box here" buf
+        Nothing -> pure ()
 
-  -- TODO: Submit executable buffer and submit graphics queue!
-  -- NEXT UP!
+      -- Submit executable buffer on graphics queue!
+      let !(frame_sem1, recon_sems1) = focusV frameIndex presentSemaphores
+      let !(frame_sem2, recon_sems2) = focusV imageIndex renderSemaphores
+      let !(frame_fence, recon_fences) = focusV frameIndex fences
+      (queue, buf_exe, frame_sem1, frame_sem2, frame_fence) <- submitGraphicsQueue queue buf_exe frame_sem1 frame_sem2 frame_fence
+      let presentSemaphores = recon_sems1 frame_sem1
+          renderSemaphores  = recon_sems2 frame_sem2
+          fences           = recon_fences frame_fence
 
-  -- Free the resources captured by the command buffer after executing it
-  -- (this doesn't match exactly right with when execution finishes, but whatever for now.
-  ((), vkContext) <- withResource vkContext freeAliases
+      -- Free the resources captured by the command buffer after executing it
+      -- (this doesn't match exactly right with when execution finishes, but whatever).
+      ((), vkContext) <- withResource VulkanContext{..} freeAliases
 
-  return (a, RendererEnv{commandBuffers=recon_buffers (Just (Some buf_exe)), ..})
+      return (a, RendererEnv{commandBuffers=recon_buffers (Just (Some buf_exe)), ..})
+    Nothing ->
+      error "renderWith: The number of swapchain images doesn't match the expected number! This should never happen, we must have messed up the type-level invariants somewhere"
+        RendererEnv{vkContext=VulkanContext{..},..} a freeAliases buf_exe
 
 {- |
 Here's a rundown of the draw function for each frame in flight:
