@@ -49,7 +49,7 @@ gameLoop :: PipelineKey _ '[Camera "view_matrix" "proj_matrix"] -- ^ rq key to c
          -> Vec3 -- ^ last position
          -> RenderQueue ()
           ⊸ Renderer (RenderQueue ())
-gameLoop ckey matkey mkey last rq = newFrame \frameIndex imageIndex -> Linear.do
+gameLoop ckey matkey mkey last rq = Linear.do
  Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
   pollWindowEvents
@@ -59,7 +59,8 @@ gameLoop ckey matkey mkey last rq = newFrame \frameIndex imageIndex -> Linear.do
       WithVec3 x y z = last
       next_pos = vec3 x' y' z'
 
-  rq <- render frameIndex imageIndex rq
+  rq <- newFrame \frameIndex imageIndex ->
+    render frameIndex imageIndex rq
 
   gameLoop ckey matkey mkey next_pos rq
 

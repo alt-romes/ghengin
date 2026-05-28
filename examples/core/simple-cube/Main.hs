@@ -88,12 +88,13 @@ cubeVertices = [
     green = vec3 0.1 0.8 0.1
 
 gameLoop :: MeshKey _ _ _ _ '[Transform] -> Float -> RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop mkey rot rq = newFrame \frameIndex imageIndex -> Linear.do
+gameLoop mkey rot rq = Linear.do
  Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
   pollWindowEvents
 
-  rq <- render frameIndex imageIndex rq
+  rq <- newFrame \frameIndex imageIndex ->
+    render frameIndex imageIndex rq
   rq <- editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
     -- We're not using any projection of sorts, so we need to make the cube fit
     -- in the xyz vulkan space, where x and y go from -1 to 1 but z goes from 0

@@ -30,7 +30,7 @@ import qualified FIR
 
 gameLoop :: CharStream -> PipelineKey a '[ Sides, InStruct "t" Float ]
          -> RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop cs pkey rq = newFrame \frameIndex imageIndex -> Linear.do
+gameLoop cs pkey rq = Linear.do
  Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
   pollWindowEvents
@@ -51,20 +51,21 @@ gameLoop cs pkey rq = newFrame \frameIndex imageIndex -> Linear.do
   rq <- editPipeline pkey rq $ propertyAt @1 @(InStruct "t" Float) $ \(Ur (InStruct time)) ->
       pure (Ur (InStruct (time+0.016)))
 
-  rq <- renderWith frameIndex imageIndex $ Linear.do
-    Ur extent <- lift getRenderExtent
-    let viewport = viewportFromExtent extent
-        scissor  = scissorFromExtent extent
+  rq <- newFrame \frameIndex imageIndex ->
+    renderWith frameIndex imageIndex $ \rinfo -> Linear.do
+      Ur extent <- lift getRenderExtent
+      let viewport = viewportFromExtent extent
+          scissor  = scissorFromExtent extent
 
-    beginRendering undefined $ Linear.do
-      setViewport viewport
-      setScissor scissor
+      beginRendering rinfo $ Linear.do
+        setViewport viewport
+        setScissor scissor
 
-      rq <- renderQueueCmd rq
+        rq <- renderQueueCmd rq
 
-      draw 3 1
+        draw 3 1
 
-      return rq
+        return rq
 
   gameLoop cs pkey rq
 

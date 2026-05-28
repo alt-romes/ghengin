@@ -29,13 +29,12 @@ triangleVertices =
   ]
 
 gameLoop :: RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop rq = newFrame \frameIndex imageIndex -> Linear.do
+gameLoop rq = Linear.do
  Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
   pollWindowEvents
-
-  rq <- render frameIndex imageIndex rq
-
+  rq <- newFrame \frameIndex imageIndex ->
+    render frameIndex imageIndex rq
   gameLoop rq
 
 main :: Prelude.IO ()

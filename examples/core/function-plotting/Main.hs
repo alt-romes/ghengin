@@ -51,7 +51,7 @@ gameLoop :: Float -- ^ Zoom
          -> [PipelineKey a '[InStruct "proj" Mat4, InStruct "x" Float]]
          -> RenderQueue ()
           ⊸ Renderer (RenderQueue ())
-gameLoop zoom keys pipkeys rq = newFrame \frameIndex imageIndex -> Linear.do
+gameLoop zoom keys pipkeys rq = Linear.do
  Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
   pollWindowEvents
@@ -83,7 +83,8 @@ gameLoop zoom keys pipkeys rq = newFrame \frameIndex imageIndex -> Linear.do
         return (rq, Ur zoom)
     _        -> return (rq, Ur zoom)
 
-  rq <- render frameIndex imageIndex rq
+  rq <- newFrame \frameIndex imageIndex ->
+    render frameIndex imageIndex rq
 
   gameLoop zoom keys pipkeys rq
 

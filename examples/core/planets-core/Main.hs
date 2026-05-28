@@ -72,8 +72,8 @@ data UrGameData π = GameData
 
 gameLoop :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
          => UrGameData π -> RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop GameData{..} rq = newFrame \frameIndex imageIndex -> Linear.do
- logT "New frame" 
+gameLoop GameData{..} rq = Linear.do
+ logT "New frame"
  Ur should_close <- (shouldCloseWindow)
  if should_close then return rq else Linear.do
   (pollWindowEvents)
@@ -131,21 +131,22 @@ gameLoop GameData{..} rq = newFrame \frameIndex imageIndex -> Linear.do
     _ -> return ()
 
   -- Render!
-  rq <- renderWith frameIndex imageIndex $ Linear.do
-    Ur extent <- lift getRenderExtent
-    let viewport = viewportFromExtent extent
-        scissor = scissorFromExtent extent
+  rq <- newFrame \frameIndex imageIndex ->
+    renderWith frameIndex imageIndex $ \rinfo -> Linear.do
+      Ur extent <- lift getRenderExtent
+      let viewport = viewportFromExtent extent
+          scissor = scissorFromExtent extent
 
-    beginRendering undefined $ Linear.do
-      setViewport viewport
-      setScissor scissor
+      beginRendering rinfo $ Linear.do
+        setViewport viewport
+        setScissor scissor
 
-      rq <- renderQueueCmd rq
+        rq <- renderQueueCmd rq
 
-      -- Render Imgui data!
-      ImGui.renderDrawData
+        -- Render Imgui data!
+        ImGui.renderDrawData
 
-      return rq
+        return rq
 
   -- Loop!
   gameLoop GameData{planet=newPlanet,..} rq

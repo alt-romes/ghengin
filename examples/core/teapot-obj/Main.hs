@@ -51,12 +51,13 @@ main = do
 gameLoop :: MeshKey _ _ _ _ '[Transform] -- ^ rq key to cube mesh
          -> RenderQueue ()
           ⊸ Renderer (RenderQueue ())
-gameLoop mkey rq = newFrame \frameIndex imageIndex -> Linear.do
+gameLoop mkey rq = Linear.do
  Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
   pollWindowEvents
 
-  rq <- render frameIndex imageIndex rq
+  rq <- newFrame \frameIndex imageIndex ->
+    render frameIndex imageIndex rq
   rq <- editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $ rotateY 0.01 <> tr))
 
   gameLoop mkey rq

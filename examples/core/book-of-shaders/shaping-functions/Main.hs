@@ -24,25 +24,26 @@ import Shaders
 --------------------------------------------------------------------------------
 
 gameLoop :: RenderQueue () ⊸ Renderer (RenderQueue ())
-gameLoop rq = newFrame \frameIndex imageIndex -> Linear.do
+gameLoop rq = Linear.do
  Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
   pollWindowEvents
 
-  rq <- renderWith frameIndex imageIndex $ Linear.do
-    Ur extent <- lift getRenderExtent
-    let viewport = viewportFromExtent extent
-        scissor  = scissorFromExtent extent
+  rq <- newFrame \frameIndex imageIndex ->
+    renderWith frameIndex imageIndex $ \rinfo -> Linear.do
+      Ur extent <- lift getRenderExtent
+      let viewport = viewportFromExtent extent
+          scissor  = scissorFromExtent extent
 
-    beginRendering undefined $ Linear.do
-      setViewport viewport
-      setScissor scissor
+      beginRendering rinfo $ Linear.do
+        setViewport viewport
+        setScissor scissor
 
-      rq <- renderQueueCmd rq
+        rq <- renderQueueCmd rq
 
-      draw 3 1
+        draw 3 1
 
-      return rq
+        return rq
 
   gameLoop rq
 

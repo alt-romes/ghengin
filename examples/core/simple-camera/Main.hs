@@ -60,12 +60,13 @@ gameLoop :: PipelineKey _ '[Camera] -- ^ rq key to camera
          -> Float -- ^ rotation
          -> RenderQueue ()
           ⊸ Renderer (RenderQueue ())
-gameLoop ckey mkey rot rq = newFrame \frameIndex imageIndex -> Linear.do
+gameLoop ckey mkey rot rq = Linear.do
  Ur should_close <- shouldCloseWindow
  if should_close then return rq else Linear.do
   pollWindowEvents
 
-  rq <- render frameIndex imageIndex rq
+  rq <- newFrame \frameIndex imageIndex ->
+    render frameIndex imageIndex rq
   rq <- editMeshes mkey rq (traverse' $ propertyAt @0 (\(Ur tr) -> pure $ Ur $
     translate 0 0 10 <> rotateY rot <> rotateX (-rot) <> scale 5))
 
