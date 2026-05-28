@@ -529,7 +529,7 @@ mkSimpleRenderingInfo renderArea colorView depthView = Vk.RenderingInfo
       , Vk.imageLayout = Vk.IMAGE_LAYOUT_ATTACHMENT_OPTIMAL
       , Vk.loadOp = Vk.ATTACHMENT_LOAD_OP_CLEAR
       , Vk.storeOp = Vk.ATTACHMENT_STORE_OP_DONT_CARE
-      , Vk.clearValue = Vk.DepthStencil (Vk.ClearDepthStencilValue 1.0 0)
+      , Vk.clearValue = Vk.DepthStencil (Vk.ClearDepthStencilValue 0 0)
       }
   , stencilAttachment = Nothing
   }
