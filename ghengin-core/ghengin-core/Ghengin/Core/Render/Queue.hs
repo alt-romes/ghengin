@@ -260,6 +260,9 @@ editAtPipelineKey (UnsafePipelineKey pkey) (RenderQueue q) edit = RenderQueue <$
 freeRenderQueue :: RenderQueue ()
                  ⊸ Renderer ()
 freeRenderQueue (RenderQueue rq) = Linear.do
+  -- Make sure the GPU is no longer using any of the resources we're about to
+  -- destroy. The last submitted frame may still be in flight.
+  waitDeviceIdle
   -- For every pipeline
   pipesunit <- DL.traverse (\(Some2 @RenderPipeline @_π @_bs pipeline, materials) -> enterD "Freeing pipeline" Linear.do
 

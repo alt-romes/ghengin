@@ -146,7 +146,7 @@ runRenderer dimensions r = Linear.do
   -- Terminate
   ------------
 
-  vkContext <- waitDeviceIdle vkContext
+  vkContext <- waitVkContextIdle vkContext
 
   vkContext <- destroyImmediateSubmitCtx vkContext immediateCmdCtx
 

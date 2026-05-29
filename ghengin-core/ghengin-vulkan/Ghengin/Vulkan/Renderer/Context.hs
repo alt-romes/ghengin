@@ -189,8 +189,8 @@ initialiseContext appName ( RenderInfo { queueType = Ur queueType, surfaceInfo }
 
 -- | Block until the device is idle. Use this before tearing down resources
 -- that might still be in use by the GPU.
-waitDeviceIdle :: Linear.MonadIO m => VulkanContext ctx %1 -> m (VulkanContext ctx)
-waitDeviceIdle = Unsafe.toLinear \ctx@VulkanContext{device} -> Linear.do
+waitVkContextIdle :: Linear.MonadIO m => VulkanContext ctx %1 -> m (VulkanContext ctx)
+waitVkContextIdle = Unsafe.toLinear \ctx@VulkanContext{device} -> Linear.do
   liftSystemIO $ Vulkan.deviceWaitIdle device
   return ctx
 

@@ -141,6 +141,14 @@ unsafeWithVulkanContext f = renderer $ Unsafe.toLinear $ \renv@(RendererEnv{..})
 unsafeGetDevice :: Renderer (Ur Vk.Device)
 unsafeGetDevice = renderer $ Unsafe.toLinear $ \renv -> pure (Ur renv.vkContext.device, renv)
 
+-- | Block until the device is idle. Call this before freeing GPU-visible
+-- resources at the end of a frame loop, to make sure no in-flight submission
+-- still references them.
+waitDeviceIdle :: Renderer ()
+waitDeviceIdle = renderer $ \RendererEnv{..} -> Linear.do
+  vkContext <- waitVkContextIdle vkContext
+  pure ((), RendererEnv{..})
+
 -- | Submit a command to the immediate submit command buffer that synchronously
 -- submits it to the graphics queue
 immediateSubmit :: CommandM System.IO.Linear.IO a ⊸ Renderer a
