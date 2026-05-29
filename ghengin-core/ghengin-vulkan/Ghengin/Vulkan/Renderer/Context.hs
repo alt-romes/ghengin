@@ -187,6 +187,13 @@ initialiseContext appName ( RenderInfo { queueType = Ur queueType, surfaceInfo }
 
   pure VulkanContext {..}
 
+-- | Block until the device is idle. Use this before tearing down resources
+-- that might still be in use by the GPU.
+waitDeviceIdle :: Linear.MonadIO m => VulkanContext ctx %1 -> m (VulkanContext ctx)
+waitDeviceIdle = Unsafe.toLinear \ctx@VulkanContext{device} -> Linear.do
+  liftSystemIO $ Vulkan.deviceWaitIdle device
+  return ctx
+
 -- | Fully destroy a 'VulkanContext'
 destroyVulkanContext :: Linear.MonadIO m => VulkanContext WithSwapchain %1 -> m ()
 destroyVulkanContext = Unsafe.toLinear \VulkanContext{..} -> Linear.do

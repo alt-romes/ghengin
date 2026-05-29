@@ -37,26 +37,15 @@ import Ghengin.Core.Prelude as Linear
 import qualified Data.Functor.Linear as Data
 
 import Type.Reflection
-import Data.Finite
-import Data.IORef
 import Data.Bits
-import Data.Word
-
-import qualified Control.Monad
 
 import GHC.Ptr
 
-import Data.ByteString (ByteString)
-import Data.Vector (Vector)
-import qualified Data.Vector as V
 import qualified Data.V.Linear.Internal as VL
-import qualified Data.List as L
-import qualified Data.Foldable as L
 
 import qualified Vulkan.Extensions
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan as Vk
-import Vulkan.Zero (zero)
 
 import Ghengin.Core.Log
 import Ghengin.Core.Type.Utils
@@ -70,8 +59,6 @@ import Ghengin.Vulkan.Renderer.Descriptor.Set
 import Ghengin.Vulkan.Renderer.Buffer
 import Ghengin.Vulkan.Renderer.Pipeline
 import Ghengin.Vulkan.Renderer.Context
-import Ghengin.Vulkan.Renderer.Context.Instance
-import Ghengin.Vulkan.Renderer.Context.Device
 import Ghengin.Vulkan.Renderer.Context.Swapchain
 import Ghengin.Vulkan.Renderer.Image
 import Ghengin.Vulkan.Renderer.Synchronization
@@ -79,7 +66,6 @@ import Ghengin.Vulkan.Renderer.Command
 import Ghengin.Vulkan.Renderer.GLFW.Window as GLFW
 import Ghengin.Vulkan.Renderer.ImmediateSubmit
 import Ghengin.Vulkan.Renderer.Kernel
-import qualified System.IO.Linear as Linear
 import Ghengin.Vulkan.Renderer.Command.Buffer (CommandBuffer(..))
 
 runRenderer :: (Int, Int)
@@ -160,10 +146,9 @@ runRenderer dimensions r = Linear.do
   -- Terminate
   ------------
 
-  vkContext <- destroyImmediateSubmitCtx vkContext immediateCmdCtx
+  vkContext <- waitDeviceIdle vkContext
 
-  (vkContext, commandPool) <- destroyCommandBuffers vkContext commandPool (VL.map (expectJust "All command buffers should be back in the vector when exiting") commandBuffers)
-  vkContext <- destroyCommandPool vkContext commandPool
+  vkContext <- destroyImmediateSubmitCtx vkContext immediateCmdCtx
 
   ((), vkContext) <- withResource vkContext $ Linear.do
     destroyVs fences destroyFence
@@ -171,6 +156,10 @@ runRenderer dimensions r = Linear.do
     destroyVs renderSemaphores destroySemaphore
 
   ((), vkContext) <- withResource vkContext $ destroyImage depthImage
+
+  (vkContext, commandPool) <- destroyCommandBuffers vkContext commandPool (VL.map (expectJust "All command buffers should be back in the vector when exiting") commandBuffers)
+  vkContext <- destroyCommandPool vkContext commandPool
+
   destroyVulkanContext vkContext
   terminateGLFW glfwtoken
 
