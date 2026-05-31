@@ -4,6 +4,7 @@ module Planet.UI where
 -- ToDo: introduce UI management abstraction in the
 -- not-yet-existent:unrestricted-ghengin-monad which wraps Core.
 
+import qualified Ghengin.Core.Prelude as Linear
 import Data.IORef
 import Control.Monad
 import Control.Monad.IO.Class
@@ -30,18 +31,20 @@ preparePlanetUI Planet{..} = do
   changedColorRef   <- liftIO (newIORef False)
   newPlanetColorRef <- liftIO (newIORef planetColor)
 
-  -- ImGui.withNewFrame $ do
-  --   -- ImGui.showIDStackToolWindow
-  --   ImGui.withWindowOpen "Planet" $ do
-  --     (p, b) <- widget planetShape
-  --     when b $ do
-  --       writeIORef changedShapeRef True
-  --       writeIORef newPlanetShapeRef p
-  --
-  --     (p', b') <- widget planetColor
-  --     when b' $ do
-  --       writeIORef changedColorRef True
-  --       writeIORef newPlanetColorRef p'
+  liftRenderer Linear.$ Linear.do
+    ImGui.withNewFrame $ do
+      -- ImGui.showIDStackToolWindow
+      ImGui.withWindowOpen "Planet" $ do
+        (p, b) <- widget planetShape
+        when b $ do
+          writeIORef changedShapeRef True
+          writeIORef newPlanetShapeRef p
+
+        (p', b') <- widget planetColor
+        when b' $ do
+          writeIORef changedColorRef True
+          writeIORef newPlanetColorRef p'
+    Linear.pure (Linear.Ur ())
 
   newPlanetShape <- liftIO (readIORef newPlanetShapeRef)
   didChangeShape <- liftIO (readIORef changedShapeRef)

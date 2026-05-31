@@ -54,7 +54,7 @@ data GameData π = GameData
 
 gameStep :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
          => GameData π
-         -> Linear.KnownNat swpImgs
+         -> forall swpImgs. Linear.KnownNat swpImgs
          => Linear.Finite FramesInFlight
          -> Linear.Finite swpImgs
          -> Ghengin (GameData π)
@@ -73,13 +73,13 @@ gameStep GameData{..} frameIx imageIx = do
         editAtMeshesKey planetMeshKey rq $ \pipeline mat [(msh, x)] -> Linear.do
           ( (pmesh, pipeline),
             Ur minmax ) <- newPlanetMesh pipeline newPlanet
-          mat <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
+          mat <- propertyAt @0 @MinMax (\(Ur _) -> Linear.pure (Ur minmax)) mat
 
           -- Re-use old transform and free old mesh
           let !(DynamicBinding (Ur old_tr), msh') = puncons msh
           freeMesh msh'
 
-          pmesh' <- propertyAt @0 @Transform (\(Ur _) -> pure (Ur old_tr)) pmesh
+          pmesh' <- propertyAt @0 @Transform (\(Ur _) -> Linear.pure (Ur old_tr)) pmesh
 
           Linear.pure (pipeline, (mat, [(pmesh', x)]))
 
@@ -114,7 +114,7 @@ gameStep GameData{..} frameIx imageIx = do
   -- render queue
   editRenderQueue $ \rq ->
     Core.renderWith frameIx imageIx $ \rinfo -> Linear.do
-      Ur extent <- lift getRenderExtent
+      Ur extent <- Linear.lift getRenderExtent
       let viewport = viewportFromExtent extent
           scissor  = scissorFromExtent extent
 
@@ -161,7 +161,8 @@ main = do
       Linear.return (Ur mshkey, RenderState{renderQueue=rq2})
 
     runGameLoop gameStep GameData{planet, planetMeshKey=mshkey}
-    pure ()
+
+  return ()
 
 defaultPlanet :: Planet
 defaultPlanet = Planet

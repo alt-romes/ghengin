@@ -8,6 +8,7 @@
 {-# LANGUAGE UndecidableInstances #-}
 module Planet where
 
+import Data.Eq as Eq
 import qualified GHC.Generics as GHC
 import qualified Ghengin.Core.Prelude as Linear
 import Data.List (find)
@@ -77,6 +78,7 @@ data PlanetShape = PlanetShape
   , planetRadius     :: !(InRange 0 100 Float)
   , planetNoise      :: !(Collapsible "Planet Noise" Noise)
   }
+  deriving Eq.Eq
   deriving Show
   deriving GHC.Generic
   deriving anyclass Generic
