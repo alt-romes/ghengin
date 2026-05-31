@@ -98,10 +98,10 @@ runGhengin conf@GhenginConf{..} (Ghengin act) =
 -- The loop exits if the user clicked to close the window.
 runGameLoop
   :: forall a.
-     (  a
-     -> forall swpcImgs. Linear.KnownNat swpcImgs
-     -- TODO: Better: we should cache these and then provide "renderWith" which receives the renderqueue and more...
-     => Linear.Finite FramesInFlight
+     ( forall swpcImgs. Linear.KnownNat swpcImgs
+     => a
+     -- TODO: we should cache these and then provide "renderWith" which receives the renderqueue and more...
+     -> Linear.Finite FramesInFlight
      -> Linear.Finite swpcImgs
      -> Ghengin a  )
   -> a

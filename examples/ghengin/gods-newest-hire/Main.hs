@@ -52,10 +52,9 @@ data GameData π = GameData
   , planet          :: Planet
   }
 
-gameStep :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
+gameStep :: Linear.KnownNat swpImgs => Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
          => GameData π
-         -> forall swpImgs. Linear.KnownNat swpImgs
-         => Linear.Finite FramesInFlight
+         -> Linear.Finite FramesInFlight
          -> Linear.Finite swpImgs
          -> Ghengin (GameData π)
 gameStep GameData{..} frameIx imageIx = do
@@ -163,6 +162,8 @@ main = do
     runGameLoop gameStep GameData{planet, planetMeshKey=mshkey}
 
   return ()
+
+--------------------------------------------------------------------------------
 
 defaultPlanet :: Planet
 defaultPlanet = Planet
