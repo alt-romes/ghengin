@@ -87,26 +87,8 @@ gameStep GameData{..} frameIx imageIx = do
       editMaterial (meshKey2MatKey planetMeshKey) rq $ \mat -> Linear.do
         propertyAt @1 @_ (\tex -> Alias.forget tex Linear.>> planetTexture (planetColor newPlanet)) mat
 
-  -- Handle mouse drag rotation
-  mbDrag <- readMouseDrag
-  case mbDrag of
-    Just (MouseDrag deltaX deltaY) -> do
-      let sensitivity = 0.002
-          yawDelta = -(realToFrac deltaX * sensitivity)
-          pitchDelta = realToFrac deltaY * sensitivity
-      editRenderQueue $ \rq ->
-        editMeshes planetMeshKey rq $ Linear.traverse' $ propertyAt @0 (\(Ur tr) ->
-          Linear.pure $ Ur $ rotateY yawDelta <> rotateX pitchDelta <> tr)
-    Nothing -> pure ()
-
-  c_input <- readCharInput
-  case c_input of
-    Just 'p' -> do
-      -- Save new planet configuration to file
-      time <- liftIO getCurrentTime
-      let filename = "planet-" ++ show time ++ ".hs"
-      liftIO $ writeFile filename (show newPlanet)
-    _ -> return ()
+  handleMouseDrag =<< readMouseDrag
+  maybeSavePlanet =<< readCharInput
 
   -- Render! TODO: Store frameIx and imageIx in RenderState and make
   -- 'renderWith' in Ghengin.Monad for which the continuation already takes the
@@ -130,6 +112,25 @@ gameStep GameData{..} frameIx imageIx = do
 
   -- Loop!
   return GameData{planet=newPlanet,..}
+
+savePlanet :: Maybe Char -> Ghengin ()
+savePlanet (Just 'p') = liftIO $ do
+  -- Save new planet configuration to file
+  time <- getCurrentTime
+  let filename = "planet-" ++ show time ++ ".hs"
+  writeFile filename (show newPlanet)
+savePlanet  _  = pure ()
+
+handleMouseDrag :: Maybe MouseDrag -> Ghengin ()
+handleMouseDrag Nothing = pure ()
+handleMouseDrag (Just (MouseDrag deltaX deltaY)) = do
+  let sensitivity = 0.002
+      yawDelta = -(realToFrac deltaX * sensitivity)
+      pitchDelta = realToFrac deltaY * sensitivity
+  editRenderQueue $ \rq ->
+    editMeshes planetMeshKey rq $
+      Linear.traverse' $ propertyAt @0 $ \(Ur tr) ->
+        Linear.pure $ Ur $ rotateY yawDelta <> rotateX pitchDelta <> tr
 
 dimensions :: Num a => (a, a)
 dimensions = (1920, 1080)
