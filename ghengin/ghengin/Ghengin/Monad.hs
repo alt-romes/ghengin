@@ -85,6 +85,21 @@ runGameLoop act = do
   should_close <- liftRenderer shouldCloseWindow
   act should_close
 
+newGhenginFrame
+  :: forall a.
+   ( forall swpcImgs. Linear.KnownNat swpcImgs
+     => Linear.Finite FramesInFlight
+     -> Linear.Finite swpcImgs
+     -> Ghengin a )
+  -> Ghengin a
+newGhenginFrame k = Ghengin $ ReaderT $ \gr -> UrT $ Linear.StateT $ \s ->
+  let go :: forall swpcImgs. Linear.KnownNat swpcImgs
+         => Linear.Finite FramesInFlight
+         -> Linear.Finite swpcImgs
+         -> Renderer (Ur a, RenderState)
+      go ff si = Linear.runStateT (runUrT (runReaderT (unGhengin (k ff si)) gr)) s
+   in newFrame go
+
 --------------------------------------------------------------------------------
 -- On Renderer
 --------------------------------------------------------------------------------

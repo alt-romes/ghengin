@@ -6,6 +6,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Main where
 
+import Control.Monad
 import Data.Coerce
 import Data.Time
 import Foreign.Storable
@@ -54,7 +55,7 @@ data GameData π = GameData
 
 gameLoop :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
          => GameData π -> Ghengin ()
-gameLoop GameData{..} = newFrame $ \should_close ->
+gameLoop GameData{..} = runGameLoop $ \should_close ->
  when (not should_close) $ do
 
   -- Update planet mesh according to UI
@@ -63,9 +64,9 @@ gameLoop GameData{..} = newFrame $ \should_close ->
   when (changedShape || changedColor) $ do
 
     -- Only regen when vertex data must change
-    when (newPlanet.planetShape P./= planet.planetShape
-       || P.map (.unCollapsible.biomeStartHeight) newPlanet.planetColor.planetBiomes
-          P./= P.map (.unCollapsible.biomeStartHeight) planet.planetColor.planetBiomes) do
+    when (newPlanet.planetShape /= planet.planetShape
+       || map (.unCollapsible.biomeStartHeight) newPlanet.planetColor.planetBiomes
+          /= map (.unCollapsible.biomeStartHeight) planet.planetColor.planetBiomes) do
 
       editRenderQueue $ \rq ->
         editAtMeshesKey planetMeshKey rq $ \pipeline mat [(msh, x)] -> Linear.do

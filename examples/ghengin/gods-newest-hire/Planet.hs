@@ -183,7 +183,7 @@ newPlanetMaterial mm pl planet = Linear.do
 -- | Make a Texture from the planet color
 planetTexture :: PlanetColor -> Renderer (Alias (Texture2D (RGBA8 UNorm)))
 planetTexture PlanetColor{planetBiomes, planetColorsInterpolate} = Linear.do
-  sampler <- createSampler FILTER_LINEAR{-FILTER_NEAREST-} SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE
+  sampler <- createSampler FilterLinear{-FilterNearest-} SamplerClampToEdge
 
   let w_resolution = 100
 
