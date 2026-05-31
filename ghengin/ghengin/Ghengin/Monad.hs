@@ -81,8 +81,8 @@ runGhengin conf@GhenginConf{..} (Ghengin act) =
 -- clicked to close the window)
 runGameLoop :: (Bool -> Ghengin a) -> Ghengin a
 runGameLoop act = do
-  liftRenderer pollWindowEvents
-  Ur should_close <- liftRenderer shouldCloseWindow
+  liftRenderer (Ur () Linear.<$ pollWindowEvents)
+  should_close <- liftRenderer shouldCloseWindow
   act should_close
 
 --------------------------------------------------------------------------------
@@ -92,10 +92,10 @@ runGameLoop act = do
 renderState :: (RenderState %1 -> Renderer (Ur a, RenderState)) -> Ghengin a
 renderState act = Ghengin (ReaderT \_ -> (UrT (Linear.StateT \s -> act s)))
 
-editRenderQueue :: (RenderQueue () %1 -> Renderer (RenderQueue ())) -> Ghengin a
+editRenderQueue :: (RenderQueue () %1 -> Renderer (RenderQueue ())) -> Ghengin ()
 editRenderQueue f = renderState $ \RenderState{..} -> Linear.do
   renderQueue <- f renderQueue
-  Linear.return RenderState{..}
+  Linear.return (Ur (), RenderState{..})
 
 liftRenderer :: Renderer (Ur a) %1 -> Ghengin a
 liftRenderer r = Ghengin (ReaderT \_ -> (UrT (Linear.StateT \s -> (,s) Linear.<$> r)))
