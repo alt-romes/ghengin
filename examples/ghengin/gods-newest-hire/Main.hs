@@ -6,6 +6,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 module Main where
 
+import qualified Ghengin.Core as Core
 import Control.Monad
 import Data.Coerce
 import Data.Time
@@ -23,7 +24,7 @@ import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Vulkan.Renderer.Sampler
 import Ghengin.Core.Render.Queue
-import Ghengin.Core.Input
+import Ghengin.Input
 import Ghengin.Core.Shader (StructVec3(..), StructMat4(..))
 import Vulkan.Core10.FundamentalTypes (Extent2D(..))
 import qualified Data.Monoid.Linear as LMon
@@ -47,20 +48,20 @@ import Planet.Noise
 import Planet.UI
 
 data GameData π = GameData
-  { charStream      :: CharStream
-  , mouseDragStream :: MouseDragStream
-  , planetMeshKey   :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
+  { planetMeshKey   :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
   , planet          :: Planet
   }
 
-gameLoop :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
-         => GameData π -> Ghengin ()
-gameLoop GameData{..} = runGameLoop $ \should_close ->
- when (not should_close) $ do
+gameStep :: Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
+         => GameData π
+         -> Linear.KnownNat swpImgs
+         => Linear.Finite FramesInFlight
+         -> Linear.Finite swpImgs
+         -> Ghengin (GameData π)
+gameStep GameData{..} frameIx imageIx = do
 
   -- Update planet mesh according to UI
-  -- Ur (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
-
+  (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
   when (changedShape || changedColor) $ do
 
     -- Only regen when vertex data must change
@@ -80,52 +81,56 @@ gameLoop GameData{..} = runGameLoop $ \should_close ->
 
           pmesh' <- propertyAt @0 @Transform (\(Ur _) -> pure (Ur old_tr)) pmesh
 
-          return (pipeline, (mat, [(pmesh', x)]))
+          Linear.pure (pipeline, (mat, [(pmesh', x)]))
 
     -- On any change
     editRenderQueue $ \rq ->
       editMaterial (meshKey2MatKey planetMeshKey) rq $ \mat -> Linear.do
-        propertyAt @1 @_ (\tex -> Alias.forget tex >> planetTexture (planetColor newPlanet)) mat
+        propertyAt @1 @_ (\tex -> Alias.forget tex Linear.>> planetTexture (planetColor newPlanet)) mat
 
   -- Handle mouse drag rotation
-  Ur mbDrag <- readMouseDrag mouseDragStream
-  rq <- case mbDrag of
-    Just (MouseDrag deltaX deltaY) -> Linear.do
+  mbDrag <- readMouseDrag
+  case mbDrag of
+    Just (MouseDrag deltaX deltaY) -> do
       let sensitivity = 0.002
           yawDelta = -(realToFrac deltaX * sensitivity)
           pitchDelta = realToFrac deltaY * sensitivity
-      (editMeshes planetMeshKey rq (traverse' $ propertyAt @0 (\(Ur tr) ->
-            pure $ Ur $ rotateY yawDelta <> rotateX pitchDelta <> tr)))
-    Nothing -> pure rq
+      editRenderQueue $ \rq ->
+        editMeshes planetMeshKey rq $ Linear.traverse' $ propertyAt @0 (\(Ur tr) ->
+          Linear.pure $ Ur $ rotateY yawDelta <> rotateX pitchDelta <> tr)
+    Nothing -> pure ()
 
-  Ur c_input <- readCharInput charStream
+  c_input <- readCharInput
   case c_input of
-    Just 'p' -> Linear.do
+    Just 'p' -> do
       -- Save new planet configuration to file
-      Ur time <- liftSystemIOU getCurrentTime
+      time <- liftIO getCurrentTime
       let filename = "planet-" ++ show time ++ ".hs"
-      liftSystemIO $ writeFile filename (show newPlanet)
+      liftIO $ writeFile filename (show newPlanet)
     _ -> return ()
 
-  -- Render!
-  rq <- renderWith frameIndex imageIndex $ Linear.do
-    Ur extent <- lift getRenderExtent
-    let viewport = viewportFromExtent extent
-        scissor  = scissorFromExtent extent
+  -- Render! TODO: Store frameIx and imageIx in RenderState and make
+  -- 'renderWith' in Ghengin.Monad for which the continuation already takes the
+  -- render queue
+  editRenderQueue $ \rq ->
+    Core.renderWith frameIx imageIx $ \rinfo -> Linear.do
+      Ur extent <- lift getRenderExtent
+      let viewport = viewportFromExtent extent
+          scissor  = scissorFromExtent extent
 
-    beginRendering undefined $ Linear.do
-      setViewport viewport
-      setScissor scissor
+      beginRendering rinfo $ Linear.do
+        setViewport viewport
+        setScissor scissor
 
-      rq <- renderQueueCmd rq
+        rq <- Core.renderQueueCmd rq
 
-      -- Render Imgui data!
-      ImGui.renderDrawData
+        -- Render Imgui data!
+        ImGui.renderDrawData
 
-      return rq
+        Linear.pure rq
 
   -- Loop!
-  gameLoop GameData{planet=newPlanet,..}
+  return GameData{planet=newPlanet,..}
 
 dimensions :: Num a => (a, a)
 dimensions = (1920, 1080)
@@ -141,7 +146,7 @@ main = do
 
       planet = defaultPlanet
 
-    mshKey <- renderState $ \RenderState{..} -> Linear.do
+    mshkey <- renderState $ \RenderState{..} -> Linear.do
 
       pipeline         <- makeRenderPipeline shaders $
                             StaticBinding (Ur camera) :## GHNil
@@ -149,13 +154,14 @@ main = do
         Ur minmax )    <- newPlanetMesh pipeline planet
       (pmat, pipeline) <- newPlanetMaterial minmax pipeline planet
 
-      (rq, Ur pkey)    <- pure (insertPipeline pipeline emptyRenderQueue)
-      (rq, Ur mkey)    <- pure (insertMaterial pkey pmat rq)
-      (rq, Ur mshkey)  <- pure (insertMesh mkey pmesh rq)
+      let !(rq0, Ur pkey)   = insertPipeline pipeline renderQueue
+      let !(rq1, Ur mkey)   = insertMaterial pkey pmat rq0
+      let !(rq2, Ur mshkey) = insertMesh mkey pmesh rq1
 
-      Linear.return (Ur mshkey, RenderState{renderQueue=rq})
+      Linear.return (Ur mshkey, RenderState{renderQueue=rq2})
 
-    gameLoop GameData{planet, planetMeshKey=mshkey, ..}
+    runGameLoop gameStep GameData{planet, planetMeshKey=mshkey}
+    pure ()
 
 defaultPlanet :: Planet
 defaultPlanet = Planet

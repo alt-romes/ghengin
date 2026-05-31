@@ -15,6 +15,7 @@ import Ghengin.Core.Render
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Queue
+import Ghengin.Core.Input
 
 -- ghengin:dear-imgui
 import qualified Ghengin.DearImGui.Vulkan as ImGui
@@ -36,6 +37,8 @@ newtype Ghengin a = Ghengin
 -- | The reader environment for the game engine monad 'Ghengin'
 data GhenginReader = GhenginReader
   { conf :: !GhenginConf
+  , charStream :: !CharStream
+  , mouseDragStream :: !MouseDragStream
   }
 
 data RenderState = RenderState
@@ -44,8 +47,16 @@ data RenderState = RenderState
   }
 
 -- | Make a new 'GhenginReader' environment from the a 'GhenginConf' configuration
-newGhenginReader :: GhenginConf -> GhenginReader
-newGhenginReader conf = GhenginReader conf
+newGhenginReader :: GhenginConf -> Renderer (Ur GhenginReader)
+newGhenginReader conf = Linear.do
+  Ur charStream <- registerCharStream
+  Ur mouseDragStream <- registerMouseDragStream $ Linear.do
+    -- Makes sure dragging events don't occur if an ImGui window is being used
+    if enableImGui conf then
+      not <$> ImGui.wantCaptureMouse -- imgui is already using the mouse
+    else
+      pure True
+  Linear.pure (Ur GhenginReader{..})
 
 -- | Run the engine
 runGhengin :: GhenginConf -> Ghengin a -> IO a
@@ -59,9 +70,11 @@ runGhengin conf@GhenginConf{..} (Ghengin act) =
           then Just Linear.<$> ImGui.initImGui
           else Linear.pure Nothing
 
+      Ur ghenginReader <- newGhenginReader conf
+
       (x, RenderState{..}) <-
         Linear.runStateT
-          (runUrT (runReaderT act (newGhenginReader conf)))
+          (runUrT (runReaderT act ghenginReader))
           RenderState
             { renderQueue = emptyRenderQueue
             }
@@ -74,25 +87,46 @@ runGhengin conf@GhenginConf{..} (Ghengin act) =
 
       Linear.pure x
 
--- | Register a new frame.
+-- | Run the game loop given a step function. The step function iterates over
+-- some game state @a@. The initial game state is the second argument to
+-- 'runGameLoop'. The step also receives the same index args as 'newFrame'.
 --
 -- This function updates the engine time(lines), updates window events, and
--- passes @True@ to the continuation if the game should exit (e.g. user
--- clicked to close the window)
-runGameLoop :: (Bool -> Ghengin a) -> Ghengin a
-runGameLoop act = do
-  liftRenderer (Ur () Linear.<$ pollWindowEvents)
-  should_close <- liftRenderer shouldCloseWindow
-  act should_close
+-- registers a new render frame ('newFrame' / 'newRenderFrame') for each
+-- iteration of the game loop.
+--
+-- The loop exits if the user clicked to close the window.
+runGameLoop
+  :: forall a.
+     (  a
+     -> forall swpcImgs. Linear.KnownNat swpcImgs
+     -- TODO: Better: we should cache these and then provide "renderWith" which receives the renderqueue and more...
+     => Linear.Finite FramesInFlight
+     -> Linear.Finite swpcImgs
+     -> Ghengin a  )
+  -> a
+  -> Ghengin a
+runGameLoop act ini = go ini where
+  go :: a -> Ghengin a
+  go gs = do
+    liftRenderer (Ur () Linear.<$ pollWindowEvents)
+    should_close <- liftRenderer shouldCloseWindow
+    if should_close then
+      return gs
+    else do
+      gs' <- newRenderFrame (act gs)
+      go gs'
 
-newGhenginFrame
+-- | This can be used instead of 'newFrame' when you want to do more than just
+-- 'Renderer' actions when rendering the frame.
+newRenderFrame
   :: forall a.
    ( forall swpcImgs. Linear.KnownNat swpcImgs
      => Linear.Finite FramesInFlight
      -> Linear.Finite swpcImgs
      -> Ghengin a )
   -> Ghengin a
-newGhenginFrame k = Ghengin $ ReaderT $ \gr -> UrT $ Linear.StateT $ \s ->
+newRenderFrame k = Ghengin $ ReaderT $ \gr -> UrT $ Linear.StateT $ \s ->
   let go :: forall swpcImgs. Linear.KnownNat swpcImgs
          => Linear.Finite FramesInFlight
          -> Linear.Finite swpcImgs

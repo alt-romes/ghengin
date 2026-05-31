@@ -27,3 +27,6 @@ cradle:
     - path: "./examples/core/planets-core/"
       component: "exe:planets-core"
 
+    - path: "./examples/ghengin/gods-newest-hire/"
+      component: "exe:gods-newest-hire"
+

@@ -75,9 +75,9 @@ render frameIndex imageIndex rq = do
 -- === __Example__
 --
 -- @
--- renderWith $ Linear.do
+-- renderWith frameIx imgIx $ \rinfo -> Linear.do
 --
---   renderPassCmd extent rp $ Linear.do
+--   beginRendering rinfo $ Linear.do
 --
 --     -- this could be changed dynamically...
 --     setViewport viewport
