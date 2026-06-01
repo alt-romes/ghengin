@@ -8,34 +8,23 @@ module Main where
 
 import qualified Ghengin.Core as Core
 import Control.Monad
-import Data.Coerce
+import Data.List (sort)
 import Data.Time
-import Foreign.Storable
-import Geomancy.Mat4
-import Geomancy.Transform
+import Geomancy.Transform as Tr
 import Geomancy.Vec3
-import Geomancy.Vec4
-import Ghengin.Core.Log
 import Ghengin.Core.Mesh
-import Ghengin.Core.Material
+import System.Random
 import qualified Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Render
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
-import Ghengin.Vulkan.Renderer.Sampler
 import Ghengin.Core.Render.Queue
 import Ghengin.Input
-import Ghengin.Core.Shader (StructVec3(..), StructMat4(..))
-import Vulkan.Core10.FundamentalTypes (Extent2D(..))
-import qualified Data.Monoid.Linear as LMon
-import qualified FIR
-import qualified Math.Linear as FIR
 import Ghengin.Prelude
 import qualified Data.Linear.Alias as Alias
 
 import Ghengin.Camera
 import Ghengin.Core.Type.Compatible
-import Ghengin.Core.Type.Compatible.Pixel
 import qualified Ghengin.DearImGui.Vulkan as ImGui
 import qualified Ghengin.DearImGui.UI as ImGui
 
@@ -48,7 +37,8 @@ import Planet.Noise
 import Planet.UI
 
 data GameData π = GameData
-  { planetMeshKey   :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
+  { planetMeshKey1  :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
+  , planetMeshKey2  :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
   , planet          :: Planet
   }
 
@@ -69,7 +59,7 @@ gameStep GameData{..} frameIx imageIx = do
           /= map (.unCollapsible.biomeStartHeight) planet.planetColor.planetBiomes) do
 
       editRenderQueue $ \rq ->
-        editAtMeshesKey planetMeshKey rq $ \pipeline mat [(msh, x)] -> Linear.do
+        editAtMeshesKey planetMeshKey1 rq $ \pipeline mat [(msh, x)] -> Linear.do
           ( (pmesh, pipeline),
             Ur minmax ) <- newPlanetMesh pipeline newPlanet
           mat <- propertyAt @0 @MinMax (\(Ur _) -> Linear.pure (Ur minmax)) mat
@@ -84,11 +74,13 @@ gameStep GameData{..} frameIx imageIx = do
 
     -- On any change
     editRenderQueue $ \rq ->
-      editMaterial (meshKey2MatKey planetMeshKey) rq $ \mat -> Linear.do
+      editMaterial (meshKey2MatKey planetMeshKey1) rq $ \mat -> Linear.do
         propertyAt @1 @_ (\tex -> Alias.forget tex Linear.>> planetTexture (planetColor newPlanet)) mat
 
-  handleMouseDrag planetMeshKey =<< readMouseDrag
-  handleCharInput newPlanet     =<< readCharInput
+  drag <- readMouseDrag
+  handleMouseDrag planetMeshKey1 drag
+  handleMouseDrag planetMeshKey2 drag
+  handleCharInput newPlanet =<< readCharInput
 
   -- Render! TODO: Store frameIx and imageIx in RenderState and make
   -- 'renderWith' in Ghengin.Monad for which the continuation already takes the
@@ -137,139 +129,214 @@ dimensions = (1920, 1080)
 main :: IO ()
 main = do
   -- TODO: Read ghenginConf from optparse options
+  planet1 <- randomPlanet
+  planet2 <- randomPlanet
+
   runGhengin defaultGhenginConf{frameWidth=fst dimensions, frameHeight=snd dimensions} $ do
 
-    let 
+    let
       camera :: Camera "view_matrix" "proj_matrix"
-      camera = cameraLookAt (vec3 0 0 (-5){- move camera "back"-}) (vec3 0 0 0) dimensions
+      camera = cameraLookAt (vec3 0 0 (-12){- move camera "back"-}) (vec3 0 0 0) dimensions
 
-      planet = defaultPlanet
+    (mshkey1, mshkey2) <- renderState $ \RenderState{..} -> Linear.do
 
-    mshkey <- renderState $ \RenderState{..} -> Linear.do
+      pipeline           <- makeRenderPipeline shaders $
+                              StaticBinding (Ur camera) :## GHNil
 
-      pipeline         <- makeRenderPipeline shaders $
-                            StaticBinding (Ur camera) :## GHNil
-      ( (pmesh, pipeline),
-        Ur minmax )    <- newPlanetMesh pipeline planet
-      (pmat, pipeline) <- newPlanetMaterial minmax pipeline planet
+      -- First planet (left) — editable via UI
+      ( (pmesh1, pipeline),
+        Ur minmax1 )     <- newPlanetMesh pipeline planet1
+      pmesh1             <- propertyAt @0 @Transform
+                              (\(Ur _) -> Linear.pure (Ur (translate (-3) 0 0))) pmesh1
+      (pmat1, pipeline)  <- newPlanetMaterial minmax1 pipeline planet1
 
-      let !(rq0, Ur pkey)   = insertPipeline pipeline renderQueue
-      let !(rq1, Ur mkey)   = insertMaterial pkey pmat rq0
-      let !(rq2, Ur mshkey) = insertMesh mkey pmesh rq1
+      -- Second planet (right) — fixed, independently random, moon-sized
+      ( (pmesh2, pipeline),
+        Ur minmax2 )     <- newPlanetMesh pipeline planet2
+      pmesh2             <- propertyAt @0 @Transform
+                              (\(Ur _) -> Linear.pure (Ur (translate 3 0 0 <> Tr.scale 0.5))) pmesh2
+      (pmat2, pipeline)  <- newPlanetMaterial minmax2 pipeline planet2
 
-      Linear.return (Ur mshkey, RenderState{renderQueue=rq2})
+      let !(rq0, Ur pkey)    = insertPipeline pipeline renderQueue
+      let !(rq1, Ur mkey1)   = insertMaterial pkey pmat1 rq0
+      let !(rq2, Ur mshkey1) = insertMesh mkey1 pmesh1 rq1
+      let !(rq3, Ur mkey2)   = insertMaterial pkey pmat2 rq2
+      let !(rq4, Ur mshkey2) = insertMesh mkey2 pmesh2 rq3
 
-    _ <- runGameLoop gameStep GameData{planet, planetMeshKey=mshkey}
+      Linear.return (Ur (mshkey1, mshkey2), RenderState{renderQueue=rq4})
+
+    _ <- runGameLoop gameStep GameData{planet=planet1, planetMeshKey1=mshkey1, planetMeshKey2=mshkey2}
 
     return ()
 
 --------------------------------------------------------------------------------
+-- * Random planet generation
+--------------------------------------------------------------------------------
 
-defaultPlanet :: Planet
-defaultPlanet = Planet
-  { planetShape = PlanetShape
-      { planetResolution = 65
-      , planetRadius = 2.2
-      , planetNoise  = ImGui.Collapsible $ AddNoiseMasked
-          [ StrengthenNoise 0.110 $ MinValueNoise
-            { minNoiseVal = 0.87
-            , baseNoise   = LayersCoherentNoise
-              { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 (194/255) (129/255) (41/255)
-              , baseRoughness = 1.5
-              , roughness     = 2.5
-              , numLayers     = 20
-              , persistence   = 0.4
-              }
-            }
-          , StrengthenNoise 5 $ MinValueNoise
-            { minNoiseVal = 0.120
-            , baseNoise   = RidgedNoise
-              { seed          = 349
-              , octaves       = 10
-              , scale         = 0.59
-              , frequency     = 2
-              , lacunarity    = 5.2
-              }
-            }
-          ]
-      , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.05 $
-          LayersCoherentNoise
-          { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
-          , baseRoughness = 1.0
-          , roughness     = 2.0
-          , numLayers     = 3
-          , persistence   = 2
-          }
-      , biomeBlendAmount = 0.2
-      , biomeNoiseOffset = 0
-      }
-  , planetColor = PlanetColor
-    { planetBiomes =
-      [ ImGui.Collapsible PlanetBiome
-        { biomeColors = mkColors
-          [ (1,   vec3 255 248 205)
-          , (5,   vec3 255 234 234)
-          , (15,  vec3 225 225 225)
-          , (75,  vec3 195 195 195)
-          , (100, vec3 255 255 255)
-          ]
-        , biomeOceanColors = mkColors
-          [ (1,   vec3 8   40  70)   -- Deep ocean trenches
-          , (30,  vec3 12  60  100)  -- Deep water
-          , (60,  vec3 20  80  130)  -- Mid-depth ocean
-          , (85,  vec3 30  110 160)  -- Continental shelf
-          , (100, vec3 24  150 183)  -- Shallow coastal waters (matches terrain color 1)
-          ]
-        , biomeStartHeight = 0
-        , biomeTint = ImGui.Color (vec3 1 0 1)
-        , biomeTintPercent = 0
-        }
-      , ImGui.Collapsible PlanetBiome
-        { biomeColors = mkColors
-          [ (1, vec3 255 218 0)
-          , (5, vec3 255 120 0)
-          , (10, vec3 60 255 0)
-          , (20, vec3 27 183 0)
-          , (30, vec3 10 163 0)
-          , (40, vec3 158 37 0)
-          , (85, vec3 108 13 0)
-          , (100, vec3 231 231 231)
-          ]
-        , biomeOceanColors = mkColors
-          [ (1,   vec3 10  50  85)   -- Deep ocean
-          , (50,  vec3 0   68  255)  -- Mid ocean
-          , (100, vec3 0   83  255)  -- Coastal waters (matches terrain color 1)
-          ]
-        , biomeStartHeight = 0.38
-        , biomeTint = ImGui.Color (vec3 0 1 1)
-        , biomeTintPercent = 0
-        }
-      , ImGui.Collapsible PlanetBiome
-        { biomeColors = mkColors
-          [ (1, vec3 255 80 0)      -- Glowing lava at shore
-          , (5, vec3 200 40 0)      -- Cooling lava flows
-          , (10, vec3 120 20 0)     -- Dark red volcanic rock
-          , (20, vec3 80 15 10)     -- Deep red-brown slopes
-          , (30, vec3 90 25 15)     -- Iron-rich volcanic stone
-          , (40, vec3 140 30 0)     -- Oxidized red rock
-          , (60, vec3 180 35 0)     -- Glowing red basalt
-          , (85, vec3 220 50 0)     -- Bright red-orange ridges
-          , (100, vec3 255 100 0)   -- Molten orange peaks
-          ]
-        , biomeOceanColors = mkColors
-          [ (1,   vec3 5   25  45)   -- Very deep dark blue
-          , (50,  vec3 11  22  33)   -- Deep midnight blue
-          , (100, vec3 15  25  35)   -- Dark ocean blue (matches terrain color 1)
-          ]
-        , biomeStartHeight = 0.96
-        , biomeTint = ImGui.Color (vec3 0 1 0)
-        , biomeTintPercent = 0
-        }
-      ]
-    , planetColorsInterpolate = False
+randomPlanet :: IO Planet
+randomPlanet = do
+  shape <- randomPlanetShape
+  color <- randomPlanetColor
+  pure Planet{planetShape=shape, planetColor=color}
+
+-- Random shape mirrors the structure of 'defaultPlanet': a fine-detail mask
+-- (small strength, very high minVal) as the first AddNoiseMasked layer, then
+-- a ridged "big features" layer (large strength, low minVal) that only
+-- contributes where the mask is positive. Both layers' parameters jitter
+-- around the defaults so the overall scale of features stays comparable.
+randomPlanetShape :: IO PlanetShape
+randomPlanetShape = do
+  radius  <- jitter 2.2 0.1
+  mask    <- randomMaskLayer
+  ridges  <- randomRidgesLayer
+  biomesN <- randomBiomesNoise
+  blend   <- jitter 0.2 0.05
+  pure PlanetShape
+    { planetResolution = ImGui.InRange 65
+    , planetRadius     = ImGui.InRange radius
+    , planetNoise      = ImGui.Collapsible $ AddNoiseMasked [mask, ridges]
+    , biomesNoise      = ImGui.Collapsible biomesN
+    , biomeBlendAmount = ImGui.InRange blend
+    , biomeNoiseOffset = 0
     }
-  }
+
+-- | First layer: gates the second. Defaults: strength 0.110, minVal 0.87,
+-- coherent fBM with 20 layers, persistence 0.4, baseRoughness 1.5, roughness 2.5.
+randomMaskLayer :: IO Noise
+randomMaskLayer = do
+  strength <- jitter 0.110 0.03
+  minVal   <- jitter 0.87  0.04
+  c        <- randomCentre
+  baseR    <- jitter 1.5 0.3
+  rough    <- jitter 2.5 0.3
+  nL       <- randomRIO (16, 22 :: Int)
+  pers     <- jitter 0.4 0.05
+  pure $ StrengthenNoise strength $ MinValueNoise minVal LayersCoherentNoise
+    { centre = ImGui.WithTooltip c, baseRoughness = baseR
+    , roughness = rough, numLayers = ImGui.InRange nL, persistence = pers
+    }
+
+-- | Second layer: big ridged features, masked by the first. Defaults:
+-- strength 5, minVal 0.12, ridged with octaves 10, scale 0.59, freq 2, lac 5.2.
+randomRidgesLayer :: IO Noise
+randomRidgesLayer = do
+  strength <- jitter 5.0  1.0
+  minVal   <- jitter 0.12 0.03
+  seed     <- randomRIO (1, 10_000 :: Int)
+  oct      <- randomRIO (8, 12 :: Int)
+  scl      <- jitter 0.59 0.10
+  freq     <- jitter 2.0  0.4
+  lac      <- jitter 5.2  0.6
+  pure $ StrengthenNoise strength $ MinValueNoise minVal RidgedNoise
+    { seed = seed, octaves = ImGui.InRange oct
+    , scale = scl, frequency = freq, lacunarity = lac
+    }
+
+randomCentre :: IO ImGui.Color
+randomCentre = ImGui.Color <$> randomVec3 (-1) 1
+
+-- | Defaults: StrengthenNoise 0.05 over coherent (baseR 1.0, rough 2.0, 3 layers, pers 2).
+randomBiomesNoise :: IO Noise
+randomBiomesNoise = do
+  strength <- jitter 0.05 0.015
+  c        <- randomCentre
+  baseR    <- jitter 1.0 0.2
+  rough    <- jitter 2.0 0.3
+  pers     <- jitter 2.0 0.3
+  pure $ StrengthenNoise strength LayersCoherentNoise
+    { centre = ImGui.WithTooltip c, baseRoughness = baseR
+    , roughness = rough, numLayers = ImGui.InRange 3, persistence = pers
+    }
+
+-- | Sample uniformly from [centre - radius, centre + radius].
+jitter :: (Random a, Num a) => a -> a -> IO a
+jitter c r = randomRIO (c - r, c + r)
+
+randomPlanetColor :: IO PlanetColor
+randomPlanetColor = do
+  nBiomes <- randomRIO (2, 4 :: Int)
+  -- Spread biome start heights evenly in [0, 1) with small jitter, then sort.
+  startHeights <- fmap sort $ replicateM nBiomes (randomRIO (0, 1))
+  -- Pick this planet's land and ocean hue anchors independently per planet so
+  -- two planets generated in sequence pick unrelated palettes.
+  landHue  <- randomRIO (0, 1)
+  oceanHue <- randomRIO (0, 1)
+  biomes   <- mapM (randomBiome landHue oceanHue) startHeights
+  interp       <- (> (0.5 :: Float)) <$> randomRIO (0, 1)
+  pure PlanetColor
+    { planetBiomes            = biomes
+    , planetColorsInterpolate = interp
+    }
+
+randomBiome
+  :: Float  -- ^ Land hue anchor
+  -> Float  -- ^ Ocean hue anchor
+  -> Float  -- ^ Biome start height
+  -> IO (ImGui.Collapsible "Biome Settings" PlanetBiome)
+randomBiome landHue oceanHue startHeight = do
+  nLand   <- randomRIO (3, 6 :: Int)
+  nOcean  <- randomRIO (2, 4 :: Int)
+  -- Each biome picks a small hue offset from the planet's anchor, keeping the
+  -- overall palette coherent across biomes.
+  landOff   <- randomRIO (-0.08, 0.08)
+  oceanOff  <- randomRIO (-0.05, 0.05)
+  land    <- randomColorRamp nLand  (wrapHue (landHue  + landOff))  0.55 0.95
+  ocean   <- randomColorRamp nOcean (wrapHue (oceanHue + oceanOff)) 0.70 0.55
+  tintHue <- randomRIO (0, 1)
+  tintPct <- randomRIO (0, 0.3)
+  pure $ ImGui.Collapsible PlanetBiome
+    { biomeColors      = land
+    , biomeOceanColors = ocean
+    , biomeStartHeight = ImGui.InRange startHeight
+    , biomeTint        = ImGui.Color (hsvToRgb tintHue 0.6 0.8)
+    , biomeTintPercent = ImGui.InRange tintPct
+    }
+
+-- | Build a color ramp of N stops along the [1, 100] range. The hue stays near
+-- 'baseHue' while saturation and value vary, so the ramp reads as shades of
+-- one color family rather than a rainbow.
+randomColorRamp
+  :: Int    -- ^ Number of stops
+  -> Float  -- ^ Base hue
+  -> Float  -- ^ Saturation centre
+  -> Float  -- ^ Value centre
+  -> IO [(ImGui.InRange 0 100 Int, ImGui.Color)]
+randomColorRamp n baseHue baseSat baseVal = do
+  let stops = [ round (fromIntegral i * (99 :: Double) / fromIntegral (n - 1)) + 1 | i <- [0 .. n - 1] ]
+  forM stops $ \s -> do
+    hOff <- randomRIO (-0.04, 0.04)
+    sOff <- randomRIO (-0.2, 0.1)
+    vOff <- randomRIO (-0.25, 0.15)
+    let h = wrapHue (baseHue + hOff)
+        sat = clamp01 (baseSat + sOff)
+        val = clamp01 (baseVal + vOff)
+    pure (ImGui.InRange s, ImGui.Color (hsvToRgb h sat val))
+
+randomVec3 :: Float -> Float -> IO Vec3
+randomVec3 lo hi = vec3 <$> randomRIO (lo, hi) <*> randomRIO (lo, hi) <*> randomRIO (lo, hi)
+
+clamp01 :: Float -> Float
+clamp01 x = max 0 (min 1 x)
+
+-- | Wrap a hue value into the [0, 1) range.
+wrapHue :: Float -> Float
+wrapHue h = let f = h - fromIntegral (floor h :: Int) in if f < 0 then f + 1 else f
+
+-- | HSV → RGB with all components in [0, 1].
+hsvToRgb :: Float -> Float -> Float -> Vec3
+hsvToRgb h s v =
+  let c = v * s
+      h' = wrapHue h * 6
+      x = c * (1 - abs (fracMod2 h' - 1))
+      m = v - c
+      (r, g, b)
+        | h' < 1 = (c, x, 0)
+        | h' < 2 = (x, c, 0)
+        | h' < 3 = (0, c, x)
+        | h' < 4 = (0, x, c)
+        | h' < 5 = (x, 0, c)
+        | otherwise = (c, 0, x)
+  in vec3 (r + m) (g + m) (b + m)
   where
-    mkColors = map $ \(bnd, WithVec3 rn gn bn) ->
-      (ImGui.InRange bnd, ImGui.Color (vec3 (rn/255) (gn/255) (bn/255)))
+    fracMod2 z = z - 2 * fromIntegral (floor (z / 2) :: Int)
 
