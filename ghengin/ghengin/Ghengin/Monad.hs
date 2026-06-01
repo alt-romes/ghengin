@@ -64,13 +64,17 @@ runGhengin conf@GhenginConf{..} (Ghengin act) =
   Linear.withLinearIO $
     runRenderer (frameWidth, frameHeight) $ Linear.do
 
+      -- Register input streams BEFORE ImGui so that ImGui's GLFW callbacks
+      -- (installed by initImGui) chain on top of ours instead of being clobbered
+      -- by GLFW.setCursorPosCallback / setMouseButtonCallback. Otherwise ImGui
+      -- never sees mouse events and widgets like sliders can't be dragged.
+      Ur ghenginReader <- newGhenginReader conf
+
       -- Init imgui
       mimctx <-
         if enableImGui
           then Just Linear.<$> ImGui.initImGui
           else Linear.pure Nothing
-
-      Ur ghenginReader <- newGhenginReader conf
 
       (x, RenderState{..}) <-
         Linear.runStateT
