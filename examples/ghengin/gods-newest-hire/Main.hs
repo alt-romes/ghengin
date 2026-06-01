@@ -87,8 +87,8 @@ gameStep GameData{..} frameIx imageIx = do
       editMaterial (meshKey2MatKey planetMeshKey) rq $ \mat -> Linear.do
         propertyAt @1 @_ (\tex -> Alias.forget tex Linear.>> planetTexture (planetColor newPlanet)) mat
 
-  handleMouseDrag =<< readMouseDrag
-  maybeSavePlanet =<< readCharInput
+  handleMouseDrag planetMeshKey =<< readMouseDrag
+  handleCharInput newPlanet     =<< readCharInput
 
   -- Render! TODO: Store frameIx and imageIx in RenderState and make
   -- 'renderWith' in Ghengin.Monad for which the continuation already takes the
@@ -110,20 +110,19 @@ gameStep GameData{..} frameIx imageIx = do
 
         Linear.pure rq
 
-  -- Loop!
   return GameData{planet=newPlanet,..}
 
-savePlanet :: Maybe Char -> Ghengin ()
-savePlanet (Just 'p') = liftIO $ do
+handleCharInput :: Planet -> Maybe Char -> Ghengin ()
+handleCharInput newPlanet (Just 'p') = liftIO $ do
   -- Save new planet configuration to file
   time <- getCurrentTime
   let filename = "planet-" ++ show time ++ ".hs"
   writeFile filename (show newPlanet)
-savePlanet  _  = pure ()
+handleCharInput _ _  = pure ()
 
-handleMouseDrag :: Maybe MouseDrag -> Ghengin ()
-handleMouseDrag Nothing = pure ()
-handleMouseDrag (Just (MouseDrag deltaX deltaY)) = do
+handleMouseDrag :: _ => _ -> Maybe MouseDrag -> Ghengin ()
+handleMouseDrag _ Nothing = pure ()
+handleMouseDrag planetMeshKey (Just (MouseDrag deltaX deltaY)) = do
   let sensitivity = 0.002
       yawDelta = -(realToFrac deltaX * sensitivity)
       pitchDelta = realToFrac deltaY * sensitivity
@@ -160,9 +159,9 @@ main = do
 
       Linear.return (Ur mshkey, RenderState{renderQueue=rq2})
 
-    runGameLoop gameStep GameData{planet, planetMeshKey=mshkey}
+    _ <- runGameLoop gameStep GameData{planet, planetMeshKey=mshkey}
 
-  return ()
+    return ()
 
 --------------------------------------------------------------------------------
 

@@ -88,7 +88,6 @@ data RendererPipeline (t :: PipelineType)
 data PipelineType = Graphics | Compute
 
 --------------------------------------------------------------------------------
--- TODO: unfortunately this has to be duplicated in the hsig.
 
 data GraphicsPipelineSettings = GPS
       { cullMode  :: CullMode
@@ -113,7 +112,7 @@ defaultGraphicsPipelineSettings = GPS CullBack BlendNone PolygonFill
 --------------------------------------------------------------------------------
 
 dynamicStates :: V.Vector Vk.DynamicState
-dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT -- TODO: Eventually only the viewport needs to be dynamic right?
+dynamicStates = [ Vk.DYNAMIC_STATE_VIEWPORT
                 , Vk.DYNAMIC_STATE_SCISSOR ]
 
 -- todo: check which depth attachment supported format is best,

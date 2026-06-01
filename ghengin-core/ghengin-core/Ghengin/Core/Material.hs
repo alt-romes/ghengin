@@ -30,15 +30,14 @@ described by two texture2D property bindings and one static property binding
 
 Materials can only be rendered in compatible render pipelines. That is, any set
 of properties given by its bindings describes a material, but to actually
-render it we require a shader pipeline that is compatible (TODO: what is being
-compatible) with the material properties.
+render it we require a shader pipeline that is compatible with the material
+properties.
 
 For example, you might define a material with a color and a light-reflection
 property, but if the shader program knows nothing about lights or colors, then
 that material can't be used in the pipeline created with that shader.
 
-Materials are paired with meshes and pipelines and assigned to entities through
-'RenderPacket'...
+Materials are paired with meshes and pipelines and assigned to entities in a 'RenderQueue'
 
 Move to Note [Property Bindings]:
    * A 'StaticBinding' writes a descriptor set once (or manually every other time) and simply binds it at render time
