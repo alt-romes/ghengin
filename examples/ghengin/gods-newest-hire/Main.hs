@@ -4,6 +4,7 @@
 {-# LANGUAGE PartialTypeSignatures #-}
 {-# LANGUAGE PostfixOperators #-}
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE DuplicateRecordFields #-}
 module Main where
 
 import qualified Ghengin.Core as Core
@@ -36,21 +37,19 @@ import Planet
 import Planet.Noise
 import Planet.UI
 
-data GameData π = GameData
-  { planetMeshKey1  :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
-  , planetMeshKey2  :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
-  , planet          :: Planet
+--------------------------------------------------------------------------------
+
+data Body π = Body
+  { rqkey  :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
+  , planet :: Planet
   }
 
-gameStep :: Linear.KnownNat swpImgs => Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
-         => GameData π
-         -> Linear.Finite FramesInFlight
-         -> Linear.Finite swpImgs
-         -> Ghengin (GameData π)
-gameStep GameData{..} frameIx imageIx = do
+updateBody :: _ => Body π -> Ghengin (Body π)
+updateBody Body{..} = do
 
-  -- Update planet mesh according to UI
-  (newPlanet, changedShape, changedColor) <- liftRenderer (preparePlanetUI planet) -- must happen before the first render
+  (newPlanet, changedShape, changedColor) <- liftRenderer (preparePlanetUI planet)
+
+  -- Update rendered planet if it changed
   when (changedShape || changedColor) $ do
 
     -- Only regen when vertex data must change
@@ -59,7 +58,7 @@ gameStep GameData{..} frameIx imageIx = do
           /= map (.unCollapsible.biomeStartHeight) planet.planetColor.planetBiomes) do
 
       editRenderQueue $ \rq ->
-        editAtMeshesKey planetMeshKey1 rq $ \pipeline mat [(msh, x)] -> Linear.do
+        editAtMeshesKey rqkey rq $ \pipeline mat [(msh, x)] -> Linear.do
           ( (pmesh, pipeline),
             Ur minmax ) <- newPlanetMesh pipeline newPlanet
           mat <- propertyAt @0 @MinMax (\(Ur _) -> Linear.pure (Ur minmax)) mat
@@ -74,13 +73,51 @@ gameStep GameData{..} frameIx imageIx = do
 
     -- On any change
     editRenderQueue $ \rq ->
-      editMaterial (meshKey2MatKey planetMeshKey1) rq $ \mat -> Linear.do
+      editMaterial (meshKey2MatKey rqkey) rq $ \mat -> Linear.do
         propertyAt @1 @_ (\tex -> Alias.forget tex Linear.>> planetTexture (planetColor newPlanet)) mat
 
+
+  return Body{planet=newPlanet,..}
+
+createBody :: _ => Planet -> Transform -> PipelineKey _ _ -> Ghengin (Body _)
+createBody planet tr pkey = do
+  rqkey <- renderState $ \RenderState{..} -> Linear.do
+
+    editAtPipelineKey pkey renderQueue $ \pipeline rm -> Linear.do
+
+      -- TODO: Need a way of inserting the new material and new mesh into the MaterialMap (MeshMap ...)
+
+      ( (pmesh1, pipeline),
+        Ur minmax1 )     <- newPlanetMesh pipeline planet
+      pmesh1             <- propertyAt @0 @Transform
+                              (\(Ur _) -> Linear.pure (Ur tr)) pmesh1
+      (pmat1, pipeline)  <- newPlanetMaterial minmax1 pipeline planet
+
+      let !(rq1, Ur mkey1)   = insertMaterial pkey pmat1 renderQueue
+      let !(rq2, Ur mshkey) = insertMesh mkey1 pmesh1 rq1
+
+      Linear.return ((Ur mshkey, RenderState{renderQueue=rq2}), rm)
+
+  pure Body{rqkey, planet}
+
+--------------------------------------------------------------------------------
+
+data GameData π = GameData
+  { bodies :: [Body π]
+  }
+
+gameStep :: Linear.KnownNat swpImgs => Compatible PlanetMeshVerts PlanetMeshAttrs PlanetMaterialAttrs '[Camera "view_matrix" "proj_matrix"] π
+         => GameData π
+         -> Linear.Finite FramesInFlight
+         -> Linear.Finite swpImgs
+         -> Ghengin (GameData π)
+gameStep GameData{..} frameIx imageIx = do
+
   drag <- readMouseDrag
-  handleMouseDrag planetMeshKey1 drag
-  handleMouseDrag planetMeshKey2 drag
-  handleCharInput newPlanet =<< readCharInput
+  bodies' <- forM bodies $ \body -> do
+    body' <- updateBody body
+    handleMouseDrag body'.rqkey drag
+    return body'
 
   -- Render! TODO: Store frameIx and imageIx in RenderState and make
   -- 'renderWith' in Ghengin.Monad for which the continuation already takes the
@@ -102,15 +139,7 @@ gameStep GameData{..} frameIx imageIx = do
 
         Linear.pure rq
 
-  return GameData{planet=newPlanet,..}
-
-handleCharInput :: Planet -> Maybe Char -> Ghengin ()
-handleCharInput newPlanet (Just 'p') = liftIO $ do
-  -- Save new planet configuration to file
-  time <- getCurrentTime
-  let filename = "planet-" ++ show time ++ ".hs"
-  writeFile filename (show newPlanet)
-handleCharInput _ _  = pure ()
+  return GameData{bodies=bodies',..}
 
 handleMouseDrag :: _ => _ -> Maybe MouseDrag -> Ghengin ()
 handleMouseDrag _ Nothing = pure ()
@@ -138,34 +167,16 @@ main = do
       camera :: Camera "view_matrix" "proj_matrix"
       camera = cameraLookAt (vec3 0 0 (-12){- move camera "back"-}) (vec3 0 0 0) dimensions
 
-    (mshkey1, mshkey2) <- renderState $ \RenderState{..} -> Linear.do
+    pipkey <- renderState $ \RenderState{..} -> Linear.do
 
-      pipeline           <- makeRenderPipeline shaders $
-                              StaticBinding (Ur camera) :## GHNil
-
-      -- First planet (left) — editable via UI
-      ( (pmesh1, pipeline),
-        Ur minmax1 )     <- newPlanetMesh pipeline planet1
-      pmesh1             <- propertyAt @0 @Transform
-                              (\(Ur _) -> Linear.pure (Ur (translate (-3) 0 0))) pmesh1
-      (pmat1, pipeline)  <- newPlanetMaterial minmax1 pipeline planet1
-
-      -- Second planet (right) — fixed, independently random, moon-sized
-      ( (pmesh2, pipeline),
-        Ur minmax2 )     <- newPlanetMesh pipeline planet2
-      pmesh2             <- propertyAt @0 @Transform
-                              (\(Ur _) -> Linear.pure (Ur (translate 3 0 0 <> Tr.scale 0.5))) pmesh2
-      (pmat2, pipeline)  <- newPlanetMaterial minmax2 pipeline planet2
-
+      pipeline <- makeRenderPipeline shaders $ StaticBinding (Ur camera) :## GHNil
       let !(rq0, Ur pkey)    = insertPipeline pipeline renderQueue
-      let !(rq1, Ur mkey1)   = insertMaterial pkey pmat1 rq0
-      let !(rq2, Ur mshkey1) = insertMesh mkey1 pmesh1 rq1
-      let !(rq3, Ur mkey2)   = insertMaterial pkey pmat2 rq2
-      let !(rq4, Ur mshkey2) = insertMesh mkey2 pmesh2 rq3
+      Linear.pure (Ur pkey, RenderState{renderQueue=rq0,..})
 
-      Linear.return (Ur (mshkey1, mshkey2), RenderState{renderQueue=rq4})
+    b1 <- createBody planet1 (translate (-3) 0 0) pipkey
+    b2 <- createBody planet2 (translate 3 0 0 <> Tr.scale 0.5) pipkey
 
-    _ <- runGameLoop gameStep GameData{planet=planet1, planetMeshKey1=mshkey1, planetMeshKey2=mshkey2}
+    _ <- runGameLoop gameStep GameData{bodies = [b1, b2]}
 
     return ()
 
