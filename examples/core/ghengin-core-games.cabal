@@ -100,13 +100,22 @@ common common-flags
 -- Cooler examples
 --------------------------------------------------------------------------------
 
+-- Sebastian Lague's Procedural Planets — shared Planet modules
+library planet
+    import:          common-flags
+    visibility:      public
+    exposed-modules: Planet, Planet.Noise, Planet.UI
+    hs-source-dirs:  planet
+    build-depends:   ghengin:dear-imgui, ghengin:dear-imgui-vulkan, JuicyPixels
+
 -- Sebastian Lague's Procedural Planets
 executable planets-core
     import:         common-flags
     main-is:        Main.hs
-    other-modules:  Planet, Planet.Noise, Planet.UI, Shaders
+    other-modules:  Shaders
     hs-source-dirs: planets-core
-    build-depends:  ghengin:dear-imgui, ghengin:dear-imgui-vulkan, JuicyPixels
+    build-depends:  ghengin:dear-imgui, ghengin:dear-imgui-vulkan,
+                    ghengin-core-games:planet
 
 -- Load and render teapot.obj with blinn-phong
 executable teapot-obj

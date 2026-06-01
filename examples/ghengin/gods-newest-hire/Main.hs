@@ -60,7 +60,7 @@ gameStep :: Linear.KnownNat swpImgs => Compatible PlanetMeshVerts PlanetMeshAttr
 gameStep GameData{..} frameIx imageIx = do
 
   -- Update planet mesh according to UI
-  (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
+  (newPlanet, changedShape, changedColor) <- liftRenderer (preparePlanetUI planet) -- must happen before the first render
   when (changedShape || changedColor) $ do
 
     -- Only regen when vertex data must change
@@ -192,6 +192,16 @@ defaultPlanet = Planet
               }
             }
           ]
+      , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.05 $
+          LayersCoherentNoise
+          { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
+          , baseRoughness = 1.0
+          , roughness     = 2.0
+          , numLayers     = 3
+          , persistence   = 2
+          }
+      , biomeBlendAmount = 0.2
+      , biomeNoiseOffset = 0
       }
   , planetColor = PlanetColor
     { planetBiomes =
@@ -256,16 +266,6 @@ defaultPlanet = Planet
         , biomeTintPercent = 0
         }
       ]
-    , biomesNoise = ImGui.Collapsible $ StrengthenNoise 0.05 $
-        LayersCoherentNoise
-        { centre        = ImGui.WithTooltip $ ImGui.Color $ vec3 0 0 0
-        , baseRoughness = 1.0
-        , roughness     = 2.0
-        , numLayers     = 3
-        , persistence   = 2
-        }
-    , biomeBlendAmount = 0.2
-    , biomeNoiseOffset = 0
     , planetColorsInterpolate = False
     }
   }
