@@ -89,7 +89,7 @@ gameLoop GameData{..} rq = Linear.do
            || P.map (.unCollapsible.biomeStartHeight) newPlanet.planetColor.planetBiomes
               P./= P.map (.unCollapsible.biomeStartHeight) planet.planetColor.planetBiomes
           then Linear.do
-            editAtMeshesKey planetMeshKey rq $ \pipeline mat [(msh, x)] -> Linear.do
+            (rq', ()) <- editAtMeshesKey planetMeshKey rq $ \pipeline mat [(msh, x)] -> Linear.do
               ( (pmesh, pipeline),
                 Ur minmax ) <- newPlanetMesh pipeline newPlanet
               mat <- propertyAt @0 @MinMax (\(Ur _) -> pure (Ur minmax)) mat
@@ -100,7 +100,8 @@ gameLoop GameData{..} rq = Linear.do
 
               pmesh' <- propertyAt @0 @Transform (\(Ur _) -> pure (Ur old_tr)) pmesh
 
-              return (pipeline, (mat, [(pmesh', x)]))
+              return (pipeline, mat, [(pmesh', x)], ())
+            return rq'
           else
             return rq
 

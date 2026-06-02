@@ -57,8 +57,8 @@ updateBody Body{..} = do
        || map (.unCollapsible.biomeStartHeight) newPlanet.planetColor.planetBiomes
           /= map (.unCollapsible.biomeStartHeight) planet.planetColor.planetBiomes) do
 
-      editRenderQueue $ \rq ->
-        editAtMeshesKey rqkey rq $ \pipeline mat [(msh, x)] -> Linear.do
+      editRenderQueue $ \rq -> Linear.do
+        (rq, ()) <- editAtMeshesKey rqkey rq $ \pipeline mat [(msh, x)] -> Linear.do
           ( (pmesh, pipeline),
             Ur minmax ) <- newPlanetMesh pipeline newPlanet
           mat <- propertyAt @0 @MinMax (\(Ur _) -> Linear.pure (Ur minmax)) mat
@@ -69,7 +69,8 @@ updateBody Body{..} = do
 
           pmesh' <- propertyAt @0 @Transform (\(Ur _) -> Linear.pure (Ur old_tr)) pmesh
 
-          Linear.pure (pipeline, (mat, [(pmesh', x)]))
+          Linear.pure (pipeline, mat, [(pmesh', x)], ())
+        Linear.pure rq
 
     -- On any change
     editRenderQueue $ \rq ->
@@ -83,20 +84,19 @@ createBody :: _ => Planet -> Transform -> PipelineKey _ _ -> Ghengin (Body _)
 createBody planet tr pkey = do
   rqkey <- renderState $ \RenderState{..} -> Linear.do
 
-    editAtPipelineKey pkey renderQueue $ \pipeline rm -> Linear.do
+    (rq0, (pmat, pmesh)) <- editAtPipelineKey pkey renderQueue $ \pipeline matmap -> Linear.do
 
-      -- TODO: Need a way of inserting the new material and new mesh into the MaterialMap (MeshMap ...)
+      ( (pmesh, pipeline),
+        Ur minmax )     <- newPlanetMesh pipeline planet
+      pmesh             <- propertyAt @0 @Transform
+                              (\(Ur _) -> Linear.pure (Ur tr)) pmesh
+      (pmat, pipeline)  <- newPlanetMaterial minmax pipeline planet
+      Linear.return (pipeline, matmap, (pmat, pmesh))
 
-      ( (pmesh1, pipeline),
-        Ur minmax1 )     <- newPlanetMesh pipeline planet
-      pmesh1             <- propertyAt @0 @Transform
-                              (\(Ur _) -> Linear.pure (Ur tr)) pmesh1
-      (pmat1, pipeline)  <- newPlanetMaterial minmax1 pipeline planet
+    let !(rq1, Ur matkey) = insertMaterial pkey pmat rq0
+    let !(rq2, Ur mshkey) = insertMesh matkey pmesh rq1
 
-      let !(rq1, Ur mkey1)   = insertMaterial pkey pmat1 renderQueue
-      let !(rq2, Ur mshkey) = insertMesh mkey1 pmesh1 rq1
-
-      Linear.return ((Ur mshkey, RenderState{renderQueue=rq2}), rm)
+    Linear.return (Ur mshkey, RenderState{renderQueue=rq2})
 
   pure Body{rqkey, planet}
 

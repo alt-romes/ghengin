@@ -38,7 +38,7 @@ import Data.Unique
 import Data.Typeable
 import Data.Map (Map)
 import qualified Data.Map as M
-import qualified Data.Map.Linear as ML
+import Data.Map.Linear ()
 import qualified FIR.Pipeline
 import Data.Kind
 
@@ -121,20 +121,28 @@ insertMaterial :: forall π p m a. CompatibleMaterial m π
                 ⊸ (RenderQueue a, Ur (MaterialKey π p m))
 insertMaterial (UnsafePipelineKey pkey)
   = Unsafe.toLinear2 \mat0 (RenderQueue q) -> -- unsafe bc of map insert
-    let (Ur muid,mat1) = materialUID mat0
-        rq' =
-          M.alter
-            (\case
-              Nothing -> error "pipeline not found!"
-              Just (p, mats) -> Just $
-                (p, M.insertWith (\_ _ -> error "Inserting a duplicate material??")
-                      muid
-                      (Some mat1, M.empty)
-                      mats)
-            )
-            pkey
-            q
-     in (RenderQueue rq', Ur $ UnsafeMaterialKey muid (UnsafePipelineKey pkey))
+    case M.lookup pkey q of
+      Nothing -> error "pipeline not found!"
+      Just (p, mats) ->
+        let (mats', Ur mkey) = insertMaterialMap (UnsafePipelineKey pkey) mat0 M.empty mats
+            rq' = M.insert pkey (p, mats') q
+         in (RenderQueue rq', Ur mkey)
+
+-- | Inserts a material together with its 'MeshMap' into a 'MaterialMap',
+-- returning the new map and the 'MaterialKey' identifying the inserted
+-- material under the given pipeline.
+insertMaterialMap :: PipelineKey π p
+                  -> Material m
+                   ⊸ MeshMap a
+                   ⊸ MaterialMap (MeshMap a)
+                   ⊸ (MaterialMap (MeshMap a), Ur (MaterialKey π p m))
+insertMaterialMap pkey = Unsafe.toLinear3 \mat0 meshes mats ->
+  let (Ur muid, mat1) = materialUID mat0
+      mats' = M.insertWith (\_ _ -> error "Inserting a duplicate material??")
+                muid
+                (Some mat1, meshes)
+                mats
+   in (mats', Ur (UnsafeMaterialKey muid pkey))
 
 insertMesh :: forall π p ma me vs
             . Compatible vs me ma p π
@@ -147,22 +155,29 @@ insertMesh :: forall π p ma me vs
             ⊸ (RenderQueue (), Ur (MeshKey π p ma vs me))
 insertMesh (UnsafeMaterialKey mkey (UnsafePipelineKey pkey))
   = Unsafe.toLinear2 \mesh0 (RenderQueue q) -> -- unsafe bc of map insert
-    let (Ur meid, mesh) = meshId mesh0
-        rq = M.alter (\case
-                Nothing -> error "pipeline not found!"
-                Just (p, mats) -> Just $
-                  (p, M.alter (\case
-                          Nothing -> error "material not found??"
-                          Just (mat, meshes) -> Just $
-                            (mat, M.insertWith (\a b -> a ++ b) meid [(Some2 mesh, ())] meshes)
-                          )
-                        mkey
-                        mats
-                  )
-              )
-              pkey
-              q
-     in (RenderQueue rq, Ur $ UnsafeMeshKey meid (UnsafeMaterialKey mkey (UnsafePipelineKey pkey)))
+    case M.lookup pkey q of
+      Nothing -> error "pipeline not found!"
+      Just (p, mats) ->
+        case M.lookup mkey mats of
+          Nothing -> error "material not found??"
+          Just (mat, meshes) ->
+            let matKey = UnsafeMaterialKey mkey (UnsafePipelineKey pkey)
+                (meshes', Ur mshKey) = insertMeshMap matKey mesh0 meshes
+                mats' = M.insert mkey (mat, meshes') mats
+                rq    = M.insert pkey (p, mats') q
+             in (RenderQueue rq, Ur mshKey)
+
+-- | Inserts a mesh into a 'MeshMap', returning the new map and the 'MeshKey'
+-- identifying the inserted mesh under the given material. Multiple meshes can
+-- share the same id (they are appended to the list at that key).
+insertMeshMap :: MaterialKey π p ma
+              -> Mesh vs me
+               ⊸ MeshMap ()
+               ⊸ (MeshMap (), Ur (MeshKey π p ma vs me))
+insertMeshMap mkey = Unsafe.toLinear2 \mesh0 meshes ->
+  let (Ur meid, mesh) = meshId mesh0
+      meshes' = M.insertWith (\a b -> a ++ b) meid [(Some2 mesh, ())] meshes
+   in (meshes', Ur (UnsafeMeshKey meid mkey))
 
 --------------------------------------------------------------------------------
 
@@ -171,20 +186,22 @@ editPipeline :: PipelineKey π p
              -> RenderQueue ()
               ⊸ (RenderPipeline π p ⊸ Renderer (RenderPipeline π p))
               ⊸ Renderer (RenderQueue ())
-editPipeline pkey rq edit =
-  editAtPipelineKey pkey rq $ \pip mat_map -> Linear.do
+editPipeline pkey rq edit = Linear.do
+  (rq', ()) <- editAtPipelineKey pkey rq $ \pip mat_map -> Linear.do
     pip' <- edit pip
-    return (pip', mat_map)
+    return (pip', mat_map, ())
+  return rq'
 
 -- | Edit a material in a render queue typically using the @propertyAt@ lens
 editMaterial :: MaterialKey π p ma
              -> RenderQueue ()
               ⊸ (Material ma ⊸ Renderer (Material ma))
               ⊸ Renderer (RenderQueue ())
-editMaterial mkey rq edit =
-  editAtMaterialKey mkey rq $ \pip mat mesh_map -> Linear.do
+editMaterial mkey rq edit = Linear.do
+  (rq', ()) <- editAtMaterialKey mkey rq $ \pip mat mesh_map -> Linear.do
     mat' <- edit mat
-    return (pip, (mat', mesh_map))
+    return (pip, mat', mesh_map, ())
+  return rq'
 
 -- | Edit all the meshes matching this mesh key in a render queue typically
 -- using the @propertyAt@ lens.
@@ -193,10 +210,11 @@ editMeshes :: MeshKey π p ma va me
            -> RenderQueue ()
             ⊸ ([Mesh va me] ⊸ Renderer [Mesh va me])
             ⊸ Renderer (RenderQueue ())
-editMeshes key rq edit =
-  editAtMeshesKey key rq $ \pip mat ls -> Linear.do
+editMeshes key rq edit = Linear.do
+  (rq', ()) <- editAtMeshesKey key rq $ \pip mat ls -> Linear.do
     ls' <- map (,()) <$> edit (map (\(x,()) -> x) ls)
-    return (pip, (mat, ls'))
+    return (pip, mat, ls', ())
+  return rq'
 
 --------------------------------------------------------------------------------
 
@@ -207,47 +225,49 @@ editMeshes key rq edit =
 editAtMeshesKey
   :: MeshKey π p ma va me
   -> RenderQueue ()
-   ⊸ (RenderPipeline π p ⊸ Material ma ⊸ [(Mesh va me, ())] ⊸ Renderer (RenderPipeline π p, (Material ma, [(Mesh va me, ())])))
+   ⊸ (RenderPipeline π p ⊸ Material ma ⊸ [(Mesh va me, ())] ⊸ Renderer (RenderPipeline π p, Material ma, [(Mesh va me, ())], b))
    -- ^ Changing the render pipeline or material will modify them for all things under it still
-   ⊸ Renderer (RenderQueue ())
+   ⊸ Renderer (RenderQueue (), b)
 editAtMeshesKey (UnsafeMeshKey meid mkey) rq edit =
   editAtMaterialKey mkey rq $ Unsafe.toLinear3 \pip mat meshmap ->
     case M.lookup meid meshmap of
       Nothing -> error "mesh key not in rq" edit
       Just meshes -> Linear.do
          -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
-         (pip', (mat', meshes')) <- edit pip mat (map (\(Some2 m, a) -> (Unsafe.coerce m, a)) meshes)
+         (pip', mat', meshes', b) <- edit pip mat (map (\(Some2 m, a) -> (Unsafe.coerce m, a)) meshes)
          let !meshmap' = Unsafe.toLinear3 M.insert {-override-} meid (map (\(x,y) -> (Some2 x, y)) meshes') meshmap
-         return (pip', (mat', meshmap'))
+         return (pip', mat', meshmap', b)
 
 editAtMaterialKey
   :: MaterialKey π p ma
   -> RenderQueue ()
-   ⊸ (RenderPipeline π p ⊸ Material ma ⊸ MeshMap () ⊸ Renderer (RenderPipeline π p, (Material ma, MeshMap ())))
+   ⊸ (RenderPipeline π p ⊸ Material ma ⊸ MeshMap () ⊸ Renderer (RenderPipeline π p, Material ma, MeshMap (), b))
    -- ^ Changing the render pipeline or material will modify them for all things under it still
-   ⊸ Renderer (RenderQueue ())
+   ⊸ Renderer (RenderQueue (), b)
 editAtMaterialKey (UnsafeMaterialKey mkey pkey) rq edit =
   editAtPipelineKey pkey rq $ Unsafe.toLinear2 \pip mats ->
     case M.lookup mkey mats of
       Nothing -> error "impossible: material key not in rq" edit
       Just (Some mat, meshes) -> Linear.do
         -- Key guarantees unsafe coerce is safe, since this is the "right" material for that material type
-        (pip', (mat', ms)) <- edit pip (Unsafe.coerce mat) meshes
+        (pip', mat', ms, b) <- edit pip (Unsafe.coerce mat) meshes
         let !mats' = Unsafe.toLinear3 M.insert {- we want to override old value -} mkey (Some mat', ms) mats
-        return (pip', mats')
+        return (pip', mats', b)
 
 editAtPipelineKey
   :: PipelineKey π p
   -> RenderQueue ()
-   ⊸ (RenderPipeline π p ⊸ MaterialMap (MeshMap ()) ⊸ Renderer (RenderPipeline π p, MaterialMap (MeshMap ())))
-   ⊸ Renderer (RenderQueue ())
-editAtPipelineKey (UnsafePipelineKey pkey) (RenderQueue q) edit = RenderQueue <$>
-  ML.alterF (\case Nothing -> error "pipeline key not in rq" edit
-                   Just (Some2 rp, materials) ->
-                     -- Key guarantees the type of the pipeline at that key is the same,
-                     -- so this is safe
-                     (\(x, ms) -> Just (Some2 x, ms)) <$> edit (Unsafe.coerce rp) materials
-            ) pkey q
+   ⊸ (RenderPipeline π p ⊸ MaterialMap (MeshMap ()) ⊸ Renderer (RenderPipeline π p, MaterialMap (MeshMap ()), b))
+   ⊸ Renderer (RenderQueue (), b)
+editAtPipelineKey (UnsafePipelineKey pkey) = Unsafe.toLinear2 \(RenderQueue q) edit ->
+  case M.lookup pkey q of
+    Nothing -> error "pipeline key not in rq" edit
+    Just (Some2 rp, materials) -> Linear.do
+      -- Key guarantees the type of the pipeline at that key is the same,
+      -- so this is safe
+      (rp', materials', b) <- edit (Unsafe.coerce rp) materials
+      let !q' = Unsafe.toLinear3 M.insert pkey (Some2 rp', materials') q
+      return (RenderQueue q', b)
 
 --------------------------------------------------------------------------------
 
