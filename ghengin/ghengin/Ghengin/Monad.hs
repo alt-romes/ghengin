@@ -138,8 +138,17 @@ newRenderFrame k = Ghengin $ ReaderT $ \gr -> UrT $ Linear.StateT $ \s ->
          -> Renderer (Ur a, RenderState)
       go ff si =
         let inner = Linear.runStateT (runUrT (runReaderT (unGhengin (k ff si)) gr)) s
-         in if gr.conf.enableImGui then ImGui.withNewFrame inner else inner
+         in Linear.do
+          if gr.conf.enableImGui
+            then Linear.liftIO ImGui.registerNewFrame
+            else Linear.pure () -- register new imgui frame
+          inner
    in newFrame go
+
+-- | Prepares the ImGui data to be rendered by the current frame's 'renderDrawData' render pass command.
+-- This MUST be called before 'renderDrawData' and after all the immediate mode commands.
+renderImGuiData :: Ghengin ()
+renderImGuiData = liftRenderer (Ur () Linear.<$ Linear.liftIO ImGui.imguiRender )
 
 --------------------------------------------------------------------------------
 -- On Renderer

@@ -162,11 +162,7 @@ renderDrawData = unsafeRenderCmd_ $ \b -> do
   dd <- IM.getDrawData
   IM.vulkanRenderDrawData dd b Nothing -- this Maybe Pipeline might serve for vertex processing on top of imgui
 
---------------------------------------------------------------------------------
--- * Internals that may eventually be useful
---------------------------------------------------------------------------------
-
--- | Register the start of a new frame
+-- | Register the start of a new frame for dear-imgui
 registerNewFrame :: MonadIO m => m ()
 registerNewFrame = Linear.do
   liftSystemIO IM.glfwNewFrame
@@ -176,6 +172,8 @@ registerNewFrame = Linear.do
 -- | Make dear-imgui calculate the draw structures that will be rendered on the
 -- 'renderDrawData' render pass command. This will use all the immediate mode
 -- commands you used before. (i.e. @ImGui::Render()@)
+--
+-- Note: This MUST be called before 'renderDrawData' in the same frame, after all UI commands.
 imguiRender :: MonadIO m => m ()
 imguiRender = liftSystemIO IM.render
 

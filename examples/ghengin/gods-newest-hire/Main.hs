@@ -122,6 +122,8 @@ gameStep GameData{..} frameIx imageIx = do
     handleMouseDrag body'.rqkey drag
     return body'
 
+  renderImGuiData
+
   -- Render! TODO: Store frameIx and imageIx in RenderState and make
   -- 'renderWith' in Ghengin.Monad for which the continuation already takes the
   -- render queue
@@ -160,8 +162,7 @@ dimensions = (1920, 1080)
 
 main :: IO ()
 main = do
-  -- TODO: Read ghenginConf from optparse options
-  planets <- mapM (const randomPlanet) [1..10]
+  planets <- mapM (const randomPlanet) [1..3]
 
   runGhengin defaultGhenginConf{frameWidth=fst dimensions, frameHeight=snd dimensions} $ do
 
