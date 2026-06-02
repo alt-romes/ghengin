@@ -181,6 +181,12 @@ executable simple-cube
     other-modules: Shaders
     hs-source-dirs: simple-cube/
 
+executable propertyat-mesh-bug-min
+    import:        common-flags
+    main-is:       Main.hs
+    other-modules: Shaders
+    hs-source-dirs: propertyat-mesh-bug/
+
 executable simple-camera
     import:        common-flags
     build-depends: template-haskell

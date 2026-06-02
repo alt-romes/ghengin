@@ -68,8 +68,14 @@ updateBody Body{..} = do
 
           -- Re-use old transform and free old mesh
           let !(DynamicBinding (Ur old_tr), msh') = puncons msh
+          Linear.liftSystemIO $ print rqkey
+          Linear.liftSystemIO $ print old_tr
           freeMesh msh'
 
+          -- TODO: something weird is happening. when this is set for the
+          -- second planet, the first planet gets the transform of the second
+          -- one as well. like as if writing to the last one writes all
+          -- previous buffers as well? but why are they unique initially?
           pmesh' <- propertyAt @0 @Transform (\(Ur _) -> Linear.pure (Ur old_tr)) pmesh
 
           Linear.pure (pipeline, mat, [(pmesh', x)], ())
@@ -79,7 +85,6 @@ updateBody Body{..} = do
     editRenderQueue $ \rq ->
       editMaterial (meshKey2MatKey rqkey) rq $ \mat -> Linear.do
         propertyAt @1 @_ (\tex -> Alias.forget tex Linear.>> planetTexture (planetColor newPlanet)) mat
-
 
   return Body{planet=newPlanet,..}
 
@@ -119,7 +124,7 @@ gameStep GameData{..} frameIx imageIx = do
   drag <- readMouseDrag
   bodies' <- forM bodies $ \body -> do
     body' <- updateBody body
-    handleMouseDrag body'.rqkey drag
+    -- handleMouseDrag body'.rqkey drag
     return body'
 
   renderImGuiData
@@ -207,7 +212,7 @@ randomPlanetShape = do
   biomesN <- randomBiomesNoise
   blend   <- jitter 0.2 0.05
   pure PlanetShape
-    { planetResolution = ImGui.InRange 65
+    { planetResolution = ImGui.InRange 10
     , planetRadius     = ImGui.InRange radius
     , planetNoise      = ImGui.Collapsible $ AddNoiseMasked [mask, ridges]
     , biomesNoise      = ImGui.Collapsible biomesN

@@ -75,11 +75,20 @@ instance Monoid (RenderQueue α) where
 type PipelineKey :: FIR.Pipeline.PipelineInfo -> [Type] -> Type
 data PipelineKey π p = UnsafePipelineKey !Unique
 
+instance Prelude.Show (PipelineKey π p) where
+  show (UnsafePipelineKey u) = "PipelineKey " Prelude.++ Prelude.show (hashUnique u)
+
 type MaterialKey :: FIR.Pipeline.PipelineInfo -> [Type] -> [Type] -> Type
 data MaterialKey π p ma = UnsafeMaterialKey !Unique !(PipelineKey π p)
 
+instance Prelude.Show (MaterialKey π p ma) where
+  show (UnsafeMaterialKey u pk) = "MaterialKey " Prelude.++ Prelude.show (hashUnique u) Prelude.++ " (" Prelude.++ Prelude.show pk Prelude.++ ")"
+
 type MeshKey :: FIR.Pipeline.PipelineInfo -> [Type] -> [Type] -> [Type] -> [Type] -> Type
 data MeshKey π p ma vertexAttributes meshProperties = UnsafeMeshKey !Unique !(MaterialKey π p ma)
+
+instance Prelude.Show (MeshKey π p ma va mp) where
+  show (UnsafeMeshKey u mk) = "MeshKey " Prelude.++ Prelude.show (hashUnique u) Prelude.++ " (" Prelude.++ Prelude.show mk Prelude.++ ")"
 
 meshKey2MatKey :: MeshKey π p ma va mma -> MaterialKey π p ma
 meshKey2MatKey (UnsafeMeshKey _ k) = k
