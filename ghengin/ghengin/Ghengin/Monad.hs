@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-name-shadowing #-}
 module Ghengin.Monad where
 
@@ -135,7 +136,9 @@ newRenderFrame k = Ghengin $ ReaderT $ \gr -> UrT $ Linear.StateT $ \s ->
          => Linear.Finite FramesInFlight
          -> Linear.Finite swpcImgs
          -> Renderer (Ur a, RenderState)
-      go ff si = Linear.runStateT (runUrT (runReaderT (unGhengin (k ff si)) gr)) s
+      go ff si =
+        let inner = Linear.runStateT (runUrT (runReaderT (unGhengin (k ff si)) gr)) s
+         in if gr.conf.enableImGui then ImGui.withNewFrame inner else inner
    in newFrame go
 
 --------------------------------------------------------------------------------

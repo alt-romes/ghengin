@@ -106,7 +106,7 @@ library planet
     visibility:      public
     exposed-modules: Planet, Planet.Noise, Planet.UI
     hs-source-dirs:  planet
-    build-depends:   ghengin:dear-imgui, ghengin:dear-imgui-vulkan, JuicyPixels
+    build-depends:   ghengin:dear-imgui, ghengin:dear-imgui-vulkan, JuicyPixels, text
 
 -- Sebastian Lague's Procedural Planets
 executable planets-core

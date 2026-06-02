@@ -16,6 +16,7 @@ import Geomancy.Vec3
 import Ghengin.Core.Mesh
 import System.Random
 import qualified Ghengin.Core.Prelude as Linear
+import qualified Data.Text as Text
 import Ghengin.Core.Render
 import Ghengin.Core.Render.Pipeline
 import Ghengin.Core.Render.Property
@@ -42,12 +43,14 @@ import Planet.UI
 data Body π = Body
   { rqkey  :: MeshKey π '[Camera "view_matrix" "proj_matrix"] PlanetMaterialAttrs PlanetMeshVerts PlanetMeshAttrs
   , planet :: Planet
+  , bodyIx :: Int
   }
 
 updateBody :: _ => Body π -> Ghengin (Body π)
 updateBody Body{..} = do
 
-  (newPlanet, changedShape, changedColor) <- liftRenderer (preparePlanetUI planet)
+  (newPlanet, changedShape, changedColor) <-
+    liftRenderer (preparePlanetUI (Text.pack ("Planet " <> show bodyIx)) planet)
 
   -- Update rendered planet if it changed
   when (changedShape || changedColor) $ do
@@ -80,8 +83,8 @@ updateBody Body{..} = do
 
   return Body{planet=newPlanet,..}
 
-createBody :: _ => Planet -> Transform -> PipelineKey _ _ -> Ghengin (Body _)
-createBody planet tr pkey = do
+createBody :: _ => Int -> Planet -> Transform -> PipelineKey _ _ -> Ghengin (Body _)
+createBody bodyIx planet tr pkey = do
   rqkey <- renderState $ \RenderState{..} -> Linear.do
 
     (rq0, (pmat, pmesh)) <- editAtPipelineKey pkey renderQueue $ \pipeline matmap -> Linear.do
@@ -98,7 +101,7 @@ createBody planet tr pkey = do
 
     Linear.return (Ur mshkey, RenderState{renderQueue=rq2})
 
-  pure Body{rqkey, planet}
+  pure Body{rqkey, planet, bodyIx}
 
 --------------------------------------------------------------------------------
 
@@ -158,8 +161,7 @@ dimensions = (1920, 1080)
 main :: IO ()
 main = do
   -- TODO: Read ghenginConf from optparse options
-  planet1 <- randomPlanet
-  planet2 <- randomPlanet
+  planets <- mapM (const randomPlanet) [1..10]
 
   runGhengin defaultGhenginConf{frameWidth=fst dimensions, frameHeight=snd dimensions} $ do
 
@@ -173,10 +175,11 @@ main = do
       let !(rq0, Ur pkey)    = insertPipeline pipeline renderQueue
       Linear.pure (Ur pkey, RenderState{renderQueue=rq0,..})
 
-    b1 <- createBody planet1 (translate (-3) 0 0) pipkey
-    b2 <- createBody planet2 (translate 3 0 0 <> Tr.scale 0.5) pipkey
+    -- Space planets evenly along the X axis and make every other one smaller so they look more
+    bs <- forM (zip planets [0..]) $ \(planet, i) -> do
+      createBody i planet (translate (fromIntegral i * 6 - 3) 0 0 <> if even i then Tr.scale 1 else Tr.scale 0.5) pipkey
 
-    _ <- runGameLoop gameStep GameData{bodies = [b1, b2]}
+    _ <- runGameLoop gameStep GameData{bodies = bs}
 
     return ()
 

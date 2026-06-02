@@ -98,5 +98,5 @@ executable gods-newest-hire
     hs-source-dirs: gods-newest-hire
     build-depends:  ghengin:dear-imgui, ghengin:dear-imgui-vulkan, ghengin,
                     ghengin-core-games:planet,
-                    JuicyPixels, monad-bayes, random
+                    JuicyPixels, monad-bayes, random, text
 

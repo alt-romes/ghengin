@@ -30,7 +30,7 @@ gameLoop rq = Linear.do
   pollWindowEvents
 
   -- Prepare Imgui data
-  ImGui.withNewFrame $ do
+  ImGui.withNewFrame $ liftSystemIO $ do
 
     ImGui.showDemoWindow
 
