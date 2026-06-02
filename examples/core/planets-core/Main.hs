@@ -78,8 +78,9 @@ gameLoop GameData{..} rq = Linear.do
  if should_close then return rq else Linear.do
   (pollWindowEvents)
 
-  -- Update planet mesh according to UI
-  Ur (newPlanet, changedShape, changedColor) <- preparePlanetUI planet -- must happen before the first render
+  Ur (newPlanet, changedShape, changedColor) <-
+    ImGui.withNewFrame (preparePlanetUI "Planet" planet)
+
   rq <-
     if changedShape || changedColor then Linear.do
 

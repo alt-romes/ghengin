@@ -143,11 +143,16 @@ destroyImCtx = Unsafe.toLinear $ \(IMCtx pool imCtx initRes) -> Linear.do
 --        ImGui.renderDrawData
 --   loop
 -- @
-withNewFrame :: MonadIO n => Prelude.IO () -> n ()
-withNewFrame do_it = Linear.do
+-- | Bracket an action with 'registerNewFrame' before and 'imguiRender' after,
+-- so any ImGui UI submitted inside the action lands in the current frame's
+-- draw data. Works with both 'Renderer' and 'Linear.IO' (or any 'MonadIO').
+-- 'registerNewFrame' must be called exactly once per rendered frame
+withNewFrame :: MonadIO n => n a %1 -> n a
+withNewFrame act = Linear.do
   registerNewFrame
-  liftSystemIO do_it
+  a <- act
   imguiRender
+  Linear.pure a
 
 -- | This needs to be called as part of a custom render pass to draw the data
 -- prepared by 'imguiRender'. See 'Ghengin.Core.renderWith'. An example usage
