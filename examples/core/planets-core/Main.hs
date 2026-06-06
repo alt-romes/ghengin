@@ -154,7 +154,7 @@ gameLoop GameData{..} rq = Linear.do
   gameLoop GameData{planet=newPlanet,..} rq
 
 dimensions :: Num a => (a, a)
-dimensions = (1920, 1080)
+dimensions = (1280, 720)
 
 main :: P.IO ()
 main = do

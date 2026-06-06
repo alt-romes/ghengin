@@ -27,7 +27,7 @@ import Ghengin.Core
 import Ghengin.Core.Shader.Data
 import Ghengin.Core.Mesh
 import Ghengin.Core.Material
-import Ghengin.Core.Prelude as Linear
+import Ghengin.Core.Prelude as Linear hiding (Eq(..))
 import Ghengin.Core.Render
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Pipeline
@@ -39,6 +39,8 @@ import qualified Data.Monoid.Linear as LMon
 import qualified Prelude
 import qualified Math.Linear as FIR
 import qualified FIR
+import Control.Concurrent
+import Control.Exception
 
 import Shaders
 
@@ -86,6 +88,13 @@ forceRegenerate tag key rq = Linear.do
     freeMesh msh'
 
     newMesh <- propertyAt @0 @Transform (\(Ur _) -> pure (Ur old_tr)) newMesh
+
+    let !(DynamicBinding (Ur new_tr), msh') = puncons newMesh
+    Linear.liftSystemIO $ Prelude.putStrLn
+      ("[" Prelude.++ tag Prelude.++ "] new_tr=" Prelude.++ Prelude.show new_tr)
+
+    let newMesh = pcons (DynamicBinding (Ur new_tr)) msh'
+
     Linear.pure (pipeline, mat, [(newMesh, x)], ())
   Linear.pure rq
 
@@ -106,10 +115,10 @@ gameLoop frameRef kA kB rq = Linear.do
         liftSystemIO (Prelude.putStrLn "=== regen A (first) ===")
         forceRegenerate "regen A" kA rq
       60  -> Linear.do
-        liftSystemIO (Prelude.putStrLn "=== regen B — watch A's GPU buffer get clobbered ===")
+        liftSystemIO (Prelude.putStrLn "=== regen B ===")
         forceRegenerate "regen B" kB rq
       90  -> Linear.do
-        liftSystemIO (Prelude.putStrLn "=== regen A again — old_tr should still be A's leftTr ===")
+        liftSystemIO (Prelude.putStrLn "=== regen A ===")
         forceRegenerate "regen A" kA rq
       _   -> Linear.pure rq
 
@@ -122,6 +131,13 @@ instance ShaderData Transform where
 
 main :: Prelude.IO ()
 main = do
+  x <- newEmptyMVar
+  forkOS $ do
+    main' `finally` putMVar x ()
+  takeMVar x
+
+main' :: Prelude.IO ()
+main' = do
   frameRef <- Data.IORef.newIORef 0
   withLinearIO $
     runRenderer (640, 640) Linear.do
@@ -138,6 +154,11 @@ main = do
       (rq, Ur mkey) <- pure (insertMaterial pkey emptyMat rq)
       (rq, Ur kA)   <- pure (insertMesh mkey meshA rq)
       (rq, Ur kB)   <- pure (insertMesh mkey meshB rq)
+      liftSystemIO (Prelude.putStrLn "=== initial state ===")
+      liftSystemIO (Prelude.putStrLn "=== regen A (initial) ===")
+      liftSystemIO (Prelude.print leftTr)
+      liftSystemIO (Prelude.putStrLn "=== regen B (initial) ===")
+      liftSystemIO (Prelude.print rightTr)
 
       rq <- gameLoop frameRef kA kB rq
 

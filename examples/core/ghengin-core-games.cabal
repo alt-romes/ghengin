@@ -51,7 +51,7 @@ common common-flags
     ghc-options: -O2
     cc-options: -O2
 
-  ghc-options: -Wall -Wno-partial-type-signatures
+  ghc-options: -Wall -Wno-partial-type-signatures -threaded
 
   default-extensions: UnicodeSyntax,
                       MultiParamTypeClasses,

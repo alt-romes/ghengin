@@ -9,6 +9,7 @@ mkShell ({
     pkg-config
     zlib
     glfw
+    gdb
     # SDL2 # optionally, for debugging FIR. We don't support SDL2 yet
     vulkan-headers
     vulkan-loader
