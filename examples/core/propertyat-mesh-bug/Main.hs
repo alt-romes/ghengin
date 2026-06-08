@@ -27,7 +27,7 @@ import Ghengin.Core
 import Ghengin.Core.Shader.Data
 import Ghengin.Core.Mesh
 import Ghengin.Core.Material
-import Ghengin.Core.Prelude as Linear hiding (Eq(..))
+import Ghengin.Core.Prelude as Linear
 import Ghengin.Core.Render
 import Ghengin.Core.Render.Property
 import Ghengin.Core.Render.Pipeline
@@ -39,8 +39,6 @@ import qualified Data.Monoid.Linear as LMon
 import qualified Prelude
 import qualified Math.Linear as FIR
 import qualified FIR
-import Control.Concurrent
-import Control.Exception
 
 import Shaders
 
@@ -131,13 +129,6 @@ instance ShaderData Transform where
 
 main :: Prelude.IO ()
 main = do
-  x <- newEmptyMVar
-  forkOS $ do
-    main' `finally` putMVar x ()
-  takeMVar x
-
-main' :: Prelude.IO ()
-main' = do
   frameRef <- Data.IORef.newIORef 0
   withLinearIO $
     runRenderer (640, 640) Linear.do
