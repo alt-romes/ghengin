@@ -33,7 +33,7 @@ import qualified Data.IntMap.Linear as IML
 import qualified Data.V.Linear as VL
 
 import qualified Vulkan.CStruct.Extends as Vk
-import qualified Vulkan.Linear as Vk
+import qualified Vulkan as Vk
 
 import Ghengin.Vulkan.Renderer.Buffer
 import Ghengin.Vulkan.Renderer.Image
@@ -74,6 +74,22 @@ data DescriptorSet
   = DescriptorSet { _ix :: Int
                   , _descriptorSet :: Vk.DescriptorSet
                   }
+
+-- | Local linear wrapper over 'Vk.allocateDescriptorSets' that keeps the old
+-- @V n a@-shaped signature (previously provided by the deleted Vulkan.Linear).
+allocateDescriptorSets
+  :: forall io n. Linear.MonadIO io
+  => Vk.DescriptorPool
+   ⊸ V n Vk.DescriptorSetLayout -- ^ Do we need to free this dset before these layouts, or not? I think not, otherwise the documentation would say so
+   ⊸ Vk.Device
+   ⊸ io ( ( "descriptorSets" Vk.::: V n Vk.DescriptorSet
+          , V n Vk.DescriptorSetLayout
+          , Vk.DescriptorPool )
+        , Vk.Device )
+allocateDescriptorSets
+  = Unsafe.toLinear3 \pool (V layouts) dev ->
+      (,dev) . (,V @n layouts,pool) . V @n
+        <$> liftSystemIO (Vk.allocateDescriptorSets dev Vk.DescriptorSetAllocateInfo{descriptorPool = pool, setLayouts = layouts, next=()})
 
 -- | Allocate a descriptor set from a descriptor pool. This descriptor pool has
 -- the information required to allocate a descriptor set based on its index in
@@ -124,7 +140,7 @@ allocateEmptyDescriptorSets ixs DescriptorPool{..} = enterD "allocateEmptyDescri
 
   -- Allocate the descriptor sets
   (dsets, V layouts, dpool) <- enterD "Allocate the descriptor sets" $
-    withDevice (Vk.allocateDescriptorSets dpool (V @n (l2vec layouts))) -- @n since the partition takes @n@ integers (well, only if the integer list is disjoint...)
+    withDevice (allocateDescriptorSets dpool (V @n (l2vec layouts))) -- @n since the partition takes @n@ integers (well, only if the integer list is disjoint...)
 
   -- Reconstruct things
   case zip' keys (vec2l layouts) of
@@ -225,7 +241,7 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> en
   writeInfos <- IML.traverseWithKey (Unsafe.toLinear2 makeDescriptorWriteInfo) resources
   -- How can I do this well? It's really not immediatly clear
 
-  withDevice (Unsafe.toLinear Vk.updateDescriptorSets (l2vec $ IML.elems writeInfos) [])
+  withDevice (Unsafe.toLinear2 (\writes dev -> (,dev) <$> liftSystemIO (Vk.updateDescriptorSets dev writes [])) (l2vec $ IML.elems writeInfos))
   pure (DescriptorSet uix dset, resources)
 
 -- | Destroy a descriptor set
@@ -245,7 +261,7 @@ updateDescriptorSet = Unsafe.toLinear2 \(DescriptorSet uix dset) resources -> en
 freeDescriptorSets :: Alias DescriptorPool ⊸ V n DescriptorSet ⊸ Renderer ()
 freeDescriptorSets dpoolA dsets = enterD "Freeing descriptor sets!" Linear.do
   (DescriptorPool{..}, f) <- Alias.get dpoolA
-  dpool1 <- withDevice (Vk.freeDescriptorSets dpool (case VL.map (\(DescriptorSet ix dset) -> ix `lseq` dset) dsets of V v -> v))
+  dpool1 <- withDevice (Unsafe.toLinear3 (\pool sets dev -> (pool,dev) <$ liftSystemIO (Vk.freeDescriptorSets dev pool sets)) dpool (case VL.map (\(DescriptorSet ix dset) -> ix `lseq` dset) dsets of V v -> v))
   f (DescriptorPool{dpool=dpool1,..})
   return ()
 

@@ -40,7 +40,7 @@ import qualified Data.V.Linear as VL
 
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
-import qualified Vulkan.Linear as Vk
+import qualified Vulkan as Vk
 
 import qualified FIR hiding (ShaderPipeline, (:>->))
 import qualified FIR.Definition as FIR
@@ -108,13 +108,13 @@ createDescriptorPool dsetmap = enterD "createDescriptorPool" $ Linear.do
                                             , next = ()
                                             }
 
-  descriptorPool <- withDevice (Vk.createDescriptorPool poolInfo Nothing)
+  descriptorPool <- withDevice (Unsafe.toLinear \dev -> (,dev) <$> liftSystemIO (Vk.createDescriptorPool dev poolInfo Nothing))
   pure (DescriptorPool descriptorPool layouts)
 
 destroyDescriptorPool :: DescriptorPool ⊸ Renderer ()
 destroyDescriptorPool DescriptorPool{..} = enterD "destroyDescriptorPool" $ Linear.do
-  withDevice (Vk.destroyDescriptorPool Nothing dpool)
-  consume <$> Data.Linear.traverse (withDevice . Vk.destroyDescriptorSetLayout Nothing) set_bindings
+  withDevice (Unsafe.toLinear2 (\dp dev -> (,dev) <$> liftSystemIO (Vk.destroyDescriptorPool dev dp Nothing)) dpool)
+  consume <$> Data.Linear.traverse (withDevice . Unsafe.toLinear2 (\dsl dev -> (,dev) <$> liftSystemIO (Vk.destroyDescriptorSetLayout dev dsl Nothing))) set_bindings
 
 -- | Create a DescriptorSetLayout for a group of bindings (that represent a set) and their properties.
 --
@@ -136,4 +136,4 @@ createDescriptorSetLayout bindingsMap = enterD "createDescriptorSetLayout" $
                                                     , flags = Vk.zero
                                                     }
 
-   in withDevice (Vk.createDescriptorSetLayout Nothing layoutInfo)
+   in withDevice (Unsafe.toLinear \dev -> (,dev) <$> liftSystemIO (Vk.createDescriptorSetLayout dev layoutInfo Nothing))

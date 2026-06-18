@@ -75,14 +75,12 @@ library
 
     exposed-modules:  Data.IntMap.Linear,
                       Data.Map.Linear,
-                      Data.Unrestricted.Linear.Orphans,
-                      Vulkan.Linear
+                      Data.Unrestricted.Linear.Orphans
 
     hs-source-dirs:   linear-utils
 
     build-depends:    base,
                       linear-base >= 0.4,
-                      vulkan,
                       reference-counting >= 0.2,
                       containers >= 0.8,
                       vector,

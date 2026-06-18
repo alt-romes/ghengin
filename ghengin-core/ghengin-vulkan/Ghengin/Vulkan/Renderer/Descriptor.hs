@@ -45,7 +45,7 @@ import qualified Data.V.Linear as VL
 
 import qualified Vulkan.CStruct.Extends as Vk
 import qualified Vulkan.Zero as Vk
-import qualified Vulkan.Linear as Vk
+import qualified Vulkan as Vk
 
 import qualified FIR hiding (ShaderPipeline, (:>->))
 import qualified FIR.Definition as FIR
@@ -112,6 +112,23 @@ instance Dupable BindingsMap where
   dup2 = Unsafe.toLinear \bm -> (bm,bm)
 instance Movable BindingsMap where
   move = Unsafe.toLinear \bm -> Ur bm
+
+-- Orphan Unrestricted instances for Vulkan flags/enums (previously in Vulkan.Linear).
+-- Required e.g. by Ghengin.Core.Render.Property.makeResources, which looks up a
+-- linear BindingsMap (IntMap (DescriptorType, ShaderStageFlags)) and so needs
+-- Dupable on the element types.
+instance Consumable Vk.ShaderStageFlags where
+  consume = Unsafe.toLinear \_ -> ()
+instance Consumable Vk.DescriptorType where
+  consume = Unsafe.toLinear \_ -> ()
+instance Dupable Vk.ShaderStageFlags where
+  dup2 = Unsafe.toLinear \x -> (x,x)
+instance Dupable Vk.DescriptorType where
+  dup2 = Unsafe.toLinear \x -> (x,x)
+instance Movable Vk.ShaderStageFlags where
+  move = Unsafe.toLinear \x -> Ur x
+instance Movable Vk.DescriptorType where
+  move = Unsafe.toLinear \x -> Ur x
 
 -- | Mapping from each descriptor set ix to its bindings map
 type DescriptorSetMap = IntMap BindingsMap
