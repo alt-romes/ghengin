@@ -56,6 +56,9 @@ type VulkanContextM = StateT (VulkanContext WithSwapchain) IO
 instance HasVulkanContext VulkanContextM where
   withVulkanContext = StateT
 
+withVulkanContextM :: (HasVulkanContext m, MonadIO m) => VulkanContextM a %1 -> m a
+withVulkanContextM m = withVulkanContext $ \ctx -> liftIO (runStateT m ctx)
+
 -- todo: use linear optics.
 withDevice :: HasVulkanContext m => (Vulkan.Device %1 -> IO (a, Vulkan.Device)) %1 -> m a
 withDevice f = withVulkanContext $ \VulkanContext{..} -> f device >>= \case

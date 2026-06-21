@@ -47,32 +47,13 @@ data PropertyBinding α where
                 => Ur α
                 -> PropertyBinding α
 
-  Texture2DBinding :: Alias (Texture2D fmt) ⊸ PropertyBinding (Texture2D fmt)
-  -- ImageBinding :: Alias (Image img_props) ⊸ PropertyBinding (Image img_props)
-
--- type Texture1D fmt
---   = Image (Properties FloatingPointCoordinates (FormatDefault fmt) OneD   (Just NotDepthImage) NonArrayed SingleSampled Sampled (Just fmt))
---
--- type Texture2D fmt
---   = Image (Properties FloatingPointCoordinates (FormatDefault fmt) TwoD   (Just NotDepthImage) NonArrayed SingleSampled Sampled (Just fmt))
---
--- type Texture3D fmt
---   = Image (Properties FloatingPointCoordinates (FormatDefault fmt) ThreeD (Just NotDepthImage) NonArrayed SingleSampled Sampled (Just fmt))
---
--- type Image1D fmt
---   = Image (Properties IntegralCoordinates (FormatDefault fmt) OneD   (Just NotDepthImage) NonArrayed SingleSampled Storage (Just fmt))
---
--- type Image2D fmt
---   = Image (Properties IntegralCoordinates (FormatDefault fmt) TwoD   (Just NotDepthImage) NonArrayed SingleSampled Storage (Just fmt))
---
--- type Image3D fmt
---   = Image (Properties IntegralCoordinates (FormatDefault fmt) ThreeD (Just NotDepthImage) NonArrayed SingleSampled Storage (Just fmt))
+  ImageBinding  :: Alias (ImageResource coords fmt dim imty) ⊸ PropertyBinding (ImageResource coords fmt dim imty)
 
 instance Forgettable Renderer (PropertyBinding α) where
   forget = \case
     DynamicBinding _ -> pure ()
     StaticBinding  _ -> pure ()
-    Texture2DBinding refc -> Alias.forget refc
+    ImageBinding refc -> Alias.forget refc
 
 instance MonadIO m => Shareable m (PropertyBinding α) where
   share = \case
@@ -88,8 +69,8 @@ instance MonadIO m => Shareable m (PropertyBinding α) where
 --
 -- Can't have f2103d2ae525424a because of GHC bug #19517
 type family PBInv α = r | r -> α where
-  PBInv (Texture2D fmt) = Alias (Texture2D fmt)
-  PBInv x               = Ur x
+  PBInv (ImageResource c fmt dim t) = Alias (ImageResource c fmt dim t)
+  PBInv x                   = Ur x
 
 type PropertyBindings α = GHList PropertyBinding α
 

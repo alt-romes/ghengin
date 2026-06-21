@@ -62,7 +62,17 @@ data ImageView ( ctx :: ImageViewContext ) where
 
 data ImageViewInfo ( ctx :: ImageViewContext ) where
   NoViewInfo   :: ImageViewInfo NoView
-  WithViewInfo :: Vk.ImageViewType %1 -> Vk.ImageAspectFlags %1 -> ImageViewInfo WithView
+  WithViewInfo :: Vk.ImageViewType -> Vk.ImageAspectFlags -> ImageViewInfo WithView
+
+-- ** We can share views! ------------------------------------------------------
+
+instance Forgettable VulkanContextM (ImageView c) where
+  forget NoImageView = pure ()
+  forget (ImageView a) = Alias.forget a
+
+instance Shareable VulkanContextM (ImageView c) where
+  share (NoImageView) = pure (NoImageView, NoImageView)
+  share (ImageView a) = Linear.do { (a1,a2) <- Alias.share a; pure (ImageView a1, ImageView a2) }
 
 --------------------------------------------------------------------------------
 -- * Images

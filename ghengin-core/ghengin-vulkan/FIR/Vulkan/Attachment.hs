@@ -13,19 +13,9 @@ module FIR.Vulkan.Attachment where
 
 -- base
 import Prelude
-import Data.Word
-  ( Word32 )
-
--- vector
-import qualified Data.Vector as Boxed
-  ( Vector )
-import qualified Data.Vector as Boxed.Vector
-  ( empty )
 
 -- vulkan
 import qualified Vulkan
-import qualified Vulkan.Core10.Pass as Vulkan.AttachmentReference
-  ( AttachmentReference(..) )
 import qualified Vulkan.Zero as Vulkan
 
 ---------------------------------------------------------------

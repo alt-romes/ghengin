@@ -259,8 +259,8 @@ library vulkan
                       FIR.Vulkan.Pipeline,
                       FIR.Vulkan.Formats,
                       FIR.Vulkan.Memory,
-                      FIR.Vulkan.Attachment
-                      -- FIR.Vulkan.Resource
+                      FIR.Vulkan.Attachment,
+                      FIR.Vulkan.Resource
 
     hs-source-dirs:   ghengin-vulkan
 
@@ -284,5 +284,6 @@ library vulkan
                       bytestring,
                       mtl,
                       vector,
+                      vector-sized,
                       linear-utils,
                       ptrdiff

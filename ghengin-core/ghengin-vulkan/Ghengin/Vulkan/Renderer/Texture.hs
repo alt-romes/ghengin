@@ -5,6 +5,12 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE LinearTypes #-}
 {-# LANGUAGE QualifiedDo #-}
+
+-- | TODO: should this module still be called texture?
+-- Now it also has Storage images, not only textures
+-- Image Resources in general
+--
+-- Maybe: Vulkan.Renderer.Image.Descriptor, or Vulkan.Renderer.Image.Resource?
 module Ghengin.Vulkan.Renderer.Texture
   (
     module Ghengin.Vulkan.Renderer.Texture
@@ -27,7 +33,7 @@ import qualified Prelude
 import qualified Vulkan as Vk
 
 import qualified FIR
-import qualified FIR.Prim.Image
+import FIR.Prim.Image (ImageCoordinateKind(..))
 import SPIRV.Image
 
 import Codec.Picture
@@ -45,11 +51,53 @@ import qualified Data.Linear.Alias as Alias
 import Ghengin.Core.Type.Compatible.Pixel
 import qualified Ghengin.Core.Shader.Data as Shader
 
-type Texture2D :: ImageFormat Nat -> Type
-data Texture2D (fmt :: ImageFormat Nat)
-  = Texture2D { image   :: VulkanImage WithView
-              , sampler :: Alias Sampler
-              }
+import FIR.Vulkan.Resource as Resource
+
+--------------------------------------------------------------------------------
+-- * Image Resources
+--------------------------------------------------------------------------------
+
+type Texture1D fmt = ImageResource FloatingPointCoordinates fmt OneD   Resource.Sample
+type Texture2D fmt = ImageResource FloatingPointCoordinates fmt TwoD   Resource.Sample
+type Texture3D fmt = ImageResource FloatingPointCoordinates fmt ThreeD Resource.Sample
+type Image1D   fmt = ImageResource IntegralCoordinates      fmt OneD   Resource.Store
+type Image2D   fmt = ImageResource IntegralCoordinates      fmt TwoD   Resource.Store
+type Image3D   fmt = ImageResource IntegralCoordinates      fmt ThreeD Resource.Store
+
+data ImageResource (coords :: ImageCoordinateKind) (fmt :: ImageFormat Nat) (dim :: Dimensionality) (imty :: Resource.ImageType) where
+  Texture1D :: VulkanImage WithView %1 -> Alias (SampledImage 1 Post) %1 -> Texture1D fmt
+  Texture2D :: VulkanImage WithView %1 -> Alias (SampledImage 1 Post) %1 -> Texture2D fmt
+  Texture3D :: VulkanImage WithView %1 -> Alias (SampledImage 1 Post) %1 -> Texture3D fmt
+  Image1D   :: VulkanImage WithView %1 -> Alias (StorageImage 1 Post) %1 -> Image1D   fmt
+  Image2D   :: VulkanImage WithView %1 -> Alias (StorageImage 1 Post) %1 -> Image2D   fmt
+  Image3D   :: VulkanImage WithView %1 -> Alias (StorageImage 1 Post) %1 -> Image3D   fmt
+  -- fixme(lazily): Add *View variants (e.g. Texture2DView)which just take the
+  -- SampledImage and StorageImage which are just `Vk.ImageView`s
+
+-- ** Use them in shaders with matching Image descriptor types -------------
+
+instance Shader.ShaderData (ImageResource coord fmt dim imty) where
+  type FirType (ImageResource coord fmt dim imty) =
+        FIR.Image
+          (
+           FIR.Properties
+             coord
+             (FIR.FormatDefault fmt)
+             dim
+             (Just FIR.NotDepthImage)
+             FIR.NonArrayed
+             FIR.SingleSampled
+             (ImTy2ImageUsage imty)
+             (Just fmt)
+          )
+
+type family ImTy2ImageUsage (imty :: Resource.ImageType) :: FIR.ImageUsage where
+  ImTy2ImageUsage Resource.Sample = FIR.Sampled
+  ImTy2ImageUsage Resource.Store  = FIR.Storage
+
+--------------------------------------------------------------------------------
+-- * Creating textures
+--------------------------------------------------------------------------------
 
 -- | Load a texture from a file directly and convert it to a texture using 'textureFromDynamicImage'.
 texture :: FilePath -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
@@ -58,15 +106,8 @@ texture fp sampler = enterD "Creating a texture" Linear.do
     Ur (Left e      ) -> Alias.forget sampler >> liftSystemIO (Prelude.fail e)
     Ur (Right dimage) -> textureFromDynamicImage dimage sampler
 
-freeTexture :: Texture2D fmt ⊸ Renderer ()
-freeTexture (Texture2D img sampler) = Linear.do
-  withVulkanContext $ \ctx -> withResource ctx $ destroyImage img
-  Alias.forget sampler
-
 -- | Make a texture from a dynamic image by converting the image to RGBA8 first
-textureFromDynamicImage :: DynamicImage
-                        -> Alias Sampler
-                         ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
+textureFromDynamicImage :: DynamicImage -> Alias Sampler ⊸ Renderer (Alias (Texture2D (RGBA8 UNorm)))
 textureFromDynamicImage dimage = newTexture (convertRGBA8 dimage)
 
 -- | Make a new texture from an 'Image', provided the Image's pixel's are
@@ -75,7 +116,7 @@ newTexture :: (Pixel px, Typeable px, CompatiblePixel px fmt)
            => Codec.Picture.Image px
            -> Alias Sampler
             ⊸ Renderer (Alias (Texture2D fmt))
-newTexture img sampler' = Linear.do
+newTexture img sampler = Linear.do
    withStagingBuffer (img.imageData) $ \stagingBuffer _bufferSize -> enterD "textureFromImage" Linear.do
 
     (VulkanImage image devMem imgView) <- withVulkanContext $
@@ -116,27 +157,33 @@ newTexture img sampler' = Linear.do
       -- (3)
       transitionImageLayout image3 Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
-    Alias.newAlias freeTexture (Texture2D (VulkanImage image4 devMem imgView) sampler')
+    (sampler',free_sampler) <- Alias.get sampler
+    (imgView1,imgView2) <- withVulkanContextM (Alias.share imgView)
+    case imgView1 of
+      ImageView vkview_alias -> Linear.do
+        (vkview, free_vkview) <- Alias.get vkview_alias
+        imgRes <- Alias.newAlias (\(SampledImage smpl vkv) -> free_sampler smpl >> withVulkanContextM (free_vkview vkv))
+                                 (SampledImage sampler' vkview)
+        Alias.newAlias freeTexture (Texture2D (VulkanImage image4 devMem imgView2) imgRes)
 
 
--- Not needed :(
-dynamicSize :: DynamicImage -> Int
-dynamicSize = \case
-  ImageY8 img     -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent Pixel8     ) undefined
-  ImageY16 img    -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent Pixel16    ) undefined
-  ImageY32 img    -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent Pixel32    ) undefined
-  ImageYF img     -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelF     ) undefined
-  ImageYA8 img    -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelYA8   ) undefined
-  ImageYA16 img   -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelYA16  ) undefined
-  ImageRGB8 img   -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGB8  ) undefined
-  ImageRGB16 img  -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGB16 ) undefined
-  ImageRGBF img   -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGBF  ) undefined
-  ImageRGBA8 img  -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGBA8 ) undefined
-  ImageRGBA16 img -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGBA16) undefined
-  ImageYCbCr8 img -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelYCbCr8) undefined
-  ImageCMYK8 img  -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelCMYK8 ) undefined
-  ImageCMYK16 img -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelCMYK16) undefined
+-- ** Destroying textures
 
+-- | A synonym to 'freeImgResource'
+freeTexture :: ImageResource c fmt dim t ⊸ Renderer ()
+freeTexture = freeImgResource
+
+freeImgResource :: ImageResource c fmt dim t ⊸ Renderer ()
+freeImgResource (Texture1D img res) = Linear.do { withVulkanContextM (destroyImage img); Alias.forget res }
+freeImgResource (Texture2D img res) = Linear.do { withVulkanContextM (destroyImage img); Alias.forget res }
+freeImgResource (Texture3D img res) = Linear.do { withVulkanContextM (destroyImage img); Alias.forget res }
+freeImgResource (Image1D   img res) = Linear.do { withVulkanContextM (destroyImage img); Alias.forget res }
+freeImgResource (Image2D   img res) = Linear.do { withVulkanContextM (destroyImage img); Alias.forget res }
+freeImgResource (Image3D   img res) = Linear.do { withVulkanContextM (destroyImage img); Alias.forget res }
+
+--------------------------------------------------------------------------------
+-- * Utilities
+--------------------------------------------------------------------------------
 
 -- Vs. UNORM vs SRGB, which one do I want why?
 -- TODO: CompatiblePixel must be consistent with this.
@@ -167,11 +214,20 @@ juicyImageExtent img = Vk.Extent3D
   , depth = 1
   }
 
---------------------------------------------------------------------------------
--- * Shader Data
---------------------------------------------------------------------------------
-
-instance Shader.ShaderData (Texture2D fmt) where
-  type FirType (Texture2D fmt) =
-        FIR.Image (FIR.Properties FIR.Prim.Image.FloatingPointCoordinates Float FIR.TwoD (Just FIR.NotDepthImage) FIR.NonArrayed FIR.SingleSampled FIR.Sampled (Just fmt))
-
+-- Not needed yet
+_dynamicSize :: DynamicImage -> Int
+_dynamicSize = \case
+  ImageY8 img     -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent Pixel8     ) undefined
+  ImageY16 img    -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent Pixel16    ) undefined
+  ImageY32 img    -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent Pixel32    ) undefined
+  ImageYF img     -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelF     ) undefined
+  ImageYA8 img    -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelYA8   ) undefined
+  ImageYA16 img   -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelYA16  ) undefined
+  ImageRGB8 img   -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGB8  ) undefined
+  ImageRGB16 img  -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGB16 ) undefined
+  ImageRGBF img   -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGBF  ) undefined
+  ImageRGBA8 img  -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGBA8 ) undefined
+  ImageRGBA16 img -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelRGBA16) undefined
+  ImageYCbCr8 img -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelYCbCr8) undefined
+  ImageCMYK8 img  -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelCMYK8 ) undefined
+  ImageCMYK16 img -> img.imageWidth * img.imageHeight * sizeOf @(PixelBaseComponent PixelCMYK16) undefined
