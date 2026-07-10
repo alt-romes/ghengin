@@ -65,14 +65,15 @@ type Image2D   fmt = ImageResource IntegralCoordinates      fmt TwoD   Resource.
 type Image3D   fmt = ImageResource IntegralCoordinates      fmt ThreeD Resource.Store
 
 data ImageResource (coords :: ImageCoordinateKind) (fmt :: ImageFormat Nat) (dim :: Dimensionality) (imty :: Resource.ImageType) where
-  Texture1D :: VulkanImage WithView %1 -> Alias (SampledImage 1 Post) %1 -> Texture1D fmt
-  Texture2D :: VulkanImage WithView %1 -> Alias (SampledImage 1 Post) %1 -> Texture2D fmt
-  Texture3D :: VulkanImage WithView %1 -> Alias (SampledImage 1 Post) %1 -> Texture3D fmt
-  Image1D   :: VulkanImage WithView %1 -> Alias (StorageImage 1 Post) %1 -> Image1D   fmt
-  Image2D   :: VulkanImage WithView %1 -> Alias (StorageImage 1 Post) %1 -> Image2D   fmt
-  Image3D   :: VulkanImage WithView %1 -> Alias (StorageImage 1 Post) %1 -> Image3D   fmt
+  Texture1D :: VulkanImage NoView %1 -> Alias (SampledImage 1 Post) %1 -> Texture1D fmt
+  Texture2D :: VulkanImage NoView %1 -> Alias (SampledImage 1 Post) %1 -> Texture2D fmt
+  Texture3D :: VulkanImage NoView %1 -> Alias (SampledImage 1 Post) %1 -> Texture3D fmt
+  Image1D   :: VulkanImage NoView %1 -> Alias (StorageImage 1 Post) %1 -> Image1D   fmt
+  Image2D   :: VulkanImage NoView %1 -> Alias (StorageImage 1 Post) %1 -> Image2D   fmt
+  Image3D   :: VulkanImage NoView %1 -> Alias (StorageImage 1 Post) %1 -> Image3D   fmt
   -- fixme(lazily): Add *View variants (e.g. Texture2DView)which just take the
-  -- SampledImage and StorageImage which are just `Vk.ImageView`s
+  -- SampledImage and StorageImage which are just `Vk.ImageView`s, rather than
+  -- also taking the `Vk.Image` (of `VulkanImage`)
 
 -- ** Use them in shaders with matching Image descriptor types -------------
 
@@ -158,13 +159,12 @@ newTexture img sampler = Linear.do
       transitionImageLayout image3 Vk.IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL Vk.IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL
 
     (sampler',free_sampler) <- Alias.get sampler
-    (imgView1,imgView2) <- withVulkanContextM (Alias.share imgView)
-    case imgView1 of
+    case imgView of
       ImageView vkview_alias -> Linear.do
         (vkview, free_vkview) <- Alias.get vkview_alias
         imgRes <- Alias.newAlias (\(SampledImage smpl vkv) -> free_sampler smpl >> withVulkanContextM (free_vkview vkv))
                                  (SampledImage sampler' vkview)
-        Alias.newAlias freeTexture (Texture2D (VulkanImage image4 devMem imgView2) imgRes)
+        Alias.newAlias freeTexture (Texture2D (VulkanImage image4 devMem NoImageView) imgRes)
 
 
 -- ** Destroying textures

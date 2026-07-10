@@ -39,9 +39,10 @@ data RenderPipeline info tys where
   RenderPipeline :: RendererPipeline Graphics
                  -- ^ The graphics pipeline underlying this render pipeline.
                  ⊸  (Alias DescriptorSet, Alias ResourceMap, Ur DescriptorSetMap, Alias DescriptorPool)
-                 -- ^ A descriptor set per frame; currently we are screwing up
-                 -- drawing multiple frames. Descriptor Set for the render
-                 -- properties.
+                 -- ^ A 'DescriptorSet' per set of render-properties (one here
+                 -- for the pipeline properties). It's only ever accessed by
+                 -- the GPU, so there is no need to duplicate it per frames in
+                 -- flight (\cite{how to vulkan 2026, Sasha Willems});
                  ⊸  ShaderPipeline info
                  -> Unique
                  -> RenderPipeline info '[] 
@@ -82,12 +83,8 @@ makeRenderPipelineWith gps shaderPipeline props0 = Linear.do
   --
   -- 'createDescriptorSets' does (1) (2) and (3)
   --
-  -- TODO: We need to do 'createDescriptorSets' as many times as there are frames in flight.
-  --
   -- TODO: The dpool per frame in flight doesn't make any sense at the moment, for now we simply allocate from the first pool.
   -- TODO: it doesn't need to be per frame in flight, we just need two to switch between, despite the number of frames in flight
-  -- BIG:TODO: Fix multiple frames in flight
-  -- dsetsSet@((dsetf,dpool):|_) <- mapM (const (createPipelineDescriptorSets shaderPipeline)) [1..MAX_FRAMES_IN_FLIGHT]
 
   -- The pipeline should only allocate a descriptor set #0 to be used by render
   -- properties.

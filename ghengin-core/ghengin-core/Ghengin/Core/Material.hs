@@ -60,7 +60,9 @@ Resources:
 
 data Material xs where
 
-  Done :: (Alias DescriptorSet, Alias ResourceMap, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
+  -- TODO: Bundle DescriptorSet and ResourceMap in new type, applies to Pipeline/Material/Mesh
+  -- Look more to FIR.Vulkan.Resource, and consolidating everything with the last modules to modify
+  MaterialDone :: (Alias DescriptorSet, Alias ResourceMap, Ur Unique) ⊸ Material '[] -- The unique key is created from a unique supply in 'material' and the descriptor set passed then.
 
   MaterialProperty :: ∀ α β
                    .  PropertyBinding α -- ^ A dynamic binding is written to a mapped buffer based on the value of the constructor
@@ -74,7 +76,7 @@ instance HasProperties Material where
 
   properties :: Material α ⊸ Renderer (PropertyBindings α, Material α)
   properties = \case
-    Done n -> pure (GHNil, Done n)
+    MaterialDone n -> pure (GHNil, MaterialDone n)
     MaterialProperty p0 xs -> Linear.do
       (p1,p2) <- Alias.share p0
       (xs', mat') <- properties xs
@@ -82,9 +84,9 @@ instance HasProperties Material where
 
   descriptors :: Material α ⊸ Renderer (Alias DescriptorSet, Alias ResourceMap, Material α)
   descriptors = \case
-    Done (dset0, rmap0, _uq) -> Linear.do
+    MaterialDone (dset0, rmap0, _uq) -> Linear.do
       ((dset1, rmap1), (dset2, rmap2)) <- Alias.share (dset0, rmap0)
-      pure (dset1, rmap1, Done (dset2, rmap2, _uq))
+      pure (dset1, rmap1, MaterialDone (dset2, rmap2, _uq))
     MaterialProperty p xs -> Linear.do
       (dset, rmap, mat') <- descriptors xs
       pure (dset, rmap, MaterialProperty p mat')
@@ -125,7 +127,7 @@ material props0 (RenderPipeline gpip (rdset, rres, Ur bmap, dpool0) shaders uq) 
   -- Create the material which stores the final descriptor set with the
   -- updated information.
   pure
-    ( mkMat (Done (dset2, resources2, Ur uniq)) props1
+    ( mkMat (MaterialDone (dset2, resources2, Ur uniq)) props1
     , RenderPipeline gpip (rdset, rres, Ur bmap, dpool3) shaders uq
     )
   where
@@ -135,11 +137,11 @@ material props0 (RenderPipeline gpip (rdset, rres, Ur bmap, dpool0) shaders uq) 
 
 materialUID :: Material α ⊸ (Ur Unique, Material α)
 materialUID = \case
-    Done (r,m,Ur y) -> (Ur y, Done (r,m,Ur y))
+    MaterialDone (r,m,Ur y) -> (Ur y, MaterialDone (r,m,Ur y))
     MaterialProperty p xs -> case materialUID xs of (uq, mat) -> (uq, MaterialProperty p mat)
 
 freeMaterial :: Material α ⊸ Renderer ()
 freeMaterial = \case
-  Done (x, y, Ur _) -> Alias.forget x >> Alias.forget y
+  MaterialDone (x, y, Ur _) -> Alias.forget x >> Alias.forget y
   MaterialProperty prop xs -> Alias.forget prop >> freeMaterial xs
 

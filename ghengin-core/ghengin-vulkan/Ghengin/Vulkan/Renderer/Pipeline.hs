@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeData #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
@@ -79,13 +80,13 @@ bindGraphicsPipeline (VulkanPipeline pipeline layout) = Linear.do
 
 --------------------------------------------------------------------------------
 
-data RendererPipeline (t :: PipelineType)
-  = VulkanPipeline { _pipeline :: Vk.Pipeline
-                   , _pipelineLayout :: Vk.PipelineLayout
-                   }
+data RendererPipeline (t :: PipelineType) = 
+      VulkanPipeline
+        { pipeline :: Vk.Pipeline
+        , pipelineLayout :: Vk.PipelineLayout
+        }
 
--- TODO: Use type data
-data PipelineType = Graphics | Compute
+type data PipelineType = Graphics | Compute
 
 --------------------------------------------------------------------------------
 
