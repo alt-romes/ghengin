@@ -1,37 +1,32 @@
 cradle:
   cabal:
-    component: all
+    - path: "./ghengin-core/ghengin-core/"
+      component: "ghengin-core"
 
-    # - path: "./ghengin-core/ghengin-core/"
-    #   component: "ghengin-core"
-    #
-    # - path: "./ghengin-core/ghengin-vulkan/"
-    #   component: "ghengin-core:vulkan"
-    #
-    # - path: "./ghengin-core/ghengin-core-indep/"
-    #   component: "ghengin-core:backend-independent-bits"
-    #
-    # - path: "./ghengin/"
-    #   component: "ghengin"
-    #
-    # - path: "./ghengin/ghengin-camera/"
-    #   component: "ghengin:camera"
-    #
-    # - path: "./ghengin/ghengin-geometry/"
-    #   component: "ghengin:geometry"
-    #
-    # - path: "./ghengin/ghengin-dear-imgui/"
-    #   component: "ghengin:dear-imgui"
-    #
-    # - path: "./ghengin/ghengin-dear-imgui-vulkan/"
-    #   component: "ghengin:dear-imgui-vulkan"
-    #
-    # - path: "./examples/core/planets-core/"
-    #   component: "exe:planets-core"
-    #
-    # - path: "./examples/core/propertyat-mesh-bug/"
-    #   component: "exe:propertyat-mesh-bug-min"
-    #
-    # - path: "./examples/ghengin/gods-newest-hire/"
-    #   component: "exe:gods-newest-hire"
-    #
+    - path: "./ghengin-core/ghengin-vulkan/"
+      component: "ghengin-core:vulkan"
+
+    - path: "./ghengin-core/ghengin-core-indep/"
+      component: "ghengin-core:backend-independent-bits"
+
+    - path: "./ghengin/"
+      component: "ghengin"
+
+    - path: "./ghengin/ghengin-camera/"
+      component: "ghengin:camera"
+
+    - path: "./ghengin/ghengin-geometry/"
+      component: "ghengin:geometry"
+
+    - path: "./ghengin/ghengin-dear-imgui/"
+      component: "ghengin:dear-imgui"
+
+    - path: "./ghengin/ghengin-dear-imgui-vulkan/"
+      component: "ghengin:dear-imgui-vulkan"
+
+    - path: "./examples/core/planets-core/"
+      component: "exe:planets-core"
+
+    - path: "./examples/ghengin/gods-newest-hire/"
+      component: "exe:gods-newest-hire"
+
