@@ -88,10 +88,16 @@ data GLFWToken = GLFWToken
 -- | Returns a linear token to guarantee GLFW is terminated
 initGLFW :: Linear.MonadIO m => m GLFWToken
 initGLFW = liftSystemIO $ do
-  True <- GLFW.init
-  True <- GLFW.vulkanSupported
-  GLFW.windowHint (GLFW.WindowHint'ClientAPI GLFW.ClientAPI'NoAPI)
-  Prelude.pure GLFWToken
+  ginit <- GLFW.init
+  if ginit then do
+    vsupport <- GLFW.vulkanSupported
+    if vsupport then do
+      GLFW.windowHint (GLFW.WindowHint'ClientAPI GLFW.ClientAPI'NoAPI)
+      Prelude.pure GLFWToken
+    else do
+      error "GLFW says vulkan is not supported. Are you sure vulkan is properly configured (e.g. are you in the project's nix-shell?)"
+  else do
+    error "GLFW failed to initialize"
 
 -- | Consume a linear token to terminate GLFW
 terminateGLFW :: Linear.MonadIO m => GLFWToken ⊸ m ()

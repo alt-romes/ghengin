@@ -82,9 +82,6 @@ makeRenderPipelineWith gps shaderPipeline props0 = Linear.do
   -- (3) Update the descriptor sets with the buffers information
   --
   -- 'createDescriptorSets' does (1) (2) and (3)
-  --
-  -- TODO: The dpool per frame in flight doesn't make any sense at the moment, for now we simply allocate from the first pool.
-  -- TODO: it doesn't need to be per frame in flight, we just need two to switch between, despite the number of frames in flight
 
   -- The pipeline should only allocate a descriptor set #0 to be used by render
   -- properties.

@@ -243,7 +243,6 @@ newFrame action = Linear.do
             _ -> error "impossible, but I don't know how to prove it"
               RendererEnv{vkContext = VulkanContext{aSwapchainInfo = ASwapchainInfo swpInfo, ..}, .. }
   -- TODO: Reconstruct swapchain here if it changed.
-
   return a
 
 acquireNextImage
@@ -308,7 +307,6 @@ shouldCloseWindow = renderer $ Unsafe.toLinear $ \renv -> Linear.do
 pollWindowEvents :: Renderer ()
 pollWindowEvents = liftSystemIO $ GLFW.pollEvents
 
-
 getMousePos :: Renderer (Ur (Double, Double))
 getMousePos = renderer $ Unsafe.toLinear $ \renv -> Linear.do
   let !(ContextWindow window) = renv.vkContext.window
@@ -323,23 +321,4 @@ withWindow' f = renderer $ Unsafe.toLinear $ \renv -> Linear.do
   let !(ContextWindow window) = renv.vkContext.window
   (x, window) <- f window
   pure (x, renv{vkContext = renv.vkContext{window = ContextWindow window}})
-
---------------------------------------------------------------------------------
--- * Utils
---------------------------------------------------------------------------------
-
-(.&&.) :: Bits a => a -> a -> Bool
-x .&&. y = (Prelude./= zeroBits) (x .&. y)
-
--- | Returns the first element in a foldable structure for that the
--- monadic predicate holds true, and @Nothing@ if no such element
--- exists.
-findM :: ∀ m t a. (Prelude.Monad m, Prelude.Foldable t)
-      => (a -> m Bool) -> t a -> m (Maybe a)
-findM p = Prelude.foldr go (Prelude.pure Nothing)
-  where
-    go :: a -> m (Maybe a) -> m (Maybe a)
-    go x acc = do
-      b <- p x
-      if b then Prelude.pure (Just x) else acc
 
